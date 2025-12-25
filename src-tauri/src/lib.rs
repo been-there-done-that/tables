@@ -131,7 +131,7 @@ fn set_active_theme(
 
     // Broadcast change
     if let Ok(Some(theme)) = fetch_active_theme(&conn) {
-        let _ = app.emit("theme-changed", theme);
+        let _ = app.emit("current-theme", theme);
     }
     Ok(())
 }

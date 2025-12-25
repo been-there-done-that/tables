@@ -2,48 +2,21 @@
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
   import Container from "$lib/Container.svelte";
-  import { applyThemeStyles } from "$lib/theme/applyTheme";
+  import { applyTheme } from "$lib/theme/applyTheme";
+  import type { ThemeRecord } from "$lib/theme/types";
 
-  type Theme = {
-    id: string;
-    name: string;
-    author?: string;
-    description?: string;
-    theme_data: string;
-    is_builtin: boolean;
-    is_active: boolean;
-  };
-
-  let themes = $state<Theme[]>([]);
+  let themes = $state<ThemeRecord[]>([]);
   let activeId = $state<string>("");
   let loading = $state(true);
   let error = $state("");
-  function applyTheme(theme: Theme | undefined, useTransition = true) {
-    if (!theme) return;
-    const run = () => applyThemeStyles(theme.theme_data);
 
-    if (useTransition && typeof document !== "undefined" && "startViewTransition" in document) {
-      try {
-        // Call as method to preserve Document context; swallow aborts
-        (document as any)
-          .startViewTransition(() => run())
-          ?.finished?.catch(() => {});
-        return;
-      } catch (err) {
-        console.log({ err, document: typeof document !== "undefined" ? document : "undefined" });
-        console.warn("View transition failed, falling back:", err);
-      }
-    }
-
-    run();
-  }
 
   async function loadThemes() {
     try {
       loading = true;
       error = "";
-      themes = await invoke<Theme[]>("get_all_themes");
-      const active = await invoke<Theme | null>("get_active_theme");
+      themes = await invoke<ThemeRecord[]>("get_all_themes");
+      const active = await invoke<ThemeRecord | null>("get_active_theme");
       activeId = active?.id ?? "";
       applyTheme(active ?? themes.find((t) => t.is_active), false);
     } catch (e) {
@@ -63,7 +36,7 @@
   }
 
   loadThemes();
-  listen<Theme>("theme-changed", (event) => {
+  listen<ThemeRecord>("theme-changed", (event) => {
     const theme = event.payload;
     activeId = theme.id;
     applyTheme(theme);

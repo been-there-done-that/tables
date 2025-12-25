@@ -1,29 +1,7 @@
-export type ThemeData = {
-  ui: {
-    background: {
-      primary: string;
-      secondary: string;
-      tertiary: string;
-      hover: string;
-      active: string;
-    };
-    foreground: {
-      primary: string;
-      secondary: string;
-      tertiary: string;
-    };
-    accent: {
-      primary: string;
-      hover: string;
-      active: string;
-    };
-    border: {
-      default: string;
-      subtle: string;
-      focus: string;
-    };
-  };
-};
+import type { ThemeData } from "./types";
+  import { invoke } from "@tauri-apps/api/core";
+  import type { ThemeRecord } from "$lib/theme/types";
+
 
 export function applyThemeStyles(themeJson: string): void {
   const data = JSON.parse(themeJson) as ThemeData;
@@ -56,3 +34,24 @@ export function applyThemeStyles(themeJson: string): void {
   root.style.setProperty("--theme-border-subtle", border.subtle);
   root.style.setProperty("--theme-border-focus", border.focus);
 }
+
+
+export function applyTheme(theme: ThemeRecord | undefined, useTransition = true) {
+    if (!theme) return;
+    const run = () => applyThemeStyles(theme.theme_data);
+
+    if (useTransition && typeof document !== "undefined" && "startViewTransition" in document) {
+      try {
+        // Call as method to preserve Document context; swallow aborts
+        (document as any)
+          .startViewTransition(() => run())
+          ?.finished?.catch(() => {});
+        return;
+      } catch (err) {
+        console.log({ err, document: typeof document !== "undefined" ? document : "undefined" });
+        console.warn("View transition failed, falling back:", err);
+      }
+    }
+
+    run();
+  }
