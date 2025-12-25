@@ -78,12 +78,11 @@
     if (matchesShortcut(e, closeShortcutNorm)) {
       e.preventDefault();
       handleClose();
-      return;
     }
-    if (matchesShortcut(e, openShortcutNorm)) {
-      e.preventDefault();
-      open = !open;
-    }
+  }
+
+  function swallowKeyDown(e: KeyboardEvent) {
+    e.stopPropagation();
   }
 
   function handleClose() {
@@ -161,6 +160,7 @@
     style={`left: ${position.x}px; top: ${position.y}px; ${customStyle}`}
     onmousedown={handleMouseDown}
     onclick={(e) => e.stopPropagation()}
+    onkeydown={swallowKeyDown}
   >
     <div
       data-drag-handle

@@ -25,8 +25,8 @@
     as: asTag = "button",
     type = "button" as ButtonType,
     variant = "solid" as Variant,
-    radius = "md" as Radius,
-    height = "10" as Height,
+    radius = "sm" as Radius,
+    height = "8" as Height,
     class: className = "",
     disabled = false,
     href = "",
@@ -50,13 +50,13 @@
 
   const variantClass: Record<Variant, string> = {
     solid:
-      "bg-(--theme-accent-primary) text-(--theme-fg-primary) hover:bg-[color-mix(in_srgb,var(--theme-accent-primary)_85%,black_15%)]",
+      "bg-(--theme-accent-primary) text-white hover:bg-[color-mix(in_srgb,var(--theme-accent-primary)_78%,black_22%)] focus-visible:ring-offset-2 focus-visible:ring-offset-(--theme-bg-primary)",
     ghost:
-      "bg-transparent text-(--theme-fg-primary) hover:bg-[color-mix(in_srgb,var(--theme-bg-tertiary)_70%,transparent)]",
+      "bg-transparent text-(--theme-fg-primary) hover:bg-[color-mix(in_srgb,var(--theme-accent-primary)_15%,var(--theme-bg-secondary)_85%)]",
     outline:
-      "border border-(--theme-border-default) text-(--theme-fg-primary) hover:border-(--theme-accent-primary)",
+      "border border-(--theme-border-default) text-(--theme-fg-primary) hover:border-(--theme-accent-primary) hover:bg-[color-mix(in_srgb,var(--theme-accent-primary)_12%,var(--theme-bg-secondary)_88%)]",
     subtle:
-      "bg-[color-mix(in_srgb,var(--theme-bg-tertiary)_80%,transparent)] text-(--theme-fg-primary) hover:bg-[color-mix(in_srgb,var(--theme-bg-tertiary)_90%,transparent)]",
+      "bg-[color-mix(in_srgb,var(--theme-bg-tertiary)_78%,transparent)] text-(--theme-fg-primary) hover:bg-[color-mix(in_srgb,var(--theme-bg-tertiary)_88%,transparent)]",
   };
 
 </script>

@@ -128,6 +128,9 @@
   bind:open={windowOpen}
   modal={true}
   class="max-w-xl"
+  openShortcut={undefined}
+  closeShortcut={undefined}
+  headerActions={undefined}
   onClose={() => (windowOpen = false)}
   onMaximize={() => {}}
 >

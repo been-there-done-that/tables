@@ -24,7 +24,7 @@
     options = [],
     placeholder = "Select",
     disabled = false,
-    height = "md",
+    height = "sm",
     radius = "md",
     minWidth = 140,
     widthBuffer = 0,
@@ -38,6 +38,9 @@
       typeof opt === "string" ? { value: opt, label: opt } : opt
     )
   );
+
+  const minWidthValue = $derived(minWidth);
+  const widthBufferValue = $derived(widthBuffer);
 
   let open = $state(false);
   let selectedIndex = $state(0);
@@ -85,13 +88,6 @@
     queueMicrotask(() => focusButton(selectedIndex));
   });
 
-  // keep width in sync with props/trigger size even if props change
-  $effect(() => {
-    const triggerWidth = triggerEl?.getBoundingClientRect().width ?? minWidth;
-    const width = Math.max(triggerWidth + widthBuffer, minWidth);
-    position = { ...position, width };
-  });
-
   function updatePosition() {
     if (!triggerEl || !triggerEl.isConnected) {
       onCancel();
@@ -99,7 +95,7 @@
       return;
     }
     const rect = triggerEl.getBoundingClientRect();
-    const width = Math.max(rect.width + widthBuffer, minWidth);
+    const width = Math.max(rect.width + widthBufferValue, minWidthValue);
     const overlayHeight = overlayEl?.offsetHeight ?? rect.height;
     const margin = GUTTER;
 
@@ -269,8 +265,8 @@
           class={cn(
             "pl-2 pr-2 py-1.5 text-sm rounded text-left transition-colors flex items-center gap-1",
             selectedIndex === i
-              ? "bg-(--theme-accent-primary) text-(--theme-fg-primary)"
-              : "hover:bg-(--theme-bg-hover) hover:text-(--theme-fg-primary)"
+              ? "bg-[color-mix(in_srgb,var(--theme-accent-primary)_82%,var(--theme-bg-primary)_18%)] text-(--theme-bg-primary) font-semibold"
+              : "hover:bg-[color-mix(in_srgb,var(--theme-accent-primary)_18%,var(--theme-bg-secondary)_82%)] hover:text-(--theme-fg-primary)"
           )}
           onclick={() => handleSelect(option.value)}
           onmouseenter={() => (selectedIndex = i)}
