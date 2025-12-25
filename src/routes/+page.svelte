@@ -29,7 +29,7 @@
 </script>
 
 <main class="p-4">
-  <Container className="space-y-6">
+  <Container class="space-y-6 max-w-4xl mx-auto">
     <div class="flex items-center justify-between gap-4 flex-wrap">
       <div class="space-y-1">
         <div class="inline-flex items-center gap-2 rounded-lg border px-3 py-1 text-sm" style="border-color: var(--theme-border-default); background: color-mix(in srgb, var(--theme-bg-tertiary) 75%, transparent); color: var(--theme-fg-secondary);">

@@ -35,7 +35,7 @@
       const active = await invoke<ThemeRecord | null>("get_active_theme");
       const activeId = active?.id ?? "";
       applyTheme(active ?? themes.find((t) => t.is_active), false);
-      await delay(300000); // simulate initial load delay
+      await delay(300); // simulate initial load delay
       setState(() => ({
         themes,
         activeId,
