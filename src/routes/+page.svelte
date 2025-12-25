@@ -17,9 +17,9 @@
   let activeId = $state<string>("");
   let loading = $state(true);
   let error = $state("");
+  let viewTransitionsEnabled = true;
 
-  function applyTheme(theme: Theme | undefined) {
-    if (!theme) return;
+  function setThemeStyles(theme: Theme) {
     try {
       const data = JSON.parse(theme.theme_data);
       console.log("Theme data:", {data});
@@ -52,6 +52,49 @@
     }
   }
 
+  function applyTheme(theme: Theme | undefined, useTransition = true) {
+    if (!theme) return;
+    const run = () => setThemeStyles(theme);
+    const fallbackAnimate = () => {
+      if (typeof document === "undefined") return;
+      const el = document.documentElement;
+      try {
+        el.animate(
+          [
+            { opacity: 0.8, filter: "blur(2px)" },
+            { opacity: 1, filter: "blur(0px)" }
+          ],
+          { duration: 220, easing: "ease-out" }
+        );
+      } catch {
+        /* ignore */
+      }
+    };
+
+    if (
+      useTransition &&
+      viewTransitionsEnabled &&
+      typeof document !== "undefined" &&
+      typeof (document as any).startViewTransition === "function"
+    ) {
+      try {
+        // Invoke directly as a method to preserve the Document context
+        const vt = (document as any).startViewTransition(() => {
+          run();
+        });
+        // Swallow abort/rejection if a new transition interrupts
+        vt?.finished?.catch(() => {});
+        return;
+      } catch (err) {
+        console.warn("View transition failed, disabling transitions:", err);
+        viewTransitionsEnabled = false;
+      }
+    }
+
+    run();
+    if (useTransition) fallbackAnimate();
+  }
+
   async function loadThemes() {
     try {
       loading = true;
@@ -59,7 +102,7 @@
       themes = await invoke<Theme[]>("get_all_themes");
       const active = await invoke<Theme | null>("get_active_theme");
       activeId = active?.id ?? "";
-      applyTheme(active ?? themes.find((t) => t.is_active));
+      applyTheme(active ?? themes.find((t) => t.is_active), false);
     } catch (e) {
       error = String(e);
     } finally {
