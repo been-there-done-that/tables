@@ -1,5 +1,5 @@
 <script lang="ts">
-  export let speed = "1.2s";
+  const { speed = "1.2s" } = $props();
 </script>
 
 <div style={`--loader-speed: ${speed};`}>
