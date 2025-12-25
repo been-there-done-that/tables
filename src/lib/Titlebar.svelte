@@ -17,15 +17,16 @@
     class="fixed top-0 left-0 right-0 z-50 h-8 border-b"
     style="background: var(--theme-bg-secondary); border-color: var(--theme-border-default); color: var(--theme-fg-primary);"
   >
-    <div data-tauri-drag-region class="absolute inset-0 h-full w-full"></div>
-
     <div
       class="relative z-10 flex h-full items-center justify-center gap-2 px-2 pointer-events-none"
       style="background: var(--theme-bg-secondary);"
     >
-      <div class="flex items-center gap-2 pointer-events-auto"></div>
+    <div data-tauri-drag-region class="flex items-center gap-2 pointer-events-auto w-full ml-20">
+      <button class="h-6 w-6 rounded-md active:bg-accent" onclick={() => false}>
+          <Logs class="size-4" />
+        </button>
 
-      <div class="absolute right-2 flex items-center gap-1 pointer-events-auto">
+        <div class="absolute right-2 flex items-center gap-1 pointer-events-auto">
         <button class="h-6 w-6 rounded-md active:bg-accent" onclick={() => false}>
           <Logs class="size-4" />
         </button>
@@ -58,6 +59,7 @@
           {/if}
         </button>
       </div>
+    </div>
     </div>
   </div>
 {/if}
