@@ -21,10 +21,8 @@
     <div class="absolute -left-16 -top-20 h-48 w-48 animate-pulse-slow rounded-full bg-[conic-gradient(from_90deg_at_50%_50%,#3b82f6,transparent_60%)] opacity-60 blur-3xl"></div>
     <div class="absolute -right-20 -bottom-32 h-52 w-52 animate-pulse-slow rounded-full bg-[conic-gradient(from_210deg_at_50%_50%,#60a5fa,transparent_55%)] opacity-55 blur-3xl"></div>
 
-    <div class="relative flex flex-col items-center gap-4 px-6 py-5">
-      <Loader />
-      <div class="text-sm font-semibold" style="color: #e2e8f0;">Launching workspace</div>
-      <div class="text-xs" style="color: #cbd5e1;">Loading themes & editor context…</div>
+    <div class="relative flex items-center justify-center">
+      <Loader speed="1.2s" />
     </div>
   </div>
 {/if}

@@ -1,4 +1,8 @@
-<div>
+<script lang="ts">
+  export let speed = "1.2s";
+</script>
+
+<div style={`--loader-speed: ${speed};`}>
   <div class="loader-container">
   <svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
     <style>
@@ -6,12 +10,12 @@
         fill: #3b82f6;
         opacity: 0.8;
         transform-origin: center;
-        animation: morph 2s infinite ease-in-out alternate;
+        animation: morph var(--loader-speed, 1.2s) infinite ease-in-out alternate;
       }
 
       .container-group {
         transform-origin: center;
-        animation: spin 8s infinite linear;
+        animation: spin calc(var(--loader-speed, 1.2s) * 6) infinite linear;
       }
 
       /* Delays to create a wave pattern */
