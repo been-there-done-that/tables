@@ -1,6 +1,4 @@
-import type { ThemeData } from "./types";
-  import { invoke } from "@tauri-apps/api/core";
-  import type { ThemeRecord } from "$lib/theme/types";
+import type { ThemeData, ThemeRecord } from "./types";
 
 
 export function applyThemeStyles(themeJson: string): void {
@@ -48,7 +46,6 @@ export function applyTheme(theme: ThemeRecord | undefined, useTransition = true)
           ?.finished?.catch(() => {});
         return;
       } catch (err) {
-        console.log({ err, document: typeof document !== "undefined" ? document : "undefined" });
         console.warn("View transition failed, falling back:", err);
       }
     }

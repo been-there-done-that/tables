@@ -1,8 +1,6 @@
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/core";
-  import { listen } from "@tauri-apps/api/event";
   import Container from "$lib/Container.svelte";
-  import { applyTheme } from "$lib/theme/applyTheme";
+  import { getThemeContext } from "$lib/theme/context";
   import type { ThemeRecord } from "$lib/theme/types";
 
   let themes = $state<ThemeRecord[]>([]);
@@ -10,41 +8,24 @@
   let loading = $state(true);
   let error = $state("");
 
+  const { subscribe, setActive } = getThemeContext();
 
-  async function loadThemes() {
-    try {
-      loading = true;
-      error = "";
-      themes = await invoke<ThemeRecord[]>("get_all_themes");
-      const active = await invoke<ThemeRecord | null>("get_active_theme");
-      activeId = active?.id ?? "";
-      applyTheme(active ?? themes.find((t) => t.is_active), false);
-    } catch (e) {
-      error = String(e);
-    } finally {
-      loading = false;
-    }
-  }
-
-  async function handleSetActive(id: string) {
-    if (id === activeId) return;
-    try {
-      await invoke("set_active_theme", { themeId: id });
-    } catch (e) {
-      error = String(e);
-    }
-  }
-
-  loadThemes();
-  listen<ThemeRecord>("theme-changed", (event) => {
-    const theme = event.payload;
-    activeId = theme.id;
-    applyTheme(theme);
-    const idx = themes.findIndex((t) => t.id === theme.id);
-    if (idx >= 0) {
-      themes[idx] = theme;
-    }
+  $effect(() => {
+    const unsubscribe = subscribe((s: {
+      themes: ThemeRecord[];
+      activeId: string;
+      loading: boolean;
+      error: string;
+    }) => {
+      themes = s.themes;
+      activeId = s.activeId;
+      loading = s.loading;
+      error = s.error;
+    });
+    return () => unsubscribe();
   });
+
+  const handleSetActive = (id: string) => setActive(id);
 </script>
 
 <main class="p-4">
