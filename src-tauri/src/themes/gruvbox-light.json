@@ -1,0 +1,23 @@
+{
+  "id": "gruvbox-light",
+  "name": "Gruvbox Light",
+  "author": "Tables IDE",
+  "description": "Warm retro Gruvbox light",
+  "ui": {
+    "background": { "primary": "#fbf1c7", "secondary": "#f2e5bc", "tertiary": "#ebdbb2", "hover": "#f0e2b7", "active": "#e7d7a8" },
+    "foreground": { "primary": "#3c3836", "secondary": "#504945", "tertiary": "#665c54" },
+    "accent": { "primary": "#d65d0e", "hover": "#af3a03", "active": "#fe8019" },
+    "border": { "default": "#d5c4a1", "subtle": "#ede3bf", "focus": "#d65d0e" }
+  },
+  "syntax": {
+    "keyword": "#9d0006",
+    "string": "#79740e",
+    "number": "#b57614",
+    "comment": "#928374",
+    "function": "#076678",
+    "variable": "#8f3f71",
+    "operator": "#9d0006",
+    "type": "#427b58"
+  },
+  "editor": { "background": "#fbf1c7", "foreground": "#3c3836", "selection": "#ebdbb2", "cursor": "#3c3836", "bracket": "#d65d0e" }
+}

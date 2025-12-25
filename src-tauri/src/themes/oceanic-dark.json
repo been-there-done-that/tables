@@ -1,0 +1,23 @@
+{
+  "id": "oceanic-dark",
+  "name": "Oceanic Dark",
+  "author": "Tables IDE",
+  "description": "Deep teal ocean with bright cyan accents",
+  "ui": {
+    "background": { "primary": "#0b1c26", "secondary": "#102532", "tertiary": "#173240", "hover": "#132a35", "active": "#1d3c4d" },
+    "foreground": { "primary": "#c8e0ea", "secondary": "#b1ccd8", "tertiary": "#8fb1c1" },
+    "accent": { "primary": "#42b8e6", "hover": "#33a2cc", "active": "#5ce0f0" },
+    "border": { "default": "#1f3f50", "subtle": "#132a35", "focus": "#42b8e6" }
+  },
+  "syntax": {
+    "keyword": "#5ce0f0",
+    "string": "#99c794",
+    "number": "#f99157",
+    "comment": "#5c6f7b",
+    "function": "#6699cc",
+    "variable": "#c8e0ea",
+    "operator": "#5ce0f0",
+    "type": "#c594c5"
+  },
+  "editor": { "background": "#0b1c26", "foreground": "#c8e0ea", "selection": "#173240", "cursor": "#c8e0ea", "bracket": "#42b8e6" }
+}

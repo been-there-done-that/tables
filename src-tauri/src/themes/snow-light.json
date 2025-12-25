@@ -1,0 +1,23 @@
+{
+  "id": "snow-light",
+  "name": "Snow Light",
+  "author": "Tables IDE",
+  "description": "Crisp snowy whites with cool slate contrast",
+  "ui": {
+    "background": { "primary": "#ffffff", "secondary": "#f3f6fa", "tertiary": "#e8edf4", "hover": "#edf1f7", "active": "#dbe4f0" },
+    "foreground": { "primary": "#1f2933", "secondary": "#2f3a46", "tertiary": "#4a5563" },
+    "accent": { "primary": "#3b82f6", "hover": "#2563eb", "active": "#0ea5e9" },
+    "border": { "default": "#d8e2ec", "subtle": "#eef2f7", "focus": "#3b82f6" }
+  },
+  "syntax": {
+    "keyword": "#2563eb",
+    "string": "#15803d",
+    "number": "#d97706",
+    "comment": "#94a3b8",
+    "function": "#0ea5e9",
+    "variable": "#1f2933",
+    "operator": "#2563eb",
+    "type": "#0ea5e9"
+  },
+  "editor": { "background": "#ffffff", "foreground": "#1f2933", "selection": "#e8edf4", "cursor": "#1f2933", "bracket": "#3b82f6" }
+}

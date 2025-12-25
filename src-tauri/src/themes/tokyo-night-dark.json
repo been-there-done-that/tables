@@ -1,0 +1,23 @@
+{
+  "id": "tokyo-night-dark",
+  "name": "Tokyo Night Dark",
+  "author": "Tables IDE",
+  "description": "Neon blues and pinks inspired by Tokyo Night",
+  "ui": {
+    "background": { "primary": "#1a1b26", "secondary": "#1f2335", "tertiary": "#24283b", "hover": "#1f2330", "active": "#292e42" },
+    "foreground": { "primary": "#c0caf5", "secondary": "#a9b1d6", "tertiary": "#7aa2f7" },
+    "accent": { "primary": "#7aa2f7", "hover": "#bb9af7", "active": "#f7768e" },
+    "border": { "default": "#2f3655", "subtle": "#1f2335", "focus": "#7aa2f7" }
+  },
+  "syntax": {
+    "keyword": "#bb9af7",
+    "string": "#9ece6a",
+    "number": "#ff9e64",
+    "comment": "#565f89",
+    "function": "#7dcfff",
+    "variable": "#c0caf5",
+    "operator": "#bb9af7",
+    "type": "#7dcfff"
+  },
+  "editor": { "background": "#1a1b26", "foreground": "#c0caf5", "selection": "#2d3148", "cursor": "#c0caf5", "bracket": "#7aa2f7" }
+}

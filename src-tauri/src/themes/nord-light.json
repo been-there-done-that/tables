@@ -1,0 +1,23 @@
+{
+  "id": "nord-light",
+  "name": "Nord Light",
+  "author": "Tables IDE",
+  "description": "Nord palette in a bright, calm variant",
+  "ui": {
+    "background": { "primary": "#f4f7fb", "secondary": "#e9eff6", "tertiary": "#dfe7f1", "hover": "#e4ebf4", "active": "#d6deeb" },
+    "foreground": { "primary": "#1f2a36", "secondary": "#2f3b47", "tertiary": "#4a5663" },
+    "accent": { "primary": "#5e81ac", "hover": "#4c739f", "active": "#3d648f" },
+    "border": { "default": "#ced8e5", "subtle": "#e3eaf2", "focus": "#5e81ac" }
+  },
+  "syntax": {
+    "keyword": "#5e81ac",
+    "string": "#a3be8c",
+    "number": "#b48ead",
+    "comment": "#8b9bb0",
+    "function": "#81a1c1",
+    "variable": "#d08770",
+    "operator": "#5e81ac",
+    "type": "#8fbcbb"
+  },
+  "editor": { "background": "#f4f7fb", "foreground": "#1f2a36", "selection": "#dfe7f1", "cursor": "#1f2a36", "bracket": "#5e81ac" }
+}

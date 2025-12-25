@@ -1,0 +1,23 @@
+{
+  "id": "iceberg-light",
+  "name": "Iceberg Light",
+  "author": "Tables IDE",
+  "description": "Cool, airy blues with crisp contrast",
+  "ui": {
+    "background": { "primary": "#f5f9fd", "secondary": "#e8f0f8", "tertiary": "#dce7f2", "hover": "#e2ecf5", "active": "#cedaea" },
+    "foreground": { "primary": "#1f2f3d", "secondary": "#2c3d4c", "tertiary": "#4a6274" },
+    "accent": { "primary": "#3f8edc", "hover": "#357dc3", "active": "#6ab4f5" },
+    "border": { "default": "#cad7e4", "subtle": "#e8f0f8", "focus": "#3f8edc" }
+  },
+  "syntax": {
+    "keyword": "#3f8edc",
+    "string": "#2f8f78",
+    "number": "#c47d3c",
+    "comment": "#8093a8",
+    "function": "#2f6fb2",
+    "variable": "#1f2f3d",
+    "operator": "#3f8edc",
+    "type": "#2f6fb2"
+  },
+  "editor": { "background": "#f5f9fd", "foreground": "#1f2f3d", "selection": "#dce7f2", "cursor": "#1f2f3d", "bracket": "#3f8edc" }
+}

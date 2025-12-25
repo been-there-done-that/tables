@@ -1,0 +1,23 @@
+{
+  "id": "meadow-light",
+  "name": "Meadow Light",
+  "author": "Tables IDE",
+  "description": "Fresh meadow greens with airy lightness",
+  "ui": {
+    "background": { "primary": "#f6fbf5", "secondary": "#ecf5ea", "tertiary": "#e1eddf", "hover": "#e7f0e5", "active": "#d5e3d0" },
+    "foreground": { "primary": "#1f2f21", "secondary": "#2d3d2f", "tertiary": "#4a5c4d" },
+    "accent": { "primary": "#4caf50", "hover": "#3e9b44", "active": "#81c784" },
+    "border": { "default": "#cddbcc", "subtle": "#ecf5ea", "focus": "#4caf50" }
+  },
+  "syntax": {
+    "keyword": "#2e7d32",
+    "string": "#558b2f",
+    "number": "#c0ca33",
+    "comment": "#8a9c8e",
+    "function": "#2f855a",
+    "variable": "#1f2f21",
+    "operator": "#2e7d32",
+    "type": "#2f855a"
+  },
+  "editor": { "background": "#f6fbf5", "foreground": "#1f2f21", "selection": "#e1eddf", "cursor": "#1f2f21", "bracket": "#4caf50" }
+}

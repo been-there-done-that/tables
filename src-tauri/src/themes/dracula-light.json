@@ -1,0 +1,23 @@
+{
+  "id": "dracula-light",
+  "name": "Dracula Light",
+  "author": "Tables IDE",
+  "description": "A bright spin on Dracula with lavender accents",
+  "ui": {
+    "background": { "primary": "#f7f5ff", "secondary": "#efeafe", "tertiary": "#e3dcfb", "hover": "#e7e0fd", "active": "#d9cff9" },
+    "foreground": { "primary": "#1d1a33", "secondary": "#3b3750", "tertiary": "#5a5770" },
+    "accent": { "primary": "#a470f7", "hover": "#8d5ce4", "active": "#7446d1" },
+    "border": { "default": "#d8cef3", "subtle": "#ebe4fa", "focus": "#a470f7" }
+  },
+  "syntax": {
+    "keyword": "#b030b0",
+    "string": "#c95d1d",
+    "number": "#7c4dff",
+    "comment": "#8a82a7",
+    "function": "#2e8b57",
+    "variable": "#7c4dff",
+    "operator": "#b030b0",
+    "type": "#2e8b57"
+  },
+  "editor": { "background": "#f7f5ff", "foreground": "#1d1a33", "selection": "#e3dcfb", "cursor": "#1d1a33", "bracket": "#a470f7" }
+}

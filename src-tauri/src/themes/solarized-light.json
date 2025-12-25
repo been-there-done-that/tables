@@ -1,0 +1,23 @@
+{
+  "id": "solarized-light",
+  "name": "Solarized Light",
+  "author": "Tables IDE",
+  "description": "Classic Solarized light variant",
+  "ui": {
+    "background": { "primary": "#fdf6e3", "secondary": "#f5ebd2", "tertiary": "#e9dec1", "hover": "#efe3c9", "active": "#e2d4b4" },
+    "foreground": { "primary": "#586e75", "secondary": "#657b83", "tertiary": "#93a1a1" },
+    "accent": { "primary": "#268bd2", "hover": "#2aa198", "active": "#b58900" },
+    "border": { "default": "#d8c9a5", "subtle": "#eee3cc", "focus": "#268bd2" }
+  },
+  "syntax": {
+    "keyword": "#859900",
+    "string": "#2aa198",
+    "number": "#d33682",
+    "comment": "#93a1a1",
+    "function": "#268bd2",
+    "variable": "#b58900",
+    "operator": "#859900",
+    "type": "#268bd2"
+  },
+  "editor": { "background": "#fdf6e3", "foreground": "#586e75", "selection": "#e9dec1", "cursor": "#586e75", "bracket": "#268bd2" }
+}

@@ -1,0 +1,23 @@
+{
+  "id": "forest-dark",
+  "name": "Forest Dark",
+  "author": "Tables IDE",
+  "description": "Deep woodland greens with amber accents",
+  "ui": {
+    "background": { "primary": "#0f1713", "secondary": "#16201a", "tertiary": "#1c2a22", "hover": "#1a261f", "active": "#203026" },
+    "foreground": { "primary": "#d7e6dc", "secondary": "#c1d3c6", "tertiary": "#9fb3a6" },
+    "accent": { "primary": "#8fbf4c", "hover": "#78a63d", "active": "#f0b253" },
+    "border": { "default": "#23362c", "subtle": "#1a261f", "focus": "#8fbf4c" }
+  },
+  "syntax": {
+    "keyword": "#8fbf4c",
+    "string": "#c7d36f",
+    "number": "#f0b253",
+    "comment": "#5f7267",
+    "function": "#7ac79b",
+    "variable": "#d7e6dc",
+    "operator": "#8fbf4c",
+    "type": "#7ac79b"
+  },
+  "editor": { "background": "#0f1713", "foreground": "#d7e6dc", "selection": "#1c2a22", "cursor": "#d7e6dc", "bracket": "#8fbf4c" }
+}

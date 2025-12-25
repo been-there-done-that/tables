@@ -1,0 +1,23 @@
+{
+  "id": "iceberg-dark",
+  "name": "Iceberg Dark",
+  "author": "Tables IDE",
+  "description": "Frosty blues with muted contrasts",
+  "ui": {
+    "background": { "primary": "#0f1720", "secondary": "#131d28", "tertiary": "#192534", "hover": "#16212f", "active": "#1f2d3e" },
+    "foreground": { "primary": "#d7e3f1", "secondary": "#c3d2e4", "tertiary": "#a7b8cb" },
+    "accent": { "primary": "#7eb6f6", "hover": "#6aa5e8", "active": "#9cd3ff" },
+    "border": { "default": "#233449", "subtle": "#16212f", "focus": "#7eb6f6" }
+  },
+  "syntax": {
+    "keyword": "#7eb6f6",
+    "string": "#9ad5c0",
+    "number": "#f0b48c",
+    "comment": "#5f7084",
+    "function": "#8ad0ff",
+    "variable": "#d7e3f1",
+    "operator": "#7eb6f6",
+    "type": "#9ad5c0"
+  },
+  "editor": { "background": "#0f1720", "foreground": "#d7e3f1", "selection": "#192534", "cursor": "#d7e3f1", "bracket": "#7eb6f6" }
+}

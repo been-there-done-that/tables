@@ -1,0 +1,23 @@
+{
+  "id": "catppuccin-mocha",
+  "name": "Catppuccin Mocha",
+  "author": "Tables IDE",
+  "description": "Rich chocolatey dark with pastel accents",
+  "ui": {
+    "background": { "primary": "#1e1e2e", "secondary": "#181825", "tertiary": "#11111b", "hover": "#1a1a27", "active": "#232335" },
+    "foreground": { "primary": "#cdd6f4", "secondary": "#bac2de", "tertiary": "#a6adc8" },
+    "accent": { "primary": "#cba6f7", "hover": "#b4befe", "active": "#f5c2e7" },
+    "border": { "default": "#313244", "subtle": "#1f1f2d", "focus": "#cba6f7" }
+  },
+  "syntax": {
+    "keyword": "#cba6f7",
+    "string": "#a6e3a1",
+    "number": "#fab387",
+    "comment": "#585b70",
+    "function": "#89dceb",
+    "variable": "#cdd6f4",
+    "operator": "#cba6f7",
+    "type": "#89b4fa"
+  },
+  "editor": { "background": "#1e1e2e", "foreground": "#cdd6f4", "selection": "#313244", "cursor": "#cdd6f4", "bracket": "#cba6f7" }
+}

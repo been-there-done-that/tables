@@ -1,0 +1,23 @@
+{
+  "id": "oceanic-light",
+  "name": "Oceanic Light",
+  "author": "Tables IDE",
+  "description": "Bright coastal teal with crisp cyan accents",
+  "ui": {
+    "background": { "primary": "#f1f7fa", "secondary": "#e5eef5", "tertiary": "#d9e4ee", "hover": "#e0ebf3", "active": "#d0dfea" },
+    "foreground": { "primary": "#1d2f3a", "secondary": "#2a3f4d", "tertiary": "#4b6473" },
+    "accent": { "primary": "#2b9fd7", "hover": "#238ac0", "active": "#4ed0e5" },
+    "border": { "default": "#c8d7e2", "subtle": "#e5eef5", "focus": "#2b9fd7" }
+  },
+  "syntax": {
+    "keyword": "#2b9fd7",
+    "string": "#3c9d74",
+    "number": "#d47732",
+    "comment": "#7a8ea1",
+    "function": "#1f6fb2",
+    "variable": "#1d2f3a",
+    "operator": "#2b9fd7",
+    "type": "#1f6fb2"
+  },
+  "editor": { "background": "#f1f7fa", "foreground": "#1d2f3a", "selection": "#d9e4ee", "cursor": "#1d2f3a", "bracket": "#2b9fd7" }
+}

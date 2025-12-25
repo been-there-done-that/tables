@@ -1,0 +1,23 @@
+{
+  "id": "tokyo-night-light",
+  "name": "Tokyo Night Light",
+  "author": "Tables IDE",
+  "description": "Bright take on Tokyo Night with cool accents",
+  "ui": {
+    "background": { "primary": "#f7f8ff", "secondary": "#edf0ff", "tertiary": "#e3e7fb", "hover": "#e9edff", "active": "#d9def9" },
+    "foreground": { "primary": "#1f2a44", "secondary": "#2f3b56", "tertiary": "#4b5a7a" },
+    "accent": { "primary": "#3b82f6", "hover": "#6366f1", "active": "#f43f5e" },
+    "border": { "default": "#d6dcf2", "subtle": "#e7ebfa", "focus": "#3b82f6" }
+  },
+  "syntax": {
+    "keyword": "#7c3aed",
+    "string": "#15803d",
+    "number": "#ea580c",
+    "comment": "#94a3b8",
+    "function": "#2563eb",
+    "variable": "#1e293b",
+    "operator": "#7c3aed",
+    "type": "#2563eb"
+  },
+  "editor": { "background": "#f7f8ff", "foreground": "#1f2a44", "selection": "#e3e7fb", "cursor": "#1f2a44", "bracket": "#3b82f6" }
+}

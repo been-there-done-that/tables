@@ -1,0 +1,23 @@
+{
+  "id": "sunset-dark",
+  "name": "Sunset Dark",
+  "author": "Tables IDE",
+  "description": "Deep twilight with warm sunset accents",
+  "ui": {
+    "background": { "primary": "#1b1324", "secondary": "#24152d", "tertiary": "#2c1a36", "hover": "#241a31", "active": "#331f3d" },
+    "foreground": { "primary": "#f2e9ff", "secondary": "#d8c8ec", "tertiary": "#b9a3d4" },
+    "accent": { "primary": "#f78c6c", "hover": "#f25f5c", "active": "#f2c14e" },
+    "border": { "default": "#3a2747", "subtle": "#241a31", "focus": "#f78c6c" }
+  },
+  "syntax": {
+    "keyword": "#f78c6c",
+    "string": "#f2c14e",
+    "number": "#f25f5c",
+    "comment": "#7c668f",
+    "function": "#82aaff",
+    "variable": "#f2e9ff",
+    "operator": "#f78c6c",
+    "type": "#7fdbca"
+  },
+  "editor": { "background": "#1b1324", "foreground": "#f2e9ff", "selection": "#2c1a36", "cursor": "#f2e9ff", "bracket": "#f78c6c" }
+}

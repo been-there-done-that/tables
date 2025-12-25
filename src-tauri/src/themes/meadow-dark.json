@@ -1,0 +1,23 @@
+{
+  "id": "meadow-dark",
+  "name": "Meadow Dark",
+  "author": "Tables IDE",
+  "description": "Shadowed meadow greens with soft highlights",
+  "ui": {
+    "background": { "primary": "#111a13", "secondary": "#162119", "tertiary": "#1c2a1f", "hover": "#18261b", "active": "#223225" },
+    "foreground": { "primary": "#d7e6d5", "secondary": "#c1d3c0", "tertiary": "#9fb39f" },
+    "accent": { "primary": "#6fbf73", "hover": "#56a85c", "active": "#9ad19d" },
+    "border": { "default": "#233625", "subtle": "#18261b", "focus": "#6fbf73" }
+  },
+  "syntax": {
+    "keyword": "#6fbf73",
+    "string": "#9ad19d",
+    "number": "#c9d36a",
+    "comment": "#5f725f",
+    "function": "#5ac59c",
+    "variable": "#d7e6d5",
+    "operator": "#6fbf73",
+    "type": "#5ac59c"
+  },
+  "editor": { "background": "#111a13", "foreground": "#d7e6d5", "selection": "#1c2a1f", "cursor": "#d7e6d5", "bracket": "#6fbf73" }
+}

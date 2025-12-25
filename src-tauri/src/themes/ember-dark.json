@@ -1,0 +1,23 @@
+{
+  "id": "ember-dark",
+  "name": "Ember Dark",
+  "author": "Tables IDE",
+  "description": "Charcoal base with glowing ember accents",
+  "ui": {
+    "background": { "primary": "#1c1411", "secondary": "#241915", "tertiary": "#2c1f1a", "hover": "#261b17", "active": "#33231f" },
+    "foreground": { "primary": "#f1e0d5", "secondary": "#d9c0ad", "tertiary": "#b89c88" },
+    "accent": { "primary": "#e07a5f", "hover": "#d65f43", "active": "#f2b07a" },
+    "border": { "default": "#3a2a21", "subtle": "#261b17", "focus": "#e07a5f" }
+  },
+  "syntax": {
+    "keyword": "#f2b07a",
+    "string": "#e0af68",
+    "number": "#f78c6c",
+    "comment": "#7d6a63",
+    "function": "#a78bfa",
+    "variable": "#f1e0d5",
+    "operator": "#f2b07a",
+    "type": "#a78bfa"
+  },
+  "editor": { "background": "#1c1411", "foreground": "#f1e0d5", "selection": "#2c1f1a", "cursor": "#f1e0d5", "bracket": "#e07a5f" }
+}

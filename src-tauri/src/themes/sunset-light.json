@@ -1,0 +1,23 @@
+{
+  "id": "sunset-light",
+  "name": "Sunset Light",
+  "author": "Tables IDE",
+  "description": "Golden-hour warmth on a bright base",
+  "ui": {
+    "background": { "primary": "#fff7ef", "secondary": "#fbe8d8", "tertiary": "#f5dcc9", "hover": "#f8e3d2", "active": "#f0d3bd" },
+    "foreground": { "primary": "#2f2430", "secondary": "#453643", "tertiary": "#665563" },
+    "accent": { "primary": "#f78c6c", "hover": "#f25f5c", "active": "#f2c14e" },
+    "border": { "default": "#f0d9c6", "subtle": "#fbe8d8", "focus": "#f78c6c" }
+  },
+  "syntax": {
+    "keyword": "#f25f5c",
+    "string": "#f2c14e",
+    "number": "#f78c6c",
+    "comment": "#9c8a9b",
+    "function": "#3c79d8",
+    "variable": "#2f2430",
+    "operator": "#f25f5c",
+    "type": "#3c79d8"
+  },
+  "editor": { "background": "#fff7ef", "foreground": "#2f2430", "selection": "#f5dcc9", "cursor": "#2f2430", "bracket": "#f78c6c" }
+}

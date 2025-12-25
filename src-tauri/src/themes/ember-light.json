@@ -1,0 +1,23 @@
+{
+  "id": "ember-light",
+  "name": "Ember Light",
+  "author": "Tables IDE",
+  "description": "Soft hearth tones with warm embers",
+  "ui": {
+    "background": { "primary": "#fff8f3", "secondary": "#f8ede4", "tertiary": "#efe0d6", "hover": "#f3e6dc", "active": "#e8d7c8" },
+    "foreground": { "primary": "#2d1f1a", "secondary": "#3e2d26", "tertiary": "#5a483f" },
+    "accent": { "primary": "#d97745", "hover": "#c45f2e", "active": "#f59e5b" },
+    "border": { "default": "#e3d2c5", "subtle": "#f8ede4", "focus": "#d97745" }
+  },
+  "syntax": {
+    "keyword": "#c2410c",
+    "string": "#b45309",
+    "number": "#e07a5f",
+    "comment": "#9a7c6b",
+    "function": "#7c3aed",
+    "variable": "#2d1f1a",
+    "operator": "#c2410c",
+    "type": "#7c3aed"
+  },
+  "editor": { "background": "#fff8f3", "foreground": "#2d1f1a", "selection": "#efe0d6", "cursor": "#2d1f1a", "bracket": "#d97745" }
+}

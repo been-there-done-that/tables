@@ -1,0 +1,23 @@
+{
+  "id": "forest-light",
+  "name": "Forest Light",
+  "author": "Tables IDE",
+  "description": "Airy green woodland with golden accents",
+  "ui": {
+    "background": { "primary": "#f3f7f4", "secondary": "#e6eee8", "tertiary": "#dbe6de", "hover": "#e0e9e3", "active": "#d3ded7" },
+    "foreground": { "primary": "#203026", "secondary": "#2f4134", "tertiary": "#4a5c51" },
+    "accent": { "primary": "#5f8f3d", "hover": "#4f7a31", "active": "#c48c3c" },
+    "border": { "default": "#cdd8cf", "subtle": "#e6eee8", "focus": "#5f8f3d" }
+  },
+  "syntax": {
+    "keyword": "#5f8f3d",
+    "string": "#6f9f4f",
+    "number": "#c48c3c",
+    "comment": "#7f8f82",
+    "function": "#3f8f7a",
+    "variable": "#203026",
+    "operator": "#5f8f3d",
+    "type": "#3f8f7a"
+  },
+  "editor": { "background": "#f3f7f4", "foreground": "#203026", "selection": "#dbe6de", "cursor": "#203026", "bracket": "#5f8f3d" }
+}

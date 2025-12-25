@@ -1,0 +1,23 @@
+{
+  "id": "catppuccin-latte",
+  "name": "Catppuccin Latte",
+  "author": "Tables IDE",
+  "description": "Creamy light variant with pastel accents",
+  "ui": {
+    "background": { "primary": "#eff1f5", "secondary": "#e6e9ef", "tertiary": "#dce0e8", "hover": "#e2e6ed", "active": "#d3d8e0" },
+    "foreground": { "primary": "#4c4f69", "secondary": "#5c5f77", "tertiary": "#6c6f85" },
+    "accent": { "primary": "#8839ef", "hover": "#7287fd", "active": "#ea76cb" },
+    "border": { "default": "#ccd0da", "subtle": "#e6e9ef", "focus": "#8839ef" }
+  },
+  "syntax": {
+    "keyword": "#8839ef",
+    "string": "#40a02b",
+    "number": "#fe640b",
+    "comment": "#8c8fa1",
+    "function": "#1e66f5",
+    "variable": "#4c4f69",
+    "operator": "#8839ef",
+    "type": "#1e66f5"
+  },
+  "editor": { "background": "#eff1f5", "foreground": "#4c4f69", "selection": "#dce0e8", "cursor": "#4c4f69", "bracket": "#8839ef" }
+}
