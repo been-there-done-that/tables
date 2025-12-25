@@ -10,7 +10,10 @@
     options: Option[] | string[];
     placeholder?: string;
     disabled?: boolean;
+    height?: "sm" | "md" | "lg";
     radius?: "sm" | "md" | "lg" | "full" | "none";
+    minWidth?: number;
+    widthBuffer?: number;
     onCommit: (newValue: any) => void;
     onCancel?: () => void;
     class?: string;
@@ -21,7 +24,10 @@
     options = [],
     placeholder = "Select",
     disabled = false,
+    height = "md",
     radius = "md",
+    minWidth = 140,
+    widthBuffer = 0,
     onCommit,
     onCancel = () => (open = false),
     class: className = "",
@@ -37,7 +43,7 @@
   let selectedIndex = $state(0);
   let triggerEl: HTMLButtonElement | null = null;
   let overlayEl = $state<HTMLElement | null>(null);
-  let position = $state({ top: 0, left: 0, width: 160 });
+  let position = $state({ top: 0, left: 0, width: 0 });
   let isVisible = $state(false);
 
   const GUTTER = 4;
@@ -79,6 +85,13 @@
     queueMicrotask(() => focusButton(selectedIndex));
   });
 
+  // keep width in sync with props/trigger size even if props change
+  $effect(() => {
+    const triggerWidth = triggerEl?.getBoundingClientRect().width ?? minWidth;
+    const width = Math.max(triggerWidth + widthBuffer, minWidth);
+    position = { ...position, width };
+  });
+
   function updatePosition() {
     if (!triggerEl || !triggerEl.isConnected) {
       onCancel();
@@ -86,7 +99,7 @@
       return;
     }
     const rect = triggerEl.getBoundingClientRect();
-    const width = Math.max(rect.width, 100);
+    const width = Math.max(rect.width + widthBuffer, minWidth);
     const overlayHeight = overlayEl?.offsetHeight ?? rect.height;
     const margin = GUTTER;
 
@@ -203,7 +216,10 @@
     bind:this={triggerEl}
     type="button"
     class={cn(
-      "w-full min-w-[140px] flex items-center justify-between border px-3 py-2 text-sm transition bg-(--theme-bg-secondary) text-(--theme-fg-primary) border-(--theme-border-default) hover:border-(--theme-accent-primary) focus:outline-none focus-visible:ring-2 focus-visible:ring-(--theme-accent-primary)",
+      "w-full flex items-center justify-between border px-3 text-sm transition bg-(--theme-bg-secondary) text-(--theme-fg-primary) border-(--theme-border-default) hover:border-(--theme-accent-primary) focus:outline-none focus-visible:ring-2 focus-visible:ring-(--theme-accent-primary)",
+      height === "sm" && "h-8",
+      height === "md" && "h-10",
+      height === "lg" && "h-12",
       radius === "sm" && "rounded-sm",
       radius === "md" && "rounded-md",
       radius === "lg" && "rounded-lg",
@@ -215,6 +231,7 @@
     onkeydown={handleTriggerKeydown}
     aria-expanded={open}
     aria-haspopup="listbox"
+    style={`min-width:${minWidth}px`}
   >
     <span>
       {#if normalized.find((o) => o.value === value)}

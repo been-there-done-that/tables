@@ -15,6 +15,7 @@
   let btnRadius = $state<"none" | "sm" | "md" | "lg" | "full">("md");
   let btnHeight = $state<"8" | "10" | "12">("10");
   let selectRadius = $state<"sm" | "md" | "lg">("md");
+  let selectHeight = $state<"sm" | "md" | "lg">("md");
   let selected = $state("alpha");
   let windowOpen = $state(false);
 </script>
@@ -87,6 +88,16 @@
             class="min-w-[130px]"
           />
         </label>
+        <label class="flex items-center gap-1">
+          <span>Height</span>
+          <Select
+            options={["sm", "md", "lg"]}
+            value={selectHeight}
+            onCommit={(v: string) => (selectHeight = v as typeof selectHeight)}
+            radius="sm"
+            class="min-w-[110px]"
+          />
+        </label>
       </div>
     </div>
     <div class="flex items-center gap-3 flex-wrap">
@@ -95,6 +106,7 @@
           options={selectOptions}
           value={selected}
           radius={selectRadius}
+          height={selectHeight}
           onCommit={(v: string) => (selected = v)}
         />
       </label>
@@ -102,7 +114,7 @@
     </div>
   </section>
 
-  <section class="space-y-3 p-4 rounded-lg border border-[var(--theme-border-default)] bg-[var(--theme-bg-secondary)]">
+  <section class="space-y-3 p-4 rounded-lg border border-(--theme-border-default) bg-(--theme-bg-secondary)">
     <div class="flex items-center justify-between flex-wrap gap-3">
       <h2 class="font-semibold text-sm">Floating Window</h2>
       <Button variant="outline" height="8" radius="md" onClick={() => (windowOpen = true)}>Open Window</Button>
