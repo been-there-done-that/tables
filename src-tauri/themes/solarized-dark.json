@@ -1,0 +1,77 @@
+{
+  "id": "solarized-dark",
+  "name": "Solarized Dark",
+  "author": "Tables IDE",
+  "description": "Carefully calibrated low-contrast dark theme",
+  "version": "1.0.0",
+  "ui": {
+    "background": {
+      "primary": "#002b36",
+      "secondary": "#073642",
+      "tertiary": "#586e75",
+      "hover": "#657b83",
+      "active": "#839496",
+      "disabled": "#586e75"
+    },
+    "foreground": {
+      "primary": "#fdf6e3",
+      "secondary": "#eee8d5",
+      "tertiary": "#93a1a1",
+      "disabled": "#586e75"
+    },
+    "accent": {
+      "primary": "#268bd2",
+      "hover": "#2aa198",
+      "active": "#cb4b16",
+      "subtle": "#586e75"
+    },
+    "border": {
+      "default": "#586e75",
+      "subtle": "#073642",
+      "focus": "#268bd2"
+    },
+    "scrollbar": {
+      "track": "#073642",
+      "thumb": "#586e75",
+      "thumbHover": "#93a1a1"
+    },
+    "selection": {
+      "background": "#586e75",
+      "foreground": "#fdf6e3"
+    },
+    "input": {
+      "background": "#073642",
+      "foreground": "#fdf6e3",
+      "placeholder": "#93a1a1",
+      "border": "#586e75",
+      "borderFocus": "#268bd2",
+      "backgroundFocus": "#002b36"
+    }
+  },
+  "syntax": {
+    "keyword": "#859900",
+    "string": "#2aa198",
+    "number": "#d33682",
+    "comment": "#586e75",
+    "function": "#268bd2",
+    "variable": "#b58900",
+    "operator": "#859900",
+    "type": "#2aa198",
+    "constant": "#d33682",
+    "property": "#268bd2",
+    "tag": "#859900",
+    "attribute": "#2aa198"
+  },
+  "editor": {
+    "background": "#002b36",
+    "foreground": "#fdf6e3",
+    "selection": "#586e75",
+    "selectionMatch": "#93a1a1",
+    "lineNumber": "#93a1a1",
+    "lineNumberActive": "#fdf6e3",
+    "gutter": "#073642",
+    "cursor": "#fdf6e3",
+    "bracket": "#268bd2",
+    "bracketMismatch": "#dc322f"
+  }
+}

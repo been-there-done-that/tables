@@ -1,0 +1,77 @@
+{
+  "id": "nord",
+  "name": "Nord",
+  "author": "Tables IDE",
+  "description": "Arctic-inspired dark theme with cool blue tones",
+  "version": "1.0.0",
+  "ui": {
+    "background": {
+      "primary": "#2e3440",
+      "secondary": "#3b4252",
+      "tertiary": "#434c5e",
+      "hover": "#4c566a",
+      "active": "#5e81ac",
+      "disabled": "#616e88"
+    },
+    "foreground": {
+      "primary": "#d8dee9",
+      "secondary": "#eceff4",
+      "tertiary": "#616e88",
+      "disabled": "#4c566a"
+    },
+    "accent": {
+      "primary": "#88c0d0",
+      "hover": "#81a1c1",
+      "active": "#5e81ac",
+      "subtle": "#4c566a"
+    },
+    "border": {
+      "default": "#4c566a",
+      "subtle": "#434c5e",
+      "focus": "#88c0d0"
+    },
+    "scrollbar": {
+      "track": "#3b4252",
+      "thumb": "#4c566a",
+      "thumbHover": "#616e88"
+    },
+    "selection": {
+      "background": "#4c566a",
+      "foreground": "#eceff4"
+    },
+    "input": {
+      "background": "#3b4252",
+      "foreground": "#d8dee9",
+      "placeholder": "#616e88",
+      "border": "#4c566a",
+      "borderFocus": "#88c0d0",
+      "backgroundFocus": "#2e3440"
+    }
+  },
+  "syntax": {
+    "keyword": "#81a1c1",
+    "string": "#a3be8c",
+    "number": "#b48ead",
+    "comment": "#616e88",
+    "function": "#88c0d0",
+    "variable": "#d08770",
+    "operator": "#81a1c1",
+    "type": "#8fbcbb",
+    "constant": "#b48ead",
+    "property": "#88c0d0",
+    "tag": "#81a1c1",
+    "attribute": "#a3be8c"
+  },
+  "editor": {
+    "background": "#2e3440",
+    "foreground": "#d8dee9",
+    "selection": "#4c566a",
+    "selectionMatch": "#616e88",
+    "lineNumber": "#616e88",
+    "lineNumberActive": "#d8dee9",
+    "gutter": "#3b4252",
+    "cursor": "#d8dee9",
+    "bracket": "#88c0d0",
+    "bracketMismatch": "#bf616a"
+  }
+}

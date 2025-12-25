@@ -1,1 +1,97 @@
 @import "tailwindcss";
+
+:root {
+  /* Theme variables that will be set by JavaScript */
+  --theme-bg-primary: #ffffff;
+  --theme-bg-secondary: #f8f9fa;
+  --theme-bg-tertiary: #e9ecef;
+  --theme-bg-hover: #f1f3f4;
+  --theme-bg-active: #e7e9ec;
+
+  --theme-fg-primary: #212529;
+  --theme-fg-secondary: #495057;
+  --theme-fg-tertiary: #6c757d;
+
+  --theme-accent-primary: #007bff;
+  --theme-accent-hover: #0069d9;
+  --theme-accent-active: #0056b3;
+
+  --theme-border-default: #dee2e6;
+  --theme-border-subtle: #e9ecef;
+  --theme-border-focus: #007bff;
+}
+
+@layer base {
+  body {
+    background: var(--theme-bg-primary);
+    color: var(--theme-fg-primary);
+    font-family: system-ui, sans-serif;
+  }
+
+  /* Custom scrollbar using theme variables */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: var(--theme-scrollbar-track, var(--theme-bg-secondary));
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--theme-scrollbar-thumb, var(--theme-bg-tertiary));
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--theme-scrollbar-thumb-hover, var(--theme-bg-active));
+  }
+
+  /* Selection styling */
+  ::selection {
+    background: var(--theme-selection-bg, var(--theme-accent-primary));
+    color: var(--theme-selection-fg, var(--theme-fg-primary));
+  }
+
+  /* Focus rings */
+  :focus-visible {
+    outline: 2px solid var(--theme-border-focus, var(--theme-accent-primary));
+    outline-offset: 2px;
+  }
+
+  /* Input styling */
+  input, textarea, select {
+    background: var(--theme-input-bg, var(--theme-bg-secondary));
+    color: var(--theme-input-fg, var(--theme-fg-primary));
+    border: 1px solid var(--theme-input-border, var(--theme-border-default));
+    border-radius: 4px;
+    padding: 0.5rem;
+  }
+
+  input:focus, textarea:focus, select:focus {
+    border-color: var(--theme-input-border-focus, var(--theme-border-focus));
+    background: var(--theme-input-bg-focus, var(--theme-bg-primary));
+  }
+
+  input::placeholder {
+    color: var(--theme-input-placeholder, var(--theme-fg-tertiary));
+  }
+
+  /* Button styling */
+  button {
+    transition: background-color 0.2s, border-color 0.2s;
+    border-radius: 4px;
+    padding: 0.5rem 1rem;
+    border: 1px solid transparent;
+    cursor: pointer;
+  }
+
+  button:hover {
+    background: var(--theme-bg-hover);
+  }
+
+  button:focus {
+    outline: none;
+    border-color: var(--theme-border-focus);
+  }
+}

@@ -1,0 +1,77 @@
+{
+  "id": "dracula",
+  "name": "Dracula",
+  "author": "Tables IDE",
+  "description": "Dark theme with vibrant purple accents",
+  "version": "1.0.0",
+  "ui": {
+    "background": {
+      "primary": "#282a36",
+      "secondary": "#21222c",
+      "tertiary": "#191a21",
+      "hover": "#323746",
+      "active": "#44475a",
+      "disabled": "#6272a4"
+    },
+    "foreground": {
+      "primary": "#f8f8f2",
+      "secondary": "#f8f8f2",
+      "tertiary": "#6272a4",
+      "disabled": "#6272a4"
+    },
+    "accent": {
+      "primary": "#bd93f9",
+      "hover": "#ff79c6",
+      "active": "#50fa7b",
+      "subtle": "#6272a4"
+    },
+    "border": {
+      "default": "#44475a",
+      "subtle": "#323746",
+      "focus": "#bd93f9"
+    },
+    "scrollbar": {
+      "track": "#21222c",
+      "thumb": "#44475a",
+      "thumbHover": "#6272a4"
+    },
+    "selection": {
+      "background": "#44475a",
+      "foreground": "#f8f8f2"
+    },
+    "input": {
+      "background": "#21222c",
+      "foreground": "#f8f8f2",
+      "placeholder": "#6272a4",
+      "border": "#44475a",
+      "borderFocus": "#bd93f9",
+      "backgroundFocus": "#282a36"
+    }
+  },
+  "syntax": {
+    "keyword": "#ff79c6",
+    "string": "#f1fa8c",
+    "number": "#bd93f9",
+    "comment": "#6272a4",
+    "function": "#50fa7b",
+    "variable": "#ffb86c",
+    "operator": "#ff79c6",
+    "type": "#8be9fd",
+    "constant": "#bd93f9",
+    "property": "#50fa7b",
+    "tag": "#ff79c6",
+    "attribute": "#50fa7b"
+  },
+  "editor": {
+    "background": "#282a36",
+    "foreground": "#f8f8f2",
+    "selection": "#44475a",
+    "selectionMatch": "#6272a4",
+    "lineNumber": "#6272a4",
+    "lineNumberActive": "#f8f8f2",
+    "gutter": "#21222c",
+    "cursor": "#f8f8f2",
+    "bracket": "#50fa7b",
+    "bracketMismatch": "#ff5555"
+  }
+}

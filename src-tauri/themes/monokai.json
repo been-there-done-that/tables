@@ -1,0 +1,77 @@
+{
+  "id": "monokai",
+  "name": "Monokai",
+  "author": "Tables IDE",
+  "description": "Colorful dark theme inspired by Monokai",
+  "version": "1.0.0",
+  "ui": {
+    "background": {
+      "primary": "#272822",
+      "secondary": "#1e1f29",
+      "tertiary": "#18191c",
+      "hover": "#2c2e35",
+      "active": "#32343f",
+      "disabled": "#3e424d"
+    },
+    "foreground": {
+      "primary": "#F8F8F2",
+      "secondary": "#ABB2BF",
+      "tertiary": "#6D728E",
+      "disabled": "#4B5264"
+    },
+    "accent": {
+      "primary": "#A6E22E",
+      "hover": "#CB6A27",
+      "active": "#FD971F",
+      "subtle": "#75715E"
+    },
+    "border": {
+      "default": "#3B3F4D",
+      "subtle": "#2C2F36",
+      "focus": "#A6E22E"
+    },
+    "scrollbar": {
+      "track": "#1e1f29",
+      "thumb": "#4B5264",
+      "thumbHover": "#565B70"
+    },
+    "selection": {
+      "background": "#3E4451",
+      "foreground": "#F8F8F2"
+    },
+    "input": {
+      "background": "#1e1f29",
+      "foreground": "#F8F8F2",
+      "placeholder": "#75715E",
+      "border": "#3B3F4D",
+      "borderFocus": "#A6E22E",
+      "backgroundFocus": "#272822"
+    }
+  },
+  "syntax": {
+    "keyword": "#F92672",
+    "string": "#AE81FF",
+    "number": "#AE81FF",
+    "comment": "#75715E",
+    "function": "#66D9EF",
+    "variable": "#FD971F",
+    "operator": "#F92672",
+    "type": "#66D9EF",
+    "constant": "#AE81FF",
+    "property": "#A6E22E",
+    "tag": "#F92672",
+    "attribute": "#AE81FF"
+  },
+  "editor": {
+    "background": "#272822",
+    "foreground": "#F8F8F2",
+    "selection": "#3E4451",
+    "selectionMatch": "#75715E",
+    "lineNumber": "#90908A",
+    "lineNumberActive": "#F8F8F2",
+    "gutter": "#1e1f29",
+    "cursor": "#F8F8F2",
+    "bracket": "#A6E22E",
+    "bracketMismatch": "#F92672"
+  }
+}
