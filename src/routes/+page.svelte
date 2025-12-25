@@ -2,6 +2,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
   import Container from "$lib/Container.svelte";
+  import { applyThemeStyles } from "$lib/theme/applyTheme";
 
   type Theme = {
     id: string;
@@ -17,82 +18,24 @@
   let activeId = $state<string>("");
   let loading = $state(true);
   let error = $state("");
-  let viewTransitionsEnabled = true;
-
-  function setThemeStyles(theme: Theme) {
-    try {
-      const data = JSON.parse(theme.theme_data);
-      console.log("Theme data:", {data});
-      const root = document.documentElement;
-      root.style.cssText = "";
-      if (data.ui?.background) {
-        root.style.setProperty("--theme-bg-primary", data.ui.background.primary);
-        root.style.setProperty("--theme-bg-secondary", data.ui.background.secondary);
-        root.style.setProperty("--theme-bg-tertiary", data.ui.background.tertiary);
-        root.style.setProperty("--theme-bg-hover", data.ui.background.hover);
-        root.style.setProperty("--theme-bg-active", data.ui.background.active);
-      }
-      if (data.ui?.foreground) {
-        root.style.setProperty("--theme-fg-primary", data.ui.foreground.primary);
-        root.style.setProperty("--theme-fg-secondary", data.ui.foreground.secondary);
-        root.style.setProperty("--theme-fg-tertiary", data.ui.foreground.tertiary);
-      }
-      if (data.ui?.accent) {
-        root.style.setProperty("--theme-accent-primary", data.ui.accent.primary);
-        root.style.setProperty("--theme-accent-hover", data.ui.accent.hover);
-        root.style.setProperty("--theme-accent-active", data.ui.accent.active);
-      }
-      if (data.ui?.border) {
-        root.style.setProperty("--theme-border-default", data.ui.border.default);
-        root.style.setProperty("--theme-border-subtle", data.ui.border.subtle);
-        root.style.setProperty("--theme-border-focus", data.ui.border.focus);
-      }
-    } catch (e) {
-      console.error("Failed to apply theme", e);
-    }
-  }
-
   function applyTheme(theme: Theme | undefined, useTransition = true) {
     if (!theme) return;
-    const run = () => setThemeStyles(theme);
-    const fallbackAnimate = () => {
-      if (typeof document === "undefined") return;
-      const el = document.documentElement;
-      try {
-        el.animate(
-          [
-            { opacity: 0.8, filter: "blur(2px)" },
-            { opacity: 1, filter: "blur(0px)" }
-          ],
-          { duration: 220, easing: "ease-out" }
-        );
-      } catch {
-        /* ignore */
-      }
-    };
+    const run = () => applyThemeStyles(theme.theme_data);
 
-    if (
-      useTransition &&
-      viewTransitionsEnabled &&
-      typeof document !== "undefined" &&
-      typeof (document as any).startViewTransition === "function"
-    ) {
+    if (useTransition && typeof document !== "undefined" && "startViewTransition" in document) {
       try {
-        // Invoke directly as a method to preserve the Document context
-        const vt = (document as any).startViewTransition(() => {
-          run();
-        });
-        // Swallow abort/rejection if a new transition interrupts
-        vt?.finished?.catch(() => {});
+        // Call as method to preserve Document context; swallow aborts
+        (document as any)
+          .startViewTransition(() => run())
+          ?.finished?.catch(() => {});
         return;
       } catch (err) {
-        console.warn("View transition failed, disabling transitions:", err);
-        viewTransitionsEnabled = false;
+        console.log({ err, document: typeof document !== "undefined" ? document : "undefined" });
+        console.warn("View transition failed, falling back:", err);
       }
     }
 
     run();
-    if (useTransition) fallbackAnimate();
   }
 
   async function loadThemes() {
