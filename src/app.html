@@ -5,6 +5,13 @@
     <link rel="icon" href="%sveltekit.assets%/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Tauri + SvelteKit + Typescript App</title>
+    <style>
+      /* Prevent white flash: use theme vars with dark fallback, overrides once CSS variables load */
+      html, body {
+        background: var(--theme-bg-primary, #000);
+        color: var(--theme-fg-primary, #fff);
+      }
+    </style>
     %sveltekit.head%
   </head>
   <body data-sveltekit-preload-data="hover">

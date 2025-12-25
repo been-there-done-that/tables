@@ -5,7 +5,7 @@ use std::{path::PathBuf, sync::Mutex, time::SystemTime};
 
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Manager, State, PhysicalPosition, PhysicalSize, Size};
 
 #[derive(Clone, Debug, Serialize)]
 pub struct Theme {
@@ -165,6 +165,21 @@ pub fn run() {
             app.manage(DatabaseState {
                 conn: Mutex::new(conn),
             });
+
+            // Dynamically size the main window to ~100% of the current monitor and center it.
+            if let Some(window) = app.get_webview_window("main") {
+                if let Ok(Some(monitor)) = window.current_monitor() {
+                    let screen_size = monitor.size();
+                    let width = (screen_size.width as f64 * 1.0) as u32;
+                    let height = (screen_size.height as f64 * 1.0) as u32;
+                    let x = (screen_size.width as i32 - width as i32) / 2;
+                    let y = (screen_size.height as i32 - height as i32) / 2;
+
+                    let _ = window.set_size(Size::Physical(PhysicalSize { width, height }));
+                    let _ =
+                        window.set_position(tauri::Position::Physical(PhysicalPosition { x, y }));
+                }
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
