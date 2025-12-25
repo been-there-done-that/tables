@@ -1,0 +1,47 @@
+{
+  "id": "nord",
+  "name": "Nord",
+  "author": "Tables IDE",
+  "description": "Cool arctic theme",
+  "ui": {
+    "background": {
+      "primary": "#2E3440",
+      "secondary": "#3B4252",
+      "tertiary": "#434C5E",
+      "hover": "#3F4754",
+      "active": "#465062"
+    },
+    "foreground": {
+      "primary": "#E5E9F0",
+      "secondary": "#D8DEE9",
+      "tertiary": "#C4CEDA"
+    },
+    "accent": {
+      "primary": "#88C0D0",
+      "hover": "#81A1C1",
+      "active": "#5E81AC"
+    },
+    "border": {
+      "default": "#4C566A",
+      "subtle": "#3B4252",
+      "focus": "#88C0D0"
+    }
+  },
+  "syntax": {
+    "keyword": "#81A1C1",
+    "string": "#A3BE8C",
+    "number": "#B48EAD",
+    "comment": "#616E88",
+    "function": "#88C0D0",
+    "variable": "#EBCB8B",
+    "operator": "#81A1C1",
+    "type": "#8FBCBB"
+  },
+  "editor": {
+    "background": "#2E3440",
+    "foreground": "#E5E9F0",
+    "selection": "#434C5E",
+    "cursor": "#E5E9F0",
+    "bracket": "#88C0D0"
+  }
+}

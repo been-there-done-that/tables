@@ -1,0 +1,47 @@
+{
+  "id": "monokai",
+  "name": "Monokai",
+  "author": "Tables IDE",
+  "description": "Vibrant dark theme",
+  "ui": {
+    "background": {
+      "primary": "#272822",
+      "secondary": "#1e1f29",
+      "tertiary": "#18191c",
+      "hover": "#2c2e35",
+      "active": "#32343f"
+    },
+    "foreground": {
+      "primary": "#F8F8F2",
+      "secondary": "#ABB2BF",
+      "tertiary": "#6D728E"
+    },
+    "accent": {
+      "primary": "#A6E22E",
+      "hover": "#CB6A27",
+      "active": "#FD971F"
+    },
+    "border": {
+      "default": "#3B3F4D",
+      "subtle": "#2C2F36",
+      "focus": "#A6E22E"
+    }
+  },
+  "syntax": {
+    "keyword": "#F92672",
+    "string": "#AE81FF",
+    "number": "#AE81FF",
+    "comment": "#75715E",
+    "function": "#66D9EF",
+    "variable": "#FD971F",
+    "operator": "#F92672",
+    "type": "#66D9EF"
+  },
+  "editor": {
+    "background": "#272822",
+    "foreground": "#F8F8F2",
+    "selection": "#3E4451",
+    "cursor": "#F8F8F2",
+    "bracket": "#A6E22E"
+  }
+}

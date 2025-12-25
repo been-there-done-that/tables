@@ -1,0 +1,47 @@
+{
+  "id": "solarized-dark",
+  "name": "Solarized Dark",
+  "author": "Tables IDE",
+  "description": "Low-contrast calibrated theme",
+  "ui": {
+    "background": {
+      "primary": "#002b36",
+      "secondary": "#073642",
+      "tertiary": "#003440",
+      "hover": "#0b3a48",
+      "active": "#0f4654"
+    },
+    "foreground": {
+      "primary": "#93a1a1",
+      "secondary": "#839496",
+      "tertiary": "#657b83"
+    },
+    "accent": {
+      "primary": "#b58900",
+      "hover": "#cb4b16",
+      "active": "#268bd2"
+    },
+    "border": {
+      "default": "#586e75",
+      "subtle": "#2b3f46",
+      "focus": "#b58900"
+    }
+  },
+  "syntax": {
+    "keyword": "#859900",
+    "string": "#2aa198",
+    "number": "#d33682",
+    "comment": "#586e75",
+    "function": "#268bd2",
+    "variable": "#b58900",
+    "operator": "#859900",
+    "type": "#268bd2"
+  },
+  "editor": {
+    "background": "#002b36",
+    "foreground": "#93a1a1",
+    "selection": "#073642",
+    "cursor": "#93a1a1",
+    "bracket": "#b58900"
+  }
+}
