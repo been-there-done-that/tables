@@ -50,7 +50,7 @@
 
   const variantClass: Record<Variant, string> = {
     solid:
-      "bg-(--theme-accent-primary) text-white hover:bg-[color-mix(in_srgb,var(--theme-accent-primary)_78%,black_22%)] focus-visible:ring-offset-2 focus-visible:ring-offset-(--theme-bg-primary)",
+      "bg-(--theme-accent-primary) text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.45)] hover:bg-[color-mix(in_srgb,var(--theme-accent-primary)_78%,black_22%)] focus-visible:ring-offset-2 focus-visible:ring-offset-(--theme-bg-primary)",
     ghost:
       "bg-transparent text-(--theme-fg-primary) hover:bg-[color-mix(in_srgb,var(--theme-accent-primary)_15%,var(--theme-bg-secondary)_85%)]",
     outline:

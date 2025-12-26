@@ -1,0 +1,47 @@
+{
+  "id": "paper",
+  "name": "Paper",
+  "author": "Tables IDE",
+  "description": "Bright, clean paper white with cool gray surfaces and blue accents",
+  "ui": {
+    "background": {
+      "primary": "#ffffff",
+      "secondary": "#f4f6f8",
+      "tertiary": "#e8ecf1",
+      "hover": "#eef2f6",
+      "active": "#e2e7ed"
+    },
+    "foreground": {
+      "primary": "#111827",
+      "secondary": "#374151",
+      "tertiary": "#4b5563"
+    },
+    "accent": {
+      "primary": "#0f172a",
+      "hover": "#111827",
+      "active": "#1f2937"
+    },
+    "border": {
+      "default": "#d5d9df",
+      "subtle": "#e5e9f0",
+      "focus": "#2563eb"
+    }
+  },
+  "syntax": {
+    "keyword": "#1d4ed8",
+    "string": "#16a34a",
+    "number": "#db2777",
+    "comment": "#9ca3af",
+    "function": "#2563eb",
+    "variable": "#0f172a",
+    "operator": "#0ea5e9",
+    "type": "#7c3aed"
+  },
+  "editor": {
+    "background": "#ffffff",
+    "foreground": "#0f172a",
+    "selection": "#e0e7ff",
+    "cursor": "#1d4ed8",
+    "bracket": "#2563eb"
+  }
+}

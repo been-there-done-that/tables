@@ -3,6 +3,8 @@
   import Select, { type Option } from "$lib/components/Select.svelte";
   import FloatingWindow from "$lib/components/FloatingWindow.svelte";
   import { cn } from "$lib/utils";
+  import { getThemeContext } from "$lib/theme/context";
+  import type { ThemeRecord, ThemeData } from "$lib/theme/types";
 
   const selectOptions: Option[] = [
     { value: "", label: "(none)" },
@@ -18,6 +20,53 @@
   let selectHeight = $state<"sm" | "md" | "lg">("md");
   let selected = $state("alpha");
   let windowOpen = $state(false);
+
+  const themeCtx = getThemeContext();
+  let themes = $state<ThemeRecord[]>([]);
+  const themeCards = $derived(
+    themes
+      .map((t) => {
+        try {
+          const parsed = JSON.parse(t.theme_data) as ThemeData;
+          return { record: t, data: parsed };
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean) as { record: ThemeRecord; data: ThemeData }[]
+  );
+
+  $effect(() => {
+    const unsub = themeCtx.subscribe((s) => {
+      themes = s.themes;
+    });
+    return () => unsub();
+  });
+
+  const varMap: { key: string; path: (ui: ThemeData["ui"]) => string }[] = [
+    { key: "--theme-bg-primary", path: (ui) => ui.background.primary },
+    { key: "--theme-bg-secondary", path: (ui) => ui.background.secondary },
+    { key: "--theme-bg-tertiary", path: (ui) => ui.background.tertiary },
+    { key: "--theme-bg-hover", path: (ui) => ui.background.hover },
+    { key: "--theme-bg-active", path: (ui) => ui.background.active },
+    { key: "--theme-fg-primary", path: (ui) => ui.foreground.primary },
+    { key: "--theme-fg-secondary", path: (ui) => ui.foreground.secondary },
+    { key: "--theme-fg-tertiary", path: (ui) => ui.foreground.tertiary },
+    { key: "--theme-accent-primary", path: (ui) => ui.accent.primary },
+    { key: "--theme-accent-hover", path: (ui) => ui.accent.hover },
+    { key: "--theme-accent-active", path: (ui) => ui.accent.active },
+    { key: "--theme-border-default", path: (ui) => ui.border.default },
+    { key: "--theme-border-subtle", path: (ui) => ui.border.subtle },
+    { key: "--theme-border-focus", path: (ui) => ui.border.focus },
+  ];
+
+  function isColor(val: string) {
+    return (
+      /^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(val) ||
+      /^rgb(a)?\(/i.test(val) ||
+      /^hsl(a)?\(/i.test(val)
+    );
+  }
 </script>
 
 <svelte:head>
@@ -120,6 +169,41 @@
       <Button variant="outline" height="8" radius="md" onClick={() => (windowOpen = true)}>Open Window</Button>
     </div>
     <p class="text-sm opacity-80">Draggable dialog with optional modal overlay; shortcuts can be passed via props.</p>
+  </section>
+
+  <section class="space-y-3 p-4 rounded-lg border border-(--theme-border-default) bg-(--theme-bg-secondary)">
+    <div class="flex items-center justify-between flex-wrap gap-3">
+      <h2 class="font-semibold text-sm">Theme Variables</h2>
+      <p class="text-xs opacity-70">Showing CSS variables and values for all loaded themes.</p>
+    </div>
+    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {#each themeCards as theme (theme.record.id)}
+        <div class="rounded-lg border border-(--theme-border-default) bg-(--theme-bg-primary) shadow-sm overflow-hidden">
+          <div class="flex items-center justify-between px-3 py-2 border-b border-(--theme-border-subtle)">
+            <div class="min-w-0">
+              <div class="text-sm font-semibold truncate">{theme.record.name}</div>
+              <div class="text-xs opacity-70 truncate">{theme.record.description}</div>
+            </div>
+            <div class="text-[10px] px-2 py-0.5 rounded-full border border-(--theme-border-default) uppercase">{theme.record.id}</div>
+          </div>
+          <div class="grid grid-cols-2 gap-2 p-3">
+            {#each varMap as entry}
+              <div class="flex items-center gap-2 rounded-md border border-(--theme-border-subtle) px-2 py-1 bg-(--theme-bg-secondary)">
+                {#if isColor(entry.path(theme.data.ui))}
+                  <span class="h-4 w-4 rounded border border-(--theme-border-default)" style={`background:${entry.path(theme.data.ui)}`}></span>
+                {:else}
+                  <span class="h-4 w-4 rounded border border-(--theme-border-default) bg-(--theme-bg-tertiary)"></span>
+                {/if}
+                <div class="min-w-0">
+                  <div class="text-[11px] font-medium truncate">{entry.key}</div>
+                  <div class="text-[11px] opacity-80 truncate">{entry.path(theme.data.ui)}</div>
+                </div>
+              </div>
+            {/each}
+          </div>
+        </div>
+      {/each}
+    </div>
   </section>
 </div>
 
