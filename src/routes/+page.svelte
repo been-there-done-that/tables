@@ -2,11 +2,13 @@
   import Container from "$lib/Container.svelte";
   import { getThemeContext } from "$lib/theme/context";
   import type { ThemeRecord } from "$lib/theme/types";
+  import DatasourceConfigurator from "$lib/components/DatasourceConfigurator.svelte";
 
   let themes = $state<ThemeRecord[]>([]);
   let activeId = $state<string>("");
   let loading = $state(true);
   let error = $state("");
+  let showDatasource = $state(false);
 
   const { subscribe, setActive } = getThemeContext();
 
@@ -26,11 +28,21 @@
   });
 
   const handleSetActive = (id: string) => setActive(id);
+
 </script>
   
 <main class="p-4">
-  <a href="/demo">Components Demo</a>
-  <a href="/test">Test Route</a>
+  <div class="flex items-center gap-3 mb-4">
+    <a href="/demo">Components Demo</a>
+    <a href="/test">Test Route</a>
+    <button
+      class="px-3 py-2 text-sm rounded border border-(--theme-border-default) bg-(--theme-bg-secondary) text-(--theme-fg-primary) hover:bg-(--theme-bg-primary) transition"
+      onclick={() => (showDatasource = true)}
+      type="button"
+    >
+      Configure datasource
+    </button>
+  </div>
   <Container class="space-y-6 max-w-4xl mx-auto">
     <div class="flex items-center justify-between gap-4 flex-wrap">
       <div class="space-y-1">
@@ -99,4 +111,9 @@
       {/each}
     </div>
   </Container>
+
+  <DatasourceConfigurator
+    bind:open={showDatasource}
+    onClose={() => (showDatasource = false)}
+  />
 </main>
