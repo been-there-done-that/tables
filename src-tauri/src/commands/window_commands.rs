@@ -14,7 +14,7 @@ pub async fn open_datasource_window(app: tauri::AppHandle) -> Result<(), String>
     let builder = WebviewWindowBuilder::new(&app, LABEL, tauri::WebviewUrl::App("/datasource".into()))
         .title("Datasource")
         .inner_size(960.0, 640.0)
-        .resizable(false)
+        .resizable(true)
         .decorations(true)
         .title_bar_style(TitleBarStyle::Overlay)
         .hidden_title(true)
