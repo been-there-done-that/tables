@@ -15,6 +15,7 @@ use commands::connection_commands::*;
 use commands::aws_commands::*;
 use commands::redis_commands::*;
 use commands::athena_commands::*;
+use commands::window_commands::*;
 use plugins::{PluginDiscovery, get_available_plugins, enable_plugin, disable_plugin, get_plugin_info, initialize_all_plugins};
 
 // Re-export for command modules
