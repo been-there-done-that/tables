@@ -35,7 +35,7 @@
                     onclick={() => selectDriver(driver)}
                 >
                     {#if typeof IconComponent === 'function'}
-                        <IconComponent size={14} color=""/>
+                        <IconComponent size={18} color=""/>
                     {:else}
                         <IconDatabase size={14} class="text-(--theme-fg-tertiary)" />
                     {/if}
