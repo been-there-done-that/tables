@@ -217,7 +217,10 @@ macro_rules! aggregate_plugin_commands {
             list_athena_tables,
             get_athena_table_schema,
             cancel_athena_query,
-            list_athena_workgroups
+            list_athena_workgroups,
+            
+            // Window commands
+            open_datasource_window
         ]
     };
 }
