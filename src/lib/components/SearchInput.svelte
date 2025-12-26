@@ -3,10 +3,12 @@
     value = $bindable(""),
     placeholder = "",
     class: className = "",
+    inputRef = $bindable<HTMLInputElement | null>(null),
   } = $props<{
     value?: string;
     placeholder?: string;
     class?: string;
+    inputRef?: HTMLInputElement | null;
   }>();
 </script>
 
@@ -17,4 +19,5 @@
   autocomplete="off"
   spellcheck="false"
   bind:value={value}
+  bind:this={inputRef}
 />
