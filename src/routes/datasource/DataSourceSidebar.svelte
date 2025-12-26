@@ -49,7 +49,7 @@
         >
             <IconCopy size={16} />
         </button>
-        <div class="flex-grow"></div>
+        <div class="grow"></div>
         <button
             class="p-1 hover:bg-[#393b40] rounded text-gray-400 hover:text-gray-200 transition-colors"
             title="Data Sources"
@@ -59,7 +59,7 @@
     </div>
 
     <!-- Tree/List Area -->
-    <div class="flex-grow overflow-y-auto">
+    <div class="grow overflow-y-auto">
         <div
             class="px-2 py-1 text-xs font-bold text-gray-500 uppercase tracking-wider mt-2"
         >

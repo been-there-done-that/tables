@@ -1,5 +1,6 @@
 <script lang="ts">
     import { IconChevronDown } from "@tabler/icons-svelte";
+    import FormInput from "$lib/components/FormInput.svelte";
 
     interface Props {
         data: any; // We'll type this properly later with Zod or similar
@@ -14,24 +15,29 @@
     <div class="grid grid-cols-[120px_1fr] gap-y-3 items-center">
         <label for="host" class="text-[#bbbbbb]">Host:</label>
         <div class="flex space-x-2">
-            <input
-                type="text"
-                id="host"
-                value={data.host || "localhost"}
-                oninput={(e) => onChange("host", e.currentTarget.value)}
-                class="flex-grow bg-[#2b2d30] border border-[#5e6060] rounded px-2 py-1 text-[#a9b7c6] focus:border-[#3574f0] focus:ring-1 focus:ring-[#3574f0] outline-none"
-            />
+            <div class="grow">
+                <FormInput
+                    inputId="host"
+                    value={data.host}
+                    placeholder="localhost"
+                    oninput={(e: any) => onChange("host", e.target.value)}
+                    class="bg-[#2b2d30] border-[#5e6060] text-[#a9b7c6] focus:border-[#3574f0]"
+                />
+            </div>
 
             <div class="flex items-center space-x-2">
                 <label for="port" class="text-[#bbbbbb]">Port:</label>
-                <input
-                    type="number"
-                    id="port"
-                    value={data.port || 5432}
-                    oninput={(e) =>
-                        onChange("port", parseInt(e.currentTarget.value))}
-                    class="w-20 bg-[#2b2d30] border border-[#5e6060] rounded px-2 py-1 text-[#a9b7c6] focus:border-[#3574f0] focus:ring-1 focus:ring-[#3574f0] outline-none"
-                />
+                <div class="w-20">
+                    <FormInput
+                        inputId="port"
+                        type="number"
+                        value={data.port}
+                        placeholder="5432"
+                        oninput={(e: any) =>
+                            onChange("port", parseInt(e.target.value))}
+                        class="bg-[#2b2d30] border-[#5e6060] text-[#a9b7c6] focus:border-[#3574f0]"
+                    />
+                </div>
             </div>
         </div>
 
@@ -39,7 +45,7 @@
         <div class="relative">
             <select
                 id="auth"
-                class="w-full bg-[#2b2d30] border border-[#5e6060] rounded px-2 py-1 text-[#a9b7c6] appearance-none focus:border-[#3574f0] focus:ring-1 focus:ring-[#3574f0] outline-none"
+                class="w-full h-8 rounded-md border border-[#5e6060] bg-[#2b2d30] px-3 py-1.5 text-sm text-[#a9b7c6] appearance-none focus:border-[#3574f0] focus:ring-0 outline-none"
                 value={data.authType || "password"}
                 onchange={(e) => onChange("authType", e.currentTarget.value)}
             >
@@ -54,29 +60,30 @@
         </div>
 
         <label for="user" class="text-[#bbbbbb]">User:</label>
-        <input
-            type="text"
-            id="user"
-            value={data.username || ""}
-            oninput={(e) => onChange("username", e.currentTarget.value)}
-            class="w-full bg-[#2b2d30] border border-[#5e6060] rounded px-2 py-1 text-[#a9b7c6] focus:border-[#3574f0] focus:ring-1 focus:ring-[#3574f0] outline-none"
+        <FormInput
+            inputId="user"
+            value={data.username}
+            oninput={(e: any) => onChange("username", e.target.value)}
+            class="bg-[#2b2d30] border-[#5e6060] text-[#a9b7c6] focus:border-[#3574f0]"
         />
 
         <label for="password" class="text-[#bbbbbb]">Password:</label>
         <div class="flex space-x-2">
-            <input
-                type="password"
-                id="password"
-                value={data.password || ""}
-                oninput={(e) => onChange("password", e.currentTarget.value)}
-                placeholder="<hidden>"
-                class="flex-grow bg-[#2b2d30] border border-[#5e6060] rounded px-2 py-1 text-[#a9b7c6] focus:border-[#3574f0] focus:ring-1 focus:ring-[#3574f0] outline-none placeholder-gray-500"
-            />
+            <div class="grow">
+                <FormInput
+                    inputId="password"
+                    type="password"
+                    value={data.password}
+                    placeholder="<hidden>"
+                    oninput={(e: any) => onChange("password", e.target.value)}
+                    class="bg-[#2b2d30] border-[#5e6060] text-[#a9b7c6] focus:border-[#3574f0] placeholder-gray-500"
+                />
+            </div>
             <div class="flex items-center space-x-1 w-auto min-w-[120px]">
                 <span class="text-[#bbbbbb] whitespace-nowrap">Save:</span>
                 <div class="relative w-full">
                     <select
-                        class="w-full bg-[#2b2d30] border border-[#5e6060] rounded px-2 py-1 text-[#a9b7c6] appearance-none text-xs focus:border-[#3574f0] outline-none"
+                        class="w-full h-8 rounded-md border border-[#5e6060] bg-[#2b2d30] px-2 py-1.5 text-xs text-[#a9b7c6] appearance-none focus:border-[#3574f0] outline-none"
                     >
                         <option>Forever</option>
                         <option>For Session</option>
@@ -91,17 +98,16 @@
         </div>
 
         <label for="database" class="text-[#bbbbbb]">Database:</label>
-        <input
-            type="text"
-            id="database"
+        <FormInput
+            inputId="database"
             value={data.database || "postgres"}
-            oninput={(e) => onChange("database", e.currentTarget.value)}
-            class="w-full bg-[#2b2d30] border border-[#5e6060] rounded px-2 py-1 text-[#a9b7c6] focus:border-[#3574f0] focus:ring-1 focus:ring-[#3574f0] outline-none"
+            oninput={(e: any) => onChange("database", e.target.value)}
+            class="bg-[#2b2d30] border-[#5e6060] text-[#a9b7c6] focus:border-[#3574f0]"
         />
 
         <label for="url" class="text-[#bbbbbb]">URL:</label>
         <div
-            class="flex items-center bg-[#2b2d30] border border-[#5e6060] rounded px-2 py-1 text-[#808080] italic cursor-not-allowed"
+            class="flex items-center h-8 bg-[#2b2d30] border border-[#5e6060] rounded-md px-3 py-1.5 text-[#808080] italic cursor-not-allowed text-sm"
         >
             <span class="truncate"
                 >jdbc:postgresql://{data.host || "localhost"}:{data.port ||
