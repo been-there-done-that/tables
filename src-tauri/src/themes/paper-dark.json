@@ -1,0 +1,47 @@
+{
+  "id": "paper-dark",
+  "name": "Paper Dark",
+  "author": "Tables IDE",
+  "description": "Deep charcoal base with crisp white text and blue accents",
+  "ui": {
+    "background": {
+      "primary": "#0b0f14",
+      "secondary": "#121822",
+      "tertiary": "#1a2330",
+      "hover": "#1f2a3a",
+      "active": "#253346"
+    },
+    "foreground": {
+      "primary": "#f8fafc",
+      "secondary": "#e5e7eb",
+      "tertiary": "#cbd5e1"
+    },
+    "accent": {
+      "primary": "#4b5563",
+      "hover": "#374151",
+      "active": "#1f2937"
+    },
+    "border": {
+      "default": "#2f3b4d",
+      "subtle": "#1f2937",
+      "focus": "#60a5fa"
+    }
+  },
+  "syntax": {
+    "keyword": "#93c5fd",
+    "string": "#34d399",
+    "number": "#f472b6",
+    "comment": "#6b7280",
+    "function": "#60a5fa",
+    "variable": "#e5e7eb",
+    "operator": "#38bdf8",
+    "type": "#c084fc"
+  },
+  "editor": {
+    "background": "#0b0f14",
+    "foreground": "#f8fafc",
+    "selection": "#1f2937",
+    "cursor": "#3b82f6",
+    "bracket": "#60a5fa"
+  }
+}

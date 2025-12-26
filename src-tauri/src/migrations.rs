@@ -65,6 +65,8 @@ const BUILTIN_THEME_FILES: &[(&str, &str)] = &[
     ("neon-dark", include_str!("themes/neon-dark.json")),
     ("meadow-light", include_str!("themes/meadow-light.json")),
     ("meadow-dark", include_str!("themes/meadow-dark.json")),
+    ("paper", include_str!("themes/paper.json")),
+    ("paper-dark", include_str!("themes/paper-dark.json")),
 ];
 
 pub fn apply(conn: &Connection, now_fn: impl Fn() -> i64) -> Result<(), String> {
@@ -78,8 +80,15 @@ pub fn apply(conn: &Connection, now_fn: impl Fn() -> i64) -> Result<(), String> 
             .map_err(|e| format!("Failed to parse theme {}: {e}", id))?;
 
         conn.execute(
-            "INSERT OR IGNORE INTO themes (id, name, author, description, theme_data, is_builtin, is_active, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, ?7, ?7)",
+            "INSERT INTO themes (id, name, author, description, theme_data, is_builtin, is_active, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, ?7, ?7)
+             ON CONFLICT(id) DO UPDATE SET
+               name=excluded.name,
+               author=excluded.author,
+               description=excluded.description,
+               theme_data=excluded.theme_data,
+               is_builtin=1,
+               updated_at=excluded.updated_at",
             params![
                 parsed.id,
                 parsed.name,
