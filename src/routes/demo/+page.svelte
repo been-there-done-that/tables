@@ -1,7 +1,7 @@
 <script lang="ts">
   import Button from "$lib/components/Button.svelte";
   import Select, { type Option } from "$lib/components/Select.svelte";
-  import FloatingWindow from "$lib/components/FloatingWindow.svelte";
+  import DraggableWindow from "$lib/components/DraggableWindow.svelte";
   import SearchInput from "$lib/components/SearchInput.svelte";
   import CommandPalette, { type CommandItem } from "$lib/components/CommandPalette.svelte";
   import { cn } from "$lib/utils";
@@ -306,7 +306,7 @@
   </div>
 </div>
 
-<FloatingWindow
+<DraggableWindow
   title="Demo Window"
   bind:open={windowOpen}
   modal={true}
@@ -315,13 +315,12 @@
   closeShortcut={undefined}
   headerActions={undefined}
   onClose={() => (windowOpen = false)}
-  onMaximize={() => {}}
 >
   <div class="p-4 space-y-3 text-sm">
     <p>This window is draggable by the header bar.</p>
     <p>Pass <code>openShortcut</code> / <code>closeShortcut</code> to toggle via keyboard, and <code>onClose</code> / <code>onMaximize</code> handlers as needed.</p>
   </div>
-</FloatingWindow>
+</DraggableWindow>
 
 <CommandPalette
   bind:open={paletteOpen}
