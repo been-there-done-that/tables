@@ -1,7 +1,23 @@
-/// Simple plugin system that groups commands by functionality
-/// This provides better organization without the complexity of dynamic command registration
+/// True Plugins System - Unlimited scalability for 100+ commands
+/// 
+/// This plugin system provides:
+/// - Dynamic plugin discovery and registration
+/// - Automatic command registration without manual listing
+/// - Plugin dependency management
+/// - Runtime plugin enable/disable
+/// - Hot-loading support for development
+/// - Metadata-driven plugin management
 
-/// Plugin information for frontend discovery
+pub mod core;
+pub mod builtin;
+pub mod discovery;
+
+// Re-export main plugin interfaces
+pub use core::{Plugin, PluginMetadata, PluginManager, get_plugin_registry};
+pub use discovery::{PluginDiscovery, get_available_plugins, enable_plugin, disable_plugin, get_plugin_info, initialize_all_plugins};
+pub use builtin::*;
+
+// Legacy compatibility
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct PluginInfo {
     pub name: String,
@@ -10,48 +26,27 @@ pub struct PluginInfo {
     pub supported_engines: Vec<String>,
 }
 
-/// Get information about all available plugins
+impl From<PluginMetadata> for PluginInfo {
+    fn from(metadata: PluginMetadata) -> Self {
+        Self {
+            name: metadata.name,
+            description: metadata.description,
+            command_count: metadata.command_count,
+            supported_engines: metadata.supported_engines,
+        }
+    }
+}
+
+/// Get information about all available plugins (legacy compatibility)
 #[tauri::command]
-pub fn get_available_plugins() -> Vec<PluginInfo> {
-    vec![
-        PluginInfo {
-            name: "theme".to_string(),
-            description: "Theme management commands".to_string(),
-            command_count: 3,
-            supported_engines: vec![],
-        },
-        PluginInfo {
-            name: "connection".to_string(),
-            description: "Database connection management".to_string(),
-            command_count: 11,
-            supported_engines: vec![
-                "postgresql".to_string(),
-                "mysql".to_string(),
-                "sqlite".to_string(),
-                "mongodb".to_string(),
-                "redis".to_string(),
-                "elasticsearch".to_string(),
-                "s3".to_string(),
-                "athena".to_string(),
-            ],
-        },
-        PluginInfo {
-            name: "aws".to_string(),
-            description: "AWS services integration".to_string(),
-            command_count: 9,
-            supported_engines: vec!["s3".to_string()],
-        },
-        PluginInfo {
-            name: "redis".to_string(),
-            description: "Redis database operations".to_string(),
-            command_count: 6,
-            supported_engines: vec!["redis".to_string()],
-        },
-        PluginInfo {
-            name: "athena".to_string(),
-            description: "Amazon Athena query service".to_string(),
-            command_count: 7,
-            supported_engines: vec!["athena".to_string()],
-        },
-    ]
+pub fn get_available_plugins_legacy() -> Vec<PluginInfo> {
+    let discovery = PluginDiscovery::new();
+    discovery.discover_builtin_plugins().unwrap_or_else(|e| {
+        eprintln!("Failed to discover plugins: {}", e);
+    });
+    discovery.get_manager()
+        .list_available_plugins()
+        .into_iter()
+        .map(PluginInfo::from)
+        .collect()
 }
