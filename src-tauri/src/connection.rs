@@ -35,6 +35,7 @@ pub enum DatabaseEngine {
     Redis,
     Elasticsearch,
     S3,
+    Athena,
     Custom(String),
 }
 
@@ -48,6 +49,7 @@ impl DatabaseEngine {
             DatabaseEngine::Redis => Some(6379),
             DatabaseEngine::Elasticsearch => Some(9200),
             DatabaseEngine::S3 => None, // S3 doesn't use traditional ports
+            DatabaseEngine::Athena => None, // Athena uses HTTPS/HTTP
             DatabaseEngine::Custom(_) => None,
         }
     }
@@ -61,6 +63,7 @@ impl DatabaseEngine {
             DatabaseEngine::Redis => "Redis",
             DatabaseEngine::Elasticsearch => "Elasticsearch",
             DatabaseEngine::S3 => "Amazon S3",
+            DatabaseEngine::Athena => "Amazon Athena",
             DatabaseEngine::Custom(_) => "Custom",
         }
     }
@@ -78,6 +81,7 @@ pub enum AuthType {
     AwsCredentials,
     AwsProfile,
     AwsIamRole,
+    AthenaJdbc, // Athena JDBC connection
 }
 
 impl AuthType {
@@ -268,6 +272,7 @@ pub fn load_connection_from_row(row: &rusqlite::Row<'_>) -> Result<Connection, r
         "aws_credentials" => AuthType::AwsCredentials,
         "aws_profile" => AuthType::AwsProfile,
         "aws_iam_role" => AuthType::AwsIamRole,
+        "athena_jdbc" => AuthType::AthenaJdbc,
         _ => AuthType::Password,
     };
 

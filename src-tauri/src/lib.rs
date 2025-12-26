@@ -144,7 +144,24 @@ pub fn run() {
             upload_s3_file,
             download_s3_file,
             delete_s3_object,
-            get_s3_bucket_info
+            get_s3_bucket_info,
+            
+            // Redis commands
+            get_redis_info,
+            list_redis_databases,
+            list_redis_keys,
+            get_redis_key,
+            execute_redis_command,
+            delete_redis_key,
+            
+            // Athena commands
+            execute_athena_query,
+            get_athena_query_status,
+            list_athena_databases,
+            list_athena_tables,
+            get_athena_table_schema,
+            cancel_athena_query,
+            list_athena_workgroups
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
