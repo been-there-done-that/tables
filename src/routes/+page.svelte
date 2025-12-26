@@ -8,7 +8,7 @@
   let activeId = $state<string>("");
   let loading = $state(true);
   let error = $state("");
-  let showDatasource = $state(false);
+  let showDatasource = $state(true);
 
   const { subscribe, setActive } = getThemeContext();
 
