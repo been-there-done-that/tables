@@ -4,6 +4,8 @@
   import DraggableWindow from "$lib/components/DraggableWindow.svelte";
   import SearchInput from "$lib/components/SearchInput.svelte";
   import CommandPalette, { type CommandItem } from "$lib/components/CommandPalette.svelte";
+  import Tree from "$lib/components/Tree.svelte";
+  import type { TreeNode } from "$lib/components/Tree.svelte";
   import { cn } from "$lib/utils";
   import { getThemeContext } from "$lib/theme/context";
   import type { ThemeRecord, ThemeData } from "$lib/theme/types";
@@ -26,6 +28,26 @@
   let activeId = $state("");
   let paletteOpen = $state(false);
   let themeSearchInput = $state<HTMLInputElement | null>(null);
+  const treeItems: TreeNode[] = [
+    {
+      id: "src",
+      label: "src",
+      type: "folder",
+      children: [
+        { id: "routes", label: "routes", type: "folder", children: [{ id: "demo", label: "demo/+page.svelte", type: "file" }] },
+        { id: "lib", label: "lib", type: "folder", children: [{ id: "components", label: "components", type: "folder" }] },
+      ],
+    },
+    {
+      id: "db",
+      label: "database",
+      type: "database",
+      children: [
+        { id: "themes", label: "themes.db", type: "file" },
+        { id: "keys", label: "keys", type: "folder", children: [{ id: "secret", label: "api.key", type: "key" }] },
+      ],
+    },
+  ];
 
   const themeCtx = getThemeContext();
   let themes = $state<ThemeRecord[]>([]);
@@ -299,6 +321,16 @@
           <Button variant="outline" height={btnHeight} radius={btnRadius} onClick={() => (paletteOpen = true)}>
             Open Palette
           </Button>
+        </section>
+
+        <section class="space-y-3 p-4 rounded-lg border border-(--theme-border-default) bg-(--theme-bg-secondary)">
+          <div class="flex items-center justify-between flex-wrap gap-3">
+            <h2 class="font-semibold text-sm">Tree</h2>
+            <div class="text-xs opacity-80">Hover to show arrows; click row or arrow to toggle.</div>
+          </div>
+          <div class="rounded-md border border-(--theme-border-subtle) bg-(--theme-bg-primary) p-2">
+            <Tree items={treeItems} />
+          </div>
         </section>
 
       </div>
