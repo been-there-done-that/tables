@@ -438,15 +438,35 @@ fn format_redis_value(value: &redis::Value) -> String {
     match value {
         redis::Value::Nil => "null".to_string(),
         redis::Value::Int(i) => i.to_string(),
-        redis::Value::Data(data) => String::from_utf8_lossy(data).to_string(),
-        redis::Value::Bulk(values) => {
+        redis::Value::BulkString(data) => String::from_utf8_lossy(data).to_string(),
+        redis::Value::Array(values) => {
             let strings: Vec<String> = values.iter()
                 .map(format_redis_value)
                 .collect();
             format!("[{}]", strings.join(", "))
         }
-        redis::Value::Status(s) => s.clone(),
+        redis::Value::SimpleString(s) => s.clone(),
         redis::Value::Okay => "OK".to_string(),
+        redis::Value::Map(map) => {
+            let pairs: Vec<String> = map.iter()
+                .map(|(k, v)| format!("{}: {}", format_redis_value(k), format_redis_value(v)))
+                .collect();
+            format!("{{{}}}", pairs.join(", "))
+        }
+        redis::Value::Set(set) => {
+            let items: Vec<String> = set.iter().map(format_redis_value).collect();
+            format!("{{{}}}", items.join(", "))
+        }
+        redis::Value::Boolean(b) => b.to_string(),
+        redis::Value::Double(f) => f.to_string(),
+        redis::Value::VerbatimString { text, .. } => text.clone(),
+        redis::Value::Attribute { data, .. } => format_redis_value(data),
+        redis::Value::Push { data, .. } => {
+            let items: Vec<String> = data.iter().map(format_redis_value).collect();
+            format!("[{}]", items.join(", "))
+        }
+        redis::Value::ServerError(err) => err.to_string(),
+        other => format!("{other:?}"),
     }
 }
 
