@@ -48,32 +48,15 @@
                 <label for="name" class="text-right">Name:</label>
                 <div class="flex items-center space-x-2">
                     <div class="grow">
-                        <input
+                        <FormInput
+                            inputId="name"
                             value={formData.name}
                             oninput={(e: any) =>
                                 handleChange("name", e.target.value)}
-                            class="grow bg-[--theme-bg-secondary] border-[--theme-border-default] text-[--theme-fg-secondary]
-                            focus:border-[--theme-accent-primary]" />
+                        />
                     </div>
-                    <button
-                        class="text-[--theme-accent-primary] text-xs hover:underline whitespace-nowrap"
-                        >Create DDL Mapping</button
-                    >
                 </div>
 
-                <label for="comment" class="text-right">Comment:</label>
-                <div class="relative">
-                    <textarea
-                        id="comment"
-                        bind:value={formData.comment}
-                        rows="1"
-                        class="w-full bg-[--theme-bg-secondary] border border-[--theme-border-default] rounded-md px-2 py-1.5 text-[--theme-fg-secondary] focus:border-[--theme-accent-primary] outline-none resize-none text-sm"
-                    ></textarea>
-                    <IconMaximize
-                        size={12}
-                        class="absolute right-2 top-2 text-[--theme-fg-tertiary] cursor-pointer"
-                    />
-                </div>
             </div>
 
             <!-- Tabs -->
