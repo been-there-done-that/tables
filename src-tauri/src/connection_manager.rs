@@ -66,12 +66,12 @@ impl ConnectionManager {
             params![
                 connection.id,
                 connection.name,
-                serde_json::to_string(&connection.engine).unwrap(),
+                connection.engine.display_name().to_lowercase(),
                 connection.host,
                 connection.port,
                 connection.database,
                 connection.username,
-                serde_json::to_string(&connection.auth_type).unwrap(),
+                connection.auth_type.to_string(),
                 connection.ssl_enabled as i64,
                 connection.ssh_tunnel_enabled as i64,
                 connection.ssh_tunnel_host,
@@ -368,15 +368,17 @@ impl ConnectionManager {
         let conn = self.db.lock()
             .map_err(|e| format!("Failed to lock database: {}", e))?;
 
+        // Escape SQL LIKE special characters to prevent unexpected behavior
+        let escaped_query = query.replace('%', "\\%").replace('_', "\\_");
+        let search_pattern = format!("%{}%", escaped_query);
+
         let mut stmt = conn.prepare(
             "SELECT id, name, engine, host, port, database, username, auth_type,
                     ssl_enabled, ssh_tunnel_enabled, ssh_tunnel_host, ssh_tunnel_port,
                     ssh_tunnel_username, connection_params, is_favorite, color_tag,
                     created_at, updated_at, last_connected_at, connection_count
-             FROM connections WHERE name LIKE ?1 OR host LIKE ?1 ORDER BY name COLLATE NOCASE"
+             FROM connections WHERE name LIKE ?1 ESCAPE '\\' OR host LIKE ?1 ESCAPE '\\' ORDER BY name COLLATE NOCASE"
         ).map_err(|e| format!("Failed to prepare query: {}", e))?;
-
-        let search_pattern = format!("%{}%", query);
 
         let rows = stmt.query_map([search_pattern.as_str()], load_connection_from_row)
             .map_err(|e| format!("Failed to search connections: {}", e))?;

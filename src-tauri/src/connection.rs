@@ -27,6 +27,7 @@ pub struct Connection {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum DatabaseEngine {
     PostgreSQL,
     MySQL,
@@ -70,6 +71,7 @@ impl DatabaseEngine {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum AuthType {
     Password,
     SshKey,
@@ -87,6 +89,22 @@ pub enum AuthType {
 impl AuthType {
     pub fn default_value() -> Self {
         AuthType::Password
+    }
+
+    pub fn to_string(&self) -> &'static str {
+        match self {
+            AuthType::Password => "password",
+            AuthType::SshKey => "ssh_key",
+            AuthType::SslCert => "ssl_cert",
+            AuthType::ApiToken => "api_token",
+            AuthType::WindowsAuth => "windows_auth",
+            AuthType::Kerberos => "kerberos",
+            AuthType::None => "none",
+            AuthType::AwsCredentials => "aws_credentials",
+            AuthType::AwsProfile => "aws_profile",
+            AuthType::AwsIamRole => "aws_iam_role",
+            AuthType::AthenaJdbc => "athena_jdbc",
+        }
     }
 }
 
@@ -172,8 +190,34 @@ impl SecretString {
         &self.inner
     }
 
-    pub fn into_string(self) -> String {
-        self.inner
+    pub fn into_string(mut self) -> String {
+    let result = self.inner.clone();
+    self.zeroize();
+    result
+}
+
+    /// Zeroize the secret when dropped
+    fn zeroize(&mut self) {
+        // Simple zeroization - overwrite the string contents
+        unsafe {
+            let ptr = self.inner.as_mut_ptr();
+            let len = self.inner.len();
+            std::ptr::write_bytes(ptr, 0, len);
+        }
+    }
+}
+
+impl Drop for SecretString {
+    fn drop(&mut self) {
+        self.zeroize();
+    }
+}
+
+impl std::fmt::Debug for SecretString {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SecretString")
+            .field("redacted", &"[REDACTED]")
+            .finish()
     }
 }
 
@@ -302,7 +346,7 @@ pub fn load_connection_from_row(row: &rusqlite::Row<'_>) -> Result<Connection, r
         color_tag: row.get(17)?,
         created_at: row.get(18)?,
         updated_at: row.get(19)?,
-        last_connected_at: Some(row.get(20)?),
+        last_connected_at: row.get::<_, Option<i64>>(20)?,
         connection_count: row.get(21)?,
     })
 }
