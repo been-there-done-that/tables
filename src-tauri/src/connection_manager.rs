@@ -238,6 +238,14 @@ impl ConnectionManager {
                     false
                 }
             }
+            crate::connection::DatabaseEngine::Redis => {
+                // For Redis, test connection
+                self.test_redis_connection(connection, credentials)
+            }
+            crate::connection::DatabaseEngine::Athena => {
+                // For Athena, test AWS credentials and connectivity
+                self.test_athena_connection(connection, credentials)
+            }
             crate::connection::DatabaseEngine::S3 => {
                 // For S3, test AWS credentials and connectivity
                 self.test_s3_connection(connection, credentials)
@@ -257,6 +265,38 @@ impl ConnectionManager {
             error: if connected { None } else { Some("Connection failed".to_string()) },
             response_time_ms: Some(response_time),
         })
+    }
+
+    // Test Redis connection specifically
+    fn test_redis_connection(&self, connection: &Connection, credentials: &SecureCredentials) -> bool {
+        // For now, just check if we have basic connection info
+        // In production, would use Redis client to test actual connectivity
+        connection.host.is_some() && 
+        (credentials.password.is_some() || matches!(connection.auth_type, crate::connection::AuthType::None))
+    }
+
+    // Test Athena connection specifically
+    fn test_athena_connection(&self, connection: &Connection, credentials: &SecureCredentials) -> bool {
+        match connection.auth_type {
+            crate::connection::AuthType::AwsCredentials => {
+                // Check if we have access key and secret key
+                credentials.aws_access_key_id.is_some() && 
+                credentials.aws_secret_access_key.is_some()
+            }
+            crate::connection::AuthType::AwsProfile => {
+                // Profile-based authentication - assume valid for now
+                true
+            }
+            crate::connection::AuthType::AwsIamRole => {
+                // IAM role authentication - assume valid for now
+                true
+            }
+            crate::connection::AuthType::AthenaJdbc => {
+                // JDBC authentication - check for password
+                credentials.password.is_some()
+            }
+            _ => false,
+        }
     }
 
     // Test S3 connection specifically
