@@ -3,11 +3,17 @@
     import ConnectionForm from "./ConnectionForm.svelte";
     import Button from "$lib/components/Button.svelte";
     import { type Driver, drivers } from "./DriverList";
+    import { getCurrentWindow } from '@tauri-apps/api/window';
 
     let selectedDriver = $state<Driver | null>(drivers[2]);
 
     function handleDriverSelect(driver: Driver | null) {
         selectedDriver = driver;
+    }
+
+    async function handleClose() {
+        const window = getCurrentWindow();
+        await window.close();
     }
 </script>
 
@@ -17,7 +23,7 @@
     <div class="flex grow w-full overflow-hidden">
         <!-- Sidebar -->
         <div
-            class="w-[300px] shrink-0 h-full border-r border-(--theme-border-default)"
+            class="max-w-60 w-full shrink-0 h-full border-r border-(--theme-border-default)"
         >
             <DataSourceSidebar onSelect={handleDriverSelect} {selectedDriver} />
         </div>
@@ -37,7 +43,7 @@
             </div>
 
             <div class="flex space-x-3">
-                <Button>Cancel</Button>
+                <Button onClick={handleClose}>Cancel</Button>
                 <Button>Apply</Button>
                 <Button>Test Connection</Button>
             </div>
