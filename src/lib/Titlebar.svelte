@@ -6,10 +6,20 @@
   import IconLayoutSidebarRight from "@tabler/icons-svelte/icons/layout-sidebar-right";
   import IconLayoutSidebarRightFilled from "@tabler/icons-svelte/icons/layout-sidebar-right-filled";
   import IconRestore from "@tabler/icons-svelte/icons/restore";
+  import PlaylistAdd from "@tabler/icons-svelte/icons/playlist-add";
   import Logs from "@tabler/icons-svelte/icons/logs";
+  import { invoke } from "@tauri-apps/api/core";
 
   let { isFullScreen } = $props();
   let icons = $state(false);
+
+  const openDatasourceWindow = async () => {
+    try {
+      await invoke("open_datasource_window");
+    } catch (e) {
+      console.error("Failed to open datasource window:", e);
+    }
+  };
 </script>
 
 {#if !isFullScreen}
@@ -27,6 +37,10 @@
         </button>
 
         <div class="absolute right-2 flex items-center gap-1 pointer-events-auto">
+          <button class="h-6 w-6 rounded-md active:bg-accent mr-1" onclick={openDatasourceWindow}>
+            <PlaylistAdd class="size-6" />
+          </button>
+
         <button class="h-6 w-6 rounded-md active:bg-accent" onclick={() => false}>
           <Logs class="size-4" />
         </button>
