@@ -4,12 +4,18 @@ mod credential_manager;
 mod connection_manager;
 mod aws_profile_manager;
 mod commands;
+mod plugins;
 
 use tauri::{Manager, PhysicalPosition, PhysicalSize, Size};
 use std::{path::PathBuf, sync::{Arc, Mutex}, time::SystemTime};
 use rusqlite::{Connection, OptionalExtension};
 use serde::Serialize;
-use commands::*;
+use commands::theme_commands::*;
+use commands::connection_commands::*;
+use commands::aws_commands::*;
+use commands::redis_commands::*;
+use commands::athena_commands::*;
+use plugins::get_available_plugins;
 
 // Re-export for command modules
 pub use connection_manager::ConnectionManagerState;
@@ -117,12 +123,13 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            // Theme commands
+            // Theme & Plugin Discovery commands
             get_all_themes,
             get_active_theme,
             set_active_theme,
+            get_available_plugins,
             
-            // Connection commands
+            // Connection Management commands
             create_connection,
             get_connection,
             get_connection_metadata,
@@ -135,7 +142,7 @@ pub fn run() {
             update_connection_stats,
             check_keyring_available,
             
-            // AWS commands
+            // AWS/S3 commands
             get_available_aws_profiles,
             get_aws_profile_by_name,
             test_aws_profile,
