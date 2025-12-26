@@ -2,7 +2,6 @@
   import Container from "$lib/Container.svelte";
   import { getThemeContext } from "$lib/theme/context";
   import type { ThemeRecord } from "$lib/theme/types";
-  import DatasourceConfigurator from "$lib/components/DatasourceConfigurator.svelte";
 
   let themes = $state<ThemeRecord[]>([]);
   let activeId = $state<string>("");
@@ -13,24 +12,25 @@
   const { subscribe, setActive } = getThemeContext();
 
   $effect(() => {
-    const unsubscribe = subscribe((s: {
-      themes: ThemeRecord[];
-      activeId: string;
-      loading: boolean;
-      error: string;
-    }) => {
-      themes = s.themes;
-      activeId = s.activeId;
-      loading = s.loading;
-      error = s.error;
-    });
+    const unsubscribe = subscribe(
+      (s: {
+        themes: ThemeRecord[];
+        activeId: string;
+        loading: boolean;
+        error: string;
+      }) => {
+        themes = s.themes;
+        activeId = s.activeId;
+        loading = s.loading;
+        error = s.error;
+      },
+    );
     return () => unsubscribe();
   });
 
   const handleSetActive = (id: string) => setActive(id);
-
 </script>
-  
+
 <main class="p-4">
   <div class="flex items-center gap-3 mb-4">
     <a href="/demo">Components Demo</a>
@@ -46,17 +46,31 @@
   <Container class="space-y-6 max-w-4xl mx-auto">
     <div class="flex items-center justify-between gap-4 flex-wrap">
       <div class="space-y-1">
-        <div class="inline-flex items-center gap-2 rounded-lg border px-3 py-1 text-sm" style="border-color: var(--theme-border-default); background: color-mix(in srgb, var(--theme-bg-tertiary) 75%, transparent); color: var(--theme-fg-secondary);">
+        <div
+          class="inline-flex items-center gap-2 rounded-lg border px-3 py-1 text-sm"
+          style="border-color: var(--theme-border-default); background: color-mix(in srgb, var(--theme-bg-tertiary) 75%, transparent); color: var(--theme-fg-secondary);"
+        >
           Built-in themes
         </div>
-        <h1 class="text-2xl font-semibold leading-tight" style="color: var(--theme-fg-primary);">Pick a theme</h1>
+        <h1
+          class="text-2xl font-semibold leading-tight"
+          style="color: var(--theme-fg-primary);"
+        >
+          Pick a theme
+        </h1>
       </div>
       {#if loading}
-        <div class="inline-flex items-center gap-2 rounded-lg border px-3 py-1 text-sm" style="border-color: var(--theme-border-default); background: color-mix(in srgb, var(--theme-bg-tertiary) 75%, transparent); color: var(--theme-fg-secondary);">
+        <div
+          class="inline-flex items-center gap-2 rounded-lg border px-3 py-1 text-sm"
+          style="border-color: var(--theme-border-default); background: color-mix(in srgb, var(--theme-bg-tertiary) 75%, transparent); color: var(--theme-fg-secondary);"
+        >
           Loading…
         </div>
       {:else if error}
-        <div class="inline-flex items-center gap-2 rounded-lg border px-3 py-1 text-sm" style="border-color: var(--theme-border-default); background: color-mix(in srgb, var(--theme-bg-tertiary) 75%, transparent); color: #fca5a5;">
+        <div
+          class="inline-flex items-center gap-2 rounded-lg border px-3 py-1 text-sm"
+          style="border-color: var(--theme-border-default); background: color-mix(in srgb, var(--theme-bg-tertiary) 75%, transparent); color: #fca5a5;"
+        >
           {error}
         </div>
       {/if}
@@ -83,17 +97,32 @@
         >
           <div class="flex items-center justify-between gap-3">
             <div>
-              <div class="font-semibold" style="color: var(--theme-fg-primary);">{theme.name}</div>
-              <div class="text-xs" style="color: var(--theme-fg-secondary);">{theme.author}</div>
+              <div
+                class="font-semibold"
+                style="color: var(--theme-fg-primary);"
+              >
+                {theme.name}
+              </div>
+              <div class="text-xs" style="color: var(--theme-fg-secondary);">
+                {theme.author}
+              </div>
             </div>
             {#if theme.id === activeId}
-              <div class="inline-flex items-center gap-2 rounded-lg border px-3 py-1 text-xs" style="border-color: var(--theme-border-default); background: color-mix(in srgb, var(--theme-bg-tertiary) 75%, transparent); color: var(--theme-fg-secondary);">
+              <div
+                class="inline-flex items-center gap-2 rounded-lg border px-3 py-1 text-xs"
+                style="border-color: var(--theme-border-default); background: color-mix(in srgb, var(--theme-bg-tertiary) 75%, transparent); color: var(--theme-fg-secondary);"
+              >
                 Active
               </div>
             {/if}
           </div>
           {#if theme.description}
-            <div class="text-sm" style="color: var(--theme-fg-secondary); margin-top: 6px;">{theme.description}</div>
+            <div
+              class="text-sm"
+              style="color: var(--theme-fg-secondary); margin-top: 6px;"
+            >
+              {theme.description}
+            </div>
           {/if}
           <div class="flex items-center gap-2 mt-2">
             {#each (() => {
@@ -104,16 +133,14 @@
                 return [];
               }
             })() as color}
-              <span class="h-4 w-4 rounded-md border" style={`background:${color}; border-color: var(--theme-border-subtle);`}></span>
+              <span
+                class="h-4 w-4 rounded-md border"
+                style={`background:${color}; border-color: var(--theme-border-subtle);`}
+              ></span>
             {/each}
           </div>
         </div>
       {/each}
     </div>
   </Container>
-
-  <DatasourceConfigurator
-    bind:open={showDatasource}
-    onClose={() => (showDatasource = false)}
-  />
 </main>
