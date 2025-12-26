@@ -2,7 +2,6 @@
   import { cn } from "$lib/utils";
   import X from "@tabler/icons-svelte/icons/x";
   import type { Snippet } from "svelte";
-  import { scale } from "svelte/transition";
 
   type KeyboardShortcut = {
     key: string;
@@ -18,9 +17,7 @@
     title = "Window",
     open = $bindable(true),
     showCloseButton = true,
-    showMaximizeButton = false,
     onClose,
-    onMaximize,
     openShortcut,
     closeShortcut,
     modal = false,
@@ -39,6 +36,9 @@
   let isDragging = $state(false);
   let dragStart = $state<Position>({ x: 0, y: 0 });
   let windowElement = $state<HTMLDivElement | null>(null);
+  let rendered = $state(false);
+  let dragSize = $state<{ w: number; h: number }>({ w: 0, h: 0 });
+  let hasCustomPosition = $state(false);
 
   const normalizeShortcut = (shortcut?: KeyboardShortcut | string): KeyboardShortcut | undefined => {
     if (!shortcut) return undefined;
@@ -85,26 +85,36 @@
     e.stopPropagation();
   }
 
-  function handleClose() {
+  function handleClose(force = false) {
     if (onClose) onClose();
     else open = false;
-  }
-
-  function handleMaximize() {
-    if (onMaximize) onMaximize();
   }
 
   function handleMouseDown(e: MouseEvent) {
     if (e.target instanceof HTMLElement && e.target.closest("[data-drag-handle]")) {
       isDragging = true;
       dragStart = { x: e.clientX - position.x, y: e.clientY - position.y };
+      if (windowElement) {
+        const rect = windowElement.getBoundingClientRect();
+        dragSize = { w: rect.width, h: rect.height };
+      }
       e.preventDefault();
     }
   }
 
   function handleMouseMove(e: MouseEvent) {
     if (isDragging) {
-      position = { x: e.clientX - dragStart.x, y: e.clientY - dragStart.y };
+      const nextX = e.clientX - dragStart.x;
+      const nextY = e.clientY - dragStart.y;
+      const marginX = 8;
+      const minY = 40; // keep below titlebar/toolbar area
+      const marginY = 8;
+      const maxX = Math.max(marginX, window.innerWidth - (dragSize.w || 0) - marginX);
+      const maxY = Math.max(minY, window.innerHeight - (dragSize.h || 0) - marginY);
+      position = {
+        x: Math.min(Math.max(marginX, nextX), maxX),
+        y: Math.min(Math.max(minY, nextY), maxY),
+      };
     }
   }
 
@@ -113,7 +123,7 @@
   }
 
   $effect(() => {
-    if (open && windowElement) {
+    if (open && windowElement && !hasCustomPosition) {
       requestAnimationFrame(() => {
         if (!windowElement) return;
         const rect = windowElement.getBoundingClientRect();
@@ -131,18 +141,26 @@
       });
     }
   });
+
+  $effect(() => {
+    if (open) {
+      rendered = true;
+      queueMicrotask(() => windowElement?.focus());
+    }
+  });
 </script>
 
 <svelte:window onmousemove={handleMouseMove} onmouseup={handleMouseUp} onkeydown={handleKeyDown} />
 
-{#if open}
+{#if rendered}
   {#if modal}
-    <button
-      type="button"
-      class={cn("fixed inset-0 bg-black/50 z-40 border-0 cursor-pointer", overlayClass)}
-      onclick={handleClose}
+    <div
+      class={cn("fixed inset-0 bg-black/50 z-40 cursor-pointer modal-overlay", overlayClass)}
+      role="presentation"
       aria-label="Close dialog"
-    ></button>
+      data-state={open ? "open" : "closed"}
+      onclick={() => handleClose()}
+    ></div>
   {/if}
 
   <div
@@ -151,40 +169,35 @@
     aria-modal={modal}
     aria-labelledby="dialog-title"
     tabindex="-1"
-    in:scale={{ duration: 150, start: 0.95, opacity: 0 }}
-    out:scale={{ duration: 120, start: 1, opacity: 0 }}
     class={cn(
-      "fixed z-50 max-h-[75vh] max-w-3xl w-full rounded-lg border border-[color-mix(in_srgb,var(--theme-border-default)_75%,transparent)] bg-[var(--theme-bg-secondary)] text-[var(--theme-fg-primary)] shadow-2xl flex flex-col",
+      "fixed z-50 max-h-[75vh] max-w-3xl w-full rounded-lg border border-[color-mix(in_srgb,var(--theme-border-default)_75%,transparent)] bg-(--theme-bg-secondary) text-(--theme-fg-primary) shadow-2xl flex flex-col window-anim",
       className,
     )}
     style={`left: ${position.x}px; top: ${position.y}px; ${customStyle}`}
     onmousedown={handleMouseDown}
     onclick={(e) => e.stopPropagation()}
     onkeydown={swallowKeyDown}
+    data-state={open ? "open" : "closed"}
+    onanimationend={(e) => {
+      if (!open && e.target === e.currentTarget) {
+        rendered = false;
+      }
+    }}
   >
     <div
       data-drag-handle
       class={cn(
-        "flex items-center justify-between pl-4 pr-2 py-1 rounded-t-lg cursor-move select-none border-b border-[var(--theme-border-default)] bg-[color-mix(in_srgb,var(--theme-bg-secondary)_90%,transparent)]",
+        "flex items-center justify-between pl-4 pr-2 py-1 rounded-t-lg cursor-move select-none border-b border-(--theme-border-default) bg-[color-mix(in_srgb,var(--theme-bg-secondary)_90%,transparent)]",
         headerClass,
       )}
     >
       <h2 id="dialog-title" class={cn("font-semibold text-xs w-full", titleClass)}>{title}</h2>
       <div class="flex items-center gap-2">
         {@render headerActions?.()}
-        {#if showMaximizeButton}
-          <button
-            class="hover:opacity-80 transition-colors p-1"
-            aria-label="Maximize"
-            onclick={handleMaximize}
-          >
-            ☐
-          </button>
-        {/if}
         {#if showCloseButton}
           <button
-            onclick={handleClose}
-            class="hover:opacity-80 text-red-600 font-bold transition-colors p-1"
+            onclick={() => handleClose()}
+            class="hover:opacity-80 text-red-600 font-bold transition-colors p-1 border border-(--theme-border-default) rounded"
             aria-label="Close"
           >
             <X class="size-4" />
@@ -205,5 +218,60 @@
 
   [data-drag-handle]:active {
     cursor: grabbing;
+  }
+
+  .modal-overlay {
+    animation: overlayFadeIn 220ms ease-out;
+  }
+  .modal-overlay[data-state="closed"] {
+    animation: overlayFadeOut 160ms ease-in forwards;
+  }
+
+  .window-anim {
+    animation: windowFadeIn 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
+    transform-origin: center;
+  }
+  .window-anim[data-state="closed"] {
+    animation: windowFadeOut 160ms ease-in forwards;
+  }
+
+  @keyframes windowFadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px) scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes windowFadeOut {
+    from {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+    to {
+      opacity: 0;
+      transform: translateY(8px) scale(0.98);
+    }
+  }
+
+  @keyframes overlayFadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes overlayFadeOut {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
   }
 </style>

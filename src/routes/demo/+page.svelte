@@ -1,8 +1,9 @@
 <script lang="ts">
   import Button from "$lib/components/Button.svelte";
   import Select, { type Option } from "$lib/components/Select.svelte";
-  import FloatingWindow from "$lib/components/FloatingWindow.svelte";
+  import DraggableWindow from "$lib/components/DraggableWindow.svelte";
   import SearchInput from "$lib/components/SearchInput.svelte";
+  import CommandPalette, { type CommandItem } from "$lib/components/CommandPalette.svelte";
   import { cn } from "$lib/utils";
   import { getThemeContext } from "$lib/theme/context";
   import type { ThemeRecord, ThemeData } from "$lib/theme/types";
@@ -23,6 +24,8 @@
   let windowOpen = $state(false);
   let themeSearch = $state("");
   let activeId = $state("");
+  let paletteOpen = $state(false);
+  let themeSearchInput = $state<HTMLInputElement | null>(null);
 
   const themeCtx = getThemeContext();
   let themes = $state<ThemeRecord[]>([]);
@@ -76,6 +79,71 @@
       /^hsl(a)?\(/i.test(val)
     );
   }
+
+  const paletteItems = $derived<CommandItem[]>(
+    (() => {
+      const base = themes ?? [];
+      const currentIdx = base.findIndex((t) => t.id === activeId);
+      const nextTheme = base.length ? base[(currentIdx + 1 + base.length) % base.length] : null;
+      const prevTheme = base.length ? base[(currentIdx - 1 + base.length) % base.length] : null;
+      return [
+        {
+          id: "open-window",
+          label: "Open Floating Window",
+          section: "Actions",
+          shortcut: "⌘ O",
+          hint: "Show the floating dialog",
+          action: () => (windowOpen = true),
+        },
+        nextTheme && {
+          id: "next-theme",
+          label: `Next Theme (${nextTheme.name})`,
+          section: "Themes",
+          shortcut: "⌘ →",
+          hint: "Activate next theme",
+          action: () => themeCtx.setActive(nextTheme.id),
+        },
+        prevTheme && {
+          id: "prev-theme",
+          label: `Previous Theme (${prevTheme.name})`,
+          section: "Themes",
+          shortcut: "⌘ ←",
+          hint: "Activate previous theme",
+          action: () => themeCtx.setActive(prevTheme.id),
+        },
+        {
+          id: "focus-search",
+          label: "Focus Theme Search",
+          section: "Themes",
+          shortcut: "⌘ F",
+          hint: "Jump to theme filter",
+          action: () => themeSearchInput?.focus(),
+        },
+      ].filter(Boolean) as CommandItem[];
+    })()
+  );
+
+  $effect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const isCmdOrCtrl = e.metaKey || e.ctrlKey;
+      const key = e.key.toLowerCase();
+      if (isCmdOrCtrl && key === "k") {
+        e.preventDefault();
+        paletteOpen = true;
+      } else if (isCmdOrCtrl && key === "f") {
+        // If palette is open, don't hijack normal browser find.
+        if (document.activeElement === document.body) {
+          e.preventDefault();
+          themeSearchInput?.focus();
+        }
+      } else if (isCmdOrCtrl && key === "o") {
+        e.preventDefault();
+        windowOpen = true;
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  });
 </script>
 
 <svelte:head>
@@ -94,6 +162,7 @@
         placeholder="Search themes..."
         class="mx-1"
         bind:value={themeSearch}
+        bind:inputRef={themeSearchInput}
       />
       <div class="overflow-auto flex-1 space-y-3 pr-1">
         {#each themeCards as theme (theme.record.id)}
@@ -178,6 +247,9 @@
                 class="min-w-[90px]"
               />
             </label>
+            <Button variant="outline" height={btnHeight} radius={btnRadius} onClick={() => (paletteOpen = true)}>
+              Open Palette (⌘K)
+            </Button>
           </div>
         </div>
       </section>
@@ -218,12 +290,23 @@
           <p class="text-sm opacity-80">Draggable dialog with optional modal overlay; shortcuts can be passed via props.</p>
         </section>
 
+        <section class="space-y-3 p-4 rounded-lg border border-(--theme-border-default) bg-(--theme-bg-secondary)">
+          <div class="flex items-center justify-between flex-wrap gap-3">
+            <h2 class="font-semibold text-sm">Command Palette</h2>
+            <div class="text-xs opacity-80">Try ⌘/Ctrl + K, ⌘/Ctrl + F, ⌘/Ctrl + O</div>
+          </div>
+          <p class="text-sm opacity-80">Search and trigger actions. Uses keyboard navigation (↑/↓/Enter/Esc).</p>
+          <Button variant="outline" height={btnHeight} radius={btnRadius} onClick={() => (paletteOpen = true)}>
+            Open Palette
+          </Button>
+        </section>
+
       </div>
     </div>
   </div>
 </div>
 
-<FloatingWindow
+<DraggableWindow
   title="Demo Window"
   bind:open={windowOpen}
   modal={true}
@@ -232,10 +315,15 @@
   closeShortcut={undefined}
   headerActions={undefined}
   onClose={() => (windowOpen = false)}
-  onMaximize={() => {}}
 >
   <div class="p-4 space-y-3 text-sm">
     <p>This window is draggable by the header bar.</p>
     <p>Pass <code>openShortcut</code> / <code>closeShortcut</code> to toggle via keyboard, and <code>onClose</code> / <code>onMaximize</code> handlers as needed.</p>
   </div>
-</FloatingWindow>
+</DraggableWindow>
+
+<CommandPalette
+  bind:open={paletteOpen}
+  items={paletteItems}
+  placeholder="Type a command or search..."
+/>
