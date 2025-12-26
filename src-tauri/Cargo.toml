@@ -26,4 +26,6 @@ rusqlite = { version = "0.31", features = ["bundled", "chrono"] }
 keyring = "2.3"
 uuid = { version = "1.0", features = ["v4", "serde"] }
 dirs = "5.0"
+redis = "0.24"
+chrono = "0.4"
 
