@@ -226,8 +226,6 @@ impl ConnectionManager {
 
     // Test connection
     pub fn test_connection(&self, connection: &Connection, credentials: &SecureCredentials) -> Result<ConnectionInfo, String> {
-        // For now, return a mock response
-        // In the future, this will actually test the database connection
         let start_time = std::time::Instant::now();
         
         // Mock implementation - replace with actual connection testing
@@ -239,6 +237,10 @@ impl ConnectionManager {
                 } else {
                     false
                 }
+            }
+            crate::connection::DatabaseEngine::S3 => {
+                // For S3, test AWS credentials and connectivity
+                self.test_s3_connection(connection, credentials)
             }
             _ => {
                 // For other engines, just check if we have required credentials
@@ -255,6 +257,28 @@ impl ConnectionManager {
             error: if connected { None } else { Some("Connection failed".to_string()) },
             response_time_ms: Some(response_time),
         })
+    }
+
+    // Test S3 connection specifically
+    fn test_s3_connection(&self, connection: &Connection, credentials: &SecureCredentials) -> bool {
+        match connection.auth_type {
+            crate::connection::AuthType::AwsCredentials => {
+                // Check if we have access key and secret key
+                credentials.aws_access_key_id.is_some() && 
+                credentials.aws_secret_access_key.is_some()
+            }
+            crate::connection::AuthType::AwsProfile => {
+                // Profile-based authentication - assume valid for now
+                // In real implementation, would use AWS SDK
+                true
+            }
+            crate::connection::AuthType::AwsIamRole => {
+                // IAM role authentication - assume valid for now
+                // In real implementation, would use AWS SDK
+                true
+            }
+            _ => false,
+        }
     }
 
     // Increment connection count and update last connected timestamp
