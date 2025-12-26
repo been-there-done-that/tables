@@ -1,11 +1,17 @@
 mod migrations;
+mod connection;
+mod credential_manager;
+mod connection_manager;
 
 use tauri::Emitter;
-use std::{path::PathBuf, sync::Mutex, time::SystemTime};
+use std::{path::PathBuf, sync::{Arc, Mutex}, time::SystemTime};
 
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State, PhysicalPosition, PhysicalSize, Size};
+
+use connection::{Connection as DatabaseConnection, SecureCredentials, ConnectionInfo};
+use connection_manager::{ConnectionManager, ConnectionManagerState};
 
 #[derive(Clone, Debug, Serialize)]
 pub struct Theme {
@@ -22,7 +28,7 @@ pub struct Theme {
 
 #[derive(Debug)]
 pub struct DatabaseState {
-    pub conn: Mutex<Connection>,
+    pub conn: Arc<Mutex<Connection>>,
 }
 
 fn now_ts() -> i64 {
@@ -136,6 +142,115 @@ fn set_active_theme(
     Ok(())
 }
 
+// Connection management commands
+#[tauri::command]
+async fn create_connection(
+    connection: DatabaseConnection,
+    credentials: SecureCredentials,
+    db_state: State<'_, DatabaseState>,
+    conn_state: State<'_, ConnectionManagerState>,
+) -> Result<String, String> {
+    let manager = ConnectionManager::from_state(&db_state, &conn_state);
+    manager.create_connection(connection, credentials)
+}
+
+#[tauri::command]
+async fn get_connection(
+    id: String,
+    db_state: State<'_, DatabaseState>,
+    conn_state: State<'_, ConnectionManagerState>,
+) -> Result<(DatabaseConnection, SecureCredentials), String> {
+    let manager = ConnectionManager::from_state(&db_state, &conn_state);
+    manager.get_connection(&id)
+}
+
+#[tauri::command]
+async fn get_connection_metadata(
+    id: String,
+    db_state: State<'_, DatabaseState>,
+    conn_state: State<'_, ConnectionManagerState>,
+) -> Result<DatabaseConnection, String> {
+    let manager = ConnectionManager::from_state(&db_state, &conn_state);
+    manager.get_connection_metadata(&id)
+}
+
+#[tauri::command]
+async fn list_connections(
+    db_state: State<'_, DatabaseState>,
+    conn_state: State<'_, ConnectionManagerState>,
+) -> Result<Vec<DatabaseConnection>, String> {
+    let manager = ConnectionManager::from_state(&db_state, &conn_state);
+    manager.list_connections()
+}
+
+#[tauri::command]
+async fn update_connection(
+    connection: DatabaseConnection,
+    credentials: Option<SecureCredentials>,
+    db_state: State<'_, DatabaseState>,
+    conn_state: State<'_, ConnectionManagerState>,
+) -> Result<(), String> {
+    let manager = ConnectionManager::from_state(&db_state, &conn_state);
+    manager.update_connection(connection, credentials)
+}
+
+#[tauri::command]
+async fn delete_connection(
+    id: String,
+    db_state: State<'_, DatabaseState>,
+    conn_state: State<'_, ConnectionManagerState>,
+) -> Result<(), String> {
+    let manager = ConnectionManager::from_state(&db_state, &conn_state);
+    manager.delete_connection(&id)
+}
+
+#[tauri::command]
+async fn test_connection(
+    connection: DatabaseConnection,
+    credentials: SecureCredentials,
+    db_state: State<'_, DatabaseState>,
+    conn_state: State<'_, ConnectionManagerState>,
+) -> Result<ConnectionInfo, String> {
+    let manager = ConnectionManager::from_state(&db_state, &conn_state);
+    manager.test_connection(&connection, &credentials)
+}
+
+#[tauri::command]
+async fn get_favorite_connections(
+    db_state: State<'_, DatabaseState>,
+    conn_state: State<'_, ConnectionManagerState>,
+) -> Result<Vec<DatabaseConnection>, String> {
+    let manager = ConnectionManager::from_state(&db_state, &conn_state);
+    manager.get_favorite_connections()
+}
+
+#[tauri::command]
+async fn search_connections(
+    query: String,
+    db_state: State<'_, DatabaseState>,
+    conn_state: State<'_, ConnectionManagerState>,
+) -> Result<Vec<DatabaseConnection>, String> {
+    let manager = ConnectionManager::from_state(&db_state, &conn_state);
+    manager.search_connections(&query)
+}
+
+#[tauri::command]
+async fn update_connection_stats(
+    id: String,
+    db_state: State<'_, DatabaseState>,
+    conn_state: State<'_, ConnectionManagerState>,
+) -> Result<(), String> {
+    let manager = ConnectionManager::from_state(&db_state, &conn_state);
+    manager.update_connection_stats(&id)
+}
+
+#[tauri::command]
+async fn check_keyring_available(
+    conn_state: State<'_, ConnectionManagerState>,
+) -> Result<bool, String> {
+    Ok(conn_state.credential_manager.is_available())
+}
+
 fn init_connection(db_path: &PathBuf) -> Result<Connection, String> {
     if let Some(parent) = db_path.parent() {
         std::fs::create_dir_all(parent)
@@ -163,8 +278,11 @@ pub fn run() {
             let db_path = app_data_dir.join("tables.db");
             let conn = init_connection(&db_path)?;
             app.manage(DatabaseState {
-                conn: Mutex::new(conn),
+                conn: Arc::new(Mutex::new(conn)),
             });
+
+            // Initialize connection manager state
+            app.manage(ConnectionManagerState::new());
 
             // Dynamically size the main window to ~100% of the current monitor and center it.
             if let Some(window) = app.get_webview_window("main") {
@@ -185,7 +303,18 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_all_themes,
             get_active_theme,
-            set_active_theme
+            set_active_theme,
+            create_connection,
+            get_connection,
+            get_connection_metadata,
+            list_connections,
+            update_connection,
+            delete_connection,
+            test_connection,
+            get_favorite_connections,
+            search_connections,
+            update_connection_stats,
+            check_keyring_available
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

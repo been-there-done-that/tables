@@ -18,6 +18,35 @@ CREATE INDEX IF NOT EXISTS idx_themes_is_active ON themes(is_active);
 CREATE INDEX IF NOT EXISTS idx_themes_name ON themes(name COLLATE NOCASE);
 "#;
 
+const CREATE_CONNECTIONS_TABLE: &str = r#"
+CREATE TABLE IF NOT EXISTS connections (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    engine TEXT NOT NULL,
+    host TEXT,
+    port INTEGER,
+    database TEXT,
+    username TEXT,
+    auth_type TEXT NOT NULL DEFAULT 'password',
+    ssl_enabled INTEGER DEFAULT FALSE,
+    ssh_tunnel_enabled INTEGER DEFAULT FALSE,
+    ssh_tunnel_host TEXT,
+    ssh_tunnel_port INTEGER,
+    ssh_tunnel_username TEXT,
+    connection_params TEXT,
+    is_favorite INTEGER DEFAULT FALSE,
+    color_tag TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    last_connected_at INTEGER,
+    connection_count INTEGER DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_connections_engine ON connections(engine);
+CREATE INDEX IF NOT EXISTS idx_connections_name ON connections(name COLLATE NOCASE);
+CREATE INDEX IF NOT EXISTS idx_connections_favorite ON connections(is_favorite);
+CREATE INDEX IF NOT EXISTS idx_connections_last_used ON connections(last_connected_at DESC);
+"#;
+
 #[derive(Debug, Deserialize)]
 struct ThemeSeed {
     id: String,
@@ -72,6 +101,9 @@ const BUILTIN_THEME_FILES: &[(&str, &str)] = &[
 pub fn apply(conn: &Connection, now_fn: impl Fn() -> i64) -> Result<(), String> {
     conn.execute_batch(CREATE_THEMES_TABLE)
         .map_err(|e| format!("Failed to create themes table: {e}"))?;
+
+    conn.execute_batch(CREATE_CONNECTIONS_TABLE)
+        .map_err(|e| format!("Failed to create connections table: {e}"))?;
 
     let ts = now_fn();
 
