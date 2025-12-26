@@ -53,7 +53,7 @@
   <div class="flex h-screen w-full flex-col overflow-hidden bg-background">
     <Titlebar isFullScreen={isFullScreen} />
     <div class="h-8 shrink-0" aria-hidden="true"></div>
-    <div class="flex-1 w-full overflow-auto">
+    <div class="flex-1 w-full min-h-0 overflow-hidden">
       {@render children()}
     </div>
   </div>
