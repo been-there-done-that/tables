@@ -28,30 +28,30 @@
     }
 </script>
 
-<div class="flex flex-col h-full bg-[#2b2d30] border-r border-[#1e1f22]">
+<div class="flex flex-col h-full bg-[--theme-bg-secondary] border-r border-[--theme-border-default]">
     <!-- Toolbar -->
-    <div class="flex items-center p-2 space-x-1 border-b border-[#1e1f22]">
+    <div class="flex items-center p-2 space-x-1 border-b border-[--theme-border-default]">
         <button
-            class="p-1 hover:bg-[#393b40] rounded text-gray-400 hover:text-gray-200 transition-colors"
+            class="p-1 hover:bg-[--theme-bg-hover] rounded text-[--theme-fg-tertiary] hover:text-[--theme-fg-secondary] transition-colors"
             title="Add"
         >
             <IconPlus size={16} />
         </button>
         <button
-            class="p-1 hover:bg-[#393b40] rounded text-gray-400 hover:text-gray-200 transition-colors"
+            class="p-1 hover:bg-[--theme-bg-hover] rounded text-[--theme-fg-tertiary] hover:text-[--theme-fg-secondary] transition-colors"
             title="Remove"
         >
             <IconMinus size={16} />
         </button>
         <button
-            class="p-1 hover:bg-[#393b40] rounded text-gray-400 hover:text-gray-200 transition-colors"
+            class="p-1 hover:bg-[--theme-bg-hover] rounded text-[--theme-fg-tertiary] hover:text-[--theme-fg-secondary] transition-colors"
             title="Duplicate"
         >
             <IconCopy size={16} />
         </button>
         <div class="grow"></div>
         <button
-            class="p-1 hover:bg-[#393b40] rounded text-gray-400 hover:text-gray-200 transition-colors"
+            class="p-1 hover:bg-[--theme-bg-hover] rounded text-[--theme-fg-tertiary] hover:text-[--theme-fg-secondary] transition-colors"
             title="Data Sources"
         >
             <IconDatabase size={16} />
@@ -61,7 +61,7 @@
     <!-- Tree/List Area -->
     <div class="grow overflow-y-auto">
         <div
-            class="px-2 py-1 text-xs font-bold text-gray-500 uppercase tracking-wider mt-2"
+            class="px-2 py-1 text-xs font-bold text-[--theme-fg-tertiary] uppercase tracking-wider mt-2"
         >
             Complete Support
         </div>
@@ -71,13 +71,13 @@
                 <button
                     class="w-full text-left px-3 py-1.5 flex items-center space-x-2 text-sm
                     {selectedDriver?.id === driver.id
-                        ? 'bg-[#2d4263] text-white'
-                        : 'text-[#bbbbbb] hover:bg-[#393b40]'}"
+                        ? 'bg-[--theme-accent-primary] text-white'
+                        : 'text-[--theme-fg-secondary] hover:bg-[--theme-bg-hover]'}"
                     onclick={() => selectDriver(driver)}
                 >
                     <!-- <svelte:component this={getIcon(driver.icon)} size={14} class="text-gray-400" /> -->
                     <!-- Placeholder Icon -->
-                    <IconDatabase size={14} class="text-gray-400" />
+                    <IconDatabase size={14} class="text-[--theme-fg-tertiary]" />
 
                     <span class="truncate">{driver.name}</span>
                 </button>

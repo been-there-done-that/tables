@@ -4,7 +4,7 @@
 
   type Variant = "solid" | "ghost" | "outline" | "subtle";
   type Radius = "none" | "sm" | "md" | "lg" | "full";
-  type Height = "8" | "10" | "12";
+  type Height = "6" | "8" | "10" | "12";
   type ButtonType = "button" | "submit" | "reset";
   type ClickHandler = ((event: MouseEvent) => void) | null;
 
@@ -26,7 +26,7 @@
     type = "button" as ButtonType,
     variant = "solid" as Variant,
     radius = "sm" as Radius,
-    height = "8" as Height,
+    height = "6" as Height,
     class: className = "",
     disabled = false,
     href = "",
@@ -43,6 +43,7 @@
   };
 
   const heightClass: Record<Height, string> = {
+    "6": "h-7 px-2 text-sm",
     "8": "h-8 px-3 text-sm",
     "10": "h-10 px-4 text-sm",
     "12": "h-12 px-5 text-base",
