@@ -1,6 +1,7 @@
 <script lang="ts">
     import { IconChevronDown } from "@tabler/icons-svelte";
     import FormInput from "$lib/components/FormInput.svelte";
+    import Select from "$lib/components/Select.svelte";
 
     interface Props {
         data: any; // We'll type this properly later with Zod or similar
@@ -8,6 +9,18 @@
     }
 
     let { data, onChange }: Props = $props();
+
+    const authOptions = [
+        { value: "password", label: "User & Password" },
+        { value: "pg_pass", label: "PgPass" },
+        { value: "os_credentials", label: "OS Credentials" },
+    ];
+
+    const saveOptions = [
+        { value: "forever", label: "Forever" },
+        { value: "session", label: "For Session" },
+        { value: "never", label: "Never" },
+    ];
 </script>
 
 <div class="space-y-4 text-sm">
@@ -43,19 +56,11 @@
 
         <label for="auth" class="text-[#bbbbbb]">Authentication:</label>
         <div class="relative">
-            <select
-                id="auth"
-                class="w-full h-8 rounded-md border border-[#5e6060] bg-[#2b2d30] px-3 py-1.5 text-sm text-[#a9b7c6] appearance-none focus:border-[#3574f0] focus:ring-0 outline-none"
+            <Select
+                options={authOptions}
                 value={data.authType || "password"}
-                onchange={(e) => onChange("authType", e.currentTarget.value)}
-            >
-                <option value="password">User & Password</option>
-                <option value="pg_pass">PgPass</option>
-                <option value="os_credentials">OS Credentials</option>
-            </select>
-            <IconChevronDown
-                size={14}
-                class="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 pointer-events-none"
+                onCommit={(value: any) => onChange("authType", value)}
+                class="w-full bg-[#2b2d30]"
             />
         </div>
 
@@ -82,16 +87,11 @@
             <div class="flex items-center space-x-1 w-auto min-w-[120px]">
                 <span class="text-[#bbbbbb] whitespace-nowrap">Save:</span>
                 <div class="relative w-full">
-                    <select
-                        class="w-full h-8 rounded-md border border-[#5e6060] bg-[#2b2d30] px-2 py-1.5 text-xs text-[#a9b7c6] appearance-none focus:border-[#3574f0] outline-none"
-                    >
-                        <option>Forever</option>
-                        <option>For Session</option>
-                        <option>Never</option>
-                    </select>
-                    <IconChevronDown
-                        size={12}
-                        class="absolute right-1 top-1/2 transform -translate-y-1/2 text-gray-500 pointer-events-none"
+                    <Select
+                        options={saveOptions}
+                        value={data.saveMode || "forever"}
+                        onCommit={(value: any) => onChange("saveMode", value)}
+                        class="w-full bg-[#2b2d30]"
                     />
                 </div>
             </div>
