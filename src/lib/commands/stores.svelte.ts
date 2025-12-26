@@ -8,6 +8,19 @@ import type {
 } from './types';
 
 /**
+ * Configurable delays for smooth UX transitions
+ * Adjust these values to control loading timing across the application
+ */
+export const DELAYS = {
+  THEME_LOAD: 300,
+  THEME_ACTIVE: 200,
+  CONNECTION_LOAD: 250,
+  AWS_LOAD: 200,
+  PLUGIN_LOAD: 200,
+  THEME_TRANSITION: 500,
+} as const;
+
+/**
  * Reactive stores for managing application state with command integration
  */
 
@@ -32,6 +45,9 @@ class ThemeStore {
     this.loading = true;
     this.error = '';
     
+    // Add artificial delay for smooth UX
+    await new Promise(resolve => setTimeout(resolve, DELAYS.THEME_LOAD));
+    
     const response = await commandClient.getAllThemes();
     if (response.success && response.data) {
       this.themes = response.data;
@@ -42,6 +58,9 @@ class ThemeStore {
   }
 
   async loadActiveTheme() {
+    // Add artificial delay for smooth UX
+    await new Promise(resolve => setTimeout(resolve, DELAYS.THEME_ACTIVE));
+    
     const response = await commandClient.getActiveTheme();
     if (response.success && response.data) {
       this.activeId = response.data.id;
@@ -86,6 +105,9 @@ class ConnectionStore {
   async loadConnections() {
     this.loading = true;
     this.error = '';
+    
+    // Add artificial delay for smooth UX
+    await new Promise(resolve => setTimeout(resolve, DELAYS.CONNECTION_LOAD));
     
     const response = await commandClient.listConnections();
     if (response.success && response.data) {
@@ -173,6 +195,9 @@ class AwsStore {
     this.loading = true;
     this.error = '';
     
+    // Add artificial delay for smooth UX
+    await new Promise(resolve => setTimeout(resolve, DELAYS.AWS_LOAD));
+    
     const response = await commandClient.getAvailableAwsProfiles();
     if (response.success && response.data) {
       this.profiles = response.data;
@@ -220,6 +245,9 @@ class PluginStore {
   async loadPlugins() {
     this.loading = true;
     this.error = '';
+    
+    // Add artificial delay for smooth UX
+    await new Promise(resolve => setTimeout(resolve, DELAYS.PLUGIN_LOAD));
     
     const response = await commandClient.getAvailablePlugins();
     if (response.success && response.data) {

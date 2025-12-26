@@ -6,7 +6,7 @@
   import { setThemeContext } from "$lib/theme/context";
   import { onDestroy } from "svelte";
   import type { ThemeState } from "$lib/theme/context";
-  import { themeStore } from '$lib/commands/stores.svelte';
+  import { themeStore, DELAYS } from '$lib/commands/stores.svelte';
 
   let { children } = $props();
 
@@ -36,7 +36,8 @@
       await themeStore.refresh();
       const active = themeStore.state.active;
       applyTheme(active ?? themeStore.state.themes.find((t: ThemeRecord) => t.is_active), false);
-      await delay(300); // simulate initial load delay
+      // Additional delay after theme application for smooth transition
+      await delay(DELAYS.THEME_TRANSITION);
     } catch (e) {
       console.error("Failed to load themes:", e);
     }
