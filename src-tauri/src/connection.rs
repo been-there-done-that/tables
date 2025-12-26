@@ -34,6 +34,7 @@ pub enum DatabaseEngine {
     MongoDB,
     Redis,
     Elasticsearch,
+    S3,
     Custom(String),
 }
 
@@ -46,6 +47,7 @@ impl DatabaseEngine {
             DatabaseEngine::MongoDB => Some(27017),
             DatabaseEngine::Redis => Some(6379),
             DatabaseEngine::Elasticsearch => Some(9200),
+            DatabaseEngine::S3 => None, // S3 doesn't use traditional ports
             DatabaseEngine::Custom(_) => None,
         }
     }
@@ -58,6 +60,7 @@ impl DatabaseEngine {
             DatabaseEngine::MongoDB => "MongoDB",
             DatabaseEngine::Redis => "Redis",
             DatabaseEngine::Elasticsearch => "Elasticsearch",
+            DatabaseEngine::S3 => "Amazon S3",
             DatabaseEngine::Custom(_) => "Custom",
         }
     }
@@ -72,6 +75,9 @@ pub enum AuthType {
     WindowsAuth,
     Kerberos,
     None, // For SQLite or no auth
+    AwsCredentials,
+    AwsProfile,
+    AwsIamRole,
 }
 
 impl AuthType {
@@ -103,6 +109,13 @@ pub struct SecureCredentials {
     pub ssl_ca_certificate: Option<SecretString>,
     #[serde(skip)]
     pub api_token: Option<SecretString>,
+    // AWS S3 credentials
+    #[serde(skip)]
+    pub aws_access_key_id: Option<SecretString>,
+    #[serde(skip)]
+    pub aws_secret_access_key: Option<SecretString>,
+    #[serde(skip)]
+    pub aws_session_token: Option<SecretString>,
 }
 
 impl SecureCredentials {
@@ -115,6 +128,9 @@ impl SecureCredentials {
             ssl_private_key: None,
             ssl_ca_certificate: None,
             api_token: None,
+            aws_access_key_id: None,
+            aws_secret_access_key: None,
+            aws_session_token: None,
         }
     }
 
@@ -126,6 +142,9 @@ impl SecureCredentials {
             && self.ssl_private_key.is_none()
             && self.ssl_ca_certificate.is_none()
             && self.api_token.is_none()
+            && self.aws_access_key_id.is_none()
+            && self.aws_secret_access_key.is_none()
+            && self.aws_session_token.is_none()
     }
 }
 
@@ -246,6 +265,9 @@ pub fn load_connection_from_row(row: &rusqlite::Row<'_>) -> Result<Connection, r
         "windows_auth" => AuthType::WindowsAuth,
         "kerberos" => AuthType::Kerberos,
         "none" => AuthType::None,
+        "aws_credentials" => AuthType::AwsCredentials,
+        "aws_profile" => AuthType::AwsProfile,
+        "aws_iam_role" => AuthType::AwsIamRole,
         _ => AuthType::Password,
     };
 

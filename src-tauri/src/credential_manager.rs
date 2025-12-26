@@ -135,6 +135,55 @@ impl CredentialManager {
         }
     }
 
+    // AWS S3 credentials operations
+    pub fn store_aws_access_key_id(&self, connection_id: &str, key_id: &str) -> Result<(), Error> {
+        let key_name = self.build_key(connection_id, "aws_access_key_id");
+        let entry = Entry::new(&self.service_name, &key_name)?;
+        entry.set_password(key_id)
+    }
+
+    pub fn get_aws_access_key_id(&self, connection_id: &str) -> Result<Option<String>, Error> {
+        let key_name = self.build_key(connection_id, "aws_access_key_id");
+        let entry = Entry::new(&self.service_name, &key_name)?;
+        match entry.get_password() {
+            Ok(key_id) => Ok(Some(key_id)),
+            Err(Error::NoEntry) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub fn store_aws_secret_access_key(&self, connection_id: &str, secret_key: &str) -> Result<(), Error> {
+        let key_name = self.build_key(connection_id, "aws_secret_access_key");
+        let entry = Entry::new(&self.service_name, &key_name)?;
+        entry.set_password(secret_key)
+    }
+
+    pub fn get_aws_secret_access_key(&self, connection_id: &str) -> Result<Option<String>, Error> {
+        let key_name = self.build_key(connection_id, "aws_secret_access_key");
+        let entry = Entry::new(&self.service_name, &key_name)?;
+        match entry.get_password() {
+            Ok(secret_key) => Ok(Some(secret_key)),
+            Err(Error::NoEntry) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub fn store_aws_session_token(&self, connection_id: &str, session_token: &str) -> Result<(), Error> {
+        let key_name = self.build_key(connection_id, "aws_session_token");
+        let entry = Entry::new(&self.service_name, &key_name)?;
+        entry.set_password(session_token)
+    }
+
+    pub fn get_aws_session_token(&self, connection_id: &str) -> Result<Option<String>, Error> {
+        let key_name = self.build_key(connection_id, "aws_session_token");
+        let entry = Entry::new(&self.service_name, &key_name)?;
+        match entry.get_password() {
+            Ok(session_token) => Ok(Some(session_token)),
+            Err(Error::NoEntry) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
     // Store all credentials for a connection
     pub fn store_credentials(&self, connection_id: &str, credentials: &SecureCredentials) -> Result<(), Error> {
         if let Some(password) = &credentials.password {
@@ -163,6 +212,19 @@ impl CredentialManager {
 
         if let Some(api_token) = &credentials.api_token {
             self.store_api_token(connection_id, api_token.expose())?;
+        }
+
+        // AWS S3 credentials
+        if let Some(aws_access_key_id) = &credentials.aws_access_key_id {
+            self.store_aws_access_key_id(connection_id, aws_access_key_id.expose())?;
+        }
+
+        if let Some(aws_secret_access_key) = &credentials.aws_secret_access_key {
+            self.store_aws_secret_access_key(connection_id, aws_secret_access_key.expose())?;
+        }
+
+        if let Some(aws_session_token) = &credentials.aws_session_token {
+            self.store_aws_session_token(connection_id, aws_session_token.expose())?;
         }
 
         Ok(())
@@ -200,6 +262,19 @@ impl CredentialManager {
             credentials.api_token = Some(api_token.into());
         }
 
+        // AWS S3 credentials
+        if let Ok(Some(aws_access_key_id)) = self.get_aws_access_key_id(connection_id) {
+            credentials.aws_access_key_id = Some(aws_access_key_id.into());
+        }
+
+        if let Ok(Some(aws_secret_access_key)) = self.get_aws_secret_access_key(connection_id) {
+            credentials.aws_secret_access_key = Some(aws_secret_access_key.into());
+        }
+
+        if let Ok(Some(aws_session_token)) = self.get_aws_session_token(connection_id) {
+            credentials.aws_session_token = Some(aws_session_token.into());
+        }
+
         Ok(credentials)
     }
 
@@ -220,6 +295,9 @@ impl CredentialManager {
             "ssl_private_key",
             "ssl_ca_cert",
             "api_token",
+            "aws_access_key_id",
+            "aws_secret_access_key",
+            "aws_session_token",
         ];
 
         for credential_type in credential_types {
