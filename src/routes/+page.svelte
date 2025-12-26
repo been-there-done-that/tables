@@ -30,6 +30,7 @@
   
 <main class="p-4">
   <a href="/demo">Components Demo</a>
+  <a href="/test">Test Route</a>
   <Container class="space-y-6 max-w-4xl mx-auto">
     <div class="flex items-center justify-between gap-4 flex-wrap">
       <div class="space-y-1">
