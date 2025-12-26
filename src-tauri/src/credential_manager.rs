@@ -282,7 +282,7 @@ impl CredentialManager {
     pub fn delete_credential(&self, connection_id: &str, credential_type: &str) -> Result<(), Error> {
         let key = self.build_key(connection_id, credential_type);
         let entry = Entry::new(&self.service_name, &key)?;
-        entry.delete_password()
+        entry.delete_credential()
     }
 
     // Delete all credentials for a connection
