@@ -15,7 +15,7 @@ use commands::connection_commands::*;
 use commands::aws_commands::*;
 use commands::redis_commands::*;
 use commands::athena_commands::*;
-use plugins::get_available_plugins;
+use plugins::{PluginDiscovery, get_available_plugins, enable_plugin, disable_plugin, get_plugin_info, initialize_all_plugins};
 
 // Re-export for command modules
 pub use connection_manager::ConnectionManagerState;
@@ -106,6 +106,21 @@ pub fn run() {
             // Initialize connection manager state
             app.manage(ConnectionManagerState::new());
 
+            // Initialize plugin system and discover all plugins
+            let discovery = PluginDiscovery::new();
+            discovery.discover_builtin_plugins()
+                .map_err(|e| format!("Failed to discover plugins: {e}"))?;
+
+            // Initialize all enabled plugins
+            let init_results = discovery.initialize_plugins(app.handle());
+            for result in init_results {
+                if !result.success {
+                    eprintln!("Plugin initialization failed: {} - {}", result.plugin_name, result.message);
+                } else {
+                    println!("Plugin initialized: {} ({} commands)", result.plugin_name, result.commands_registered);
+                }
+            }
+
             // Dynamically size the main window to ~100% of the current monitor and center it.
             if let Some(window) = app.get_webview_window("main") {
                 if let Ok(Some(monitor)) = window.current_monitor() {
@@ -122,54 +137,7 @@ pub fn run() {
             }
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![
-            // Theme & Plugin Discovery commands
-            get_all_themes,
-            get_active_theme,
-            set_active_theme,
-            get_available_plugins,
-            
-            // Connection Management commands
-            create_connection,
-            get_connection,
-            get_connection_metadata,
-            list_connections,
-            update_connection,
-            delete_connection,
-            test_connection,
-            get_favorite_connections,
-            search_connections,
-            update_connection_stats,
-            check_keyring_available,
-            
-            // AWS/S3 commands
-            get_available_aws_profiles,
-            get_aws_profile_by_name,
-            test_aws_profile,
-            list_s3_buckets,
-            list_s3_objects,
-            upload_s3_file,
-            download_s3_file,
-            delete_s3_object,
-            get_s3_bucket_info,
-            
-            // Redis commands
-            get_redis_info,
-            list_redis_databases,
-            list_redis_keys,
-            get_redis_key,
-            execute_redis_command,
-            delete_redis_key,
-            
-            // Athena commands
-            execute_athena_query,
-            get_athena_query_status,
-            list_athena_databases,
-            list_athena_tables,
-            get_athena_table_schema,
-            cancel_athena_query,
-            list_athena_workgroups
-        ])
+        .invoke_handler(aggregate_plugin_commands!())
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
