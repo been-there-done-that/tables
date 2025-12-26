@@ -113,12 +113,19 @@ pub fn run() {
 
             // Initialize all enabled plugins
             let init_results = discovery.initialize_plugins(app.handle());
+            let mut failed_plugins = Vec::new();
             for result in init_results {
                 if !result.success {
+                    failed_plugins.push(format!("{} - {}", result.plugin_name, result.message));
                     eprintln!("Plugin initialization failed: {} - {}", result.plugin_name, result.message);
                 } else {
                     println!("Plugin initialized: {} ({} commands)", result.plugin_name, result.commands_registered);
                 }
+            }
+
+            // Fail fast if critical plugins fail to initialize
+            if !failed_plugins.is_empty() {
+                return Err(format!("Critical plugin initialization failures: {}", failed_plugins.join(", ")).into());
             }
 
             // Dynamically size the main window to ~100% of the current monitor and center it.

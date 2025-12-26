@@ -1,83 +1,98 @@
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
   import { applyTheme } from "$lib/theme/applyTheme";
   import type { ThemeRecord } from "$lib/theme/types";
+  import type { Theme } from "$lib/commands/types";
   import { setThemeContext } from "$lib/theme/context";
   import { onDestroy } from "svelte";
   import type { ThemeState } from "$lib/theme/context";
+  import { themeStore } from '$lib/commands/stores.svelte';
 
   let { children } = $props();
 
-  let state = $state<ThemeState>({
-    themes: [],
-    activeId: "",
-    loading: true,
-    error: "",
-  });
-  const subscribers = new Set<(s: ThemeState) => void>();
-
   const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  const notify = () => {
-    subscribers.forEach((fn) => fn(state));
-  };
+  // Track current theme state to detect changes
+  let currentThemeState = $state({
+    themes: themeStore.state.themes,
+    activeId: themeStore.state.activeId,
+    loading: themeStore.state.loading,
+    error: themeStore.state.error,
+  });
 
-  const setState = (updater: (s: ThemeState) => ThemeState) => {
-    state = updater(state);
-    notify();
-  };
+  // Reactive effect to sync with store changes
+  $effect(() => {
+    const storeState = themeStore.state;
+    currentThemeState = {
+      themes: storeState.themes,
+      activeId: storeState.activeId,
+      loading: storeState.loading,
+      error: storeState.error,
+    };
+  });
 
   async function loadThemes() {
     try {
-      setState((s) => ({ ...s, loading: true, error: "" }));
-      const themes = await invoke<ThemeRecord[]>("get_all_themes");
-      const active = await invoke<ThemeRecord | null>("get_active_theme");
-      const activeId = active?.id ?? "";
-      applyTheme(active ?? themes.find((t) => t.is_active), false);
+      await themeStore.refresh();
+      const active = themeStore.state.active;
+      applyTheme(active ?? themeStore.state.themes.find((t: ThemeRecord) => t.is_active), false);
       await delay(300); // simulate initial load delay
-      setState(() => ({
-        themes,
-        activeId,
-        loading: false,
-        error: "",
-      }));
     } catch (e) {
-      setState((s) => ({ ...s, loading: false, error: String(e) }));
+      console.error("Failed to load themes:", e);
     }
   }
 
   async function setActive(id: string) {
-    if (id === state.activeId) return;
+    console.log("setActive called with:", id);
     try {
-      await invoke("set_active_theme", { themeId: id });
+      await themeStore.setActiveTheme(id);
+      console.log("setActiveTheme completed successfully");
     } catch (e) {
-      setState((s) => ({ ...s, error: String(e) }));
+      console.error("Failed to set active theme:", e);
     }
   }
 
+  // Create adapter that uses reactive state
   setThemeContext({
     subscribe: (fn) => {
-      subscribers.add(fn);
-      fn(state);
-      return () => subscribers.delete(fn);
+      // Subscribe to reactive state changes
+      let unsubscribe: (() => void) | undefined;
+      
+      const updateSubscriber = () => {
+        fn(currentThemeState);
+      };
+      
+      // Initial call
+      updateSubscriber();
+      
+      // Use $effect to track changes
+      $effect(() => {
+        updateSubscriber();
+      });
+      
+      unsubscribe = () => {
+        // No cleanup needed for $effect
+      };
+      
+      return unsubscribe;
     },
     setActive,
   });
 
   loadThemes();
 
-  const unlisten = listen<ThemeRecord>("current-theme", (event) => {
+  const unlisten = listen<Theme>("current-theme", (event) => {
+    console.log("Theme change event received:", event.payload);
     const theme = event.payload;
+    console.log("Applying theme:", theme);
     applyTheme(theme);
-    setState((s) => {
-      const idx = s.themes.findIndex((t) => t.id === theme.id);
-      const themes =
-        idx >= 0
-          ? Object.assign([...s.themes], { [idx]: theme })
-          : [...s.themes, theme];
-      return { ...s, themes, activeId: theme.id };
-    });
+    // Update the store state when theme changes via backend
+    const storeState = themeStore.state;
+    if (storeState.activeId !== theme.id) {
+      console.log("Syncing store with backend theme:", theme.id);
+      // Force refresh to sync with backend
+      themeStore.loadActiveTheme();
+    }
   });
 
   onDestroy(() => {
