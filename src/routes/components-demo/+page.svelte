@@ -2,6 +2,7 @@
   import Button from "$lib/components/Button.svelte";
   import Select, { type Option } from "$lib/components/Select.svelte";
   import FloatingWindow from "$lib/components/FloatingWindow.svelte";
+  import SearchInput from "$lib/components/SearchInput.svelte";
   import { cn } from "$lib/utils";
   import { getThemeContext } from "$lib/theme/context";
   import type { ThemeRecord, ThemeData } from "$lib/theme/types";
@@ -21,6 +22,7 @@
   let selected = $state("alpha");
   let windowOpen = $state(false);
   let themeSearch = $state("");
+  let activeId = $state("");
 
   const themeCtx = getThemeContext();
   let themes = $state<ThemeRecord[]>([]);
@@ -45,6 +47,7 @@
   $effect(() => {
     const unsub = themeCtx.subscribe((s) => {
       themes = s.themes;
+      activeId = s.activeId;
     });
     return () => unsub();
   });
@@ -87,10 +90,9 @@
         <h2 class="font-semibold text-sm">Themes</h2>
         <span class="text-[11px] px-2 py-0.5 rounded-full border border-(--theme-border-subtle)">{themes.length} total</span>
       </div>
-      <input
-        type="search"
+      <SearchInput
         placeholder="Search themes..."
-        class="w-full rounded-md border border-(--theme-border-default) bg-(--theme-bg-primary) px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-(--theme-accent-primary)"
+        class="mx-1"
         bind:value={themeSearch}
       />
       <div class="overflow-auto flex-1 space-y-3 pr-1">
@@ -102,7 +104,7 @@
                 <div class="text-xs opacity-70 truncate">{theme.record.description}</div>
               </div>
               <div class="flex items-center gap-1">
-                {#if theme.record.is_active}
+                {#if theme.record.id === activeId}
                   <span class="text-[10px] px-2 py-0.5 rounded-full border border-(--theme-border-default)">Active</span>
                 {/if}
                 <button
