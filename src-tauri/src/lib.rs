@@ -2,6 +2,7 @@ mod migrations;
 mod connection;
 mod credential_manager;
 mod connection_manager;
+mod aws_profile_manager;
 
 use tauri::Emitter;
 use std::{path::PathBuf, sync::{Arc, Mutex}, time::SystemTime};
@@ -12,6 +13,7 @@ use tauri::{AppHandle, Manager, State, PhysicalPosition, PhysicalSize, Size};
 
 use connection::{Connection as DatabaseConnection, SecureCredentials, ConnectionInfo};
 use connection_manager::{ConnectionManager, ConnectionManagerState};
+use aws_profile_manager::{AwsProfileManager, AwsProfile};
 
 #[derive(Clone, Debug, Serialize)]
 pub struct Theme {
@@ -251,6 +253,27 @@ async fn check_keyring_available(
     Ok(conn_state.credential_manager.is_available())
 }
 
+// AWS Profile management commands
+#[tauri::command]
+async fn get_available_aws_profiles() -> Result<Vec<AwsProfile>, String> {
+    AwsProfileManager::load_available_profiles()
+}
+
+#[tauri::command]
+async fn get_aws_profile_by_name(
+    profile_name: String,
+) -> Result<Option<AwsProfile>, String> {
+    AwsProfileManager::get_profile_by_name(&profile_name)
+}
+
+#[tauri::command]
+async fn test_aws_profile(
+    profile: AwsProfile,
+) -> Result<bool, String> {
+    let manager = AwsProfileManager::new();
+    manager.test_profile(&profile)
+}
+
 fn init_connection(db_path: &PathBuf) -> Result<Connection, String> {
     if let Some(parent) = db_path.parent() {
         std::fs::create_dir_all(parent)
@@ -314,7 +337,10 @@ pub fn run() {
             get_favorite_connections,
             search_connections,
             update_connection_stats,
-            check_keyring_available
+            check_keyring_available,
+            get_available_aws_profiles,
+            get_aws_profile_by_name,
+            test_aws_profile
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
