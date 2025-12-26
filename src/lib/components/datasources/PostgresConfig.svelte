@@ -2,16 +2,35 @@
   import FormInput from "../FormInput.svelte";
 
   let {
-    values = $bindable({}),
+    onCancel,
+    onSave,
+    onTest,
   } = $props<{
-    values?: Record<string, string>;
+    onCancel?: () => void;
+    onSave?: (values: Record<string, string>) => void;
+    onTest?: (values: Record<string, string>) => void;
   }>();
+
+  const initial = { host: "", port: "", database: "", user: "", password: "" };
+  let values = $state<Record<string, string>>({ ...initial });
 
   const setField = (key: string) => (e: Event) => {
     const target = e.currentTarget as HTMLInputElement | null;
     if (!target) return;
     values = { ...values, [key]: target.value };
   };
+
+  export function triggerSave() {
+    onSave?.(values);
+  }
+
+  export function triggerTest() {
+    onTest?.(values);
+  }
+
+  export function triggerCancel() {
+    onCancel?.();
+  }
 </script>
 
 <div class="space-y-4">
@@ -64,4 +83,5 @@
     value={values.password ?? ""}
     oninput={setField("password")}
   />
+
 </div>

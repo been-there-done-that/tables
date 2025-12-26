@@ -1,16 +1,15 @@
 <script lang="ts">
   import DraggableWindow from "./DraggableWindow.svelte";
   import { cn } from "$lib/utils";
-  import Button from "./Button.svelte";
+  import Footer from "./Footer.svelte";
   import PostgresConfig from "./datasources/PostgresConfig.svelte";
   import ComingSoon from "./datasources/ComingSoon.svelte";
-  import Database from "@tabler/icons-svelte/icons/database";
 
   const drivers = [
-    { id: "postgresql", label: "PostgreSQL" },
-    { id: "mysql", label: "MySQL" },
-    { id: "sqlite", label: "SQLite" },
-    { id: "custom", label: "Custom" },
+    "postgresql",
+    "mysql",
+    "sqlite",
+    "custom",
   ];
 
   let selectedDriver = $state("sqlite");
@@ -22,31 +21,31 @@
     onTest = undefined,
   } = $props();
 
-  function defaultValuesFor(driver: string): Record<string, string> {
-    if (driver === "postgresql") {
-      return { host: "", port: "", database: "", user: "", password: "" };
-    }
-    return {} as Record<string, string>;
-  }
+  type PostgresHandle = {
+    triggerSave: () => void;
+    triggerTest: () => void;
+    triggerCancel: () => void;
+  };
 
-  let formValues = $state<Record<string, string>>(defaultValuesFor(selectedDriver));
+  let postgresRef = $state<PostgresHandle | null>(null);
 
   function selectDriver(id: string) {
     selectedDriver = id;
-    formValues = defaultValuesFor(id);
   }
 
-  function handleSubmit() {
-    const payload = { driver: selectedDriver, values: formValues };
-    console.log("Datasource submit", payload);
+  const handleCancel = () => {
     open = false;
-  }
+    onClose?.();
+  };
 
-  function handleTest() {
-    const payload = { driver: selectedDriver, values: formValues };
-    onTest?.(payload);
-  }
+  const handleSave = (values: Record<string, string>) => {
+    console.log("Datasource submit", { driver: selectedDriver, values });
+    open = false;
+  };
 
+  const handleTest = (values: Record<string, string>) => {
+    onTest?.({ driver: selectedDriver, values });
+  };
 </script>
 
 <DraggableWindow
@@ -62,23 +61,22 @@
 >
   <div class="flex flex-col h-[660px]">
     <div class="flex flex-1 divide-x divide-(--theme-border-default) min-h-0">
-      <aside class="w-[20%] bg-(--theme-bg-secondary) p-4 space-y-3 overflow-y-auto">
-        <div class="flex items-center gap-2 text-sm font-semibold text-(--theme-fg-secondary)">
-          <span>Drivers</span>
-          <div class="divide-y-2 h-1 w-full"></div>
+      <aside class="w-[20%] bg-(--theme-bg-secondary) space-y-3 overflow-y-auto">
+        <div class="flex w-full items-center gap-2 text-sm font-semibold text-(--theme-fg-secondary)">
+          <div class="text-center w-full">Drivers</div>
         </div>
-        <div class="space-y-1">
+        <div class="space-y-">
           {#each drivers as driver}
             <button
               class={cn(
-                "w-full text-left px-3 py-2 rounded-lg border border-transparent hover:border-(--theme-border-default) hover:bg-(--theme-bg-primary)",
-                selectedDriver === driver.id && "border-(--theme-border-default) bg-[color-mix(in_srgb,var(--theme-bg-primary)_90%,transparent)]",
+                "w-full text-left py-2 rounded-lg border border-transparent hover:border-(--theme-border-default) hover:bg-(--theme-bg-primary)",
+                selectedDriver === driver && "border-(--theme-border-default) bg-[color-mix(in_srgb,var(--theme-bg-primary)_90%,transparent)]",
               )}
-              onclick={() => selectDriver(driver.id)}
+              onclick={() => selectDriver(driver)}
             >
-              <div class="flex items-center gap-2">
-                <div class="h-6 w-6 rounded bg-(--theme-border-default) flex items-center justify-center text-xs text-(--theme-fg-secondary)">{driver.label[0]}</div>
-                <p class="text-sm font-medium text-(--theme-fg-primary)">{driver.label}</p>
+              <div class="flex items-start">
+                <div class="h-6 w-6 rounded bg-(--theme-border-default) flex items-center justify-center text-xs text-(--theme-fg-secondary)">{driver[0]}</div>
+                <p class="text-sm font-medium text-(--theme-fg-primary)">{driver}</p>
               </div>
             </button>
           {/each}
@@ -86,16 +84,16 @@
       </aside>
 
       <section class="w-[80%] flex-1 p-6 space-y-6 overflow-y-auto">
-        <header class="flex items-start justify-between">
-          <div>
-            <p class="text-xs uppercase tracking-wide text-(--theme-fg-secondary)">Selected driver</p>
-            <h3 class="text-lg font-semibold text-(--theme-fg-primary)">{drivers.find((d) => d.id === selectedDriver)?.label}</h3>
-          </div>
-        </header>
 
         <div class="space-y-4">
           {#if selectedDriver === "postgresql"}
-            <PostgresConfig bind:values={formValues} />
+            <PostgresConfig bind:this={postgresRef} onCancel={handleCancel} onSave={handleSave} onTest={handleTest} />
+          {:else if selectedDriver === "mysql"}
+            <ComingSoon />
+          {:else if selectedDriver === "sqlite"}
+            <ComingSoon />
+          {:else if selectedDriver === "custom"}
+            <ComingSoon />
           {:else}
             <ComingSoon />
           {/if}
@@ -103,35 +101,28 @@
       </section>
     </div>
 
-    <footer class="flex items-center justify-between pt-4 border-t border-(--theme-border-default) px-6 pb-4">
-      <div></div>
-      <div class="flex gap-2">
-        <Button
-          variant="outline"
-          onClick={() => {
-            open = false;
-            onClose?.();
-          }}
-        >
-          Cancel
-        </Button>
-
-        <Button
-          variant="outline"
-          onClick={() => {
-            onTest?.({ driver: selectedDriver, values: formValues });
-          }}
-        >
-          Test connection
-        </Button>
-
-        <Button
-          variant="solid"
-          onClick={handleSubmit}
-        >
-          Save
-        </Button>
-      </div>
-    </footer>
+    <Footer
+      onCancel={() => {
+        if (selectedDriver === "postgresql") {
+          postgresRef?.triggerCancel();
+        } else {
+          handleCancel();
+        }
+      }}
+      onTest={() => {
+        if (selectedDriver === "postgresql") {
+          postgresRef?.triggerTest();
+        } else {
+          handleTest({});
+        }
+      }}
+      onSave={() => {
+        if (selectedDriver === "postgresql") {
+          postgresRef?.triggerSave();
+        } else {
+          handleSave({});
+        }
+      }}
+    />
   </div>
 </DraggableWindow>
