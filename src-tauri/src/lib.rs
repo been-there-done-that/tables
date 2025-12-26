@@ -3,17 +3,16 @@ mod connection;
 mod credential_manager;
 mod connection_manager;
 mod aws_profile_manager;
+mod commands;
 
-use tauri::Emitter;
+use tauri::{Manager, PhysicalPosition, PhysicalSize, Size};
 use std::{path::PathBuf, sync::{Arc, Mutex}, time::SystemTime};
-
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{Connection, OptionalExtension};
 use serde::Serialize;
-use tauri::{AppHandle, Manager, State, PhysicalPosition, PhysicalSize, Size};
+use commands::*;
 
-use connection::{Connection as DatabaseConnection, SecureCredentials, ConnectionInfo};
-use connection_manager::{ConnectionManager, ConnectionManagerState};
-use aws_profile_manager::{AwsProfileManager, AwsProfile};
+// Re-export for command modules
+pub use connection_manager::ConnectionManagerState;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct Theme {
@@ -68,212 +67,6 @@ fn fetch_active_theme(conn: &Connection) -> Result<Option<Theme>, String> {
         .map_err(|e| format!("Failed to fetch active theme: {e}"))
 }
 
-#[tauri::command]
-fn get_all_themes(state: State<'_, DatabaseState>) -> Result<Vec<Theme>, String> {
-    let conn = state
-        .conn
-        .lock()
-        .map_err(|e| format!("Failed to lock database: {e}"))?;
-    let mut stmt = conn
-        .prepare(
-            "SELECT id, name, author, description, theme_data, is_builtin, is_active, created_at, updated_at
-             FROM themes
-             ORDER BY name COLLATE NOCASE",
-        )
-        .map_err(|e| format!("Failed to prepare query: {e}"))?;
-    let rows = stmt
-        .query_map([], load_theme)
-        .map_err(|e| format!("Failed to query themes: {e}"))?;
-
-    let mut themes = Vec::new();
-    for theme in rows {
-        themes.push(theme.map_err(|e| format!("Failed to read theme: {e}"))?);
-    }
-    Ok(themes)
-}
-
-#[tauri::command]
-fn get_active_theme(state: State<'_, DatabaseState>) -> Result<Option<Theme>, String> {
-    let conn = state
-        .conn
-        .lock()
-        .map_err(|e| format!("Failed to lock database: {e}"))?;
-    fetch_active_theme(&conn)
-}
-
-#[tauri::command]
-fn set_active_theme(
-    app: AppHandle,
-    state: State<'_, DatabaseState>,
-    theme_id: String,
-) -> Result<(), String> {
-    let mut conn = state
-        .conn
-        .lock()
-        .map_err(|e| format!("Failed to lock database: {e}"))?;
-    let tx = conn
-        .transaction()
-        .map_err(|e| format!("Failed to open transaction: {e}"))?;
-
-    let exists: Option<String> = tx
-        .query_row(
-            "SELECT id FROM themes WHERE id = ?1",
-            params![theme_id],
-            |row| row.get(0),
-        )
-        .optional()
-        .map_err(|e| format!("Failed to check theme: {e}"))?;
-    if exists.is_none() {
-        return Err(format!("Theme {} not found", theme_id));
-    }
-
-    tx.execute("UPDATE themes SET is_active = 0", [])
-        .map_err(|e| format!("Failed to clear active flag: {e}"))?;
-    tx.execute(
-        "UPDATE themes SET is_active = 1, updated_at = ?2 WHERE id = ?1",
-        params![theme_id, now_ts()],
-    )
-    .map_err(|e| format!("Failed to activate theme: {e}"))?;
-    tx.commit()
-        .map_err(|e| format!("Failed to commit theme change: {e}"))?;
-
-    // Broadcast change
-    if let Ok(Some(theme)) = fetch_active_theme(&conn) {
-        let _ = app.emit("current-theme", theme);
-    }
-    Ok(())
-}
-
-// Connection management commands
-#[tauri::command]
-async fn create_connection(
-    connection: DatabaseConnection,
-    credentials: SecureCredentials,
-    db_state: State<'_, DatabaseState>,
-    conn_state: State<'_, ConnectionManagerState>,
-) -> Result<String, String> {
-    let manager = ConnectionManager::from_state(&db_state, &conn_state);
-    manager.create_connection(connection, credentials)
-}
-
-#[tauri::command]
-async fn get_connection(
-    id: String,
-    db_state: State<'_, DatabaseState>,
-    conn_state: State<'_, ConnectionManagerState>,
-) -> Result<(DatabaseConnection, SecureCredentials), String> {
-    let manager = ConnectionManager::from_state(&db_state, &conn_state);
-    manager.get_connection(&id)
-}
-
-#[tauri::command]
-async fn get_connection_metadata(
-    id: String,
-    db_state: State<'_, DatabaseState>,
-    conn_state: State<'_, ConnectionManagerState>,
-) -> Result<DatabaseConnection, String> {
-    let manager = ConnectionManager::from_state(&db_state, &conn_state);
-    manager.get_connection_metadata(&id)
-}
-
-#[tauri::command]
-async fn list_connections(
-    db_state: State<'_, DatabaseState>,
-    conn_state: State<'_, ConnectionManagerState>,
-) -> Result<Vec<DatabaseConnection>, String> {
-    let manager = ConnectionManager::from_state(&db_state, &conn_state);
-    manager.list_connections()
-}
-
-#[tauri::command]
-async fn update_connection(
-    connection: DatabaseConnection,
-    credentials: Option<SecureCredentials>,
-    db_state: State<'_, DatabaseState>,
-    conn_state: State<'_, ConnectionManagerState>,
-) -> Result<(), String> {
-    let manager = ConnectionManager::from_state(&db_state, &conn_state);
-    manager.update_connection(connection, credentials)
-}
-
-#[tauri::command]
-async fn delete_connection(
-    id: String,
-    db_state: State<'_, DatabaseState>,
-    conn_state: State<'_, ConnectionManagerState>,
-) -> Result<(), String> {
-    let manager = ConnectionManager::from_state(&db_state, &conn_state);
-    manager.delete_connection(&id)
-}
-
-#[tauri::command]
-async fn test_connection(
-    connection: DatabaseConnection,
-    credentials: SecureCredentials,
-    db_state: State<'_, DatabaseState>,
-    conn_state: State<'_, ConnectionManagerState>,
-) -> Result<ConnectionInfo, String> {
-    let manager = ConnectionManager::from_state(&db_state, &conn_state);
-    manager.test_connection(&connection, &credentials)
-}
-
-#[tauri::command]
-async fn get_favorite_connections(
-    db_state: State<'_, DatabaseState>,
-    conn_state: State<'_, ConnectionManagerState>,
-) -> Result<Vec<DatabaseConnection>, String> {
-    let manager = ConnectionManager::from_state(&db_state, &conn_state);
-    manager.get_favorite_connections()
-}
-
-#[tauri::command]
-async fn search_connections(
-    query: String,
-    db_state: State<'_, DatabaseState>,
-    conn_state: State<'_, ConnectionManagerState>,
-) -> Result<Vec<DatabaseConnection>, String> {
-    let manager = ConnectionManager::from_state(&db_state, &conn_state);
-    manager.search_connections(&query)
-}
-
-#[tauri::command]
-async fn update_connection_stats(
-    id: String,
-    db_state: State<'_, DatabaseState>,
-    conn_state: State<'_, ConnectionManagerState>,
-) -> Result<(), String> {
-    let manager = ConnectionManager::from_state(&db_state, &conn_state);
-    manager.update_connection_stats(&id)
-}
-
-#[tauri::command]
-async fn check_keyring_available(
-    conn_state: State<'_, ConnectionManagerState>,
-) -> Result<bool, String> {
-    Ok(conn_state.credential_manager.is_available())
-}
-
-// AWS Profile management commands
-#[tauri::command]
-async fn get_available_aws_profiles() -> Result<Vec<AwsProfile>, String> {
-    AwsProfileManager::load_available_profiles()
-}
-
-#[tauri::command]
-async fn get_aws_profile_by_name(
-    profile_name: String,
-) -> Result<Option<AwsProfile>, String> {
-    AwsProfileManager::get_profile_by_name(&profile_name)
-}
-
-#[tauri::command]
-async fn test_aws_profile(
-    profile: AwsProfile,
-) -> Result<bool, String> {
-    let manager = AwsProfileManager::new();
-    manager.test_profile(&profile)
-}
-
 fn init_connection(db_path: &PathBuf) -> Result<Connection, String> {
     if let Some(parent) = db_path.parent() {
         std::fs::create_dir_all(parent)
@@ -324,9 +117,12 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            // Theme commands
             get_all_themes,
             get_active_theme,
             set_active_theme,
+            
+            // Connection commands
             create_connection,
             get_connection,
             get_connection_metadata,
@@ -338,9 +134,17 @@ pub fn run() {
             search_connections,
             update_connection_stats,
             check_keyring_available,
+            
+            // AWS commands
             get_available_aws_profiles,
             get_aws_profile_by_name,
-            test_aws_profile
+            test_aws_profile,
+            list_s3_buckets,
+            list_s3_objects,
+            upload_s3_file,
+            download_s3_file,
+            delete_s3_object,
+            get_s3_bucket_info
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
