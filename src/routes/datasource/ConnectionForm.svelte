@@ -2,6 +2,7 @@
     import { type Driver } from "../DriverList";
     import PostgresForm from "./forms/PostgresForm.svelte";
     import SqliteForm from "./forms/SqliteForm.svelte";
+    import FormInput from "$lib/components/FormInput.svelte";
     import { IconMaximize, IconCircleCheck } from "@tabler/icons-svelte";
 
     interface Props {
@@ -39,13 +40,6 @@
 
 {#if driver}
     <div class="flex flex-col h-full bg-[#1e1f22] text-[#bbbbbb]">
-        <!-- Header -->
-        <div
-            class="flex items-center p-4 border-b border-[#1e1f22] bg-[#2b2d30]"
-        >
-            <div class="text-sm font-semibold">Data Sources and Drivers</div>
-        </div>
-
         <div class="flex-grow p-6 overflow-y-auto">
             <!-- Top Common Fields -->
             <div
@@ -53,13 +47,15 @@
             >
                 <label for="name" class="text-right">Name:</label>
                 <div class="flex items-center space-x-2">
-                    <input
-                        type="text"
-                        id="name"
-                        bind:value={formData.name}
-                        class="flex-grow bg-[#2b2d30] border border-[#5e6060] rounded px-2 py-1.5 text-[#a9b7c6] focus:border-[#3574f0] focus:ring-1 focus:ring-[#3574f0] outline-none"
-                    />
-                    <button class="text-[#3574f0] text-xs hover:underline"
+                    <div class="flex-grow">
+                        value={formData.name}
+                        oninput={(e: any) =>
+                            handleChange("name", e.target.value)}
+                        class="grow bg-[#2b2d30] border-[#5e6060] text-[#a9b7c6]
+                        focus:border-[#3574f0]" /> />
+                    </div>
+                    <button
+                        class="text-[#3574f0] text-xs hover:underline whitespace-nowrap"
                         >Create DDL Mapping</button
                     >
                 </div>
@@ -70,7 +66,7 @@
                         id="comment"
                         bind:value={formData.comment}
                         rows="1"
-                        class="w-full bg-[#2b2d30] border border-[#5e6060] rounded px-2 py-1.5 text-[#a9b7c6] focus:border-[#3574f0] outline-none resize-none"
+                        class="w-full bg-[#2b2d30] border border-[#5e6060] rounded-md px-2 py-1.5 text-[#a9b7c6] focus:border-[#3574f0] outline-none resize-none text-sm"
                     ></textarea>
                     <IconMaximize
                         size={12}
@@ -117,7 +113,7 @@
                         >{driver.name}</span
                     ></span
                 >
-                <div class="flex-grow"></div>
+                <div class="grow"></div>
                 <span class="text-[#3574f0] cursor-pointer">More Options</span>
             </div>
 
@@ -136,33 +132,6 @@
         </div>
 
         <!-- Footer Actions -->
-        <div
-            class="flex items-center justify-between p-4 bg-[#2b2d30] border-t border-[#323232] text-sm"
-        >
-            <div class="flex items-center space-x-2">
-                <button class="text-[#3574f0] hover:underline"
-                    >Test Connection</button
-                >
-                {#if driver.id === "postgresql"}
-                    <span class="text-gray-500 text-xs">PostgreSQL 16.11</span>
-                {/if}
-            </div>
-
-            <div class="flex space-x-3">
-                <button
-                    class="px-4 py-1.5 rounded border border-[#5e6060] text-[#a9b7c6] hover:bg-[#393b40] transition-colors"
-                    >Cancel</button
-                >
-                <button
-                    class="px-4 py-1.5 rounded border border-[#5e6060] text-[#a9b7c6] hover:bg-[#393b40] transition-colors"
-                    >Apply</button
-                >
-                <button
-                    class="px-4 py-1.5 rounded bg-[#3574f0] text-white hover:bg-[#3369d6] border border-[#3574f0] transition-colors shadow-sm"
-                    >OK</button
-                >
-            </div>
-        </div>
     </div>
 {:else}
     <div class="flex items-center justify-center h-full text-[#bbbbbb]">
