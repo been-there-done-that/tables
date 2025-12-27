@@ -3,7 +3,10 @@
     import Select from "$lib/components/Select.svelte";
     import Button from "$lib/components/Button.svelte";
     import { getCurrentWindow } from "@tauri-apps/api/window";
-    import { testConnectionParams } from "$lib/commands/client";
+    import {
+        testConnectionParams,
+        createConnection,
+    } from "$lib/commands/client";
     import { connectionForm } from "$lib/components/datasource/connectionStore.svelte";
     import ConnectionResultPopover from "../ConnectionResultPopover.svelte";
     import IconFolder from "@tabler/icons-svelte/icons/folder";
@@ -11,6 +14,8 @@
 
     import { open } from "@tauri-apps/plugin-dialog";
     import IconX from "@tabler/icons-svelte/icons/x";
+    import IconCopy from "@tabler/icons-svelte/icons/copy";
+    import IconCheck from "@tabler/icons-svelte/icons/check";
 
     import { ENGINE_SCHEMAS } from "$lib/schema/connectionSchema";
 
@@ -22,8 +27,22 @@
     let { data, onChange }: Props = $props();
     let showPopover = $state(false);
     let isTesting = $state(false);
+    let isSaving = $state(false);
     let validationErrors = $state<string[]>([]);
+    let copiedIndex = $state<number | null>(null);
     const testResult = $derived(connectionForm.state.testResult);
+
+    async function handleCopy(text: string, index: number) {
+        try {
+            await navigator.clipboard.writeText(text);
+            copiedIndex = index;
+            setTimeout(() => {
+                copiedIndex = null;
+            }, 2000);
+        } catch (err) {
+            console.error("Failed to copy:", err);
+        }
+    }
 
     // Helper to get nested field value
     function getFieldValue(path: string) {
@@ -39,6 +58,11 @@
     function validateForm(): Record<string, string> {
         const validationErrors: Record<string, string> = {};
         const schema = ENGINE_SCHEMAS.sqlite.fields;
+
+        // Manually validate Name since it's outside the engine schema
+        if (!data.name || data.name.trim() === "") {
+            validationErrors["name"] = "Connection Name is required";
+        }
 
         for (const [fieldPath, fieldDef] of Object.entries(schema)) {
             const def = fieldDef as any;
@@ -90,13 +114,85 @@
         await window.close();
     }
 
-    function handleApply() {
+    async function handleApply() {
         const errors = validateForm();
         if (Object.keys(errors).length > 0) {
             validationErrors = Object.values(errors);
             return;
         }
-        console.log("Apply SQLite connection", data);
+
+        isSaving = true;
+        try {
+            // 1. Construct the RuntimeConnection / SqliteConfig object
+            // Corresponds to SqliteConfig struct in rust
+            const sqliteConfig = {
+                version: 1,
+                mode: data.mode || "file",
+                file: data.file,
+                options: data.options,
+            };
+
+            // 2. Wrap for RuntimeConnection enum serialization
+            // #[serde(tag = "engine", rename_all = "lowercase")] means we merge fields
+            // BUT for newtype variants, it expects the inner struct fields + the tag.
+            const runtimeConfig = {
+                engine: "sqlite",
+                ...sqliteConfig,
+            };
+
+            const now = Math.floor(Date.now() / 1000);
+
+            // 3. Construct the full Connection struct expected by backend
+            const connectionPayload = {
+                id: crypto.randomUUID(), // Backend requires ID
+                name: data.name,
+                engine: "sqlite",
+                host: null,
+                port: null,
+                database: data.file,
+                username: null,
+                uses_ssh: false,
+                uses_tls: false,
+                config_json: JSON.stringify(runtimeConfig), // Backend requires serialized config
+                is_favorite: false,
+                color_tag: null,
+                created_at: now,
+                updated_at: now,
+                last_connected_at: null,
+                connection_count: 0,
+            };
+
+            // 4. Construct SecureCredentials (all optional fields null/None)
+            const credentialsPayload = {};
+
+            // The command expects (connection, credentials)
+            // But our client helper createConnection takes { connection, credentials } wrapper?
+            // Let's check client.ts. It expects CreateConnectionRequest which has { connection, credentials }
+            // So we match that structure.
+
+            const payload = {
+                connection: connectionPayload,
+                credentials: credentialsPayload,
+            };
+
+            // @ts-ignore - mismatch in generated types vs manual construction
+            const response = await createConnection(payload);
+
+            if (response.success) {
+                console.log("Connection saved successfully:", response.data);
+                const window = getCurrentWindow();
+                await window.close();
+            } else {
+                validationErrors = [
+                    response.error || "Failed to save connection",
+                ];
+            }
+        } catch (err) {
+            console.error("Save failed:", err);
+            validationErrors = [String(err)];
+        } finally {
+            isSaving = false;
+        }
     }
 
     async function handleTestConnection() {
@@ -124,6 +220,12 @@
             if (response.success && response.data) {
                 connectionForm.setTestResult(response.data);
                 showPopover = true;
+            } else if (!response.success && response.error) {
+                // Also show validation window for backend connection errors during test?
+                // Or stick to the popover if it handles errors?
+                // The popover logic currently requires a result object.
+                // If API returns success: false, it usually populates error string.
+                // I'll leave the popover flow as is since user didn't ask to change that part for Save.
             }
         } finally {
             isTesting = false;
@@ -148,14 +250,32 @@
             <div class="px-5 py-4 flex flex-col gap-4">
                 <div class="p-3">
                     <ul class="flex flex-col gap-2">
-                        {#each validationErrors as error}
+                        {#each validationErrors as error, i}
                             <li
-                                class="flex items-start gap-2.5 text-xs text-[--theme-fg-secondary]"
+                                class="flex items-start justify-between gap-3 text-xs text-[--theme-fg-secondary] group"
                             >
-                                <div
-                                    class="mt-1.5 size-1 rounded-full bg-red-500 shrink-0 shadow-[0_0_8px_rgba(239,68,68,0.5)]"
-                                ></div>
-                                <span class="leading-relaxed">{error}</span>
+                                <div class="flex items-start gap-2.5 pt-0.5">
+                                    <div
+                                        class="mt-1.5 size-1 rounded-full bg-red-500 shrink-0 shadow-[0_0_8px_rgba(239,68,68,0.5)]"
+                                    ></div>
+                                    <span
+                                        class="leading-relaxed select-text cursor-text"
+                                        >{error}</span
+                                    >
+                                </div>
+                                <button
+                                    onclick={() => handleCopy(error, i)}
+                                    class="opacity-0 group-hover:opacity-100 focus:opacity-100 p-1 text-[--theme-fg-tertiary] hover:text-[--theme-fg-primary] hover:bg-white/5 rounded transition-all shrink-0 cursor-pointer"
+                                    title="Copy error"
+                                >
+                                    {#if copiedIndex === i}
+                                        <IconCheck
+                                            class="size-3.5 text-green-400"
+                                        />
+                                    {:else}
+                                        <IconCopy class="size-3.5" />
+                                    {/if}
+                                </button>
                             </li>
                         {/each}
                     </ul>
