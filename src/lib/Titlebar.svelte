@@ -17,7 +17,6 @@
   let datasourceWindowOpen = $state(false);
 
 
-
   const openDatasourceWindow = async () => {
     try {
       await invoke("open_datasource_window");
@@ -91,6 +90,8 @@
   title="New datasource"
   bind:open={datasourceWindowOpen}
   modal
+  minWidth={920}
+  minHeight={520}
   closeOnOverlayClick={false}
   class="w-[520px]"
   contentClass="p-4 space-y-3"
