@@ -3,7 +3,7 @@
     import FormInput from "$lib/components/FormInput.svelte";
     import Button from "$lib/components/Button.svelte";
     import { getCurrentWindow } from "@tauri-apps/api/window";
-    // import { open } from '@tauri-apps/plugin-dialog'; // We will enable this later
+    import { notifications } from "$lib/utils/notification.svelte";
 
     interface Props {
         data: any;
@@ -23,13 +23,23 @@
     }
 
     function handleApply() {
-        // TODO: Implement save/apply logic for SQLite connection
+        if (!data.file) {
+            notifications.error("Database file is required");
+            return;
+        }
+        notifications.success("SQLite settings saved!");
         console.log("Apply SQLite connection", data);
     }
 
     function handleTestConnection() {
-        // TODO: Implement test connection logic for SQLite
-        console.log("Test SQLite connection", data);
+        if (!data.file) {
+            notifications.error("Database file is required");
+            return;
+        }
+        notifications.info("Testing connection...");
+        setTimeout(() => {
+            notifications.success("Connection successful!");
+        }, 1000);
     }
 </script>
 

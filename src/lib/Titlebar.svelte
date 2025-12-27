@@ -16,7 +16,6 @@
   let icons = $state(false);
   let datasourceWindowOpen = $state(true);
 
-
   const openDatasourceWindow = async () => {
     try {
       await invoke("open_datasource_window");
@@ -35,13 +34,20 @@
       class="relative z-10 flex h-full items-center justify-center gap-2 px-2 pointer-events-none"
       style="background: var(--theme-bg-secondary);"
     >
-    <div data-tauri-drag-region class="flex items-center gap-2 pointer-events-auto w-full ml-20">
-      <button class="h-6 w-6 rounded-md active:bg-accent" onclick={() => false}>
+      <div
+        data-tauri-drag-region
+        class="flex items-center gap-2 pointer-events-auto w-full ml-20"
+      >
+        <button
+          class="h-6 w-6 rounded-md active:bg-accent"
+          onclick={() => false}
+        >
           <Logs class="size-4" />
         </button>
 
-        <div class="absolute right-2 flex items-center gap-1 pointer-events-auto">
-
+        <div
+          class="absolute right-2 flex items-center gap-1 pointer-events-auto"
+        >
           <button
             class="h-6 w-6 rounded-md active:bg-accent mr-1 outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
             onclick={() => (datasourceWindowOpen = true)}
@@ -49,39 +55,42 @@
             <PlaylistAdd class="size-6" />
           </button>
 
-          <button class="h-6 w-6 rounded-md active:bg-accent" onclick={() => false}>
+          <button
+            class="h-6 w-6 rounded-md active:bg-accent"
+            onclick={() => false}
+          >
             <Logs class="size-4" />
           </button>
 
-        <button class="h-6 w-6" onclick={() => false}>
-          {#if false}
-            <IconLayoutSidebarFilled class="size-4.5" />
-          {:else}
-            <IconLayoutSidebar class="size-4.5" />
-          {/if}
-        </button>
+          <button class="h-6 w-6" onclick={() => false}>
+            {#if false}
+              <IconLayoutSidebarFilled class="size-4.5" />
+            {:else}
+              <IconLayoutSidebar class="size-4.5" />
+            {/if}
+          </button>
 
-        <button class="h-6 w-6" onclick={() => false}>
-          {#if false}
-            <IconLayoutSidebarRightFilled class="size-4.5" />
-          {:else}
-            <IconLayoutSidebarRight class="size-4.5" />
-          {/if}
-        </button>
+          <button class="h-6 w-6" onclick={() => false}>
+            {#if false}
+              <IconLayoutSidebarRightFilled class="size-4.5" />
+            {:else}
+              <IconLayoutSidebarRight class="size-4.5" />
+            {/if}
+          </button>
 
-        <button class="h-6 w-6" onclick={() => window.location.reload()}>
-          <IconRestore class="size-4.5" />
-        </button>
+          <button class="h-6 w-6" onclick={() => window.location.reload()}>
+            <IconRestore class="size-4.5" />
+          </button>
 
-        <button class="h-6 w-6" onclick={() => (icons = !icons)}>
-          {#if icons}
-            <IconSettingsFilled class="size-4.5" />
-          {:else}
-            <IconSettings class="size-4.5" />
-          {/if}
-        </button>
+          <button class="h-6 w-6" onclick={() => (icons = !icons)}>
+            {#if icons}
+              <IconSettingsFilled class="size-4.5" />
+            {:else}
+              <IconSettings class="size-4.5" />
+            {/if}
+          </button>
+        </div>
       </div>
-    </div>
     </div>
   </div>
 {/if}
@@ -89,7 +98,6 @@
 <ResizableWindow
   title="New datasource"
   bind:open={datasourceWindowOpen}
-  modal
   minWidth={920}
   minHeight={520}
   closeOnOverlayClick={false}

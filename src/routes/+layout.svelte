@@ -1,21 +1,22 @@
 <script lang="ts">
-  let { children } = $props();
-  import "../app.css";
-  	import { getCurrentWindow } from "@tauri-apps/api/window";
-  import ThemeProvider from "$lib/providers/ThemeProvider.svelte";
-  import Titlebar from "$lib/Titlebar.svelte";
-  import { onMount } from "svelte";
-    import LoadingOverlay from "$lib/LoadingOverlay.svelte";
+	let { children } = $props();
+	import "../app.css";
+	import { getCurrentWindow } from "@tauri-apps/api/window";
+	import ThemeProvider from "$lib/providers/ThemeProvider.svelte";
+	import Titlebar from "$lib/Titlebar.svelte";
+	import { onMount } from "svelte";
+	import LoadingOverlay from "$lib/LoadingOverlay.svelte";
+	import NotificationContainer from "$lib/components/notifications/NotificationContainer.svelte";
 
-  	const appWindow = getCurrentWindow();
-	
-    let isFullScreen = $state(false);
+	const appWindow = getCurrentWindow();
 
-    	async function checkFullScreen() {
+	let isFullScreen = $state(false);
+
+	async function checkFullScreen() {
 		isFullScreen = await appWindow.isFullscreen();
 	}
 
-    	onMount(() => {
+	onMount(() => {
 		let unlisten: () => void;
 
 		const setup = async () => {
@@ -33,7 +34,7 @@
 
 			// Once permission has been granted we can send the notification
 			// if (permissionGranted) {
-				// se?ndNotification({ title: "Tauri", body: "Tauri is awesome!" });
+			// se?ndNotification({ title: "Tauri", body: "Tauri is awesome!" });
 			// }
 		};
 
@@ -45,16 +46,16 @@
 			}
 		};
 	});
-
 </script>
 
 <ThemeProvider>
-  <LoadingOverlay />
-  <div class="flex h-screen w-full flex-col overflow-hidden bg-background">
-    <Titlebar isFullScreen={isFullScreen} />
-    <div class="h-8 shrink-0" aria-hidden="true"></div>
-    <div class="flex-1 w-full min-h-0 overflow-hidden">
-      {@render children()}
-    </div>
-  </div>
+	<LoadingOverlay />
+	<NotificationContainer />
+	<div class="flex h-screen w-full flex-col overflow-hidden bg-background">
+		<Titlebar {isFullScreen} />
+		<div class="h-8 shrink-0" aria-hidden="true"></div>
+		<div class="flex-1 w-full min-h-0 overflow-hidden">
+			{@render children()}
+		</div>
+	</div>
 </ThemeProvider>
