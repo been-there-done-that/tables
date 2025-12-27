@@ -12,7 +12,6 @@
     let { driver }: Props = $props();
 
     const state = $derived(connectionForm.state);
-    const formData = $derived({ ...state.fields, ...state.credentials });
 
     $effect(() => {
         if (driver) {
@@ -21,11 +20,7 @@
     });
 
     function handleChange(field: string, value: any) {
-        if (field === "password") {
-            connectionForm.updateCredential("password", value);
-        } else {
-            connectionForm.updateField(field as any, value);
-        }
+        connectionForm.updateField(field as keyof typeof state.fields, value);
     }
 </script>
 
@@ -53,9 +48,9 @@
             <!-- Dynamic Form Content -->
             <div class="mt-4">
                 {#if driver.id === "postgresql" || driver.id === "mysql" || driver.id === "mariadb"}
-                    <PostgresForm data={formData} onChange={handleChange} />
+                    <PostgresForm data={state.fields} onChange={handleChange} />
                 {:else if driver.id === "sqlite"}
-                    <SqliteForm data={formData} onChange={handleChange} />
+                    <SqliteForm data={state.fields} onChange={handleChange} />
                 {:else}
                     <div class="text-center text-[--theme-fg-tertiary] mt-10">
                         Configuration for {driver.name} is not yet implemented.

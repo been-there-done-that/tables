@@ -1,12 +1,8 @@
 import type { Driver } from "./DriverList";
 
 type FieldValues = Record<string, string>;
-type Credentials = Record<string, string>;
-
 type DriverConfig = {
   fields: FieldValues;
-  credentials: Credentials;
-  visibleFields: (keyof FieldValues)[];
 };
 
 const driverDefaults: Record<string, DriverConfig> = {
@@ -20,9 +16,13 @@ const driverDefaults: Record<string, DriverConfig> = {
       database: "",
       file: "",
       comment: "",
+      ssh_host: "",
+      ssh_port: "",
+      ssh_user: "",
+      ssh_key: "",
+      search_path: "",
+      application_name: "",
     },
-    credentials: {},
-    visibleFields: ["name", "host", "port", "database", "username", "password", "comment"],
   },
   mysql: {
     fields: {
@@ -35,8 +35,6 @@ const driverDefaults: Record<string, DriverConfig> = {
       file: "",
       comment: "",
     },
-    credentials: {},
-    visibleFields: ["name", "host", "port", "database", "username", "password", "comment"],
   },
   mariadb: {
     fields: {
@@ -49,8 +47,6 @@ const driverDefaults: Record<string, DriverConfig> = {
       file: "",
       comment: "",
     },
-    credentials: {},
-    visibleFields: ["name", "host", "port", "database", "username", "password", "comment"],
   },
   sqlite: {
     fields: {
@@ -63,8 +59,6 @@ const driverDefaults: Record<string, DriverConfig> = {
       file: "",
       comment: "",
     },
-    credentials: {},
-    visibleFields: ["name", "file", "comment"],
   },
   redis: {
     fields: {
@@ -77,8 +71,6 @@ const driverDefaults: Record<string, DriverConfig> = {
       file: "",
       comment: "",
     },
-    credentials: {},
-    visibleFields: ["name", "host", "port", "password", "comment"],
   },
   mongodb: {
     fields: {
@@ -91,8 +83,6 @@ const driverDefaults: Record<string, DriverConfig> = {
       file: "",
       comment: "",
     },
-    credentials: {},
-    visibleFields: ["name", "host", "port", "database", "username", "password", "comment"],
   },
   elasticsearch: {
     fields: {
@@ -105,8 +95,6 @@ const driverDefaults: Record<string, DriverConfig> = {
       file: "",
       comment: "",
     },
-    credentials: {},
-    visibleFields: ["name", "host", "port", "comment"],
   },
 };
 
@@ -120,29 +108,24 @@ const emptyConfig: DriverConfig = {
     database: "",
     file: "",
     comment: "",
+    ssh_host: "",
+    ssh_port: "",
+    ssh_user: "",
+    ssh_key: "",
+    search_path: "",
+    application_name: "",
   },
-  credentials: {},
-  visibleFields: ["name"],
 };
 
 class ConnectionFormStore {
   driver = $state<Driver | null>(null);
   fields = $state<FieldValues>({ ...emptyConfig.fields });
-  credentials = $state<Credentials>({});
 
   get state() {
     return {
       driver: this.driver,
       fields: this.fields,
-      credentials: this.credentials,
-      visibleFields: this.visibleFields,
     };
-  }
-
-  get visibleFields(): (keyof FieldValues)[] {
-    if (!this.driver) return emptyConfig.visibleFields;
-    const config = driverDefaults[this.driver.id];
-    return config ? config.visibleFields : emptyConfig.visibleFields;
   }
 
   setDriver(driver: Driver | null) {
@@ -150,10 +133,8 @@ class ConnectionFormStore {
     if (driver && driverDefaults[driver.id]) {
       const config = driverDefaults[driver.id];
       this.fields = { ...config.fields, name: driver.name, port: driver.defaultPort ? String(driver.defaultPort) : config.fields.port };
-      this.credentials = { ...config.credentials };
     } else {
       this.fields = { ...emptyConfig.fields };
-      this.credentials = { ...emptyConfig.credentials };
     }
   }
 
@@ -161,14 +142,9 @@ class ConnectionFormStore {
     this.fields = { ...this.fields, [field]: value };
   }
 
-  updateCredential(key: keyof Credentials, value: string) {
-    this.credentials = { ...this.credentials, [key]: value };
-  }
-
   reset() {
     this.driver = null;
     this.fields = { ...emptyConfig.fields };
-    this.credentials = { ...emptyConfig.credentials };
   }
 }
 
