@@ -1,5 +1,4 @@
 <script lang="ts">
-    import { IconFolder, IconChevronDown } from "@tabler/icons-svelte";
     import FormInput from "$lib/components/FormInput.svelte";
     import Select from "$lib/components/Select.svelte";
     import Button from "$lib/components/Button.svelte";
@@ -7,8 +6,11 @@
     import { testConnectionParams } from "$lib/commands/client";
     import { connectionForm } from "$lib/components/datasource/connectionStore.svelte";
     import ConnectionResultPopover from "../ConnectionResultPopover.svelte";
-    import { IconCheck, IconX, IconLoader2 } from "@tabler/icons-svelte";
+    import IconFolder from "@tabler/icons-svelte/icons/folder";
+
     import { cn } from "$lib/utils";
+
+    import { open } from "@tauri-apps/plugin-dialog";
 
     interface Props {
         data: any;
@@ -21,7 +23,23 @@
     const testResult = $derived(connectionForm.state.testResult);
 
     async function browseFile() {
-        // Mock browse for now
+        try {
+            const selected = await open({
+                multiple: false,
+                filters: [
+                    {
+                        name: "SQLite Database",
+                        extensions: ["db", "sqlite", "sqlite3"],
+                    },
+                ],
+            });
+
+            if (selected) {
+                onChange("file", selected as string);
+            }
+        } catch (err) {
+            console.error("Failed to open file dialog:", err);
+        }
     }
 
     // Self-contained action handlers
@@ -115,17 +133,10 @@
                     </div>
                     <button
                         onclick={browseFile}
-                        class="px-2 py-1 h-8 bg-[--theme-bg-tertiary] border border-[--theme-border-default] rounded-md hover:bg-[--theme-bg-hover] text-[--theme-fg-secondary] flex items-center justify-center transition-colors"
+                        class="p-1 bg-(--theme-bg-tertiary) border border-[--theme-border-default] rounded-md hover:bg-(--theme-bg-hover) text-(--theme-fg-secondary) flex items-center justify-center transition-colors"
                     >
-                        <IconFolder size={16} />
+                        <IconFolder class="size-5" />
                     </button>
-                </div>
-
-                <span class="text-[--theme-fg-secondary]">Preview:</span>
-                <div
-                    class="flex items-center h-8 bg-[--theme-bg-secondary] border border-[--theme-border-default] rounded-md px-3 py-1.5 text-[--theme-fg-tertiary] italic cursor-not-allowed text-xs overflow-hidden"
-                >
-                    <span class="truncate">jdbc:sqlite:{data.file || ""}</span>
                 </div>
             {/if}
 
@@ -193,23 +204,6 @@
                         onclick={handleTestConnection}
                         class="text-sm flex items-center gap-2 underline underline-offset-4 hover:text-[--theme-accent-hover] transition-colors cursor-pointer"
                     >
-                        <span
-                            class={cn(
-                                "flex items-center justify-center rounded-full transition-colors cursor-pointer",
-                                testResult && testResult.connected
-                                    ? "text-green-500 hover:bg-green-500/10"
-                                    : "text-red-500 hover:bg-red-500/10",
-                            )}
-                        >
-                            {#if testResult && !isTesting}
-                                {#if testResult.connected}
-                                    <IconCheck class="size-6" />
-                                {:else}
-                                    <IconX class="size-6" />
-                                {/if}
-                            {/if}
-                        </span>
-
                         Test Connection
                     </button>
 
