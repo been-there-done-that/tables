@@ -11,11 +11,26 @@
   import IconPlus from "@tabler/icons-svelte/icons/plus";
   import Logs from "@tabler/icons-svelte/icons/logs";
   import { invoke } from "@tauri-apps/api/core";
+  import { getCurrentWindow } from "@tauri-apps/api/window";
   import DataSource from "./components/datasource/DataSource.svelte";
+  import { onMount } from "svelte";
 
   let { isFullScreen } = $props();
   let icons = $state(false);
   let datasourceWindowOpen = $state(false);
+  let windowLabel = $state("main");
+
+  onMount(() => {
+    try {
+      const appWindow = getCurrentWindow();
+      if (appWindow) {
+        windowLabel = appWindow.label;
+        console.log(`[Titlebar] Initialized for window: ${windowLabel}`);
+      }
+    } catch (e) {
+      console.error("[Titlebar] Failed to get current window:", e);
+    }
+  });
 
   const openDatasourceWindow = async () => {
     try {
@@ -24,81 +39,119 @@
       console.error("Failed to open datasource window:", e);
     }
   };
+
+  // Debug inspector for Svelte 5
+  $inspect(windowLabel).with((type, value) => {
+    if (type === "update")
+      console.log(`[Titlebar] windowLabel updated to: ${value}`);
+  });
 </script>
 
 {#if !isFullScreen}
   <div
-    class="fixed top-0 left-0 right-0 z-50 h-8 border-b"
+    class="fixed top-0 left-0 right-0 z-50 h-8 border-b select-none overflow-hidden"
     style="background: var(--theme-bg-secondary); border-color: var(--theme-border-default); color: var(--theme-fg-primary);"
   >
+    <!-- 
+      DEDICATED DRAG LAYER 
+      This sits behind everything (z-0) and captures dragging events.
+      We offset it by 80px to avoid interfering with Mac traffic lights.
+    -->
     <div
-      class="relative z-10 flex h-full items-center justify-center gap-2 px-2 pointer-events-none"
-      style="background: var(--theme-bg-secondary);"
+      data-tauri-drag-region
+      class="absolute inset-0 z-0 ml-20 pointer-events-auto bg-amber-500/0 hover:bg-amber-500/10 transition-colors duration-200"
+      title="Draggable Region"
+    ></div>
+
+    <!-- 
+      CONTENT LAYER
+      We set pointer-events-none so dragging works through the empty spaces.
+    -->
+    <div
+      class="relative z-10 flex h-full items-center justify-between px-2 pointer-events-none"
     >
+      <!-- Left side (offset for Mac traffic lights) -->
+      <div class="flex items-center gap-2 ml-20 pointer-events-auto">
+        {#if windowLabel === "main"}
+          <button
+            class="h-6 w-6 rounded-md active:bg-accent flex items-center justify-center transition-colors"
+            onclick={() => console.log("Logs clicked")}
+          >
+            <Logs class="size-5 opacity-70" />
+          </button>
+        {/if}
+      </div>
+
+      <!-- Center Title (Optional) -->
       <div
-        data-tauri-drag-region
-        class="flex items-center gap-2 pointer-events-auto w-full ml-20"
+        class="absolute inset-x-0 flex justify-center items-center h-full pointer-events-none"
       >
-        <button
-          class="h-6 w-6 rounded-md active:bg-accent"
-          onclick={() => false}
-        >
-          <Logs class="size-4" />
-        </button>
+        <!-- Add window specific titles here if needed -->
+      </div>
 
-        <div
-          class="absolute right-2 flex items-center gap-1 pointer-events-auto"
-        >
-
-                <button
-            class="h-6 w-6 rounded-md active:bg-accent mr-1 outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+      <!-- Right side actions -->
+      <div class="flex items-center gap-1 pointer-events-auto pr-1">
+        {#if windowLabel === "main"}
+          <button
+            class="h-6 text-xs gap-1 flex items-center justify-center rounded-md hover:bg-white/5 active:bg-white/10"
             onclick={() => (datasourceWindowOpen = true)}
+            title="New Datasource"
           >
             <PlaylistAdd class="size-6" />
           </button>
-          
+
           <button
-            class="h-6 w-6 rounded-md active:bg-accent mr-1 outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+            class="h-6 text-xs gap-1 flex items-center justify-center rounded-md hover:bg-white/5 active:bg-white/10"
             onclick={openDatasourceWindow}
+            title="External Datasource Window"
           >
             <IconPlus class="size-6" />
           </button>
 
           <button
-            class="h-6 w-6 rounded-md active:bg-accent"
+            class="h-6 text-xs gap-1 flex items-center justify-center rounded-md hover:bg-white/5 active:bg-white/10"
             onclick={() => false}
           >
-            <Logs class="size-4" />
-          </button>
-
-          <button class="h-6 w-6" onclick={() => false}>
             {#if false}
-              <IconLayoutSidebarFilled class="size-4.5" />
+              <IconLayoutSidebarFilled class="size-5" />
             {:else}
-              <IconLayoutSidebar class="size-4.5" />
+              <IconLayoutSidebar class="size-5" />
             {/if}
           </button>
 
-          <button class="h-6 w-6" onclick={() => false}>
+          <button
+            class="h-6 text-xs gap-1 flex items-center justify-center rounded-md hover:bg-white/5 active:bg-white/10"
+            onclick={() => false}
+          >
             {#if false}
-              <IconLayoutSidebarRightFilled class="size-4.5" />
+              <IconLayoutSidebarRightFilled class="size-5" />
             {:else}
-              <IconLayoutSidebarRight class="size-4.5" />
+              <IconLayoutSidebarRight class="size-5" />
             {/if}
           </button>
+        {/if}
 
-          <button class="h-6 w-6" onclick={() => window.location.reload()}>
-            <IconRestore class="size-4.5" />
-          </button>
+        <button
+          class="h-6 text-xs gap-1 flex items-center justify-center rounded-md hover:bg-white/5 active:bg-white/10"
+          onclick={() => window.location.reload()}
+          title="Reload Window"
+        >
+          <IconRestore class="size-5" />
+        </button>
 
-          <button class="h-6 w-6" onclick={() => (icons = !icons)}>
+        {#if windowLabel === "main"}
+          <button
+            class="h-6 text-xs gap-1 flex items-center justify-center rounded-md hover:bg-white/5 active:bg-white/10"
+            onclick={() => (icons = !icons)}
+            title="Settings"
+          >
             {#if icons}
-              <IconSettingsFilled class="size-4.5" />
+              <IconSettingsFilled class="size-5" />
             {:else}
-              <IconSettings class="size-4.5" />
+              <IconSettings class="size-5" />
             {/if}
           </button>
-        </div>
+        {/if}
       </div>
     </div>
   </div>
