@@ -1,36 +1,7 @@
 <script lang="ts">
-  import Container from "$lib/Container.svelte";
-  import { getThemeContext } from "$lib/theme/context";
-  import type { ThemeRecord } from "$lib/theme/types";
-  import { connectionForm } from "$lib/components/datasource/connectionStore.svelte";
   import { invoke } from "@tauri-apps/api/core";
 
-  let themes = $state<ThemeRecord[]>([]);
-  let activeId = $state<string>("");
-  let loading = $state(true);
-  let error = $state("");
   let showDatasource = $state(false);
-
-  const { subscribe, setActive } = getThemeContext();
-
-  $effect(() => {
-    const unsubscribe = subscribe(
-      (s: {
-        themes: ThemeRecord[];
-        activeId: string;
-        loading: boolean;
-        error: string;
-      }) => {
-        themes = s.themes;
-        activeId = s.activeId;
-        loading = s.loading;
-        error = s.error;
-      },
-    );
-    return () => unsubscribe();
-  });
-
-  const handleSetActive = (id: string) => setActive(id);
 
   const openSettingsWindow = async () => {
     try {
