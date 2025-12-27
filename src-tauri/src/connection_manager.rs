@@ -1,4 +1,5 @@
 use crate::connection::{Connection, SecureCredentials, ConnectionInfo, load_connection_from_row};
+use crate::configs::RuntimeConnection;
 use crate::credential_manager::CredentialManager;
 use rusqlite::{params, Connection as SqliteConnection};
 use std::sync::{Arc, Mutex};
@@ -46,44 +47,34 @@ impl ConnectionManager {
     }
 
     // Create a new connection
-    pub fn create_connection(&self, mut connection: Connection, credentials: SecureCredentials) -> Result<String, String> {
+    pub fn create_connection(&self, connection: Connection, credentials: SecureCredentials) -> Result<String, String> {
         // Store connection metadata in database
         let conn = self.db.lock()
             .map_err(|e| format!("Failed to lock database: {}", e))?;
 
-        connection.update_timestamp();
-
-        let connection_params_json = serde_json::to_string(&connection.connection_params)
-            .map_err(|e| format!("Failed to serialize connection params: {}", e))?;
-
         conn.execute(
             "INSERT INTO connections (
-                id, name, engine, host, port, database, username, auth_type,
-                ssl_enabled, ssh_tunnel_enabled, ssh_tunnel_host, ssh_tunnel_port,
-                ssh_tunnel_username, connection_params, is_favorite, color_tag,
+                id, name, engine, host, port, database, username,
+                uses_ssh, uses_tls, config_json, is_favorite, color_tag,
                 created_at, updated_at, last_connected_at, connection_count
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)",
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
             params![
                 connection.id,
                 connection.name,
-                connection.engine.display_name().to_lowercase(),
+                connection.engine,
                 connection.host,
                 connection.port,
                 connection.database,
                 connection.username,
-                connection.auth_type.to_string(),
-                connection.ssl_enabled as i64,
-                connection.ssh_tunnel_enabled as i64,
-                connection.ssh_tunnel_host,
-                connection.ssh_tunnel_port,
-                connection.ssh_tunnel_username,
-                connection_params_json,
+                connection.uses_ssh as i64,
+                connection.uses_tls as i64,
+                connection.config_json,
                 connection.is_favorite as i64,
                 connection.color_tag,
                 connection.created_at,
                 connection.updated_at,
                 connection.last_connected_at,
-                connection.connection_count
+                connection.connection_count,
             ],
         ).map_err(|e| format!("Failed to insert connection: {}", e))?;
 
@@ -166,31 +157,23 @@ impl ConnectionManager {
 
         connection.update_timestamp();
 
-        let connection_params_json = serde_json::to_string(&connection.connection_params)
-            .map_err(|e| format!("Failed to serialize connection params: {}", e))?;
-
         conn.execute(
             "UPDATE connections SET
                 name = ?2, engine = ?3, host = ?4, port = ?5, database = ?6, username = ?7,
-                auth_type = ?8, ssl_enabled = ?9, ssh_tunnel_enabled = ?10, ssh_tunnel_host = ?11,
-                ssh_tunnel_port = ?12, ssh_tunnel_username = ?13, connection_params = ?14,
-                is_favorite = ?15, color_tag = ?16, updated_at = ?17
+                uses_ssh = ?8, uses_tls = ?9, config_json = ?10, is_favorite = ?11, color_tag = ?12,
+                updated_at = ?13
              WHERE id = ?1",
             params![
                 connection.id,
                 connection.name,
-                serde_json::to_string(&connection.engine).unwrap(),
+                connection.engine,
                 connection.host,
                 connection.port,
                 connection.database,
                 connection.username,
-                serde_json::to_string(&connection.auth_type).unwrap(),
-                connection.ssl_enabled as i64,
-                connection.ssh_tunnel_enabled as i64,
-                connection.ssh_tunnel_host,
-                connection.ssh_tunnel_port,
-                connection.ssh_tunnel_username,
-                connection_params_json,
+                connection.uses_ssh as i64,
+                connection.uses_tls as i64,
+                connection.config_json,
                 connection.is_favorite as i64,
                 connection.color_tag,
                 connection.updated_at
@@ -229,24 +212,33 @@ impl ConnectionManager {
         let start_time = std::time::Instant::now();
         
         // Mock implementation - replace with actual connection testing
-        let connected = match connection.engine {
-            crate::connection::DatabaseEngine::SQLite => {
-                // For SQLite, check if file exists
-                if let Some(host) = &connection.host {
-                    std::path::Path::new(host).exists()
+        let connected = match connection.engine.as_str() {
+            "sqlite" => {
+                // For SQLite, check if file exists from config
+                if let Ok(config) = connection.parse_config() {
+                    if let crate::configs::RuntimeConnection::Sqlite(sqlite_config) = config {
+                        if let Some(file) = sqlite_config.file {
+                            std::path::Path::new(&file).exists()
+                        } else {
+                            // Memory database - always "connectable"
+                            true
+                        }
+                    } else {
+                        false
+                    }
                 } else {
                     false
                 }
             }
-            crate::connection::DatabaseEngine::Redis => {
+            "redis" => {
                 // For Redis, test connection
                 self.test_redis_connection(connection, credentials)
             }
-            crate::connection::DatabaseEngine::Athena => {
+            "athena" => {
                 // For Athena, test AWS credentials and connectivity
                 self.test_athena_connection(connection, credentials)
             }
-            crate::connection::DatabaseEngine::S3 => {
+            "s3" => {
                 // For S3, test AWS credentials and connectivity
                 self.test_s3_connection(connection, credentials)
             }
@@ -271,54 +263,25 @@ impl ConnectionManager {
     fn test_redis_connection(&self, connection: &Connection, credentials: &SecureCredentials) -> bool {
         // For now, just check if we have basic connection info
         // In production, would use Redis client to test actual connectivity
-        connection.host.is_some() && 
-        (credentials.password.is_some() || matches!(connection.auth_type, crate::connection::AuthType::None))
+        connection.host.is_some() && !credentials.is_empty()
     }
 
     // Test Athena connection specifically
     fn test_athena_connection(&self, connection: &Connection, credentials: &SecureCredentials) -> bool {
-        match connection.auth_type {
-            crate::connection::AuthType::AwsCredentials => {
-                // Check if we have access key and secret key
-                credentials.aws_access_key_id.is_some() && 
-                credentials.aws_secret_access_key.is_some()
-            }
-            crate::connection::AuthType::AwsProfile => {
-                // Profile-based authentication - assume valid for now
-                true
-            }
-            crate::connection::AuthType::AwsIamRole => {
-                // IAM role authentication - assume valid for now
-                true
-            }
-            crate::connection::AuthType::AthenaJdbc => {
-                // JDBC authentication - check for password
-                credentials.password.is_some()
-            }
-            _ => false,
-        }
+        // For now, just check if we have AWS credentials
+        // In production, would parse config and check auth type
+        credentials.aws_access_key_id.is_some() || 
+        credentials.aws_secret_access_key.is_some() ||
+        credentials.aws_session_token.is_some()
     }
 
     // Test S3 connection specifically
     fn test_s3_connection(&self, connection: &Connection, credentials: &SecureCredentials) -> bool {
-        match connection.auth_type {
-            crate::connection::AuthType::AwsCredentials => {
-                // Check if we have access key and secret key
-                credentials.aws_access_key_id.is_some() && 
-                credentials.aws_secret_access_key.is_some()
-            }
-            crate::connection::AuthType::AwsProfile => {
-                // Profile-based authentication - assume valid for now
-                // In real implementation, would use AWS SDK
-                true
-            }
-            crate::connection::AuthType::AwsIamRole => {
-                // IAM role authentication - assume valid for now
-                // In real implementation, would use AWS SDK
-                true
-            }
-            _ => false,
-        }
+        // For now, just check if we have AWS credentials
+        // In production, would parse config and check auth type
+        credentials.aws_access_key_id.is_some() || 
+        credentials.aws_secret_access_key.is_some() ||
+        credentials.aws_session_token.is_some()
     }
 
     // Increment connection count and update last connected timestamp

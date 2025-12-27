@@ -23,19 +23,24 @@ CREATE TABLE IF NOT EXISTS connections (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     engine TEXT NOT NULL,
+    
+    -- Optional summary fields (for list views & indexing only)
     host TEXT,
     port INTEGER,
     database TEXT,
     username TEXT,
-    auth_type TEXT NOT NULL DEFAULT 'password',
-    ssl_enabled INTEGER DEFAULT FALSE,
-    ssh_tunnel_enabled INTEGER DEFAULT FALSE,
-    ssh_tunnel_host TEXT,
-    ssh_tunnel_port INTEGER,
-    ssh_tunnel_username TEXT,
-    connection_params TEXT,
+    
+    -- Transport/security summary flags
+    uses_ssh INTEGER DEFAULT FALSE,
+    uses_tls INTEGER DEFAULT FALSE,
+    
+    -- Canonical, versioned configuration
+    config_json TEXT NOT NULL,
+    
+    -- UX / metadata
     is_favorite INTEGER DEFAULT FALSE,
     color_tag TEXT,
+    
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
     last_connected_at INTEGER,
