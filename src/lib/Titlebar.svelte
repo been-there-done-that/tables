@@ -8,13 +8,14 @@
   import IconLayoutSidebarRightFilled from "@tabler/icons-svelte/icons/layout-sidebar-right-filled";
   import IconRestore from "@tabler/icons-svelte/icons/restore";
   import PlaylistAdd from "@tabler/icons-svelte/icons/playlist-add";
+  import IconPlus from "@tabler/icons-svelte/icons/plus";
   import Logs from "@tabler/icons-svelte/icons/logs";
   import { invoke } from "@tauri-apps/api/core";
   import DataSource from "./components/datasource/DataSource.svelte";
 
   let { isFullScreen } = $props();
   let icons = $state(false);
-  let datasourceWindowOpen = $state(true);
+  let datasourceWindowOpen = $state(false);
 
   const openDatasourceWindow = async () => {
     try {
@@ -48,11 +49,19 @@
         <div
           class="absolute right-2 flex items-center gap-1 pointer-events-auto"
         >
-          <button
+
+                <button
             class="h-6 w-6 rounded-md active:bg-accent mr-1 outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
             onclick={() => (datasourceWindowOpen = true)}
           >
             <PlaylistAdd class="size-6" />
+          </button>
+          
+          <button
+            class="h-6 w-6 rounded-md active:bg-accent mr-1 outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+            onclick={openDatasourceWindow}
+          >
+            <IconPlus class="size-6" />
           </button>
 
           <button
