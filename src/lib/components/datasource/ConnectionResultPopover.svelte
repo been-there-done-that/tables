@@ -3,93 +3,150 @@
     import { cn } from "$lib/utils";
     import type { ConnectionInfo } from "$lib/commands/types";
     import { IconCheck, IconX, IconEdit } from "@tabler/icons-svelte";
+    import { onMount } from "svelte";
 
     interface Props {
         result: ConnectionInfo;
         onClose: () => void;
         className?: string;
+        driverName?: string;
     }
 
-    let { result, onClose, className = "" }: Props = $props();
+    let {
+        result,
+        onClose,
+        className = "",
+        driverName = "Unknown",
+    }: Props = $props();
 
     const isSuccess = $derived(result.connected);
+    let popoverRef: HTMLDivElement;
+
+    onMount(() => {
+        const handleOutsideClick = (event: MouseEvent) => {
+            if (popoverRef && !popoverRef.contains(event.target as Node)) {
+                onClose();
+            }
+        };
+
+        window.addEventListener("mousedown", handleOutsideClick);
+        return () => {
+            window.removeEventListener("mousedown", handleOutsideClick);
+        };
+    });
 </script>
 
 <div
+    bind:this={popoverRef}
     class={cn(
-        "absolute bottom-full mb-4 left-1/2 -translate-x-1/2 w-80 z-50",
+        "absolute bottom-full mb-3 left-1/2 -translate-x-1/2 w-80 z-50 origin-bottom filter drop-shadow-xl",
         className,
     )}
-    transition:fly={{ y: 8, duration: 300, opacity: 0 }}
+    transition:fly={{ y: 4, duration: 200, opacity: 0 }}
 >
-    <!-- Tooltip Container -->
+    <!-- Card Container -->
     <div
-        class="bg-[--theme-bg-secondary] border border-[--theme-border-default] rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.3)] p-5 relative ring-1 ring-white/5"
+        class={cn(
+            "border rounded-md relative z-10",
+            isSuccess
+                ? "bg-[#ecfdf5] border-green-200"
+                : "bg-[#fef2f2] border-red-200",
+        )}
     >
-        <!-- Header -->
-        <div class="flex items-center justify-between mb-4">
-            <span
-                class={cn(
-                    "font-bold uppercase tracking-widest text-[10px] px-2 py-0.5 rounded-full",
-                    isSuccess
-                        ? "text-green-400 bg-green-500/10 border border-green-500/20"
-                        : "text-red-400 bg-red-500/10 border border-red-500/20",
-                )}
-            >
-                {isSuccess ? "Succeeded" : "Failed"}
-            </span>
-
-            {#if result.response_time_ms !== undefined}
+        <div class="p-4">
+            <!-- Row 1: Icon + Latency -->
+            <div class="flex items-center justify-between h-full">
+                <!-- Left: Checkmark -->
                 <div
-                    class="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-[--theme-bg-tertiary] border border-[--theme-border-subtle]"
+                    class={cn(
+                        "flex items-center justify-center w-8 h-8 rounded-full ring-4 shadow-sm",
+                        isSuccess
+                            ? "bg-green-500 text-white ring-green-500/10"
+                            : "bg-red-500 text-white ring-red-500/10",
+                    )}
                 >
-                    <span
-                        class={cn(
-                            "text-[10px] font-bold",
-                            result.response_time_ms < 50
-                                ? "text-green-500"
-                                : result.response_time_ms < 200
-                                  ? "text-yellow-500"
-                                  : "text-red-500",
-                        )}>{result.response_time_ms} ms</span
-                    >
-                </div>
-            {/if}
-        </div>
-
-        <!-- Content -->
-        <div class="space-y-3 font-mono text-xs text-[--theme-fg-secondary]">
-            <div class="flex items-center justify-between">
-                <span class="text-[--theme-fg-tertiary]">Driver</span>
-                <div class="flex items-center gap-1.5">
-                    <span class="text-[--theme-fg-primary] font-medium"
-                        >SQLite Native</span
-                    >
-                    {#if result.version}
-                        <span class="text-[10px] opacity-60"
-                            >v{result.version}</span
-                        >
+                    {#if isSuccess}
+                        <IconCheck size={18} stroke={3} />
+                    {:else}
+                        <IconX size={18} stroke={3} />
                     {/if}
+                </div>
+
+                <!-- Right: Latency -->
+                {#if isSuccess}
+                    <div class="flex items-center justify-center h-full">
+                        <span
+                            class="text-[10px] uppercase tracking-wider text-green-800/60 font-bold mr-2"
+                        >
+                            Latency:
+                        </span>
+                        <span
+                            class={cn(
+                                "text-2xl font-mono font-bold leading-none",
+                                (result.response_time_ms ?? 0) < 100
+                                    ? "text-green-700"
+                                    : "text-red-600",
+                            )}>{result.response_time_ms}</span
+                        >
+                        <span class="text-xs text-green-800/60 font-medium"
+                            >ms</span
+                        >
+                    </div>
+                {:else}
+                    <span
+                        class="text-xs font-bold text-red-600 uppercase tracking-wider"
+                        >Failed</span
+                    >
+                {/if}
+                <div
+                    class={cn(
+                        "text-xs font-medium flex items-center gap-1",
+                        isSuccess ? "text-green-900" : "text-red-900",
+                    )}
+                >
+                    <span class="opacity-70">Driver:</span>
+                    <span>{driverName}</span>
                 </div>
             </div>
 
-            {#if result.error}
-                <div
-                    class="mt-4 p-3 rounded-lg bg-red-500/5 border border-red-500/20 text-red-400 text-[11px] leading-relaxed"
-                >
-                    <div class="flex gap-2">
-                        <IconX size={14} class="shrink-0 mt-0.5" />
-                        <span>{result.error}</span>
-                    </div>
-                </div>
-            {/if}
-        </div>
+            <!-- Divider -->
+            <div
+                class={cn(
+                    "h-px w-full my-3",
+                    isSuccess ? "bg-green-200" : "bg-red-200",
+                )}
+            ></div>
 
-        <!-- Arrow -->
-        <div
-            class="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-[--theme-bg-secondary] border-r border-b border-[--theme-border-default] rotate-45"
-        ></div>
+            <!-- Row 2: Version | Driver -->
+            <div
+                class={cn(
+                    "text-xs font-medium flex items-center gap-1",
+                    isSuccess ? "text-green-900" : "text-red-900",
+                )}
+            >
+                {#if isSuccess}
+                    <div class="flex items-center gap-1 w-full justify-center">
+                        <span class="opacity-70">Version:</span>
+                        <span>{result.version || "Unknown"}</span>
+                    </div>
+                {:else}
+                    <span class="opacity-90"
+                        >{result.error || "Unknown Error"}</span
+                    >
+                {/if}
+            </div>
+        </div>
     </div>
+
+    <!-- Seamless Arrow -->
+    <div
+        class={cn(
+            "absolute -bottom-[8px] left-1/2 -translate-x-1/2 size-4 bg-red-500 border-r border-b rotate-45 z-20",
+            isSuccess
+                ? "bg-[#ecfdf5] border-green-200"
+                : "bg-[#fef2f2] border-red-200",
+        )}
+    ></div>
 </div>
 
 <style>

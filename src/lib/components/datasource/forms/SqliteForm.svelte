@@ -7,7 +7,8 @@
     import { testConnectionParams } from "$lib/commands/client";
     import { connectionForm } from "$lib/components/datasource/connectionStore.svelte";
     import ConnectionResultPopover from "../ConnectionResultPopover.svelte";
-    import { IconCheck, IconX } from "@tabler/icons-svelte";
+    import { IconCheck, IconX, IconLoader2 } from "@tabler/icons-svelte";
+    import { cn } from "$lib/utils";
 
     interface Props {
         data: any;
@@ -16,6 +17,7 @@
 
     let { data, onChange }: Props = $props();
     let showPopover = $state(false);
+    let isTesting = $state(false);
     const testResult = $derived(connectionForm.state.testResult);
 
     async function browseFile() {
@@ -42,26 +44,32 @@
 
         showPopover = false;
         connectionForm.setTestResult(null);
+        isTesting = true;
 
         console.debug(
             "Testing SQLite connection with payload",
             $state.snapshot(data),
         );
-        const response = await testConnectionParams(
-            "sqlite",
-            $state.snapshot(data),
-        );
 
-        if (response.success && response.data) {
-            connectionForm.setTestResult(response.data);
-            showPopover = true;
+        try {
+            const response = await testConnectionParams(
+                "sqlite",
+                $state.snapshot(data),
+            );
+
+            if (response.success && response.data) {
+                connectionForm.setTestResult(response.data);
+                showPopover = true;
+            }
+        } finally {
+            isTesting = false;
         }
     }
 </script>
 
 <div class="h-full flex flex-col">
     <div class="grow overflow-y-auto space-y-6 text-sm">
-        <div class="flex justify-center">
+        <div class="flex justify-center border-b mx-36">
             <div class="flex border-b border-[--theme-border-default]">
                 <div
                     role="tab"
@@ -174,36 +182,49 @@
             <Button onClick={handleApply}>Apply</Button>
 
             <div class="flex items-center gap-3 relative">
-                <div class="relative">
-                    <button
-                        onclick={handleTestConnection}
-                        class="text-xs text-[--theme-accent-primary] underline underline-offset-4 hover:text-[--theme-accent-hover] transition-colors cursor-pointer"
-                    >
-                        Test Connection
-                    </button>
+                <div class="relative flex items-center gap-2">
+                    {#if isTesting}
+                        <div
+                            class="flex items-center gap-2 text-xs text-[--theme-fg-tertiary]"
+                        >
+                            <IconLoader2 class="animate-spin" size={14} />
+                            <span>Testing...</span>
+                        </div>
+                    {:else}
+                        <button
+                            onclick={handleTestConnection}
+                            class="text-xs text-[--theme-accent-primary] underline underline-offset-4 hover:text-[--theme-accent-hover] transition-colors cursor-pointer"
+                        >
+                            Test Connection
+                        </button>
+                    {/if}
 
-                    {#if testResult && showPopover}
+                    {#if testResult && !isTesting}
+                        <button
+                            class={cn(
+                                "flex items-center justify-center w-5 h-5 rounded-full transition-colors cursor-pointer",
+                                testResult.connected
+                                    ? "text-green-500 hover:bg-green-500/10"
+                                    : "text-red-500 hover:bg-red-500/10",
+                            )}
+                            onclick={() => (showPopover = true)}
+                        >
+                            {#if testResult.connected}
+                                <IconCheck size={14} />
+                            {:else}
+                                <IconX size={14} />
+                            {/if}
+                        </button>
+                    {/if}
+
+                    {#if testResult && showPopover && !isTesting}
                         <ConnectionResultPopover
                             result={testResult}
+                            driverName="SQLite3"
                             onClose={() => (showPopover = false)}
                         />
                     {/if}
                 </div>
-
-                {#if testResult && !showPopover}
-                    <button
-                        class="flex items-center gap-1.5 text-xs text-[--theme-fg-tertiary] hover:text-[--theme-fg-secondary] transition-colors cursor-pointer"
-                        onclick={() => (showPopover = true)}
-                    >
-                        {#if testResult.connected}
-                            <IconCheck size={14} class="text-green-500" />
-                            <span>SQLite {testResult.version || ""}</span>
-                        {:else}
-                            <IconX size={14} class="text-red-500" />
-                            <span>Failed</span>
-                        {/if}
-                    </button>
-                {/if}
             </div>
         </div>
     </div>
