@@ -17,6 +17,7 @@
     onCommit: (newValue: any) => void;
     onCancel?: () => void;
     class?: string;
+    id?: string;
   }
 
   let {
@@ -31,6 +32,7 @@
     onCommit,
     onCancel = () => (open = false),
     class: className = "",
+    id,
   }: Props = $props();
 
   const normalized = $derived(
@@ -211,6 +213,7 @@
   <button
     bind:this={triggerEl}
     type="button"
+    {id}
     class={cn(
       "w-full flex items-center justify-between border px-3 text-sm transition bg-(--theme-bg-secondary) text-(--theme-fg-primary) border-(--theme-border-default) hover:border-(--theme-accent-primary) focus:outline-none focus-visible:ring-2 focus-visible:ring-(--theme-accent-primary)",
       height === "sm" && "h-8",
