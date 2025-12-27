@@ -6,7 +6,6 @@
     import { getCurrentWindow } from "@tauri-apps/api/window";
     import { testConnectionParams } from "$lib/commands/client";
     import { ENGINE_SCHEMAS } from "$lib/schema/connectionSchema";
-    import { notifications } from "$lib/utils/notification.svelte";
 
     interface Props {
         data: any;
@@ -43,37 +42,21 @@
     function handleApply() {
         const validationErrors = validateForm();
         if (Object.keys(validationErrors).length > 0) {
-            notifications.error(Object.values(validationErrors)[0]);
             return;
         }
-        notifications.success("MongoDB settings saved!");
         console.log("Applying MongoDB config", $state.snapshot(data));
     }
 
     async function handleTestConnection() {
         const validationErrors = validateForm();
         if (Object.keys(validationErrors).length > 0) {
-            notifications.error(Object.values(validationErrors)[0]);
             return;
         }
-        notifications.info("Testing MongoDB connection...");
 
         const response = await testConnectionParams(
             "mongodb",
             $state.snapshot(data),
         );
-
-        if (response.success && response.data) {
-            if (response.data.connected) {
-                notifications.success(
-                    `Connection successful! ${response.data.version || ""}`,
-                );
-            } else {
-                notifications.error(response.data.error || "Connection failed");
-            }
-        } else {
-            notifications.error(response.error || "Test failed");
-        }
     }
 
     function getFieldValue(path: string) {
@@ -253,7 +236,7 @@
     </div>
 
     <div
-        class="shrink-0 flex justify-center items-center py-4 mt-auto border-t border-[--theme-border-default]"
+        class="shrink-0 flex justify-center items-center py-4 border-t border-[--theme-border-default]"
     >
         <div class="flex space-x-3">
             <Button onClick={handleCancel}>Cancel</Button>

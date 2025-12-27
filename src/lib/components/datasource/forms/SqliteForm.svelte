@@ -5,7 +5,7 @@
     import Button from "$lib/components/Button.svelte";
     import { getCurrentWindow } from "@tauri-apps/api/window";
     import { testConnectionParams } from "$lib/commands/client";
-    import { notifications } from "$lib/utils/notification.svelte";
+    import { connectionForm } from "$lib/components/datasource/connectionStore.svelte";
 
     interface Props {
         data: any;
@@ -26,42 +26,28 @@
 
     function handleApply() {
         if (data.mode === "file" && !data.file) {
-            notifications.error("Database file is required");
             return;
         }
-        notifications.success("SQLite settings saved!");
         console.log("Apply SQLite connection", data);
     }
 
     async function handleTestConnection() {
         if (data.mode === "file" && !data.file) {
-            notifications.error("File path is required for file mode");
             return;
         }
 
-        notifications.info("Testing SQLite connection...");
-
-        console.debug("Testing SQLite connection with payload", $state.snapshot(data));
+        console.debug(
+            "Testing SQLite connection with payload",
+            $state.snapshot(data),
+        );
         const response = await testConnectionParams(
             "sqlite",
             $state.snapshot(data),
         );
 
         if (response.success && response.data) {
-            if (response.data.connected) {
-                notifications.success(
-                    `Connection successful! SQLite v${response.data.version || ""}`,
-                );
-            } else {
-                notifications.error(response.data.error || "Connection failed");
-            }
-        } else {
-            notifications.error(response.error || "Test failed");
+            connectionForm.setTestResult(response.data);
         }
-    }
-
-    function updateField(path: string, value: any) {
-        onChange(path, value);
     }
 </script>
 
@@ -79,13 +65,13 @@
             </div>
         </div>
 
-        <div class="grid grid-cols-[120px_1fr] gap-y-3 items-center">
+        <div class="grid grid-cols-[120px_1fr] gap-y-3 items-center px-6">
             <label for="mode" class="text-[--theme-fg-secondary]">Mode:</label>
             <div class="w-48">
                 <Select
                     id="mode"
                     value={data.mode || "file"}
-                    onCommit={(v: string) => updateField("mode", v)}
+                    onCommit={(v: string) => onChange("mode", v)}
                     options={[
                         { value: "file", label: "Local File" },
                         { value: "memory", label: "In-Memory" },
@@ -104,7 +90,7 @@
                             value={data.file || ""}
                             placeholder="/path/to/database.sqlite"
                             oninput={(e: any) =>
-                                updateField("file", e.target.value)}
+                                onChange("file", e.target.value)}
                         />
                     </div>
                     <button
@@ -132,7 +118,7 @@
                         class="rounded"
                         checked={data.options?.read_only || false}
                         onchange={(e: any) =>
-                            updateField("options.read_only", e.target.checked)}
+                            onChange("options.read_only", e.target.checked)}
                     />
                     <span>Read Only</span>
                 </label>
@@ -143,7 +129,7 @@
                         class="rounded"
                         checked={data.options?.pragmas?.foreign_keys ?? true}
                         onchange={(e: any) =>
-                            updateField(
+                            onChange(
                                 "options.pragmas.foreign_keys",
                                 e.target.checked,
                             )}
@@ -160,7 +146,7 @@
                     id="journal"
                     value={data.options?.pragmas?.journal_mode || "WAL"}
                     onCommit={(v: string) =>
-                        updateField("options.pragmas.journal_mode", v)}
+                        onChange("options.pragmas.journal_mode", v)}
                     options={[
                         { value: "DELETE", label: "Delete" },
                         { value: "WAL", label: "WAL" },
@@ -173,7 +159,7 @@
     </div>
 
     <div
-        class="shrink-0 flex justify-center items-center py-4 mt-auto border-t border-[--theme-border-default]"
+        class="shrink-0 flex justify-center items-center py-4 border-t border-[--theme-border-default]"
     >
         <div class="flex space-x-3">
             <Button onClick={handleCancel}>Cancel</Button>

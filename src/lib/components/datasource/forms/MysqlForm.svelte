@@ -10,7 +10,6 @@
         isFieldVisible,
     } from "$lib/schema/connectionSchema";
     import type { MysqlConfig } from "$lib/schema/connectionSchema";
-    import { notifications } from "$lib/utils/notification.svelte";
 
     interface Props {
         data: MysqlConfig;
@@ -75,39 +74,22 @@
         const validationErrors = validateForm();
 
         if (Object.keys(validationErrors).length > 0) {
-            const firstError = Object.values(validationErrors)[0];
-            notifications.error(firstError);
             return;
         }
 
-        notifications.success("MySQL settings saved!");
         console.log("Valid MySQL connection, saving...", $state.snapshot(data));
     }
 
     async function handleTestConnection() {
         const validationErrors = validateForm();
         if (Object.keys(validationErrors).length > 0) {
-            notifications.error(Object.values(validationErrors)[0]);
             return;
         }
-        notifications.info("Testing MySQL connection...");
 
         const response = await testConnectionParams(
             "mysql",
             $state.snapshot(data),
         );
-
-        if (response.success && response.data) {
-            if (response.data.connected) {
-                notifications.success(
-                    `Connection successful! ${response.data.version || ""}`,
-                );
-            } else {
-                notifications.error(response.data.error || "Connection failed");
-            }
-        } else {
-            notifications.error(response.error || "Test failed");
-        }
     }
 
     // Helper to get nested field value
@@ -409,7 +391,7 @@
     </div>
 
     <div
-        class="shrink-0 flex justify-center items-center py-4 mt-auto border-t border-[--theme-border-default]"
+        class="shrink-0 flex justify-center items-center py-4 border-t border-[--theme-border-default]"
     >
         <div class="flex space-x-3">
             <Button onClick={handleCancel}>Cancel</Button>

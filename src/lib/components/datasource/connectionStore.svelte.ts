@@ -1,6 +1,8 @@
 import type { Driver } from "./DriverList";
 import { createEmptyConfig, type PostgresConfig, type SqliteConfig } from "$lib/schema/connectionSchema";
 
+import type { ConnectionInfo } from "$lib/commands/types";
+
 // Union type for all possible config types
 type ConnectionConfig = PostgresConfig | SqliteConfig | Record<string, any>;
 
@@ -10,16 +12,16 @@ type NamedConfig = ConnectionConfig & { name: string };
 // Get default config for a driver
 function getDefaultConfig(driver: Driver): NamedConfig {
   // const engineType = driver.id === "postgresql" || driver.id === "mysql" || driver.id === "mariadb"
-    // ? "postgres"
-    // : driver.id === "sqlite"
-    //   ? "sqlite"
-    //   : driver.id === "mongodb"
-    //     ? "mongodb"
-    //     : driver.id === "redis"
-    //       ? "redis"
-    //       : driver.id === "elasticsearch"
-    //         ? "elasticsearch"
-    //         : "postgres"; // fallback
+  // ? "postgres"
+  // : driver.id === "sqlite"
+  //   ? "sqlite"
+  //   : driver.id === "mongodb"
+  //     ? "mongodb"
+  //     : driver.id === "redis"
+  //       ? "redis"
+  //       : driver.id === "elasticsearch"
+  //         ? "elasticsearch"
+  //         : "postgres"; // fallback
 
   const baseConfig = createEmptyConfig(driver.id as any);
   return { ...baseConfig, name: driver.name } as NamedConfig;
@@ -28,11 +30,13 @@ function getDefaultConfig(driver: Driver): NamedConfig {
 class ConnectionFormStore {
   driver = $state<Driver | null>(null);
   fields = $state<NamedConfig>({ version: 1, name: "" } as NamedConfig);
+  testResult = $state<ConnectionInfo | null>(null);
 
   get state() {
     return {
       driver: this.driver,
       fields: this.fields,
+      testResult: this.testResult,
     };
   }
 
@@ -43,6 +47,7 @@ class ConnectionFormStore {
     }
 
     this.driver = driver;
+    this.testResult = null; // Clear test result when driver changes
     if (driver) {
       this.fields = getDefaultConfig(driver);
     } else {
@@ -73,6 +78,11 @@ class ConnectionFormStore {
   reset() {
     this.driver = null;
     this.fields = { version: 1, name: "" } as NamedConfig;
+    this.testResult = null;
+  }
+
+  setTestResult(result: ConnectionInfo | null) {
+    this.testResult = result;
   }
 }
 

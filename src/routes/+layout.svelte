@@ -7,7 +7,6 @@
 	import { windowState } from "$lib/stores/window.svelte";
 	import { onMount } from "svelte";
 	import LoadingOverlay from "$lib/LoadingOverlay.svelte";
-	import NotificationContainer from "$lib/components/notifications/NotificationContainer.svelte";
 
 	const appWindow = getCurrentWindow();
 
@@ -39,7 +38,6 @@
 
 <ThemeProvider>
 	<LoadingOverlay />
-	<NotificationContainer />
 	<div class="flex h-screen w-full flex-col overflow-hidden bg-background">
 		<Titlebar {isFullScreen} />
 		<div class="h-8 shrink-0" aria-hidden="true"></div>

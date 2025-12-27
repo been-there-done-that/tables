@@ -12,8 +12,6 @@
     } from "$lib/schema/connectionSchema";
     import type { PostgresConfig } from "$lib/schema/connectionSchema";
 
-    import { notifications } from "$lib/utils/notification.svelte";
-
     interface Props {
         data: PostgresConfig;
         onChange: (field: string, value: any) => void;
@@ -83,13 +81,9 @@
         const validationErrors = validateForm();
 
         if (Object.keys(validationErrors).length > 0) {
-            const firstError = Object.values(validationErrors)[0];
-            notifications.error(firstError);
             return;
         }
 
-        // Proceed with save
-        notifications.success("Connection settings saved successfully!");
         console.log(
             "Valid PostgreSQL connection, saving...",
             $state.snapshot(data),
@@ -101,29 +95,13 @@
         // Validate before testing connection
         const validationErrors = validateForm();
         if (Object.keys(validationErrors).length > 0) {
-            const firstError = Object.values(validationErrors)[0];
-            notifications.error(firstError);
             return;
         }
-
-        notifications.info("Testing connection...");
 
         const response = await testConnectionParams(
             "postgresql",
             $state.snapshot(data),
         );
-
-        if (response.success && response.data) {
-            if (response.data.connected) {
-                notifications.success(
-                    `Connection successful! ${response.data.version || ""}`,
-                );
-            } else {
-                notifications.error(response.data.error || "Connection failed");
-            }
-        } else {
-            notifications.error(response.error || "Test failed");
-        }
     }
 
     // Helper to get nested field value
@@ -138,18 +116,6 @@
 
     // Helper to update nested field
     function updateField(path: string, value: any) {
-        const keys = path.split(".");
-        const newData: any = { ...data };
-        let current = newData;
-
-        for (let i = 0; i < keys.length - 1; i++) {
-            if (!current[keys[i]]) {
-                current[keys[i]] = {};
-            }
-            current = current[keys[i]];
-        }
-
-        current[keys[keys.length - 1]] = value;
         onChange(path, value);
     }
 </script>
@@ -481,9 +447,8 @@
         {/if}
     </div>
 
-    <!-- Footer Actions - always at bottom -->
     <div
-        class="shrink-0 flex justify-center items-center py-4 mt-auto border-t border-[--theme-border-default]"
+        class="shrink-0 flex justify-center items-center py-4 border-t border-[--theme-border-default]"
     >
         <div class="flex space-x-3">
             <Button onClick={handleCancel}>Cancel</Button>
