@@ -4,6 +4,7 @@
 	import { getCurrentWindow } from "@tauri-apps/api/window";
 	import ThemeProvider from "$lib/providers/ThemeProvider.svelte";
 	import Titlebar from "$lib/Titlebar.svelte";
+	import { windowState } from "$lib/stores/window.svelte";
 	import { onMount } from "svelte";
 	import LoadingOverlay from "$lib/LoadingOverlay.svelte";
 	import NotificationContainer from "$lib/components/notifications/NotificationContainer.svelte";
@@ -22,20 +23,7 @@
 		const setup = async () => {
 			await checkFullScreen();
 			unlisten = await appWindow.onResized(checkFullScreen);
-
-			// Do you have permission to send a notification?
-			// let permissionGranted = await isPermissionGranted();
-
-			// If not we need to request it
-			// if (!permissionGranted) {
-			// 	const permission = await requestPermission();
-			// 	permissionGranted = permission === "granted";
-			// }
-
-			// Once permission has been granted we can send the notification
-			// if (permissionGranted) {
-			// se?ndNotification({ title: "Tauri", body: "Tauri is awesome!" });
-			// }
+			await windowState.init();
 		};
 
 		setup();
@@ -44,6 +32,7 @@
 			if (unlisten) {
 				unlisten();
 			}
+			windowState.cleanup();
 		};
 	});
 </script>
