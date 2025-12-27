@@ -12,6 +12,7 @@ use tauri::{Manager, PhysicalPosition, PhysicalSize, Size, Emitter};
 use std::{path::PathBuf, sync::{Arc, Mutex}, time::SystemTime};
 use rusqlite::{Connection, OptionalExtension};
 use serde::Serialize;
+use log::{info, debug, warn, error};
 use commands::theme_commands::*;
 use commands::connection_commands::*;
 use commands::aws_commands::*;
@@ -93,6 +94,14 @@ fn init_connection(db_path: &PathBuf) -> Result<Connection, String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Initialize logger once for the Tauri side; default to debug for our crate if not set.
+    let env = env_logger::Env::default().filter_or("RUST_LOG", "tables=debug");
+    env_logger::Builder::from_env(env)
+        .format_timestamp_millis()
+        .init();
+
+    info!("Starting Tables Tauri backend");
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
@@ -101,6 +110,8 @@ pub fn run() {
                 .app_data_dir()
                 .map_err(|e| format!("Failed to resolve app data dir: {e}"))?;
             let db_path = app_data_dir.join("tables.db");
+            debug!("Initializing app data dir at {:?}", app_data_dir);
+            debug!("Opening app database at {:?}", db_path);
             let conn = init_connection(&db_path)?;
             app.manage(DatabaseState {
                 conn: Arc::new(Mutex::new(conn)),

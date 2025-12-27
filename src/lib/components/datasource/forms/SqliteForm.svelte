@@ -41,6 +41,7 @@
 
         notifications.info("Testing SQLite connection...");
 
+        console.debug("Testing SQLite connection with payload", $state.snapshot(data));
         const response = await testConnectionParams(
             "sqlite",
             $state.snapshot(data),
