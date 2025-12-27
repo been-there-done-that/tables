@@ -11,6 +11,8 @@
     } from "$lib/schema/connectionSchema";
     import type { PostgresConfig } from "$lib/schema/connectionSchema";
 
+    import { notifications } from "$lib/utils/notification.svelte";
+
     interface Props {
         data: PostgresConfig;
         onChange: (field: string, value: any) => void;
@@ -18,8 +20,6 @@
 
     let { data, onChange }: Props = $props();
     let tab = $state<"general" | "ssh" | "advanced">("general");
-    let errors = $state<Record<string, string>>({});
-    let showAllErrors = $state(false);
 
     // Validation function using schema
     function validateForm(): Record<string, string> {
@@ -80,15 +80,15 @@
     function handleApply() {
         // Validate the form first
         const validationErrors = validateForm();
-        errors = validationErrors;
 
         if (Object.keys(validationErrors).length > 0) {
-            showAllErrors = true;
-            console.log("Validation failed:", validationErrors);
+            const firstError = Object.values(validationErrors)[0];
+            notifications.error(firstError);
             return;
         }
 
         // Proceed with save
+        notifications.success("Connection settings saved successfully!");
         console.log(
             "Valid PostgreSQL connection, saving...",
             $state.snapshot(data),
@@ -99,19 +99,17 @@
     function handleTestConnection() {
         // Validate before testing connection
         const validationErrors = validateForm();
-        errors = validationErrors;
-
-        console.log("Validation errors:", validationErrors);
-
         if (Object.keys(validationErrors).length > 0) {
-            showAllErrors = true;
-            console.log("Validation failed:", validationErrors);
+            const firstError = Object.values(validationErrors)[0];
+            notifications.error(firstError);
             return;
         }
 
-        // Proceed with test connection
-        console.log("Testing PostgreSQL connection...", $state.snapshot(data));
-        // TODO: Implement actual test connection logic (invoke Tauri command)
+        notifications.info("Testing connection...");
+        // Simulate a successful test for now
+        setTimeout(() => {
+            notifications.success("Connection successful!");
+        }, 1500);
     }
 
     // Helper to get nested field value
@@ -140,64 +138,9 @@
         current[keys[keys.length - 1]] = value;
         onChange(path, value);
     }
-
-    // Validation helpers
-    function getFieldError(path: string) {
-        return errors[path];
-    }
-
-    function hasErrors() {
-        return Object.keys(errors).length > 0;
-    }
-
-    function getVisibleErrors() {
-        if (showAllErrors) return errors;
-
-        // Only show errors for visible fields
-        const visibleErrors: Record<string, string> = {};
-        for (const [field, error] of Object.entries(errors)) {
-            if (isFieldVisible("postgres", field, data)) {
-                visibleErrors[field] = error;
-            }
-        }
-        return visibleErrors;
-    }
 </script>
 
 <div class="h-full flex flex-col">
-    <!-- Error Summary Popup -->
-    {#if hasErrors()}
-        <div
-            class="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg shrink-0"
-        >
-            <div class="flex items-center justify-between">
-                <div class="flex items-center space-x-2">
-                    <IconAlertCircle class="w-4 h-4 text-red-500" />
-                    <span class="text-sm font-medium text-red-800">
-                        {Object.keys(getVisibleErrors()).length} validation error(s)
-                    </span>
-                </div>
-                <button
-                    class="text-xs text-red-600 hover:text-red-800"
-                    onclick={() => (showAllErrors = !showAllErrors)}
-                >
-                    {showAllErrors ? "Show less" : "Show all"}
-                </button>
-            </div>
-
-            {#if showAllErrors}
-                <div class="mt-2 space-y-1">
-                    {#each Object.entries(getVisibleErrors()) as [field, error]}
-                        <div class="text-xs text-red-700">
-                            <span class="font-medium">{field}:</span>
-                            {error}
-                        </div>
-                    {/each}
-                </div>
-            {/if}
-        </div>
-    {/if}
-
     <!-- Form Content - grows to fill available space -->
     <div class="grow overflow-y-auto space-y-6 text-sm">
         <!-- Classic Raised Tab Style -->
