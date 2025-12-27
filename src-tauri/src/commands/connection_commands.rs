@@ -114,6 +114,23 @@ pub async fn update_connection_stats(
     manager.update_connection_stats(&id)
 }
 
+#[derive(serde::Deserialize)]
+pub struct TestConnectionParams {
+    pub engine: String,
+    pub config: serde_json::Value,
+}
+
+/// Test a connection with raw parameters (unsaved)
+#[tauri::command]
+pub async fn test_connection_params(
+    params: TestConnectionParams,
+    db_state: State<'_, DatabaseState>,
+    conn_state: State<'_, ConnectionManagerState>,
+) -> Result<ConnectionInfo, String> {
+    let manager = ConnectionManager::from_state(&db_state, &conn_state);
+    manager.test_connection_params(params.engine, params.config).await
+}
+
 /// Check if keyring is available for secure credential storage
 #[tauri::command]
 pub async fn check_keyring_available(

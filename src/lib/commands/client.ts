@@ -1,9 +1,9 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { 
-  CommandResponse, 
-  Theme, 
-  Connection, 
-  CreateConnectionRequest, 
+import type {
+  CommandResponse,
+  Theme,
+  Connection,
+  CreateConnectionRequest,
   UpdateConnectionRequest,
   SecureCredentials,
   ConnectionInfo,
@@ -30,7 +30,7 @@ export class CommandClient {
    * Generic command invoker with type safety and error handling
    */
   private async invokeCommand<T>(
-    command: string, 
+    command: string,
     args?: Record<string, any>
   ): Promise<CommandResponse<T>> {
     try {
@@ -87,6 +87,12 @@ export class CommandClient {
 
   async testConnection(connection: Connection, credentials?: SecureCredentials): Promise<CommandResponse<ConnectionInfo>> {
     return this.invokeCommand('test_connection', { connection, credentials });
+  }
+
+  async testConnectionParams(engine: string, config: any): Promise<CommandResponse<ConnectionInfo>> {
+    return this.invokeCommand('test_connection_params', {
+      params: { engine, config }
+    });
   }
 
   async getFavoriteConnections(): Promise<CommandResponse<Connection[]>> {
@@ -229,6 +235,7 @@ export const {
   executeRedisCommand,
   deleteRedisKey,
   executeAthenaQuery,
+  testConnectionParams,
   getAvailablePlugins,
   enablePlugin,
   disablePlugin,

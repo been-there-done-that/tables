@@ -18,7 +18,11 @@ pub fn validate_config_json(json: &str, engine: &str) -> Result<(), String> {
     // Engine-specific validation
     match engine {
         "postgres" => validate_postgres_config(&parsed)?,
+        "mysql" => validate_mysql_config(&parsed)?,
         "sqlite" => validate_sqlite_config(&parsed)?,
+        "mongodb" => validate_mongodb_config(&parsed)?,
+        "redis" => validate_redis_config(&parsed)?,
+        "elasticsearch" => validate_elasticsearch_config(&parsed)?,
         _ => return Err(format!("Unsupported engine: {}", engine)),
     }
     
@@ -115,7 +119,7 @@ fn validate_sqlite_config(parsed: &Value) -> Result<(), String> {
         
         if let Some(pragmas) = options.get("pragmas").and_then(|v| v.as_object()) {
             // Pragmas should be key-value pairs, basic validation
-            for (key, value) in pragmas {
+            for (key, _value) in pragmas {
                 if key.is_empty() {
                     return Err("Empty pragma key".to_string());
                 }
@@ -124,6 +128,72 @@ fn validate_sqlite_config(parsed: &Value) -> Result<(), String> {
         }
     }
     
+    Ok(())
+}
+
+fn validate_mysql_config(parsed: &Value) -> Result<(), String> {
+    let db = parsed.get("db").ok_or("Missing 'db' field")?;
+    if db.get("host").and_then(|v| v.as_str()).is_none() {
+        return Err("Missing 'db.host'".into());
+    }
+    if db.get("database").and_then(|v| v.as_str()).is_none() {
+        return Err("Missing 'db.database'".into());
+    }
+    if db.get("username").and_then(|v| v.as_str()).is_none() {
+        return Err("Missing 'db.username'".into());
+    }
+    Ok(())
+}
+
+fn validate_mongodb_config(parsed: &Value) -> Result<(), String> {
+    let auth = parsed.get("auth").ok_or("Missing 'auth' field")?;
+    let method = auth.get("method").and_then(|v| v.as_str()).ok_or("Missing 'auth.method'")?;
+    
+    match method {
+        "standard" => {
+            let db = parsed.get("db").ok_or("Missing 'db' field")?;
+            if db.get("host").and_then(|v| v.as_str()).is_none() {
+                return Err("Missing 'db.host'".into());
+            }
+        },
+        "uri" => {
+            let db = parsed.get("db").ok_or("Missing 'db' field")?;
+            if db.get("uri").and_then(|v| v.as_str()).is_none() {
+                return Err("Missing 'db.uri'".into());
+            }
+        },
+        _ => return Err(format!("Invalid MongoDB auth method: {}", method)),
+    }
+    Ok(())
+}
+
+fn validate_redis_config(parsed: &Value) -> Result<(), String> {
+    let db = parsed.get("db").ok_or("Missing 'db' field")?;
+    if db.get("host").and_then(|v| v.as_str()).is_none() {
+        return Err("Missing 'db.host'".into());
+    }
+    Ok(())
+}
+
+fn validate_elasticsearch_config(parsed: &Value) -> Result<(), String> {
+    let auth = parsed.get("auth").ok_or("Missing 'auth' field")?;
+    let method = auth.get("method").and_then(|v| v.as_str()).ok_or("Missing 'auth.method'")?;
+    
+    match method {
+        "cloud_id" => {
+            let db = parsed.get("db").ok_or("Missing 'db' field")?;
+            if db.get("cloud_id").and_then(|v| v.as_str()).is_none() {
+                return Err("Missing 'db.cloud_id'".into());
+            }
+        },
+        "basic" | "api_key" => {
+            let db = parsed.get("db").ok_or("Missing 'db' field")?;
+            if db.get("host").and_then(|v| v.as_str()).is_none() {
+                return Err("Missing 'db.host'".into());
+            }
+        },
+        _ => return Err(format!("Invalid Elasticsearch auth method: {}", method)),
+    }
     Ok(())
 }
 
