@@ -199,30 +199,50 @@
     {/if}
 
     <!-- Form Content - grows to fill available space -->
-    <div
-        class="grow overflow-y-auto space-y-4 text-sm flex flex-col justify-between"
-    >
-        <div
-            class="flex space-x-4 border-b border-(--theme-border-default) pb-2 text-xs font-medium text-(--theme-fg-secondary)"
-        >
-            <button
-                class={`pb-1 border-b-2 ${tab === "general" ? "border-(--theme-accent-primary) text-(--theme-fg-primary)" : "border-transparent hover:border-(--theme-border-default)"}`}
-                onclick={() => (tab = "general")}
-            >
-                General
-            </button>
-            <button
-                class={`pb-1 border-b-2 ${tab === "ssh" ? "border-(--theme-accent-primary) text-(--theme-fg-primary)" : "border-transparent hover:border-(--theme-border-default)"}`}
-                onclick={() => (tab = "ssh")}
-            >
-                SSH
-            </button>
-            <button
-                class={`pb-1 border-b-2 ${tab === "advanced" ? "border-(--theme-accent-primary) text-(--theme-fg-primary)" : "border-transparent hover:border-(--theme-border-default)"}`}
-                onclick={() => (tab = "advanced")}
-            >
-                Advanced
-            </button>
+    <div class="grow overflow-y-auto space-y-6 text-sm">
+        <!-- Classic Raised Tab Style -->
+        <div class="flex justify-center">
+            <div class="flex border-b border-[--theme-border-default]">
+                <div
+                    role="tab"
+                    tabindex="0"
+                    class={`px-6 py-2.5 text-xs font-medium cursor-pointer transition-all duration-150 rounded-t-lg -mb-px ${
+                        tab === "general"
+                            ? "bg-[--theme-bg-primary] text-[--theme-fg-primary] border border-[--theme-border-default] border-b-[--theme-bg-primary]"
+                            : "bg-[--theme-bg-tertiary] text-[--theme-fg-secondary] hover:text-[--theme-fg-primary] hover:bg-[--theme-bg-secondary] border border-transparent"
+                    }`}
+                    onclick={() => (tab = "general")}
+                    onkeydown={(e) => e.key === "Enter" && (tab = "general")}
+                >
+                    General
+                </div>
+                <div
+                    role="tab"
+                    tabindex="0"
+                    class={`px-6 py-2.5 text-xs font-medium cursor-pointer transition-all duration-150 rounded-t-lg -mb-px ${
+                        tab === "ssh"
+                            ? "bg-[--theme-bg-primary] text-[--theme-fg-primary] border border-[--theme-border-default] border-b-[--theme-bg-primary]"
+                            : "bg-[--theme-bg-tertiary] text-[--theme-fg-secondary] hover:text-[--theme-fg-primary] hover:bg-[--theme-bg-secondary] border border-transparent"
+                    }`}
+                    onclick={() => (tab = "ssh")}
+                    onkeydown={(e) => e.key === "Enter" && (tab = "ssh")}
+                >
+                    SSH
+                </div>
+                <div
+                    role="tab"
+                    tabindex="0"
+                    class={`px-6 py-2.5 text-xs font-medium cursor-pointer transition-all duration-150 rounded-t-lg -mb-px ${
+                        tab === "advanced"
+                            ? "bg-[--theme-bg-primary] text-[--theme-fg-primary] border border-[--theme-border-default] border-b-[--theme-bg-primary]"
+                            : "bg-[--theme-bg-tertiary] text-[--theme-fg-secondary] hover:text-[--theme-fg-primary] hover:bg-[--theme-bg-secondary] border border-transparent"
+                    }`}
+                    onclick={() => (tab = "advanced")}
+                    onkeydown={(e) => e.key === "Enter" && (tab = "advanced")}
+                >
+                    Advanced
+                </div>
+            </div>
         </div>
 
         {#if tab === "general"}
