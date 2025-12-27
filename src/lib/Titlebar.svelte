@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ResizableWindow from "$lib/components/ResizableWindow.svelte";
   import IconSettings from "@tabler/icons-svelte/icons/settings";
   import IconSettingsFilled from "@tabler/icons-svelte/icons/settings-filled";
   import IconLayoutSidebar from "@tabler/icons-svelte/icons/layout-sidebar";
@@ -9,9 +10,13 @@
   import PlaylistAdd from "@tabler/icons-svelte/icons/playlist-add";
   import Logs from "@tabler/icons-svelte/icons/logs";
   import { invoke } from "@tauri-apps/api/core";
+  import DataSource from "./components/datasource/DataSource.svelte";
 
   let { isFullScreen } = $props();
   let icons = $state(false);
+  let datasourceWindowOpen = $state(false);
+
+
 
   const openDatasourceWindow = async () => {
     try {
@@ -37,13 +42,17 @@
         </button>
 
         <div class="absolute right-2 flex items-center gap-1 pointer-events-auto">
-          <button class="h-6 w-6 rounded-md active:bg-accent mr-1" onclick={openDatasourceWindow}>
+
+          <button
+            class="h-6 w-6 rounded-md active:bg-accent mr-1 outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+            onclick={() => (datasourceWindowOpen = true)}
+          >
             <PlaylistAdd class="size-6" />
           </button>
 
-        <button class="h-6 w-6 rounded-md active:bg-accent" onclick={() => false}>
-          <Logs class="size-4" />
-        </button>
+          <button class="h-6 w-6 rounded-md active:bg-accent" onclick={() => false}>
+            <Logs class="size-4" />
+          </button>
 
         <button class="h-6 w-6" onclick={() => false}>
           {#if false}
@@ -77,3 +86,23 @@
     </div>
   </div>
 {/if}
+
+<ResizableWindow
+  title="New datasource"
+  bind:open={datasourceWindowOpen}
+  modal
+  closeOnOverlayClick={false}
+  class="w-[520px]"
+  contentClass="p-4 space-y-3"
+  debug={true}
+  onClose={() => (datasourceWindowOpen = false)}
+  openShortcut="ctrl+shift+n"
+  closeShortcut="ctrl+shift+w"
+>
+  {#snippet children()}
+    <DataSource />
+  {/snippet}
+  {#snippet headerActions()}
+    <!-- no extra header actions -->
+  {/snippet}
+</ResizableWindow>
