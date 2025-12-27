@@ -19,6 +19,6 @@ export const drivers: Driver[] = [
     { id: 'mongodb', name: 'MongoDB', icon: MongoDbIcon, defaultPort: 27017 },
     { id: 'redis', name: 'Redis', icon: RedisIcon, defaultPort: 6379 },
     { id: 'elasticsearch', name: 'Elasticsearch', icon: ElasticsearchIcon, defaultPort: 9200 },
-    { id: 's3', name: 'Amazon S3', icon: 'database', defaultPort: undefined },
-    { id: 'athena', name: 'Amazon Athena', icon: 'database', defaultPort: undefined },
+    // { id: 's3', name: 'Amazon S3', icon: 'database', defaultPort: undefined },
+    // { id: 'athena', name: 'Amazon Athena', icon: 'database', defaultPort: undefined },
 ];

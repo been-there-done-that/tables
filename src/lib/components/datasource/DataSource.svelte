@@ -2,10 +2,13 @@
     import DataSourceSidebar from "$lib/components/datasource/DataSourceSidebar.svelte";
     import ConnectionForm from "$lib/components/datasource/ConnectionForm.svelte";
     import Button from "$lib/components/Button.svelte";
-    import { type Driver, drivers } from "$lib/components/datasource/DriverList";
-    import { getCurrentWindow } from '@tauri-apps/api/window';
+    import {
+        type Driver,
+        drivers,
+    } from "$lib/components/datasource/DriverList";
+    import { getCurrentWindow } from "@tauri-apps/api/window";
 
-    let selectedDriver = $state<Driver | null>(drivers[2]);
+    let selectedDriver = $state<Driver | null>(drivers[0]);
 
     function handleDriverSelect(driver: Driver | null) {
         selectedDriver = driver;
@@ -15,9 +18,7 @@
         const window = getCurrentWindow();
         await window.close();
     }
-    
 </script>
-
 
 <div
     class="flex flex-col w-full h-full bg-[--theme-bg-primary] overflow-hidden"
@@ -36,22 +37,11 @@
         </div>
     </div>
 
-    <!-- Footer Actions -->
-    {#if selectedDriver}
-        <div
-            class="flex items-center py-2 px-6 justify-between mb-3"
-        >
-            <div class="flex items-center space-x-2">
-            </div>
-
-            <div class="flex space-x-3">
-                <Button onClick={handleClose}>Cancel</Button>
-                <Button>Apply</Button>
-                <Button>Test Connection</Button>
-            </div>
+    <div class="flex justify-center items-center py-2 px-6 mb-3 w-full">
+        <div class="flex space-x-3">
+            <Button onClick={handleClose}>Cancel</Button>
+            <Button>Apply</Button>
+            <Button>Test Connection</Button>
         </div>
-    {:else}
-        <div
-        ></div>
-    {/if}
+    </div>
 </div>
