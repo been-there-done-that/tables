@@ -1,6 +1,7 @@
 <script lang="ts">
     import { IconFolder, IconChevronDown } from "@tabler/icons-svelte";
     import FormInput from "$lib/components/FormInput.svelte";
+    import Select from "$lib/components/Select.svelte";
     import Button from "$lib/components/Button.svelte";
     import { getCurrentWindow } from "@tauri-apps/api/window";
     import { notifications } from "$lib/utils/notification.svelte";
@@ -23,7 +24,7 @@
     }
 
     function handleApply() {
-        if (!data.file) {
+        if (data.mode === "file" && !data.file) {
             notifications.error("Database file is required");
             return;
         }
@@ -32,7 +33,7 @@
     }
 
     function handleTestConnection() {
-        if (!data.file) {
+        if (data.mode === "file" && !data.file) {
             notifications.error("Database file is required");
             return;
         }
@@ -41,39 +42,119 @@
             notifications.success("Connection successful!");
         }, 1000);
     }
+
+    function updateField(path: string, value: any) {
+        onChange(path, value);
+    }
 </script>
 
-<div class="space-y-4 text-sm">
-    <div class="grid grid-cols-[120px_1fr] gap-y-3 items-center">
-        <label for="file" class="text-[--theme-fg-secondary]">File:</label>
-        <div class="flex space-x-2">
-            <div class="grow">
-                <FormInput
-                    inputId="file"
-                    value={data.file}
-                    oninput={(e: any) => onChange("file", e.target.value)}
-                    class="bg-[--theme-bg-secondary] border-[--theme-border-default] text-[--theme-fg-secondary] focus:border-[--theme-accent-primary]"
-                />
+<div class="h-full flex flex-col">
+    <div class="grow overflow-y-auto space-y-6 text-sm">
+        <div class="flex justify-center">
+            <div class="flex border-b border-[--theme-border-default]">
+                <div
+                    role="tab"
+                    tabindex="0"
+                    class="px-6 py-2.5 text-xs font-medium cursor-pointer transition-all duration-150 rounded-t-lg -mb-px bg-[--theme-bg-primary] text-[--theme-fg-primary] border border-[--theme-border-default] border-b-[--theme-bg-primary]"
+                >
+                    General
+                </div>
             </div>
-            <button
-                onclick={browseFile}
-                class="px-2 py-1 h-8 bg-[--theme-bg-tertiary] border border-[--theme-border-default] rounded-md hover:bg-[--theme-bg-hover] text-[--theme-fg-secondary] flex items-center justify-center"
-            >
-                <IconFolder size={16} />
-            </button>
         </div>
 
-        <label for="url" class="text-[--theme-fg-secondary]">URL:</label>
-        <div
-            class="flex items-center h-8 bg-[--theme-bg-secondary] border border-[--theme-border-default] rounded-md px-3 py-1.5 text-[--theme-fg-tertiary] italic cursor-not-allowed text-sm"
-        >
-            <span class="truncate">jdbc:sqlite:{data.file || ""}</span>
+        <div class="grid grid-cols-[120px_1fr] gap-y-3 items-center">
+            <label for="mode" class="text-[--theme-fg-secondary]">Mode:</label>
+            <div class="w-48">
+                <Select
+                    id="mode"
+                    value={data.mode || "file"}
+                    onCommit={(v: string) => updateField("mode", v)}
+                    options={[
+                        { value: "file", label: "Local File" },
+                        { value: "memory", label: "In-Memory" },
+                    ]}
+                />
+            </div>
+
+            {#if data.mode === "file" || !data.mode}
+                <label for="file" class="text-[--theme-fg-secondary]"
+                    >File:</label
+                >
+                <div class="flex space-x-2">
+                    <div class="grow">
+                        <FormInput
+                            inputId="file"
+                            value={data.file || ""}
+                            placeholder="/path/to/database.sqlite"
+                            oninput={(e: any) =>
+                                updateField("file", e.target.value)}
+                        />
+                    </div>
+                    <button
+                        onclick={browseFile}
+                        class="px-2 py-1 h-8 bg-[--theme-bg-tertiary] border border-[--theme-border-default] rounded-md hover:bg-[--theme-bg-hover] text-[--theme-fg-secondary] flex items-center justify-center transition-colors"
+                    >
+                        <IconFolder size={16} />
+                    </button>
+                </div>
+
+                <label class="text-[--theme-fg-secondary]">Preview:</label>
+                <div
+                    class="flex items-center h-8 bg-[--theme-bg-secondary] border border-[--theme-border-default] rounded-md px-3 py-1.5 text-[--theme-fg-tertiary] italic cursor-not-allowed text-xs overflow-hidden"
+                >
+                    <span class="truncate">jdbc:sqlite:{data.file || ""}</span>
+                </div>
+            {/if}
+
+            <label class="text-[--theme-fg-secondary]">Options:</label>
+            <div class="space-y-2">
+                <label class="flex items-center space-x-2">
+                    <input
+                        type="checkbox"
+                        class="rounded"
+                        checked={data.options?.read_only || false}
+                        onchange={(e: any) =>
+                            updateField("options.read_only", e.target.checked)}
+                    />
+                    <span>Read Only</span>
+                </label>
+                <label class="flex items-center space-x-2">
+                    <input
+                        type="checkbox"
+                        class="rounded"
+                        checked={data.options?.pragmas?.foreign_keys ?? true}
+                        onchange={(e: any) =>
+                            updateField(
+                                "options.pragmas.foreign_keys",
+                                e.target.checked,
+                            )}
+                    />
+                    <span>Enable Foreign Keys</span>
+                </label>
+            </div>
+
+            <label for="journal" class="text-[--theme-fg-secondary]"
+                >Journal:</label
+            >
+            <div class="w-40">
+                <Select
+                    id="journal"
+                    value={data.options?.pragmas?.journal_mode || "WAL"}
+                    onCommit={(v: string) =>
+                        updateField("options.pragmas.journal_mode", v)}
+                    options={[
+                        { value: "DELETE", label: "Delete" },
+                        { value: "WAL", label: "WAL" },
+                        { value: "MEMORY", label: "Memory" },
+                        { value: "OFF", label: "Off" },
+                    ]}
+                />
+            </div>
         </div>
     </div>
 
-    <!-- Footer Actions -->
     <div
-        class="flex justify-center items-center py-4 mt-6 border-t border-[--theme-border-default]"
+        class="shrink-0 flex justify-center items-center py-4 mt-auto border-t border-[--theme-border-default]"
     >
         <div class="flex space-x-3">
             <Button onClick={handleCancel}>Cancel</Button>
