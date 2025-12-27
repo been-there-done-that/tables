@@ -4,6 +4,7 @@
     import Button from "$lib/components/Button.svelte";
     import { getCurrentWindow } from "@tauri-apps/api/window";
     import { testConnectionParams } from "$lib/commands/client";
+    import { connectionForm } from "$lib/components/datasource/connectionStore.svelte";
     import { notifications } from "$lib/utils/notification.svelte";
 
     interface Props {
@@ -12,6 +13,8 @@
     }
 
     let { data, onChange }: Props = $props();
+
+    const testResult = $derived(connectionForm.state.testResult);
 
     async function handleCancel() {
         const window = getCurrentWindow();
@@ -40,6 +43,7 @@
         );
 
         if (response.success && response.data) {
+            connectionForm.setTestResult(response.data);
             if (response.data.connected) {
                 notifications.success(
                     `Connection successful! ${response.data.version || ""}`,
@@ -50,10 +54,6 @@
         } else {
             notifications.error(response.error || "Test failed");
         }
-    }
-
-    function updateField(path: string, value: any) {
-        onChange(path, value);
     }
 </script>
 
@@ -70,7 +70,7 @@
                         value={data.db?.host || ""}
                         placeholder="localhost"
                         oninput={(e: any) =>
-                            updateField("db.host", e.target.value)}
+                            onChange("db.host", e.target.value)}
                     />
                 </div>
                 <div class="flex items-center space-x-2">
@@ -83,10 +83,7 @@
                             type="number"
                             value={String(data.db?.port || 6379)}
                             oninput={(e: any) =>
-                                updateField(
-                                    "db.port",
-                                    parseInt(e.target.value),
-                                )}
+                                onChange("db.port", parseInt(e.target.value))}
                         />
                     </div>
                 </div>
@@ -101,7 +98,7 @@
                     type="number"
                     value={String(data.db?.database || 0)}
                     oninput={(e: any) =>
-                        updateField("db.database", parseInt(e.target.value))}
+                        onChange("db.database", parseInt(e.target.value))}
                 />
             </div>
 
@@ -112,7 +109,7 @@
                 inputId="db.username"
                 value={data.db?.username || ""}
                 placeholder="Optional (Redis 6+ ACL)"
-                oninput={(e: any) => updateField("db.username", e.target.value)}
+                oninput={(e: any) => onChange("db.username", e.target.value)}
             />
 
             <label for="db.password" class="text-[--theme-fg-secondary]"
@@ -123,7 +120,7 @@
                 type="password"
                 value={data.db?.password || ""}
                 placeholder="AUTH password"
-                oninput={(e: any) => updateField("db.password", e.target.value)}
+                oninput={(e: any) => onChange("db.password", e.target.value)}
             />
 
             <span class="text-[--theme-fg-secondary]">TLS:</span>
@@ -133,7 +130,7 @@
                     class="rounded"
                     checked={data.tls?.enabled || false}
                     onchange={(e: any) =>
-                        updateField("tls.enabled", e.target.checked)}
+                        onChange("tls.enabled", e.target.checked)}
                 />
                 <span>Enable TLS (Rediss)</span>
             </label>
@@ -141,12 +138,45 @@
     </div>
 
     <div
-        class="shrink-0 flex justify-center items-center py-4 mt-auto border-t border-[--theme-border-default]"
+        class="shrink-0 flex flex-col border-t border-[--theme-border-default]"
     >
-        <div class="flex space-x-3">
-            <Button onClick={handleCancel}>Cancel</Button>
-            <Button onClick={handleApply}>Apply</Button>
-            <Button onClick={handleTestConnection}>Test Connection</Button>
+        {#if testResult}
+            <div
+                class="px-6 py-2 text-[10px] uppercase tracking-wider font-mono flex items-center justify-between bg-[--theme-bg-secondary]/30"
+            >
+                <div class="flex items-center gap-4">
+                    <span class="text-[--theme-fg-tertiary]"
+                        >Driver: <span class="text-[--theme-fg-secondary]"
+                            >Redis</span
+                        ></span
+                    >
+                    {#if testResult.connected}
+                        <span class="text-[--theme-fg-tertiary]"
+                            >Version: <span class="text-[--theme-fg-secondary]"
+                                >{testResult.version || "Unknown"}</span
+                            ></span
+                        >
+                        <span class="text-[--theme-fg-tertiary]"
+                            >Ping: <span class="text-[--theme-accent-primary]"
+                                >{testResult.response_time_ms} ms</span
+                            ></span
+                        >
+                    {:else}
+                        <span class="text-red-500/80 font-bold"
+                            >Connection Failed: {testResult.error ||
+                                "Unknown Error"}</span
+                        >
+                    {/if}
+                </div>
+            </div>
+        {/if}
+
+        <div class="flex justify-center items-center py-4">
+            <div class="flex space-x-3">
+                <Button onClick={handleCancel}>Cancel</Button>
+                <Button onClick={handleApply}>Apply</Button>
+                <Button onClick={handleTestConnection}>Test Connection</Button>
+            </div>
         </div>
     </div>
 </div>

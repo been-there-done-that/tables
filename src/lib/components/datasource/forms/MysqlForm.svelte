@@ -10,6 +10,7 @@
         isFieldVisible,
     } from "$lib/schema/connectionSchema";
     import type { MysqlConfig } from "$lib/schema/connectionSchema";
+    import { connectionForm } from "$lib/components/datasource/connectionStore.svelte";
     import { notifications } from "$lib/utils/notification.svelte";
 
     interface Props {
@@ -19,6 +20,8 @@
 
     let { data, onChange }: Props = $props();
     let tab = $state<"general" | "ssh">("general");
+
+    const testResult = $derived(connectionForm.state.testResult);
 
     // Validation function using schema
     function validateForm(): Record<string, string> {
@@ -98,6 +101,7 @@
         );
 
         if (response.success && response.data) {
+            connectionForm.setTestResult(response.data);
             if (response.data.connected) {
                 notifications.success(
                     `Connection successful! ${response.data.version || ""}`,
@@ -409,12 +413,45 @@
     </div>
 
     <div
-        class="shrink-0 flex justify-center items-center py-4 mt-auto border-t border-[--theme-border-default]"
+        class="shrink-0 flex flex-col border-t border-[--theme-border-default]"
     >
-        <div class="flex space-x-3">
-            <Button onClick={handleCancel}>Cancel</Button>
-            <Button onClick={handleApply}>Apply</Button>
-            <Button onClick={handleTestConnection}>Test Connection</Button>
+        {#if testResult}
+            <div
+                class="px-6 py-2 text-[10px] uppercase tracking-wider font-mono flex items-center justify-between bg-[--theme-bg-secondary]/30"
+            >
+                <div class="flex items-center gap-4">
+                    <span class="text-[--theme-fg-tertiary]"
+                        >Driver: <span class="text-[--theme-fg-secondary]"
+                            >MySQL</span
+                        ></span
+                    >
+                    {#if testResult.connected}
+                        <span class="text-[--theme-fg-tertiary]"
+                            >Version: <span class="text-[--theme-fg-secondary]"
+                                >{testResult.version || "Unknown"}</span
+                            ></span
+                        >
+                        <span class="text-[--theme-fg-tertiary]"
+                            >Ping: <span class="text-[--theme-accent-primary]"
+                                >{testResult.response_time_ms} ms</span
+                            ></span
+                        >
+                    {:else}
+                        <span class="text-red-500/80 font-bold"
+                            >Connection Failed: {testResult.error ||
+                                "Unknown Error"}</span
+                        >
+                    {/if}
+                </div>
+            </div>
+        {/if}
+
+        <div class="flex justify-center items-center py-4">
+            <div class="flex space-x-3">
+                <Button onClick={handleCancel}>Cancel</Button>
+                <Button onClick={handleApply}>Apply</Button>
+                <Button onClick={handleTestConnection}>Test Connection</Button>
+            </div>
         </div>
     </div>
 </div>

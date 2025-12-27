@@ -4,6 +4,7 @@ use crate::credential_manager::CredentialManager;
 use rusqlite::{params, Connection as SqliteConnection};
 use std::sync::{Arc, Mutex};
 use tauri::State;
+use log::{debug, info, warn, error};
 
 // Import DatabaseState from the parent module
 use super::DatabaseState;
@@ -211,13 +212,17 @@ impl ConnectionManager {
     pub async fn test_connection(&self, connection: &Connection, _credentials: &SecureCredentials) -> Result<ConnectionInfo, String> {
         // For saved connections, we use the stored config_json
         let config: serde_json::Value = serde_json::from_str(&connection.config_json)
-            .map_err(|e| format!("Failed to parse connection config: {}", e))?;
+            .map_err(|e| {
+                error!("Failed to parse connection config for {}: {}", connection.id, e);
+                format!("Failed to parse connection config: {}", e)
+            })?;
             
         self.test_connection_params(connection.engine.clone(), config).await
     }
 
     pub async fn test_connection_params(&self, engine: String, config: serde_json::Value) -> Result<ConnectionInfo, String> {
         let start_time = std::time::Instant::now();
+        debug!("Testing connection for engine={} with config={}", engine, config);
         
         let result = match engine.as_str() {
             "postgresql" => self.test_postgres_raw(&config).await,
@@ -225,7 +230,10 @@ impl ConnectionManager {
             "sqlite" => self.test_sqlite_raw(&config).await,
             "mongodb" => self.test_mongodb_raw(&config).await,
             "redis" => self.test_redis_raw(&config).await,
-             _ => Err(format!("Connection testing not implemented for engine: {}", engine)),
+            _ => {
+                warn!("Connection testing not implemented for engine: {}", engine);
+                Err(format!("Connection testing not implemented for engine: {}", engine))
+            },
         };
 
         let response_time = start_time.elapsed().as_millis() as u64;
@@ -238,13 +246,16 @@ impl ConnectionManager {
                 error: None,
                 response_time_ms: Some(response_time),
             }),
-            Err(e) => Ok(ConnectionInfo {
-                connected: false,
-                version: None,
-                database_name: None,
-                error: Some(e),
-                response_time_ms: Some(response_time),
-            }),
+            Err(e) => {
+                warn!("Connection test failed for engine {} after {} ms: {}", engine, response_time, e);
+                Ok(ConnectionInfo {
+                    connected: false,
+                    version: None,
+                    database_name: None,
+                    error: Some(e),
+                    response_time_ms: Some(response_time),
+                })
+            },
         }
     }
 
@@ -294,8 +305,12 @@ impl ConnectionManager {
     }
 
     async fn test_sqlite_raw(&self, config: &serde_json::Value) -> Result<(String, String), String> {
-        let mode = config.get("mode").and_then(|v| v.as_str()).unwrap_or("file");
+        let mode_raw = config.get("mode").and_then(|v| v.as_str()).unwrap_or("file");
+        let mode = mode_raw.to_ascii_lowercase();
+
+        // Treat mode case-insensitively; default to file unless explicitly memory.
         if mode == "memory" {
+            info!("SQLite test using in-memory mode (mode={})", mode_raw);
             return Ok(("SQLite In-Memory".to_string(), ":memory:".to_string()));
         }
 
@@ -303,11 +318,20 @@ impl ConnectionManager {
         let path = std::path::Path::new(file);
         
         if path.exists() {
-            let conn = rusqlite::Connection::open(file).map_err(|e| e.to_string())?;
+            debug!("SQLite test opening file at {:?}", path);
+            let conn = rusqlite::Connection::open(file).map_err(|e| {
+                error!("SQLite open failed for {:?}: {}", path, e);
+                e.to_string()
+            })?;
             let version: String = conn.query_row("SELECT sqlite_version()", [], |r| r.get(0))
-                .map_err(|e| e.to_string())?;
+                .map_err(|e| {
+                    error!("SQLite version query failed for {:?}: {}", path, e);
+                    e.to_string()
+                })?;
+            info!("SQLite test successful for {:?}, version {}", path, version);
             Ok((version, file.to_string()))
         } else {
+            warn!("SQLite test file does not exist: {:?}", path);
             Err(format!("File does not exist: {}", file))
         }
     }

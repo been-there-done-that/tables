@@ -5,6 +5,7 @@
     import Button from "$lib/components/Button.svelte";
     import { getCurrentWindow } from "@tauri-apps/api/window";
     import { testConnectionParams } from "$lib/commands/client";
+    import { connectionForm } from "$lib/components/datasource/connectionStore.svelte";
     import { notifications } from "$lib/utils/notification.svelte";
 
     interface Props {
@@ -41,27 +42,21 @@
 
         notifications.info("Testing SQLite connection...");
 
+        console.debug(
+            "Testing SQLite connection with payload",
+            $state.snapshot(data),
+        );
         const response = await testConnectionParams(
             "sqlite",
             $state.snapshot(data),
         );
 
         if (response.success && response.data) {
-            if (response.data.connected) {
-                notifications.success(
-                    `Connection successful! SQLite v${response.data.version || ""}`,
-                );
-            } else {
-                notifications.error(response.data.error || "Connection failed");
-            }
-        } else {
-            notifications.error(response.error || "Test failed");
+            connectionForm.setTestResult(response.data);
         }
     }
 
-    function updateField(path: string, value: any) {
-        onChange(path, value);
-    }
+    const testResult = $derived(connectionForm.state.testResult);
 </script>
 
 <div class="h-full flex flex-col">
@@ -78,13 +73,13 @@
             </div>
         </div>
 
-        <div class="grid grid-cols-[120px_1fr] gap-y-3 items-center">
+        <div class="grid grid-cols-[120px_1fr] gap-y-3 items-center px-6">
             <label for="mode" class="text-[--theme-fg-secondary]">Mode:</label>
             <div class="w-48">
                 <Select
                     id="mode"
                     value={data.mode || "file"}
-                    onCommit={(v: string) => updateField("mode", v)}
+                    onCommit={(v: string) => onChange("mode", v)}
                     options={[
                         { value: "file", label: "Local File" },
                         { value: "memory", label: "In-Memory" },
@@ -103,7 +98,7 @@
                             value={data.file || ""}
                             placeholder="/path/to/database.sqlite"
                             oninput={(e: any) =>
-                                updateField("file", e.target.value)}
+                                onChange("file", e.target.value)}
                         />
                     </div>
                     <button
@@ -131,7 +126,7 @@
                         class="rounded"
                         checked={data.options?.read_only || false}
                         onchange={(e: any) =>
-                            updateField("options.read_only", e.target.checked)}
+                            onChange("options.read_only", e.target.checked)}
                     />
                     <span>Read Only</span>
                 </label>
@@ -142,7 +137,7 @@
                         class="rounded"
                         checked={data.options?.pragmas?.foreign_keys ?? true}
                         onchange={(e: any) =>
-                            updateField(
+                            onChange(
                                 "options.pragmas.foreign_keys",
                                 e.target.checked,
                             )}
@@ -159,7 +154,7 @@
                     id="journal"
                     value={data.options?.pragmas?.journal_mode || "WAL"}
                     onCommit={(v: string) =>
-                        updateField("options.pragmas.journal_mode", v)}
+                        onChange("options.pragmas.journal_mode", v)}
                     options={[
                         { value: "DELETE", label: "Delete" },
                         { value: "WAL", label: "WAL" },
@@ -172,12 +167,45 @@
     </div>
 
     <div
-        class="shrink-0 flex justify-center items-center py-4 mt-auto border-t border-[--theme-border-default]"
+        class="shrink-0 flex flex-col border-t border-[--theme-border-default]"
     >
-        <div class="flex space-x-3">
-            <Button onClick={handleCancel}>Cancel</Button>
-            <Button onClick={handleApply}>Apply</Button>
-            <Button onClick={handleTestConnection}>Test Connection</Button>
+        {#if testResult}
+            <div
+                class="px-6 py-2 text-[10px] uppercase tracking-wider font-mono flex items-center justify-between bg-[--theme-bg-secondary]/30"
+            >
+                <div class="flex items-center gap-4">
+                    <span class="text-[--theme-fg-tertiary]"
+                        >Driver: <span class="text-[--theme-fg-secondary]"
+                            >Sqlite</span
+                        ></span
+                    >
+                    {#if testResult.connected}
+                        <span class="text-[--theme-fg-tertiary]"
+                            >Version: <span class="text-[--theme-fg-secondary]"
+                                >{testResult.version || "Unknown"}</span
+                            ></span
+                        >
+                        <span class="text-[--theme-fg-tertiary]"
+                            >Ping: <span class="text-[--theme-accent-primary]"
+                                >{testResult.response_time_ms} ms</span
+                            ></span
+                        >
+                    {:else}
+                        <span class="text-red-500/80 font-bold"
+                            >Connection Failed: {testResult.error ||
+                                "Unknown Error"}</span
+                        >
+                    {/if}
+                </div>
+            </div>
+        {/if}
+
+        <div class="flex justify-center items-center py-4">
+            <div class="flex space-x-3">
+                <Button onClick={handleCancel}>Cancel</Button>
+                <Button onClick={handleApply}>Apply</Button>
+                <Button onClick={handleTestConnection}>Test Connection</Button>
+            </div>
         </div>
     </div>
 </div>

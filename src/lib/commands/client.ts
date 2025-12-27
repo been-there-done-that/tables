@@ -90,6 +90,7 @@ export class CommandClient {
   }
 
   async testConnectionParams(engine: string, config: any): Promise<CommandResponse<ConnectionInfo>> {
+    console.debug("[client] testConnectionParams", { engine, config });
     return this.invokeCommand('test_connection_params', {
       params: { engine, config }
     });
@@ -203,42 +204,76 @@ export class CommandClient {
 // Create singleton instance
 export const commandClient = new CommandClient();
 
-// Export individual command functions for convenience
-export const {
-  getAllThemes,
-  getActiveTheme,
-  setActiveTheme,
-  createConnection,
-  getConnection,
-  getConnectionMetadata,
-  listConnections,
-  updateConnection,
-  deleteConnection,
-  testConnection,
-  getFavoriteConnections,
-  searchConnections,
-  updateConnectionStats,
-  checkKeyringAvailable,
-  getAvailableAwsProfiles,
-  getAwsProfileByName,
-  testAwsProfile,
-  listS3Buckets,
-  listS3Objects,
-  uploadS3File,
-  downloadS3File,
-  deleteS3Object,
-  getS3BucketInfo,
-  getRedisInfo,
-  listRedisDatabases,
-  listRedisKeys,
-  getRedisKey,
-  executeRedisCommand,
-  deleteRedisKey,
-  executeAthenaQuery,
-  testConnectionParams,
-  getAvailablePlugins,
-  enablePlugin,
-  disablePlugin,
-  getPluginInfo,
-  initializeAllPlugins
-} = commandClient;
+// Export individual command functions (wrapped to preserve context)
+export const getAllThemes = (...args: Parameters<CommandClient["getAllThemes"]>) =>
+  commandClient.getAllThemes(...args);
+export const getActiveTheme = (...args: Parameters<CommandClient["getActiveTheme"]>) =>
+  commandClient.getActiveTheme(...args);
+export const setActiveTheme = (...args: Parameters<CommandClient["setActiveTheme"]>) =>
+  commandClient.setActiveTheme(...args);
+export const createConnection = (...args: Parameters<CommandClient["createConnection"]>) =>
+  commandClient.createConnection(...args);
+export const getConnection = (...args: Parameters<CommandClient["getConnection"]>) =>
+  commandClient.getConnection(...args);
+export const getConnectionMetadata = (...args: Parameters<CommandClient["getConnectionMetadata"]>) =>
+  commandClient.getConnectionMetadata(...args);
+export const listConnections = (...args: Parameters<CommandClient["listConnections"]>) =>
+  commandClient.listConnections(...args);
+export const updateConnection = (...args: Parameters<CommandClient["updateConnection"]>) =>
+  commandClient.updateConnection(...args);
+export const deleteConnection = (...args: Parameters<CommandClient["deleteConnection"]>) =>
+  commandClient.deleteConnection(...args);
+export const testConnection = (...args: Parameters<CommandClient["testConnection"]>) =>
+  commandClient.testConnection(...args);
+export const testConnectionParams = (...args: Parameters<CommandClient["testConnectionParams"]>) =>
+  commandClient.testConnectionParams(...args);
+export const getFavoriteConnections = (...args: Parameters<CommandClient["getFavoriteConnections"]>) =>
+  commandClient.getFavoriteConnections(...args);
+export const searchConnections = (...args: Parameters<CommandClient["searchConnections"]>) =>
+  commandClient.searchConnections(...args);
+export const updateConnectionStats = (...args: Parameters<CommandClient["updateConnectionStats"]>) =>
+  commandClient.updateConnectionStats(...args);
+export const checkKeyringAvailable = (...args: Parameters<CommandClient["checkKeyringAvailable"]>) =>
+  commandClient.checkKeyringAvailable(...args);
+export const getAvailableAwsProfiles = (...args: Parameters<CommandClient["getAvailableAwsProfiles"]>) =>
+  commandClient.getAvailableAwsProfiles(...args);
+export const getAwsProfileByName = (...args: Parameters<CommandClient["getAwsProfileByName"]>) =>
+  commandClient.getAwsProfileByName(...args);
+export const testAwsProfile = (...args: Parameters<CommandClient["testAwsProfile"]>) =>
+  commandClient.testAwsProfile(...args);
+export const listS3Buckets = (...args: Parameters<CommandClient["listS3Buckets"]>) =>
+  commandClient.listS3Buckets(...args);
+export const listS3Objects = (...args: Parameters<CommandClient["listS3Objects"]>) =>
+  commandClient.listS3Objects(...args);
+export const uploadS3File = (...args: Parameters<CommandClient["uploadS3File"]>) =>
+  commandClient.uploadS3File(...args);
+export const downloadS3File = (...args: Parameters<CommandClient["downloadS3File"]>) =>
+  commandClient.downloadS3File(...args);
+export const deleteS3Object = (...args: Parameters<CommandClient["deleteS3Object"]>) =>
+  commandClient.deleteS3Object(...args);
+export const getS3BucketInfo = (...args: Parameters<CommandClient["getS3BucketInfo"]>) =>
+  commandClient.getS3BucketInfo(...args);
+export const getRedisInfo = (...args: Parameters<CommandClient["getRedisInfo"]>) =>
+  commandClient.getRedisInfo(...args);
+export const listRedisDatabases = (...args: Parameters<CommandClient["listRedisDatabases"]>) =>
+  commandClient.listRedisDatabases(...args);
+export const listRedisKeys = (...args: Parameters<CommandClient["listRedisKeys"]>) =>
+  commandClient.listRedisKeys(...args);
+export const getRedisKey = (...args: Parameters<CommandClient["getRedisKey"]>) =>
+  commandClient.getRedisKey(...args);
+export const executeRedisCommand = (...args: Parameters<CommandClient["executeRedisCommand"]>) =>
+  commandClient.executeRedisCommand(...args);
+export const deleteRedisKey = (...args: Parameters<CommandClient["deleteRedisKey"]>) =>
+  commandClient.deleteRedisKey(...args);
+export const executeAthenaQuery = (...args: Parameters<CommandClient["executeAthenaQuery"]>) =>
+  commandClient.executeAthenaQuery(...args);
+export const getAvailablePlugins = (...args: Parameters<CommandClient["getAvailablePlugins"]>) =>
+  commandClient.getAvailablePlugins(...args);
+export const enablePlugin = (...args: Parameters<CommandClient["enablePlugin"]>) =>
+  commandClient.enablePlugin(...args);
+export const disablePlugin = (...args: Parameters<CommandClient["disablePlugin"]>) =>
+  commandClient.disablePlugin(...args);
+export const getPluginInfo = (...args: Parameters<CommandClient["getPluginInfo"]>) =>
+  commandClient.getPluginInfo(...args);
+export const initializeAllPlugins = (...args: Parameters<CommandClient["initializeAllPlugins"]>) =>
+  commandClient.initializeAllPlugins(...args);
