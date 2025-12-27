@@ -301,6 +301,18 @@
                         updateField("db.username", e.target.value)}
                 />
 
+                <label for="db.password" class="text-[--theme-fg-secondary]"
+                    >Password:</label
+                >
+                <FormInput
+                    inputId="db.password"
+                    type="password"
+                    value={data.db?.password || ""}
+                    placeholder="Enter password"
+                    oninput={(e: any) =>
+                        updateField("db.password", e.target.value)}
+                />
+
                 <!-- Transport Type -->
                 <label
                     for="transport-type-select"
@@ -325,51 +337,63 @@
                 <label for="tls-enabled" class="text-[--theme-fg-secondary]"
                     >TLS:</label
                 >
-                <div class="space-y-2">
-                    <label class="flex items-center space-x-2">
-                        <input
-                            id="tls-enabled"
-                            type="checkbox"
-                            class="rounded"
-                            checked={data.tls?.enabled || false}
-                            onchange={(e: any) =>
-                                updateField("tls.enabled", e.target.checked)}
-                        />
-                        <span class="text-sm">Enable TLS</span>
-                    </label>
+                <label class="flex items-center space-x-2">
+                    <input
+                        id="tls-enabled"
+                        type="checkbox"
+                        class="rounded"
+                        checked={data.tls?.enabled || false}
+                        onchange={(e: any) =>
+                            updateField("tls.enabled", e.target.checked)}
+                    />
+                    <span class="text-sm">Enable TLS</span>
+                </label>
 
-                    {#if data.tls?.enabled}
-                        <div class="pl-6 space-y-2">
-                            <div>
-                                <label
-                                    for="tls-sslmode-select"
-                                    class="text-[--theme-fg-secondary]"
-                                    >SSL Mode:</label
-                                >
-                                <Select
-                                    id="tls-sslmode-select"
-                                    value={data.tls?.sslmode || "prefer"}
-                                    onCommit={(value: string) =>
-                                        updateField("tls.sslmode", value)}
-                                    options={[
-                                        { value: "disable", label: "Disable" },
-                                        { value: "allow", label: "Allow" },
-                                        { value: "prefer", label: "Prefer" },
-                                        { value: "require", label: "Require" },
-                                        {
-                                            value: "verify-ca",
-                                            label: "Verify CA",
-                                        },
-                                        {
-                                            value: "verify-full",
-                                            label: "Verify Full",
-                                        },
-                                    ]}
-                                />
-                            </div>
+                {#if data.tls?.enabled}
+                    <label
+                        for="tls-sslmode-select"
+                        class="text-[--theme-fg-secondary]">SSL Mode:</label
+                    >
+                    <div class="flex space-x-4">
+                        <div class="w-40">
+                            <Select
+                                id="tls-sslmode-select"
+                                value={data.tls?.sslmode || "prefer"}
+                                onCommit={(value: string) =>
+                                    updateField("tls.sslmode", value)}
+                                options={[
+                                    { value: "disable", label: "Disable" },
+                                    { value: "allow", label: "Allow" },
+                                    { value: "prefer", label: "Prefer" },
+                                    { value: "require", label: "Require" },
+                                    {
+                                        value: "verify-ca",
+                                        label: "Verify CA",
+                                    },
+                                    {
+                                        value: "verify-full",
+                                        label: "Verify Full",
+                                    },
+                                ]}
+                            />
                         </div>
-                    {/if}
-                </div>
+                        <div class="flex items-center space-x-2 grow">
+                            <label
+                                for="tls-ca-ref"
+                                class="text-[--theme-fg-secondary] shrink-0"
+                                >CA Cert:</label
+                            >
+                            <FormInput
+                                inputId="tls-ca-ref"
+                                type="password"
+                                value={data.tls?.ca_ref || ""}
+                                placeholder="CA certificate reference"
+                                oninput={(e: any) =>
+                                    updateField("tls.ca_ref", e.target.value)}
+                            />
+                        </div>
+                    </div>
+                {/if}
             </div>
         {:else if tab === "ssh"}
             {#if data.transport?.type === "ssh"}
@@ -413,63 +437,55 @@
                             updateField("transport.ssh.user", e.target.value)}
                     />
 
-                    <div>
-                        <label
-                            for="ssh-auth-select"
-                            class="text-[--theme-fg-secondary]">SSH Auth:</label
-                        >
-                        <Select
-                            id="ssh-auth-select"
-                            value={data.transport.ssh?.auth?.type || "key"}
-                            onCommit={(value: string) =>
-                                updateField("transport.ssh.auth.type", value)}
-                            options={[
-                                { value: "key", label: "SSH Key" },
-                                { value: "password", label: "Password" },
-                                { value: "agent", label: "SSH Agent" },
-                            ]}
-                        />
-                    </div>
+                    <label
+                        for="ssh-auth-select"
+                        class="text-[--theme-fg-secondary]">SSH Auth:</label
+                    >
+                    <Select
+                        id="ssh-auth-select"
+                        value={data.transport.ssh?.auth?.type || "key"}
+                        onCommit={(value: string) =>
+                            updateField("transport.ssh.auth.type", value)}
+                        options={[
+                            { value: "key", label: "SSH Key" },
+                            { value: "password", label: "Password" },
+                            { value: "agent", label: "SSH Agent" },
+                        ]}
+                    />
 
                     {#if data.transport.ssh?.auth?.type === "key"}
-                        <div>
-                            <label
-                                class="text-[--theme-fg-secondary]"
-                                for="transport.ssh.auth.key_ref"
-                                >SSH Key Ref:</label
-                            >
-                            <FormInput
-                                inputId="transport.ssh.auth.key_ref"
-                                type="password"
-                                value={data.transport.ssh.auth?.key_ref || ""}
-                                placeholder="Key reference from secure store"
-                                oninput={(e: any) =>
-                                    updateField(
-                                        "transport.ssh.auth.key_ref",
-                                        e.target.value,
-                                    )}
-                            />
-                        </div>
+                        <label
+                            class="text-[--theme-fg-secondary]"
+                            for="transport.ssh.auth.key_ref">SSH Key Ref:</label
+                        >
+                        <FormInput
+                            inputId="transport.ssh.auth.key_ref"
+                            type="password"
+                            value={data.transport.ssh.auth?.key_ref || ""}
+                            placeholder="Key reference from secure store"
+                            oninput={(e: any) =>
+                                updateField(
+                                    "transport.ssh.auth.key_ref",
+                                    e.target.value,
+                                )}
+                        />
                     {:else if data.transport.ssh?.auth?.type === "password"}
-                        <div>
-                            <label
-                                class="text-[--theme-fg-secondary]"
-                                for="transport.ssh.auth.password_ref"
-                                >Password Ref:</label
-                            >
-                            <FormInput
-                                inputId="transport.ssh.auth.password_ref"
-                                type="password"
-                                value={data.transport.ssh.auth?.password_ref ||
-                                    ""}
-                                placeholder="Password reference from secure store"
-                                oninput={(e: any) =>
-                                    updateField(
-                                        "transport.ssh.auth.password_ref",
-                                        e.target.value,
-                                    )}
-                            />
-                        </div>
+                        <label
+                            class="text-[--theme-fg-secondary]"
+                            for="transport.ssh.auth.password_ref"
+                            >Password Ref:</label
+                        >
+                        <FormInput
+                            inputId="transport.ssh.auth.password_ref"
+                            type="password"
+                            value={data.transport.ssh.auth?.password_ref || ""}
+                            placeholder="Password reference from secure store"
+                            oninput={(e: any) =>
+                                updateField(
+                                    "transport.ssh.auth.password_ref",
+                                    e.target.value,
+                                )}
+                        />
                     {/if}
                 </div>
             {:else}
@@ -482,34 +498,28 @@
                 </div>
             {/if}
         {:else if tab === "advanced"}
-            <div class="space-y-4">
-                <div class="grid grid-cols-[120px_1fr] gap-y-3 items-center">
-                    <label
-                        for="options.search_path"
-                        class="text-[--theme-fg-secondary]">Search Path:</label
-                    >
-                    <FormInput
-                        inputId="options.search_path"
-                        value={data.options?.search_path || "public"}
-                        oninput={(e: any) =>
-                            updateField("options.search_path", e.target.value)}
-                    />
+            <div class="grid grid-cols-[120px_1fr] gap-y-3 items-center">
+                <label
+                    for="options.search_path"
+                    class="text-[--theme-fg-secondary]">Search Path:</label
+                >
+                <FormInput
+                    inputId="options.search_path"
+                    value={data.options?.search_path || "public"}
+                    oninput={(e: any) =>
+                        updateField("options.search_path", e.target.value)}
+                />
 
-                    <label
-                        for="options.application_name"
-                        class="text-[--theme-fg-secondary]"
-                        >Application Name:</label
-                    >
-                    <FormInput
-                        inputId="options.application_name"
-                        value={data.options?.application_name || ""}
-                        oninput={(e: any) =>
-                            updateField(
-                                "options.application_name",
-                                e.target.value,
-                            )}
-                    />
-                </div>
+                <label
+                    for="options.application_name"
+                    class="text-[--theme-fg-secondary]">Application Name:</label
+                >
+                <FormInput
+                    inputId="options.application_name"
+                    value={data.options?.application_name || ""}
+                    oninput={(e: any) =>
+                        updateField("options.application_name", e.target.value)}
+                />
             </div>
         {/if}
     </div>
