@@ -69,8 +69,8 @@
 
 <div class="h-full flex flex-col">
     <div class="grow overflow-y-auto space-y-6 text-sm">
-        <div class="flex justify-center border-b mx-36">
-            <div class="flex border-b border-[--theme-border-default]">
+        <div class="flex flex-col items-center mx-36">
+            <div class="flex">
                 <div
                     role="tab"
                     tabindex="0"
@@ -79,6 +79,10 @@
                     General
                 </div>
             </div>
+            <!-- Custom arched/faded line -->
+            <div
+                class="h-px w-full bg-linear-to-r from-transparent via-(--theme-fg-secondary) to-transparent opacity-30"
+            ></div>
         </div>
 
         <div class="grid grid-cols-[120px_1fr] gap-y-3 items-center px-6">
@@ -177,45 +181,37 @@
     <div
         class="shrink-0 flex justify-center items-center py-4 border-t border-[--theme-border-default] relative"
     >
-        <div class="flex items-center space-x-3">
-            <Button onClick={handleCancel}>Cancel</Button>
-            <Button onClick={handleApply}>Apply</Button>
+        <div class="flex items-center space-x-6">
+            <div class="flex items-center gap-3">
+                <Button onClick={handleCancel}>Cancel</Button>
+                <Button onClick={handleApply}>Apply</Button>
+            </div>
 
             <div class="flex items-center gap-3 relative">
                 <div class="relative flex items-center gap-2">
-                    {#if isTesting}
-                        <div
-                            class="flex items-center gap-2 text-xs text-[--theme-fg-tertiary]"
-                        >
-                            <IconLoader2 class="animate-spin" size={14} />
-                            <span>Testing...</span>
-                        </div>
-                    {:else}
-                        <button
-                            onclick={handleTestConnection}
-                            class="text-xs text-[--theme-accent-primary] underline underline-offset-4 hover:text-[--theme-accent-hover] transition-colors cursor-pointer"
-                        >
-                            Test Connection
-                        </button>
-                    {/if}
-
-                    {#if testResult && !isTesting}
-                        <button
+                    <button
+                        onclick={handleTestConnection}
+                        class="text-sm flex items-center gap-2 underline underline-offset-4 hover:text-[--theme-accent-hover] transition-colors cursor-pointer"
+                    >
+                        <span
                             class={cn(
-                                "flex items-center justify-center w-5 h-5 rounded-full transition-colors cursor-pointer",
-                                testResult.connected
+                                "flex items-center justify-center rounded-full transition-colors cursor-pointer",
+                                testResult && testResult.connected
                                     ? "text-green-500 hover:bg-green-500/10"
                                     : "text-red-500 hover:bg-red-500/10",
                             )}
-                            onclick={() => (showPopover = true)}
                         >
-                            {#if testResult.connected}
-                                <IconCheck size={14} />
-                            {:else}
-                                <IconX size={14} />
+                            {#if testResult && !isTesting}
+                                {#if testResult.connected}
+                                    <IconCheck class="size-6" />
+                                {:else}
+                                    <IconX class="size-6" />
+                                {/if}
                             {/if}
-                        </button>
-                    {/if}
+                        </span>
+
+                        Test Connection
+                    </button>
 
                     {#if testResult && showPopover && !isTesting}
                         <ConnectionResultPopover
