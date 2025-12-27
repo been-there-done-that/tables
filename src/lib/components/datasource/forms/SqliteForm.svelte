@@ -7,10 +7,12 @@
     import { connectionForm } from "$lib/components/datasource/connectionStore.svelte";
     import ConnectionResultPopover from "../ConnectionResultPopover.svelte";
     import IconFolder from "@tabler/icons-svelte/icons/folder";
-
-    import { cn } from "$lib/utils";
+    import DraggableWindow from "$lib/components/DraggableWindow.svelte";
 
     import { open } from "@tauri-apps/plugin-dialog";
+    import IconX from "@tabler/icons-svelte/icons/x";
+
+    import { ENGINE_SCHEMAS } from "$lib/schema/connectionSchema";
 
     interface Props {
         data: any;
@@ -20,7 +22,47 @@
     let { data, onChange }: Props = $props();
     let showPopover = $state(false);
     let isTesting = $state(false);
+    let validationErrors = $state<string[]>([]);
     const testResult = $derived(connectionForm.state.testResult);
+
+    // Helper to get nested field value
+    function getFieldValue(path: string) {
+        const keys = path.split(".");
+        let current: any = data;
+        for (const key of keys) {
+            current = current?.[key];
+        }
+        return current;
+    }
+
+    // Dynamic validation using schema
+    function validateForm(): Record<string, string> {
+        const validationErrors: Record<string, string> = {};
+        const schema = ENGINE_SCHEMAS.sqlite.fields;
+
+        for (const [fieldPath, fieldDef] of Object.entries(schema)) {
+            const def = fieldDef as any;
+
+            // Skip if field condition is not met
+            if (def.condition && !def.condition(data)) {
+                continue;
+            }
+
+            const value = getFieldValue(fieldPath);
+
+            // Check required fields
+            if (def.required) {
+                if (
+                    value === undefined ||
+                    value === null ||
+                    (typeof value === "string" && value.trim() === "")
+                ) {
+                    validationErrors[fieldPath] = `${def.label} is required`;
+                }
+            }
+        }
+        return validationErrors;
+    }
 
     async function browseFile() {
         try {
@@ -49,14 +91,18 @@
     }
 
     function handleApply() {
-        if (data.mode === "file" && !data.file) {
+        const errors = validateForm();
+        if (Object.keys(errors).length > 0) {
+            validationErrors = Object.values(errors);
             return;
         }
         console.log("Apply SQLite connection", data);
     }
 
     async function handleTestConnection() {
-        if (data.mode === "file" && !data.file) {
+        const errors = validateForm();
+        if (Object.keys(errors).length > 0) {
+            validationErrors = Object.values(errors);
             return;
         }
 
@@ -86,6 +132,47 @@
 </script>
 
 <div class="h-full flex flex-col">
+    {#if validationErrors.length > 0}
+        <DraggableWindow
+            title="Validation Issue"
+            modal={false}
+            initialPosition="center"
+            openShortcut={undefined}
+            closeShortcut={undefined}
+            headerActions={undefined}
+            headerClass="bg-red-500/10 border-b border-red-500/10"
+            titleClass="text-red-400 font-bold uppercase tracking-wider text-[11px]"
+            class="w-[420px] shadow-2xl border-red-500/20"
+            onClose={() => (validationErrors = [])}
+        >
+            <div class="px-5 py-4 flex flex-col gap-4">
+                <div class="p-3">
+                    <ul class="flex flex-col gap-2">
+                        {#each validationErrors as error}
+                            <li
+                                class="flex items-start gap-2.5 text-xs text-[--theme-fg-secondary]"
+                            >
+                                <div
+                                    class="mt-1.5 size-1 rounded-full bg-red-500 shrink-0 shadow-[0_0_8px_rgba(239,68,68,0.5)]"
+                                ></div>
+                                <span class="leading-relaxed">{error}</span>
+                            </li>
+                        {/each}
+                    </ul>
+                </div>
+
+                <div class="flex justify-end pt-2">
+                    <Button
+                        variant="subtle"
+                        height="8"
+                        onClick={() => (validationErrors = [])}
+                    >
+                        Dismiss
+                    </Button>
+                </div>
+            </div>
+        </DraggableWindow>
+    {/if}
     <div class="grow overflow-y-auto space-y-6 text-sm">
         <div class="flex flex-col items-center mx-36">
             <div class="flex">
