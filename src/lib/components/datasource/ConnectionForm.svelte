@@ -1,7 +1,11 @@
 <script lang="ts">
     import { type Driver } from "./DriverList";
     import PostgresForm from "./forms/PostgresForm.svelte";
+    import MysqlForm from "./forms/MysqlForm.svelte";
     import SqliteForm from "./forms/SqliteForm.svelte";
+    import MongodbForm from "./forms/MongodbForm.svelte";
+    import RedisForm from "./forms/RedisForm.svelte";
+    import ElasticsearchForm from "./forms/ElasticsearchForm.svelte";
     import FormInput from "$lib/components/FormInput.svelte";
     import { connectionForm } from "$lib/components/datasource/connectionStore.svelte";
 
@@ -45,13 +49,30 @@
 
         <!-- Dynamic Form Content - takes remaining height -->
         <div class="grow px-6 min-h-0">
-            {#if driver.id === "postgresql" || driver.id === "mysql" || driver.id === "mariadb"}
+            {#if driver.id === "postgresql"}
                 <PostgresForm
                     data={state.fields as any}
                     onChange={handleChange}
                 />
+            {:else if driver.id === "mysql"}
+                <MysqlForm data={state.fields as any} onChange={handleChange} />
             {:else if driver.id === "sqlite"}
-                <SqliteForm data={state.fields} onChange={handleChange} />
+                <SqliteForm
+                    data={state.fields as any}
+                    onChange={handleChange}
+                />
+            {:else if driver.id === "mongodb"}
+                <MongodbForm
+                    data={state.fields as any}
+                    onChange={handleChange}
+                />
+            {:else if driver.id === "redis"}
+                <RedisForm data={state.fields as any} onChange={handleChange} />
+            {:else if driver.id === "elasticsearch"}
+                <ElasticsearchForm
+                    data={state.fields as any}
+                    onChange={handleChange}
+                />
             {:else}
                 <div class="text-center text-[--theme-fg-tertiary] mt-10">
                     Configuration for {driver.name} is not yet implemented.
