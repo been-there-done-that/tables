@@ -327,7 +327,7 @@
         headerClass,
       )}
     >
-      <h2 id={titleId} class={cn("font-semibold text-xs w-full", titleClass)}>{title}</h2>
+      <h2 id={titleId} class={cn("font-semibold text-sm text-center w-full", titleClass)}>{title}</h2>
       <div class="flex items-center gap-2">
         {@render headerActions?.()}
         {#if showCloseButton}

@@ -93,7 +93,7 @@
   minWidth={920}
   minHeight={520}
   closeOnOverlayClick={false}
-  contentClass="p-4 space-y-3"
+  contentClass="space-y-3"
   debug={true}
   onClose={() => (datasourceWindowOpen = false)}
   openShortcut="ctrl+shift+n"
