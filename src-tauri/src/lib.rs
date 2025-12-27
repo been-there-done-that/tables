@@ -8,7 +8,7 @@ mod commands;
 mod plugins;
 mod configs;
 
-use tauri::{Manager, PhysicalPosition, PhysicalSize, Size};
+use tauri::{Manager, PhysicalPosition, PhysicalSize, Size, Emitter};
 use std::{path::PathBuf, sync::{Arc, Mutex}, time::SystemTime};
 use rusqlite::{Connection, OptionalExtension};
 use serde::Serialize;
@@ -146,6 +146,11 @@ pub fn run() {
                 }
             }
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::Destroyed = event {
+                let _ = window.app_handle().emit("window-destroyed", window.label());
+            }
         })
         .invoke_handler(aggregate_plugin_commands!())
         .run(tauri::generate_context!())

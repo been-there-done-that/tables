@@ -1,4 +1,4 @@
-use tauri::{Manager, WebviewWindowBuilder, TitleBarStyle};
+use tauri::{Manager, WebviewWindowBuilder, TitleBarStyle, Emitter};
 
 #[tauri::command]
 pub async fn open_datasource_window(app: tauri::AppHandle) -> Result<(), String> {
@@ -21,9 +21,11 @@ pub async fn open_datasource_window(app: tauri::AppHandle) -> Result<(), String>
         .transparent(true)
         .focused(true);
 
-    let _window = builder
+    let window = builder
         .build()
         .map_err(|e| format!("Failed to create datasource window: {}", e))?;
+
+    let _ = app.emit("window-created", window.label());
 
     Ok(())
 }
@@ -49,9 +51,11 @@ pub async fn open_appearance_window(app: tauri::AppHandle) -> Result<(), String>
         .transparent(true)
         .focused(true);
 
-    let _window = builder
+    let window = builder
         .build()
         .map_err(|e| format!("Failed to create appearance window: {}", e))?;
+
+    let _ = app.emit("window-created", window.label());
 
     Ok(())
 }

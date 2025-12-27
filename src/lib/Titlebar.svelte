@@ -12,6 +12,7 @@
   import Logs from "@tabler/icons-svelte/icons/logs";
   import { invoke } from "@tauri-apps/api/core";
   import { getCurrentWindow } from "@tauri-apps/api/window";
+  import { listen } from "@tauri-apps/api/event";
   import DataSource from "./components/datasource/DataSource.svelte";
   import { onMount } from "svelte";
 
@@ -20,16 +21,56 @@
   let datasourceWindowOpen = $state(false);
   let windowLabel = $state("main");
 
+  let settingsWindowOpen = $state(false);
+
   onMount(() => {
-    try {
-      const appWindow = getCurrentWindow();
-      if (appWindow) {
-        windowLabel = appWindow.label;
-        console.log(`[Titlebar] Initialized for window: ${windowLabel}`);
+    let unlistenCreated: () => void;
+    let unlistenDestroyed: () => void;
+
+    const setupListeners = async () => {
+      try {
+        const { getAllWindows } = await import("@tauri-apps/api/window");
+        const appWindow = getCurrentWindow();
+        if (appWindow) {
+          windowLabel = appWindow.label;
+          console.log(`[Titlebar] Initialized for window: ${windowLabel}`);
+        }
+
+        // Initial check for existing windows
+        const windows = await getAllWindows();
+        settingsWindowOpen = windows.some(
+          (w) => w.label === "appearance-window",
+        );
+        datasourceWindowOpen = windows.some(
+          (w) => w.label === "datasource-window",
+        );
+
+        // Listen for new windows being created (Custom backend event)
+        unlistenCreated = await listen("window-created", (event) => {
+          const label = event.payload as string;
+          console.log(`[Titlebar] Window created (backend): ${label}`);
+          if (label === "appearance-window") settingsWindowOpen = true;
+          if (label === "datasource-window") datasourceWindowOpen = true;
+        });
+
+        // Listen for windows being destroyed/closed (Custom backend event)
+        unlistenDestroyed = await listen("window-destroyed", (event) => {
+          const label = event.payload as string;
+          console.log(`[Titlebar] Window destroyed (backend): ${label}`);
+          if (label === "appearance-window") settingsWindowOpen = false;
+          if (label === "datasource-window") datasourceWindowOpen = false;
+        });
+      } catch (e) {
+        console.error("[Titlebar] Failed to setup window listeners:", e);
       }
-    } catch (e) {
-      console.error("[Titlebar] Failed to get current window:", e);
-    }
+    };
+
+    setupListeners();
+
+    return () => {
+      if (unlistenCreated) unlistenCreated();
+      if (unlistenDestroyed) unlistenDestroyed();
+    };
   });
 
   const openDatasourceWindow = async () => {
@@ -37,6 +78,14 @@
       await invoke("open_datasource_window");
     } catch (e) {
       console.error("Failed to open datasource window:", e);
+    }
+  };
+
+  const openSettingsWindow = async () => {
+    try {
+      await invoke("open_appearance_window");
+    } catch (e) {
+      console.error("Failed to open appearance window:", e);
     }
   };
 
@@ -59,7 +108,7 @@
     -->
     <div
       data-tauri-drag-region
-      class="absolute inset-0 z-0 ml-20 pointer-events-auto bg-amber-500/0 hover:bg-amber-500/10 transition-colors duration-200"
+      class="absolute inset-0 z-0 ml-20 pointer-events-auto"
       title="Draggable Region"
     ></div>
 
@@ -142,10 +191,10 @@
         {#if windowLabel === "main"}
           <button
             class="h-6 text-xs gap-1 flex items-center justify-center rounded-md hover:bg-white/5 active:bg-white/10"
-            onclick={() => (icons = !icons)}
+            onclick={openSettingsWindow}
             title="Settings"
           >
-            {#if icons}
+            {#if settingsWindowOpen}
               <IconSettingsFilled class="size-5" />
             {:else}
               <IconSettings class="size-5" />
