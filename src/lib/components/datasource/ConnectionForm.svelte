@@ -28,9 +28,7 @@
     <div class="flex flex-col">
         <div class="grow p-6 overflow-y-auto">
             <!-- Top Common Fields -->
-            <div
-                class="flex w-full gap-x-4 mb-6 items-center text-sm"
-            >
+            <div class="flex w-full gap-x-4 mb-6 items-center text-sm">
                 <label for="name" class="text-right">Name:</label>
                 <div class="flex items-center w-full">
                     <div class="grow">
@@ -42,7 +40,6 @@
                         />
                     </div>
                 </div>
-
             </div>
 
             <!-- Dynamic Form Content -->
@@ -58,11 +55,11 @@
                 {/if}
             </div>
         </div>
-
-        <!-- Footer Actions -->
     </div>
 {:else}
-    <div class="flex items-center justify-center h-full text-[--theme-fg-tertiary]">
-      Select a driver to configure
+    <div
+        class="flex items-center justify-center h-full text-[--theme-fg-tertiary]"
+    >
+        Select a driver to configure
     </div>
 {/if}

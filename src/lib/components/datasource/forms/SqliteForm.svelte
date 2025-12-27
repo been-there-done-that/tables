@@ -1,6 +1,8 @@
 <script lang="ts">
     import { IconFolder, IconChevronDown } from "@tabler/icons-svelte";
     import FormInput from "$lib/components/FormInput.svelte";
+    import Button from "$lib/components/Button.svelte";
+    import { getCurrentWindow } from "@tauri-apps/api/window";
     // import { open } from '@tauri-apps/plugin-dialog'; // We will enable this later
 
     interface Props {
@@ -12,6 +14,22 @@
 
     async function browseFile() {
         // Mock browse for now
+    }
+
+    // Self-contained action handlers
+    async function handleCancel() {
+        const window = getCurrentWindow();
+        await window.close();
+    }
+
+    function handleApply() {
+        // TODO: Implement save/apply logic for SQLite connection
+        console.log("Apply SQLite connection", data);
+    }
+
+    function handleTestConnection() {
+        // TODO: Implement test connection logic for SQLite
+        console.log("Test SQLite connection", data);
     }
 </script>
 
@@ -40,6 +58,17 @@
             class="flex items-center h-8 bg-[--theme-bg-secondary] border border-[--theme-border-default] rounded-md px-3 py-1.5 text-[--theme-fg-tertiary] italic cursor-not-allowed text-sm"
         >
             <span class="truncate">jdbc:sqlite:{data.file || ""}</span>
+        </div>
+    </div>
+
+    <!-- Footer Actions -->
+    <div
+        class="flex justify-center items-center py-4 mt-6 border-t border-[--theme-border-default]"
+    >
+        <div class="flex space-x-3">
+            <Button onClick={handleCancel}>Cancel</Button>
+            <Button onClick={handleApply}>Apply</Button>
+            <Button onClick={handleTestConnection}>Test Connection</Button>
         </div>
     </div>
 </div>

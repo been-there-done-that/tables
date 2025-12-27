@@ -2,6 +2,8 @@
     import { IconChevronDown, IconAlertCircle } from "@tabler/icons-svelte";
     import FormInput from "$lib/components/FormInput.svelte";
     import Select from "$lib/components/Select.svelte";
+    import Button from "$lib/components/Button.svelte";
+    import { getCurrentWindow } from "@tauri-apps/api/window";
     import {
         ENGINE_SCHEMAS,
         createEmptyConfig,
@@ -17,6 +19,22 @@
 
     let { data, onChange, errors = {} }: Props = $props();
     let tab = $state<"general" | "ssh" | "advanced">("general");
+
+    // Self-contained action handlers
+    async function handleCancel() {
+        const window = getCurrentWindow();
+        await window.close();
+    }
+
+    function handleApply() {
+        // TODO: Implement save/apply logic for PostgreSQL connection
+        console.log("Apply PostgreSQL connection", data);
+    }
+
+    function handleTestConnection() {
+        // TODO: Implement test connection logic for PostgreSQL
+        console.log("Test PostgreSQL connection", data);
+    }
     let showAllErrors = $state(false);
 
     // Helper to get nested field value
@@ -199,8 +217,9 @@
             {/if}
 
             <!-- Transport Type -->
-            <label for="transport-type-select" class="text-[--theme-fg-secondary]"
-                >Connection:</label
+            <label
+                for="transport-type-select"
+                class="text-[--theme-fg-secondary]">Connection:</label
             >
             <div class="flex space-x-2">
                 <div class="grow">
@@ -223,7 +242,9 @@
             {/if}
 
             <!-- TLS Settings -->
-            <label for="tls-enabled" class="text-[--theme-fg-secondary]">TLS:</label>
+            <label for="tls-enabled" class="text-[--theme-fg-secondary]"
+                >TLS:</label
+            >
             <div class="space-y-2">
                 <label class="flex items-center space-x-2">
                     <input
@@ -236,7 +257,7 @@
                     />
                     <span class="text-sm">Enable TLS</span>
                 </label>
-                
+
                 {#if data.tls?.enabled}
                     <div class="pl-6 space-y-2">
                         <div>
@@ -452,4 +473,15 @@
             </div>
         </div>
     {/if}
+
+    <!-- Footer Actions -->
+    <div
+        class="flex justify-center items-center py-4 mt-6 border-t border-[--theme-border-default]"
+    >
+        <div class="flex space-x-3">
+            <Button onClick={handleCancel}>Cancel</Button>
+            <Button onClick={handleApply}>Apply</Button>
+            <Button onClick={handleTestConnection}>Test Connection</Button>
+        </div>
+    </div>
 </div>
