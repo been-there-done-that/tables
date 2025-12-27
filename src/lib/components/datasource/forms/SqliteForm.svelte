@@ -142,22 +142,22 @@
 
             <span class="text-[--theme-fg-secondary]">Options:</span>
             <div class="space-y-2">
-                <label class="flex items-center space-x-2">
+                <label class="flex items-center space-x-2 cursor-pointer">
                     <input
                         id="read-only"
                         type="checkbox"
-                        class="rounded"
+                        class="rounded border-[--theme-border-default] bg-[--theme-bg-tertiary] w-5 h-5 text-[--theme-accent-primary] focus:ring-[--theme-accent-primary] focus:ring-offset-0 cursor-pointer"
                         checked={data.options?.read_only || false}
                         onchange={(e: any) =>
                             onChange("options.read_only", e.target.checked)}
                     />
-                    <span>Read Only</span>
+                    <span class="text-[--theme-fg-primary]">Read Only</span>
                 </label>
-                <label class="flex items-center space-x-2">
+                <label class="flex items-center space-x-2 cursor-pointer">
                     <input
                         id="enable-foreign-keys"
                         type="checkbox"
-                        class="rounded"
+                        class="rounded border-[--theme-border-default] bg-[--theme-bg-tertiary] w-5 h-5 text-[--theme-accent-primary] focus:ring-[--theme-accent-primary] focus:ring-offset-0 cursor-pointer"
                         checked={data.options?.pragmas?.foreign_keys ?? true}
                         onchange={(e: any) =>
                             onChange(
@@ -165,7 +165,9 @@
                                 e.target.checked,
                             )}
                     />
-                    <span>Enable Foreign Keys</span>
+                    <span class="text-[--theme-fg-primary]"
+                        >Enable Foreign Keys</span
+                    >
                 </label>
             </div>
 
@@ -195,7 +197,7 @@
         <div class="flex items-center space-x-6">
             <div class="flex items-center gap-3">
                 <Button onClick={handleCancel}>Cancel</Button>
-                <Button onClick={handleApply}>Apply</Button>
+                <Button onClick={handleApply}>Save</Button>
             </div>
 
             <div class="flex items-center gap-3 relative">

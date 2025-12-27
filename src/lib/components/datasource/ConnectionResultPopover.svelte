@@ -130,7 +130,8 @@
                         <span>{result.version || "Unknown"}</span>
                     </div>
                 {:else}
-                    <span class="opacity-90"
+                    <span
+                        class="opacity-90 break-all whitespace-pre-wrap max-w-[280px]"
                         >{result.error || "Unknown Error"}</span
                     >
                 {/if}
