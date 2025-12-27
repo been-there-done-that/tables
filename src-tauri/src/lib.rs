@@ -1,10 +1,12 @@
 mod migrations;
 mod connection;
+mod credentials;
 mod credential_manager;
 mod connection_manager;
 mod aws_profile_manager;
 mod commands;
 mod plugins;
+mod configs;
 
 use tauri::{Manager, PhysicalPosition, PhysicalSize, Size};
 use std::{path::PathBuf, sync::{Arc, Mutex}, time::SystemTime};
