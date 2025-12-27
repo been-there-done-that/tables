@@ -11,67 +11,12 @@
   import IconPlus from "@tabler/icons-svelte/icons/plus";
   import Logs from "@tabler/icons-svelte/icons/logs";
   import { invoke } from "@tauri-apps/api/core";
-  import { getCurrentWindow } from "@tauri-apps/api/window";
-  import { listen } from "@tauri-apps/api/event";
+  import { windowState } from "$lib/stores/window.svelte";
   import DataSource from "./components/datasource/DataSource.svelte";
-  import { onMount } from "svelte";
 
   let { isFullScreen } = $props();
   let icons = $state(false);
   let datasourceWindowOpen = $state(false);
-  let windowLabel = $state("main");
-
-  let settingsWindowOpen = $state(false);
-
-  onMount(() => {
-    let unlistenCreated: () => void;
-    let unlistenDestroyed: () => void;
-
-    const setupListeners = async () => {
-      try {
-        const { getAllWindows } = await import("@tauri-apps/api/window");
-        const appWindow = getCurrentWindow();
-        if (appWindow) {
-          windowLabel = appWindow.label;
-          console.log(`[Titlebar] Initialized for window: ${windowLabel}`);
-        }
-
-        // Initial check for existing windows
-        const windows = await getAllWindows();
-        settingsWindowOpen = windows.some(
-          (w) => w.label === "appearance-window",
-        );
-        datasourceWindowOpen = windows.some(
-          (w) => w.label === "datasource-window",
-        );
-
-        // Listen for new windows being created (Custom backend event)
-        unlistenCreated = await listen("window-created", (event) => {
-          const label = event.payload as string;
-          console.log(`[Titlebar] Window created (backend): ${label}`);
-          if (label === "appearance-window") settingsWindowOpen = true;
-          if (label === "datasource-window") datasourceWindowOpen = true;
-        });
-
-        // Listen for windows being destroyed/closed (Custom backend event)
-        unlistenDestroyed = await listen("window-destroyed", (event) => {
-          const label = event.payload as string;
-          console.log(`[Titlebar] Window destroyed (backend): ${label}`);
-          if (label === "appearance-window") settingsWindowOpen = false;
-          if (label === "datasource-window") datasourceWindowOpen = false;
-        });
-      } catch (e) {
-        console.error("[Titlebar] Failed to setup window listeners:", e);
-      }
-    };
-
-    setupListeners();
-
-    return () => {
-      if (unlistenCreated) unlistenCreated();
-      if (unlistenDestroyed) unlistenDestroyed();
-    };
-  });
 
   const openDatasourceWindow = async () => {
     try {
@@ -88,12 +33,6 @@
       console.error("Failed to open appearance window:", e);
     }
   };
-
-  // Debug inspector for Svelte 5
-  $inspect(windowLabel).with((type, value) => {
-    if (type === "update")
-      console.log(`[Titlebar] windowLabel updated to: ${value}`);
-  });
 </script>
 
 {#if !isFullScreen}
@@ -121,7 +60,7 @@
     >
       <!-- Left side (offset for Mac traffic lights) -->
       <div class="flex items-center gap-2 ml-20 pointer-events-auto">
-        {#if windowLabel === "main"}
+        {#if windowState.label === "main"}
           <button
             class="h-6 w-6 rounded-md active:bg-accent flex items-center justify-center transition-colors"
             onclick={() => console.log("Logs clicked")}
@@ -140,7 +79,7 @@
 
       <!-- Right side actions -->
       <div class="flex items-center gap-1 pointer-events-auto pr-1">
-        {#if windowLabel === "main"}
+        {#if windowState.label === "main"}
           <button
             class="h-6 text-xs gap-1 flex items-center justify-center rounded-md hover:bg-white/5 active:bg-white/10"
             onclick={() => (datasourceWindowOpen = true)}
@@ -188,13 +127,13 @@
           <IconRestore class="size-5" />
         </button>
 
-        {#if windowLabel === "main"}
+        {#if windowState.label === "main"}
           <button
             class="h-6 text-xs gap-1 flex items-center justify-center rounded-md hover:bg-white/5 active:bg-white/10"
             onclick={openSettingsWindow}
             title="Settings"
           >
-            {#if settingsWindowOpen}
+            {#if windowState.settingsWindowOpen}
               <IconSettingsFilled class="size-5" />
             {:else}
               <IconSettings class="size-5" />
