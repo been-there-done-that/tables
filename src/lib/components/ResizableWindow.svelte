@@ -2,7 +2,6 @@
   import { cn } from "$lib/utils";
   import ArrowsDiagonal2 from "@tabler/icons-svelte/icons/arrows-diagonal-2";
   import X from "@tabler/icons-svelte/icons/x";
-  import type { Snippet } from "svelte";
   import { onMount } from "svelte";
 
   type KeyboardShortcut = {
@@ -31,20 +30,21 @@
     overlayClass = "",
     initialPosition = "center" as Position | "center",
     style: customStyle = "",
+    minWidth = 260,
+    minHeight = 180,
     children,
     headerActions,
     debug = false,
   } = $props();
 
   const titleId = crypto.randomUUID?.() ?? `dialog-title-${Math.random().toString(36).slice(2)}`;
-  const MIN_WIDTH = 260;
-  const MIN_HEIGHT = 180;
 
   let position = $state<Position>({ x: 0, y: 0 });
   let isDragging = $state(false);
   let isResizing = $state(false);
   let resizeDir = $state<{ x: -1 | 0 | 1; y: -1 | 0 | 1 } | null>(null);
   let size = $state<{ w: number; h: number } | null>(null);
+  let userSized = $state(false);
   let dragStart = $state<Position>({ x: 0, y: 0 });
   let windowElement = $state<HTMLDivElement | null>(null);
   let rendered = $state(false);
@@ -194,24 +194,25 @@
 
       if (resizeDir.x === 1) {
         const maxWidth = window.innerWidth - resizeStartPos.x - 8;
-        nextWidth = clamp(resizeStartSize.w + deltaX, MIN_WIDTH, maxWidth);
+        nextWidth = clamp(resizeStartSize.w + deltaX, minWidth, maxWidth);
       } else if (resizeDir.x === -1) {
-        const newLeft = clamp(resizeStartPos.x + deltaX, 8, resizeStartPos.x + resizeStartSize.w - MIN_WIDTH);
-        nextWidth = clamp(resizeStartPos.x + resizeStartSize.w - newLeft, MIN_WIDTH, window.innerWidth - 16);
+        const newLeft = clamp(resizeStartPos.x + deltaX, 8, resizeStartPos.x + resizeStartSize.w - minWidth);
+        nextWidth = clamp(resizeStartPos.x + resizeStartSize.w - newLeft, minWidth, window.innerWidth - 16);
         nextX = newLeft;
       }
 
       if (resizeDir.y === 1) {
         const maxHeight = window.innerHeight - resizeStartPos.y - 8;
-        nextHeight = clamp(resizeStartSize.h + deltaY, MIN_HEIGHT, maxHeight);
+        nextHeight = clamp(resizeStartSize.h + deltaY, minHeight, maxHeight);
       } else if (resizeDir.y === -1) {
-        const newTop = clamp(resizeStartPos.y + deltaY, 40, resizeStartPos.y + resizeStartSize.h - MIN_HEIGHT);
-        nextHeight = clamp(resizeStartPos.y + resizeStartSize.h - newTop, MIN_HEIGHT, window.innerHeight - 48);
+        const newTop = clamp(resizeStartPos.y + deltaY, 40, resizeStartPos.y + resizeStartSize.h - minHeight);
+        nextHeight = clamp(resizeStartPos.y + resizeStartSize.h - newTop, minHeight, window.innerHeight - 48);
         nextY = newTop;
       }
 
       size = { w: nextWidth, h: nextHeight };
       position = { x: nextX, y: nextY };
+      userSized = true;
       if (debug)
         console.log("[ResizableWindow] resizing", {
           deltaX,
@@ -234,23 +235,40 @@
     if (debug) console.log("[ResizableWindow] pointer up", { position, size });
   }
 
+  let seedKey = $state("");
+
+  $effect(() => {
+    const nextKey = open ? `${minWidth}-${minHeight}-${open ? "open" : "closed"}` : "closed";
+    if (nextKey !== seedKey) {
+      seedKey = nextKey;
+      size = null;
+      userSized = false;
+    }
+  });
+
   $effect(() => {
     if (open && windowElement && !hasCustomPosition) {
       requestAnimationFrame(() => {
         if (!windowElement) return;
         const rect = windowElement.getBoundingClientRect();
         if (!size) {
-          size = { w: rect.width, h: rect.height };
+          size = {
+            w: Math.max(rect.width, minWidth),
+            h: Math.max(rect.height, minHeight),
+          };
+          userSized = true;
         }
+        const widthForPos = size?.w ?? rect.width;
+        const heightForPos = size?.h ?? rect.height;
         if (initialPosition === "center") {
           position = {
-            x: (window.innerWidth - rect.width) / 2,
-            y: (window.innerHeight - rect.height) / 2,
+            x: (window.innerWidth - widthForPos) / 2,
+            y: (window.innerHeight - heightForPos) / 2,
           };
         } else {
           position = {
-            x: initialPosition.x ?? (window.innerWidth - rect.width) / 2,
-            y: initialPosition.y ?? (window.innerHeight - rect.height) / 2,
+            x: initialPosition.x ?? (window.innerWidth - widthForPos) / 2,
+            y: initialPosition.y ?? (window.innerHeight - heightForPos) / 2,
           };
         }
       });
@@ -285,10 +303,12 @@
     aria-labelledby={titleId}
     tabindex="-1"
     class={cn(
-      "fixed z-50 max-h-[75vh] rounded-lg border border-[color-mix(in_srgb,var(--theme-border-default)_75%,transparent)] bg-(--theme-bg-secondary) text-(--theme-fg-primary) shadow-2xl flex flex-col window-anim outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0",
+      "fixed z-50 rounded-lg border border-[color-mix(in_srgb,var(--theme-border-default)_75%,transparent)] bg-(--theme-bg-secondary) text-(--theme-fg-primary) shadow-2xl flex flex-col window-anim outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0",
       className,
     )}
-    style={`left: ${position.x}px; top: ${position.y}px; ${size ? `width: ${size.w}px; height: ${size.h}px;` : ""} ${customStyle}`}
+    style={`left: ${position.x}px; top: ${position.y}px; min-width: ${minWidth}px; min-height: ${minHeight}px; ${
+      userSized && size ? `width: ${size.w}px; height: ${size.h}px;` : ""
+    } ${customStyle}`}
     onmousedown={handleMouseDown}
     onclick={(e) => e.stopPropagation()}
     onkeydown={handleElementKeydown}
