@@ -4,6 +4,7 @@
     import Select from "$lib/components/Select.svelte";
     import Button from "$lib/components/Button.svelte";
     import { getCurrentWindow } from "@tauri-apps/api/window";
+    import { testConnectionParams } from "$lib/commands/client";
     import { notifications } from "$lib/utils/notification.svelte";
 
     interface Props {
@@ -32,15 +33,30 @@
         console.log("Apply SQLite connection", data);
     }
 
-    function handleTestConnection() {
+    async function handleTestConnection() {
         if (data.mode === "file" && !data.file) {
-            notifications.error("Database file is required");
+            notifications.error("File path is required for file mode");
             return;
         }
-        notifications.info("Testing connection...");
-        setTimeout(() => {
-            notifications.success("Connection successful!");
-        }, 1000);
+
+        notifications.info("Testing SQLite connection...");
+
+        const response = await testConnectionParams(
+            "sqlite",
+            $state.snapshot(data),
+        );
+
+        if (response.success && response.data) {
+            if (response.data.connected) {
+                notifications.success(
+                    `Connection successful! SQLite v${response.data.version || ""}`,
+                );
+            } else {
+                notifications.error(response.data.error || "Connection failed");
+            }
+        } else {
+            notifications.error(response.error || "Test failed");
+        }
     }
 
     function updateField(path: string, value: any) {
@@ -98,7 +114,7 @@
                     </button>
                 </div>
 
-                <label class="text-[--theme-fg-secondary]">Preview:</label>
+                <span class="text-[--theme-fg-secondary]">Preview:</span>
                 <div
                     class="flex items-center h-8 bg-[--theme-bg-secondary] border border-[--theme-border-default] rounded-md px-3 py-1.5 text-[--theme-fg-tertiary] italic cursor-not-allowed text-xs overflow-hidden"
                 >
@@ -106,10 +122,11 @@
                 </div>
             {/if}
 
-            <label class="text-[--theme-fg-secondary]">Options:</label>
+            <span class="text-[--theme-fg-secondary]">Options:</span>
             <div class="space-y-2">
                 <label class="flex items-center space-x-2">
                     <input
+                        id="read-only"
                         type="checkbox"
                         class="rounded"
                         checked={data.options?.read_only || false}
@@ -120,6 +137,7 @@
                 </label>
                 <label class="flex items-center space-x-2">
                     <input
+                        id="enable-foreign-keys"
                         type="checkbox"
                         class="rounded"
                         checked={data.options?.pragmas?.foreign_keys ?? true}

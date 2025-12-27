@@ -4,6 +4,7 @@
     import Select from "$lib/components/Select.svelte";
     import Button from "$lib/components/Button.svelte";
     import { getCurrentWindow } from "@tauri-apps/api/window";
+    import { testConnectionParams } from "$lib/commands/client";
     import {
         ENGINE_SCHEMAS,
         createEmptyConfig,
@@ -96,7 +97,7 @@
         // TODO: Implement actual save logic (invoke Tauri command, etc.)
     }
 
-    function handleTestConnection() {
+    async function handleTestConnection() {
         // Validate before testing connection
         const validationErrors = validateForm();
         if (Object.keys(validationErrors).length > 0) {
@@ -106,10 +107,23 @@
         }
 
         notifications.info("Testing connection...");
-        // Simulate a successful test for now
-        setTimeout(() => {
-            notifications.success("Connection successful!");
-        }, 1500);
+
+        const response = await testConnectionParams(
+            "postgresql",
+            $state.snapshot(data),
+        );
+
+        if (response.success && response.data) {
+            if (response.data.connected) {
+                notifications.success(
+                    `Connection successful! ${response.data.version || ""}`,
+                );
+            } else {
+                notifications.error(response.data.error || "Connection failed");
+            }
+        } else {
+            notifications.error(response.error || "Test failed");
+        }
     }
 
     // Helper to get nested field value

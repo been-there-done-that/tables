@@ -4,6 +4,7 @@ pub mod mongodb;
 pub mod redis;
 pub mod elasticsearch;
 pub mod s3;
+pub mod mysql;
 pub mod validation;
 
 use serde::{Deserialize, Serialize};
@@ -16,6 +17,7 @@ pub use mongodb::*;
 pub use redis::*;
 pub use elasticsearch::*;
 pub use s3::*;
+pub use mysql::*;
 pub use validation::*;
 
 /// Base configuration that all configs must have
@@ -79,6 +81,7 @@ pub enum RuntimeConnection {
     Redis(RedisConfig),
     Elasticsearch(ElasticsearchConfig),
     S3(S3Config),
+    Mysql(MysqlConfig),
 }
 
 impl RuntimeConnection {
@@ -90,6 +93,7 @@ impl RuntimeConnection {
             RuntimeConnection::Redis(_) => "redis",
             RuntimeConnection::Elasticsearch(_) => "elasticsearch",
             RuntimeConnection::S3(_) => "s3",
+            RuntimeConnection::Mysql(_) => "mysql",
         }
     }
     
@@ -142,6 +146,14 @@ impl RuntimeConnection {
                 username: None,
                 uses_ssh: false,
                 uses_tls: true, // S3 always uses TLS
+            },
+            RuntimeConnection::Mysql(config) => ConnectionSummary {
+                host: Some(config.db.host.clone()),
+                port: Some(config.db.port),
+                database: Some(config.db.database.clone()),
+                username: Some(config.db.username.clone()),
+                uses_ssh: matches!(config.transport, Transport::Ssh { .. }),
+                uses_tls: config.tls.as_ref().map_or(false, |t| t.enabled),
             },
         }
     }

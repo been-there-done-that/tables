@@ -3,6 +3,7 @@
     import FormInput from "$lib/components/FormInput.svelte";
     import Button from "$lib/components/Button.svelte";
     import { getCurrentWindow } from "@tauri-apps/api/window";
+    import { testConnectionParams } from "$lib/commands/client";
     import { notifications } from "$lib/utils/notification.svelte";
 
     interface Props {
@@ -26,13 +27,29 @@
         console.log("Applying Redis config", $state.snapshot(data));
     }
 
-    function handleTestConnection() {
+    async function handleTestConnection() {
         if (!data.db?.host) {
             notifications.error("Host is required");
             return;
         }
         notifications.info("Testing Redis connection...");
-        setTimeout(() => notifications.success("Connection successful!"), 1500);
+
+        const response = await testConnectionParams(
+            "redis",
+            $state.snapshot(data),
+        );
+
+        if (response.success && response.data) {
+            if (response.data.connected) {
+                notifications.success(
+                    `Connection successful! ${response.data.version || ""}`,
+                );
+            } else {
+                notifications.error(response.data.error || "Connection failed");
+            }
+        } else {
+            notifications.error(response.error || "Test failed");
+        }
     }
 
     function updateField(path: string, value: any) {
@@ -43,10 +60,13 @@
 <div class="h-full flex flex-col">
     <div class="grow overflow-y-auto space-y-6 text-sm">
         <div class="grid grid-cols-[120px_1fr] gap-y-3 items-center mt-4">
-            <label class="text-[--theme-fg-secondary]">Host:</label>
+            <label for="db.host" class="text-[--theme-fg-secondary]"
+                >Host:</label
+            >
             <div class="flex space-x-2">
                 <div class="grow">
                     <FormInput
+                        inputId="db.host"
                         value={data.db?.host || ""}
                         placeholder="localhost"
                         oninput={(e: any) =>
@@ -54,9 +74,12 @@
                     />
                 </div>
                 <div class="flex items-center space-x-2">
-                    <label class="text-[--theme-fg-secondary]">Port:</label>
+                    <label for="db.port" class="text-[--theme-fg-secondary]"
+                        >Port:</label
+                    >
                     <div class="w-32">
                         <FormInput
+                            inputId="db.port"
                             type="number"
                             value={String(data.db?.port || 6379)}
                             oninput={(e: any) =>
@@ -69,9 +92,12 @@
                 </div>
             </div>
 
-            <label class="text-[--theme-fg-secondary]">DB Index:</label>
+            <label for="db.database" class="text-[--theme-fg-secondary]"
+                >DB Index:</label
+            >
             <div class="w-32">
                 <FormInput
+                    inputId="db.database"
                     type="number"
                     value={String(data.db?.database || 0)}
                     oninput={(e: any) =>
@@ -79,22 +105,28 @@
                 />
             </div>
 
-            <label class="text-[--theme-fg-secondary]">Username:</label>
+            <label for="db.username" class="text-[--theme-fg-secondary]"
+                >Username:</label
+            >
             <FormInput
+                inputId="db.username"
                 value={data.db?.username || ""}
                 placeholder="Optional (Redis 6+ ACL)"
                 oninput={(e: any) => updateField("db.username", e.target.value)}
             />
 
-            <label class="text-[--theme-fg-secondary]">Password:</label>
+            <label for="db.password" class="text-[--theme-fg-secondary]"
+                >Password:</label
+            >
             <FormInput
+                inputId="db.password"
                 type="password"
                 value={data.db?.password || ""}
                 placeholder="AUTH password"
                 oninput={(e: any) => updateField("db.password", e.target.value)}
             />
 
-            <label class="text-[--theme-fg-secondary]">TLS:</label>
+            <span class="text-[--theme-fg-secondary]">TLS:</span>
             <label class="flex items-center space-x-2">
                 <input
                     type="checkbox"

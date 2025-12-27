@@ -4,6 +4,7 @@
     import Select from "$lib/components/Select.svelte";
     import Button from "$lib/components/Button.svelte";
     import { getCurrentWindow } from "@tauri-apps/api/window";
+    import { testConnectionParams } from "$lib/commands/client";
     import {
         ENGINE_SCHEMAS,
         isFieldVisible,
@@ -83,18 +84,30 @@
         console.log("Valid MySQL connection, saving...", $state.snapshot(data));
     }
 
-    function handleTestConnection() {
+    async function handleTestConnection() {
         const validationErrors = validateForm();
         if (Object.keys(validationErrors).length > 0) {
-            const firstError = Object.values(validationErrors)[0];
-            notifications.error(firstError);
+            notifications.error(Object.values(validationErrors)[0]);
             return;
         }
+        notifications.info("Testing MySQL connection...");
 
-        notifications.info("Testing connection...");
-        setTimeout(() => {
-            notifications.success("Connection successful!");
-        }, 1500);
+        const response = await testConnectionParams(
+            "mysql",
+            $state.snapshot(data),
+        );
+
+        if (response.success && response.data) {
+            if (response.data.connected) {
+                notifications.success(
+                    `Connection successful! ${response.data.version || ""}`,
+                );
+            } else {
+                notifications.error(response.data.error || "Connection failed");
+            }
+        } else {
+            notifications.error(response.error || "Test failed");
+        }
     }
 
     // Helper to get nested field value

@@ -31,7 +31,7 @@
         info: "text-blue-500 bg-blue-500/20 border-blue-500/30",
     };
 
-    const Icon = icons[item.type];
+    const Icon = $derived(icons[item.type]);
 </script>
 
 <div

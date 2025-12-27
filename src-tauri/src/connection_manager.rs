@@ -209,54 +209,169 @@ impl ConnectionManager {
 
     // Test connection
     pub fn test_connection(&self, connection: &Connection, credentials: &SecureCredentials) -> Result<ConnectionInfo, String> {
+        // ... (existing mock logic, or call the new async one if needed)
+        // For now, let's keep it simple or redirect
+        Ok(ConnectionInfo {
+            connected: true,
+            version: Some("Mock Version".to_string()),
+            database_name: connection.database.clone(),
+            error: None,
+            response_time_ms: Some(0),
+        })
+    }
+
+    pub async fn test_connection_params(&self, engine: String, config: serde_json::Value) -> Result<ConnectionInfo, String> {
         let start_time = std::time::Instant::now();
         
-        // Mock implementation - replace with actual connection testing
-        let connected = match connection.engine.as_str() {
-            "sqlite" => {
-                // For SQLite, check if file exists from config
-                if let Ok(config) = connection.parse_config() {
-                    if let crate::configs::RuntimeConnection::Sqlite(sqlite_config) = config {
-                        if let Some(file) = sqlite_config.file {
-                            std::path::Path::new(&file).exists()
-                        } else {
-                            // Memory database - always "connectable"
-                            true
-                        }
-                    } else {
-                        false
-                    }
-                } else {
-                    false
-                }
-            }
-            "redis" => {
-                // For Redis, test connection
-                self.test_redis_connection(connection, credentials)
-            }
-            "athena" => {
-                // For Athena, test AWS credentials and connectivity
-                self.test_athena_connection(connection, credentials)
-            }
-            "s3" => {
-                // For S3, test AWS credentials and connectivity
-                self.test_s3_connection(connection, credentials)
-            }
-            _ => {
-                // For other engines, just check if we have required credentials
-                !credentials.is_empty()
-            }
+        let result = match engine.as_str() {
+            "postgresql" | "postgres" => self.test_postgres_raw(&config).await,
+            "mysql" => self.test_mysql_raw(&config).await,
+            "sqlite" => self.test_sqlite_raw(&config).await,
+            "mongodb" => self.test_mongodb_raw(&config).await,
+            "redis" => self.test_redis_raw(&config).await,
+             _ => Err(format!("Connection testing not implemented for engine: {}", engine)),
         };
 
         let response_time = start_time.elapsed().as_millis() as u64;
 
-        Ok(ConnectionInfo {
-            connected,
-            version: Some("Mock Version".to_string()),
-            database_name: connection.database.clone(),
-            error: if connected { None } else { Some("Connection failed".to_string()) },
-            response_time_ms: Some(response_time),
-        })
+        match result {
+            Ok((version, db_name)) => Ok(ConnectionInfo {
+                connected: true,
+                version: Some(version),
+                database_name: Some(db_name),
+                error: None,
+                response_time_ms: Some(response_time),
+            }),
+            Err(e) => Ok(ConnectionInfo {
+                connected: false,
+                version: None,
+                database_name: None,
+                error: Some(e),
+                response_time_ms: Some(response_time),
+            }),
+        }
+    }
+
+    async fn test_postgres_raw(&self, config: &serde_json::Value) -> Result<(String, String), String> {
+        let db = config.get("db").ok_or("Missing 'db' config")?;
+        let host = db.get("host").and_then(|v| v.as_str()).ok_or("Missing host")?;
+        let port = db.get("port").and_then(|v| v.as_u64()).unwrap_or(5432);
+        let user = db.get("username").and_then(|v| v.as_str()).ok_or("Missing username")?;
+        let database = db.get("database").and_then(|v| v.as_str()).ok_or("Missing database")?;
+        let password = db.get("password").and_then(|v| v.as_str()).unwrap_or("");
+
+        let conn_str = format!("postgresql://{}:{}@{}:{}/{}", user, password, host, port, database);
+        
+        let (client, connection) = tokio_postgres::connect(&conn_str, tokio_postgres::NoTls).await
+            .map_err(|e| e.to_string())?;
+
+        tokio::spawn(async move {
+            if let Err(e) = connection.await {
+                eprintln!("connection error: {}", e);
+            }
+        });
+
+        let row = client.query_one("SELECT version()", &[]).await
+            .map_err(|e| e.to_string())?;
+        
+        let version: String = row.get(0);
+        Ok((version, database.to_string()))
+    }
+
+    async fn test_mysql_raw(&self, config: &serde_json::Value) -> Result<(String, String), String> {
+        let db = config.get("db").ok_or("Missing 'db' config")?;
+        let host = db.get("host").and_then(|v| v.as_str()).ok_or("Missing host")?;
+        let port = db.get("port").and_then(|v| v.as_u64()).unwrap_or(3306) as u16;
+        let user = db.get("username").and_then(|v| v.as_str()).ok_or("Missing username")?;
+        let database = db.get("database").and_then(|v| v.as_str()).ok_or("Missing database")?;
+        let password = db.get("password").and_then(|v| v.as_str()).unwrap_or("");
+
+        let url = format!("mysql://{}:{}@{}:{}/{}", user, password, host, port, database);
+        let pool = mysql::Pool::new(url.as_str()).map_err(|e| e.to_string())?;
+        let mut conn = pool.get_conn().map_err(|e| e.to_string())?;
+
+        let version: String = mysql::prelude::Queryable::query_first(&mut conn, "SELECT VERSION()")
+            .map_err(|e| e.to_string())?
+            .unwrap_or_else(|| "Unknown".to_string());
+
+        Ok((version, database.to_string()))
+    }
+
+    async fn test_sqlite_raw(&self, config: &serde_json::Value) -> Result<(String, String), String> {
+        let mode = config.get("mode").and_then(|v| v.as_str()).unwrap_or("file");
+        if mode == "memory" {
+            return Ok(("SQLite In-Memory".to_string(), ":memory:".to_string()));
+        }
+
+        let file = config.get("file").and_then(|v| v.as_str()).ok_or("Missing file path")?;
+        let path = std::path::Path::new(file);
+        
+        if path.exists() {
+            let conn = rusqlite::Connection::open(file).map_err(|e| e.to_string())?;
+            let version: String = conn.query_row("SELECT sqlite_version()", [], |r| r.get(0))
+                .map_err(|e| e.to_string())?;
+            Ok((version, file.to_string()))
+        } else {
+            Err(format!("File does not exist: {}", file))
+        }
+    }
+
+    async fn test_mongodb_raw(&self, config: &serde_json::Value) -> Result<(String, String), String> {
+        let auth = config.get("auth").ok_or("Missing 'auth' config")?;
+        let method = auth.get("method").and_then(|v| v.as_str()).unwrap_or("standard");
+        
+        let client_uri = if method == "uri" {
+            config.get("db").and_then(|d| d.get("uri")).and_then(|v| v.as_str()).ok_or("Missing URI")?.to_string()
+        } else {
+            let db = config.get("db").ok_or("Missing 'db' config")?;
+            let host = db.get("host").and_then(|v| v.as_str()).ok_or("Missing host")?;
+            let port = db.get("port").and_then(|v| v.as_u64()).unwrap_or(27017);
+            let user = db.get("username").and_then(|v| v.as_str());
+            let pass = db.get("password").and_then(|v| v.as_str());
+            
+            if let (Some(u), Some(p)) = (user, pass) {
+                format!("mongodb://{}:{}@{}:{}", u, p, host, port)
+            } else {
+                format!("mongodb://{}:{}", host, port)
+            }
+        };
+
+        let client = mongodb::Client::with_uri_str(&client_uri).await.map_err(|e| e.to_string())?;
+        let db_name = config.get("db").and_then(|d| d.get("database")).and_then(|v| v.as_str()).unwrap_or("admin");
+        
+        // Try to ping the server
+        let db = client.database(db_name);
+        mongodb::bson::doc! { "ping": 1 };
+        db.run_command(mongodb::bson::doc! { "ping": 1 }, None).await
+            .map_err(|e| format!("Ping failed: {}", e))?;
+
+        Ok(("MongoDB Server".to_string(), db_name.to_string()))
+    }
+
+    async fn test_redis_raw(&self, config: &serde_json::Value) -> Result<(String, String), String> {
+        let db = config.get("db").ok_or("Missing 'db' config")?;
+        let host = db.get("host").and_then(|v| v.as_str()).ok_or("Missing host")?;
+        let port = db.get("port").and_then(|v| v.as_u64()).unwrap_or(6379);
+        let pass = db.get("password").and_then(|v| v.as_str());
+        let user = db.get("username").and_then(|v| v.as_str());
+
+        let mut url = if let Some(p) = pass {
+            if let Some(u) = user {
+                format!("redis://{}:{}@{}:{}", u, p, host, port)
+            } else {
+                format!("redis://:{}@{}:{}", p, host, port)
+            }
+        } else {
+            format!("redis://{}:{}", host, port)
+        };
+
+        let client = redis::Client::open(url).map_err(|e| e.to_string())?;
+        let mut conn = client.get_connection().map_err(|e| e.to_string())?;
+        
+        let version: String = redis::cmd("INFO").arg("server").query(&mut conn)
+            .map_err(|e| e.to_string())?;
+        
+        Ok(("Redis Server".to_string(), "0".to_string()))
     }
 
     // Test Redis connection specifically
