@@ -1,125 +1,33 @@
 import type { Driver } from "./DriverList";
+import { createEmptyConfig, type PostgresConfig, type SqliteConfig } from "$lib/schema/connectionSchema";
 
-type FieldValues = Record<string, string>;
-type DriverConfig = {
-  fields: FieldValues;
-};
+// Union type for all possible config types
+type ConnectionConfig = PostgresConfig | SqliteConfig | Record<string, any>;
 
-const driverDefaults: Record<string, DriverConfig> = {
-  postgresql: {
-    fields: {
-      name: "PostgreSQL",
-      host: "localhost",
-      port: "5432",
-      username: "",
-      password: "",
-      database: "",
-      file: "",
-      comment: "",
-      ssh_host: "",
-      ssh_port: "",
-      ssh_user: "",
-      ssh_key: "",
-      search_path: "",
-      application_name: "",
-    },
-  },
-  mysql: {
-    fields: {
-      name: "MySQL",
-      host: "localhost",
-      port: "3306",
-      username: "",
-      password: "",
-      database: "",
-      file: "",
-      comment: "",
-    },
-  },
-  mariadb: {
-    fields: {
-      name: "MariaDB",
-      host: "localhost",
-      port: "3306",
-      username: "",
-      password: "",
-      database: "",
-      file: "",
-      comment: "",
-    },
-  },
-  sqlite: {
-    fields: {
-      name: "SQLite",
-      host: "",
-      port: "",
-      username: "",
-      password: "",
-      database: "",
-      file: "",
-      comment: "",
-    },
-  },
-  redis: {
-    fields: {
-      name: "Redis",
-      host: "localhost",
-      port: "6379",
-      username: "",
-      password: "",
-      database: "",
-      file: "",
-      comment: "",
-    },
-  },
-  mongodb: {
-    fields: {
-      name: "MongoDB",
-      host: "localhost",
-      port: "27017",
-      username: "",
-      password: "",
-      database: "",
-      file: "",
-      comment: "",
-    },
-  },
-  elasticsearch: {
-    fields: {
-      name: "Elasticsearch",
-      host: "localhost",
-      port: "9200",
-      username: "",
-      password: "",
-      database: "",
-      file: "",
-      comment: "",
-    },
-  },
-};
+// Extended config with name field
+type NamedConfig = ConnectionConfig & { name: string };
 
-const emptyConfig: DriverConfig = {
-  fields: {
-    name: "",
-    host: "",
-    port: "",
-    username: "",
-    password: "",
-    database: "",
-    file: "",
-    comment: "",
-    ssh_host: "",
-    ssh_port: "",
-    ssh_user: "",
-    ssh_key: "",
-    search_path: "",
-    application_name: "",
-  },
-};
+// Get default config for a driver
+function getDefaultConfig(driver: Driver): NamedConfig {
+  const engineType = driver.id === "postgresql" || driver.id === "mysql" || driver.id === "mariadb"
+    ? "postgres"
+    : driver.id === "sqlite"
+      ? "sqlite"
+      : driver.id === "mongodb"
+        ? "mongodb"
+        : driver.id === "redis"
+          ? "redis"
+          : driver.id === "elasticsearch"
+            ? "elasticsearch"
+            : "postgres"; // fallback
+
+  const baseConfig = createEmptyConfig(engineType as any);
+  return { ...baseConfig, name: driver.name } as NamedConfig;
+}
 
 class ConnectionFormStore {
   driver = $state<Driver | null>(null);
-  fields = $state<FieldValues>({ ...emptyConfig.fields });
+  fields = $state<NamedConfig>({ version: 1, name: "" } as NamedConfig);
 
   get state() {
     return {
@@ -129,22 +37,42 @@ class ConnectionFormStore {
   }
 
   setDriver(driver: Driver | null) {
+    // Only reset fields if the driver actually changed
+    if (this.driver?.id === driver?.id) {
+      return; // Same driver, keep existing data
+    }
+
     this.driver = driver;
-    if (driver && driverDefaults[driver.id]) {
-      const config = driverDefaults[driver.id];
-      this.fields = { ...config.fields, name: driver.name, port: driver.defaultPort ? String(driver.defaultPort) : config.fields.port };
+    if (driver) {
+      this.fields = getDefaultConfig(driver);
     } else {
-      this.fields = { ...emptyConfig.fields };
+      this.fields = { version: 1, name: "" } as NamedConfig;
     }
   }
 
-  updateField(field: keyof FieldValues, value: string) {
-    this.fields = { ...this.fields, [field]: value };
+  updateField(path: string, value: any) {
+    // Handle nested paths like "db.host" or "transport.type"
+    const keys = path.split(".");
+    const newFields = { ...this.fields } as any;
+    let current = newFields;
+
+    for (let i = 0; i < keys.length - 1; i++) {
+      const key = keys[i];
+      if (!current[key] || typeof current[key] !== 'object') {
+        current[key] = {};
+      } else {
+        current[key] = { ...current[key] };
+      }
+      current = current[key];
+    }
+
+    current[keys[keys.length - 1]] = value;
+    this.fields = newFields;
   }
 
   reset() {
     this.driver = null;
-    this.fields = { ...emptyConfig.fields };
+    this.fields = { version: 1, name: "" } as NamedConfig;
   }
 }
 

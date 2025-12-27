@@ -19,8 +19,8 @@
         }
     });
 
-    function handleChange(field: string, value: any) {
-        connectionForm.updateField(field as keyof typeof state.fields, value);
+    function handleChange(path: string, value: any) {
+        connectionForm.updateField(path, value);
     }
 </script>
 
@@ -46,7 +46,10 @@
         <!-- Dynamic Form Content - takes remaining height -->
         <div class="grow px-6 min-h-0">
             {#if driver.id === "postgresql" || driver.id === "mysql" || driver.id === "mariadb"}
-                <PostgresForm data={state.fields} onChange={handleChange} />
+                <PostgresForm
+                    data={state.fields as any}
+                    onChange={handleChange}
+                />
             {:else if driver.id === "sqlite"}
                 <SqliteForm data={state.fields} onChange={handleChange} />
             {:else}

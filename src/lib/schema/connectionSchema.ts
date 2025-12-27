@@ -9,6 +9,7 @@ export interface PostgresConfig {
     port?: number;
     database: string;
     username: string;
+    password?: string;
   };
   transport: {
     type: "direct" | "ssh";
@@ -60,10 +61,11 @@ export const ENGINE_SCHEMAS = {
       "db.port": { label: "Port", type: "number", default: 5432, min: 1, max: 65535 },
       "db.database": { label: "Database", type: "text", required: true },
       "db.username": { label: "Username", type: "text", required: true },
-      
+      "db.password": { label: "Password", type: "secret" },
+
       // Transport
       "transport.type": { label: "Connection Type", type: "select", default: "direct", options: ["direct", "ssh"] },
-      
+
       // SSH (conditional)
       "transport.ssh.host": { label: "SSH Host", type: "text", required: true, condition: (config: any) => config?.transport?.type === "ssh" },
       "transport.ssh.port": { label: "SSH Port", type: "number", default: 22, condition: (config: any) => config?.transport?.type === "ssh" },
@@ -71,18 +73,18 @@ export const ENGINE_SCHEMAS = {
       "transport.ssh.auth.type": { label: "SSH Auth", type: "select", default: "key", options: ["key", "password", "agent"], condition: (config: any) => config?.transport?.type === "ssh" },
       "transport.ssh.auth.key_ref": { label: "SSH Key Ref", type: "secret", condition: (config: any) => config?.transport?.type === "ssh" && config?.transport?.ssh?.auth?.type === "key" },
       "transport.ssh.auth.password_ref": { label: "Password Ref", type: "secret", condition: (config: any) => config?.transport?.type === "ssh" && config?.transport?.ssh?.auth?.type === "password" },
-      
+
       // TLS
       "tls.enabled": { label: "Enable TLS", type: "checkbox", default: false },
       "tls.sslmode": { label: "SSL Mode", type: "select", options: ["disable", "allow", "prefer", "require", "verify-ca", "verify-full"], condition: (config: any) => config?.tls?.enabled },
       "tls.ca_ref": { label: "CA Certificate", type: "secret", condition: (config: any) => config?.tls?.enabled },
-      
+
       // Options
       "options.search_path": { label: "Search Path", type: "text", default: "public" },
       "options.application_name": { label: "Application Name", type: "text" }
     }
   },
-  
+
   sqlite: {
     name: "SQLite",
     fields: {
@@ -93,7 +95,7 @@ export const ENGINE_SCHEMAS = {
       "options.pragmas.foreign_keys": { label: "Foreign Keys", type: "checkbox", default: true }
     }
   },
-  
+
   mongodb: {
     name: "MongoDB",
     fields: {
@@ -105,7 +107,7 @@ export const ENGINE_SCHEMAS = {
       "tls.enabled": { label: "Enable TLS", type: "checkbox", default: false }
     }
   },
-  
+
   redis: {
     name: "Redis",
     fields: {
@@ -116,7 +118,7 @@ export const ENGINE_SCHEMAS = {
       "tls.enabled": { label: "Enable TLS", type: "checkbox", default: false }
     }
   },
-  
+
   elasticsearch: {
     name: "Elasticsearch",
     fields: {
@@ -127,7 +129,7 @@ export const ENGINE_SCHEMAS = {
       "tls.enabled": { label: "Enable TLS", type: "checkbox", default: false }
     }
   },
-  
+
   s3: {
     name: "Amazon S3",
     fields: {
@@ -149,7 +151,8 @@ export function createEmptyConfig(engine: DatabaseEngine) {
         host: "localhost",
         port: 5432,
         database: "",
-        username: ""
+        username: "",
+        password: ""
       },
       transport: {
         type: "direct" as const
@@ -163,7 +166,7 @@ export function createEmptyConfig(engine: DatabaseEngine) {
       }
     };
   }
-  
+
   if (engine === "sqlite") {
     return {
       version: 1,
@@ -178,7 +181,7 @@ export function createEmptyConfig(engine: DatabaseEngine) {
       }
     };
   }
-  
+
   if (engine === "mongodb") {
     return {
       version: 1,
@@ -196,7 +199,7 @@ export function createEmptyConfig(engine: DatabaseEngine) {
       }
     };
   }
-  
+
   if (engine === "redis") {
     return {
       version: 1,
@@ -213,7 +216,7 @@ export function createEmptyConfig(engine: DatabaseEngine) {
       }
     };
   }
-  
+
   if (engine === "elasticsearch") {
     return {
       version: 1,
@@ -230,7 +233,7 @@ export function createEmptyConfig(engine: DatabaseEngine) {
       }
     };
   }
-  
+
   if (engine === "s3") {
     return {
       version: 1,
@@ -241,7 +244,7 @@ export function createEmptyConfig(engine: DatabaseEngine) {
       secret_access_key: ""
     };
   }
-  
+
   return { version: 1 };
 }
 
@@ -252,14 +255,14 @@ export function getFieldsForEngine(engine: DatabaseEngine) {
 export function isFieldVisible(engine: DatabaseEngine, fieldPath: string, config: any): boolean {
   const schema = ENGINE_SCHEMAS[engine];
   if (!schema) return false;
-  
+
   const field = schema.fields[fieldPath as keyof typeof schema.fields];
   if (!field) return false;
-  
+
   const fieldDef = field as any;
   if (fieldDef.condition) {
     return fieldDef.condition(config);
   }
-  
+
   return true;
 }
