@@ -5,7 +5,6 @@
     import Button from "$lib/components/Button.svelte";
     import { getCurrentWindow } from "@tauri-apps/api/window";
     import { testConnectionParams } from "$lib/commands/client";
-    import { notifications } from "$lib/utils/notification.svelte";
 
     interface Props {
         data: any;
@@ -20,37 +19,18 @@
     }
 
     function handleApply() {
-        notifications.success("Elasticsearch settings saved!");
         console.log("Applying Elasticsearch config", $state.snapshot(data));
     }
 
     async function handleTestConnection() {
         if (!data.db?.host && data.auth?.method !== "cloud_id") {
-            notifications.error("Host is required");
             return;
         }
-        notifications.info("Testing Elasticsearch connection...");
 
         const response = await testConnectionParams(
             "elasticsearch",
             $state.snapshot(data),
         );
-
-        if (response.success && response.data) {
-            if (response.data.connected) {
-                notifications.success(
-                    `Connection successful! ${response.data.version || ""}`,
-                );
-            } else {
-                notifications.error(response.data.error || "Connection failed");
-            }
-        } else {
-            notifications.error(response.error || "Test failed");
-        }
-    }
-
-    function updateField(path: string, value: any) {
-        onChange(path, value);
     }
 </script>
 
@@ -63,7 +43,7 @@
             <Select
                 id="auth.method"
                 value={data.auth?.method || "basic"}
-                onCommit={(v: string) => updateField("auth.method", v)}
+                onCommit={(v: string) => onChange("auth.method", v)}
                 options={[
                     { value: "basic", label: "Basic Auth" },
                     { value: "api_key", label: "API Key" },
@@ -80,7 +60,7 @@
                     value={data.db?.cloud_id || ""}
                     placeholder="deployment-name:abcdef..."
                     oninput={(e: any) =>
-                        updateField("db.cloud_id", e.target.value)}
+                        onChange("db.cloud_id", e.target.value)}
                 />
             {:else}
                 <label for="db.host" class="text-[--theme-fg-secondary]"
@@ -93,7 +73,7 @@
                             value={data.db?.host || ""}
                             placeholder="localhost"
                             oninput={(e: any) =>
-                                updateField("db.host", e.target.value)}
+                                onChange("db.host", e.target.value)}
                         />
                     </div>
                     <div class="flex items-center space-x-2">
@@ -106,7 +86,7 @@
                                 type="number"
                                 value={String(data.db?.port || 9200)}
                                 oninput={(e: any) =>
-                                    updateField(
+                                    onChange(
                                         "db.port",
                                         parseInt(e.target.value),
                                     )}
@@ -124,7 +104,7 @@
                     inputId="db.username"
                     value={data.db?.username || ""}
                     oninput={(e: any) =>
-                        updateField("db.username", e.target.value)}
+                        onChange("db.username", e.target.value)}
                 />
 
                 <label for="db.password" class="text-[--theme-fg-secondary]"
@@ -135,7 +115,7 @@
                     type="password"
                     value={data.db?.password || ""}
                     oninput={(e: any) =>
-                        updateField("db.password", e.target.value)}
+                        onChange("db.password", e.target.value)}
                 />
             {:else if data.auth?.method === "api_key"}
                 <label for="db.api_key" class="text-[--theme-fg-secondary]"
@@ -146,8 +126,7 @@
                     type="password"
                     value={data.db?.api_key || ""}
                     placeholder="Base64 encoded API key"
-                    oninput={(e: any) =>
-                        updateField("db.api_key", e.target.value)}
+                    oninput={(e: any) => onChange("db.api_key", e.target.value)}
                 />
             {/if}
 
@@ -160,7 +139,7 @@
                         class="rounded"
                         checked={data.tls?.enabled || false}
                         onchange={(e: any) =>
-                            updateField("tls.enabled", e.target.checked)}
+                            onChange("tls.enabled", e.target.checked)}
                     />
                     <span>Enable HTTPS/TLS</span>
                 </label>
@@ -177,10 +156,7 @@
                             placeholder="Optional: SHA256 Fingerprint"
                             class="text-xs"
                             oninput={(e: any) =>
-                                updateField(
-                                    "tls.ca_fingerprint",
-                                    e.target.value,
-                                )}
+                                onChange("tls.ca_fingerprint", e.target.value)}
                         />
                     </div>
                 {/if}
@@ -189,7 +165,7 @@
     </div>
 
     <div
-        class="shrink-0 flex justify-center items-center py-4 mt-auto border-t border-[--theme-border-default]"
+        class="shrink-0 flex justify-center items-center py-4 border-t border-[--theme-border-default]"
     >
         <div class="flex space-x-3">
             <Button onClick={handleCancel}>Cancel</Button>

@@ -4,7 +4,6 @@
     import Button from "$lib/components/Button.svelte";
     import { getCurrentWindow } from "@tauri-apps/api/window";
     import { testConnectionParams } from "$lib/commands/client";
-    import { notifications } from "$lib/utils/notification.svelte";
 
     interface Props {
         data: any;
@@ -20,40 +19,20 @@
 
     function handleApply() {
         if (!data.db?.host) {
-            notifications.error("Host is required");
             return;
         }
-        notifications.success("Redis settings saved!");
         console.log("Applying Redis config", $state.snapshot(data));
     }
 
     async function handleTestConnection() {
         if (!data.db?.host) {
-            notifications.error("Host is required");
             return;
         }
-        notifications.info("Testing Redis connection...");
 
         const response = await testConnectionParams(
             "redis",
             $state.snapshot(data),
         );
-
-        if (response.success && response.data) {
-            if (response.data.connected) {
-                notifications.success(
-                    `Connection successful! ${response.data.version || ""}`,
-                );
-            } else {
-                notifications.error(response.data.error || "Connection failed");
-            }
-        } else {
-            notifications.error(response.error || "Test failed");
-        }
-    }
-
-    function updateField(path: string, value: any) {
-        onChange(path, value);
     }
 </script>
 
@@ -70,7 +49,7 @@
                         value={data.db?.host || ""}
                         placeholder="localhost"
                         oninput={(e: any) =>
-                            updateField("db.host", e.target.value)}
+                            onChange("db.host", e.target.value)}
                     />
                 </div>
                 <div class="flex items-center space-x-2">
@@ -83,10 +62,7 @@
                             type="number"
                             value={String(data.db?.port || 6379)}
                             oninput={(e: any) =>
-                                updateField(
-                                    "db.port",
-                                    parseInt(e.target.value),
-                                )}
+                                onChange("db.port", parseInt(e.target.value))}
                         />
                     </div>
                 </div>
@@ -101,7 +77,7 @@
                     type="number"
                     value={String(data.db?.database || 0)}
                     oninput={(e: any) =>
-                        updateField("db.database", parseInt(e.target.value))}
+                        onChange("db.database", parseInt(e.target.value))}
                 />
             </div>
 
@@ -112,7 +88,7 @@
                 inputId="db.username"
                 value={data.db?.username || ""}
                 placeholder="Optional (Redis 6+ ACL)"
-                oninput={(e: any) => updateField("db.username", e.target.value)}
+                oninput={(e: any) => onChange("db.username", e.target.value)}
             />
 
             <label for="db.password" class="text-[--theme-fg-secondary]"
@@ -123,7 +99,7 @@
                 type="password"
                 value={data.db?.password || ""}
                 placeholder="AUTH password"
-                oninput={(e: any) => updateField("db.password", e.target.value)}
+                oninput={(e: any) => onChange("db.password", e.target.value)}
             />
 
             <span class="text-[--theme-fg-secondary]">TLS:</span>
@@ -133,7 +109,7 @@
                     class="rounded"
                     checked={data.tls?.enabled || false}
                     onchange={(e: any) =>
-                        updateField("tls.enabled", e.target.checked)}
+                        onChange("tls.enabled", e.target.checked)}
                 />
                 <span>Enable TLS (Rediss)</span>
             </label>
@@ -141,7 +117,7 @@
     </div>
 
     <div
-        class="shrink-0 flex justify-center items-center py-4 mt-auto border-t border-[--theme-border-default]"
+        class="shrink-0 flex justify-center items-center py-4 border-t border-[--theme-border-default]"
     >
         <div class="flex space-x-3">
             <Button onClick={handleCancel}>Cancel</Button>
