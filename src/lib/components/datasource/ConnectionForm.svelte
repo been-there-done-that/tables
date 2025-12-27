@@ -3,6 +3,7 @@
     import PostgresForm from "./forms/PostgresForm.svelte";
     import SqliteForm from "./forms/SqliteForm.svelte";
     import FormInput from "$lib/components/FormInput.svelte";
+    import { connectionForm } from "$lib/components/datasource/connectionStore.svelte";
 
     interface Props {
         driver: Driver | null;
@@ -10,94 +11,43 @@
 
     let { driver }: Props = $props();
 
-    // Consolidated form data state
-    let formData = $state({
-        name: "",
-        comment: "",
-        host: "localhost",
-        port: "",
-        username: "",
-        password: "",
-        database: "",
-        authType: "password",
-        file: "",
-    });
+    const state = $derived(connectionForm.state);
+    const formData = $derived({ ...state.fields, ...state.credentials });
 
-    // Reset form data when driver changes
     $effect(() => {
         if (driver) {
-            formData.name = driver?.name || "";
-            formData.port = driver?.defaultPort ? driver.defaultPort.toString() : "";
+            connectionForm.setDriver(driver);
         }
     });
 
     function handleChange(field: string, value: any) {
-        // @ts-ignore
-        formData[field] = value;
+        if (field === "password") {
+            connectionForm.updateCredential("password", value);
+        } else {
+            connectionForm.updateField(field as any, value);
+        }
     }
 </script>
 
 {#if driver}
-    <div class="flex flex-col h-full bg-[--theme-bg-primary] text-[--theme-fg-secondary]">
+    <div class="flex flex-col">
         <div class="grow p-6 overflow-y-auto">
             <!-- Top Common Fields -->
             <div
-                class="grid grid-cols-[100px_1fr] gap-y-3 gap-x-4 mb-6 items-center text-sm"
+                class="flex w-full gap-x-4 mb-6 items-center text-sm"
             >
                 <label for="name" class="text-right">Name:</label>
-                <div class="flex items-center space-x-2">
+                <div class="flex items-center w-full">
                     <div class="grow">
                         <FormInput
                             inputId="name"
-                            value={formData.name}
+                            value={state.fields.name}
                             oninput={(e: any) =>
                                 handleChange("name", e.target.value)}
                         />
                     </div>
                 </div>
 
-            </div>
-
-            <!-- Tabs -->
-            <div class="flex space-x-6 border-b border-[--theme-border-default] mb-4 text-sm">
-                <button
-                    class="pb-2 border-b-2 border-[--theme-accent-primary] text-[--theme-fg-secondary] font-medium"
-                    >General</button
-                >
-                <button
-                    class="pb-2 border-b-2 border-transparent hover:border-[--theme-border-default] text-[--theme-fg-secondary]"
-                    >Options</button
-                >
-                <button
-                    class="pb-2 border-b-2 border-transparent hover:border-[--theme-border-default] text-[--theme-fg-secondary]"
-                    >SSH/SSL</button
-                >
-                <button
-                    class="pb-2 border-b-2 border-transparent hover:border-[--theme-border-default] text-[--theme-fg-secondary]"
-                    >Schemas</button
-                >
-                <button
-                    class="pb-2 border-b-2 border-transparent hover:border-[--theme-border-default] text-[--theme-fg-secondary]"
-                    >Advanced</button
-                >
-            </div>
-
-            <!-- Driver Info Line -->
-            <div
-                class="flex items-center space-x-4 text-xs text-[--theme-fg-tertiary] mb-4"
-            >
-                <span
-                    >Connection type: <span
-                        class="text-[--theme-accent-primary] cursor-pointer">default</span
-                    ></span
-                >
-                <span
-                    >Driver: <span class="text-[--theme-accent-primary] cursor-pointer"
-                        >{driver.name}</span
-                    ></span
-                >
-                <div class="grow"></div>
-                <span class="text-[--theme-accent-primary] cursor-pointer">More Options</span>
             </div>
 
             <!-- Dynamic Form Content -->
@@ -117,7 +67,7 @@
         <!-- Footer Actions -->
     </div>
 {:else}
-    <div class="flex items-center justify-center h-full text-[--theme-fg-secondary]">
-        Select a driver to configure
+    <div class="flex items-center justify-center h-full text-[--theme-fg-tertiary]">
+      Select a driver to configure
     </div>
 {/if}
