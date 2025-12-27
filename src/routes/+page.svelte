@@ -2,6 +2,7 @@
   import Container from "$lib/Container.svelte";
   import { getThemeContext } from "$lib/theme/context";
   import type { ThemeRecord } from "$lib/theme/types";
+  import { connectionForm } from "$lib/components/datasource/connectionStore.svelte";
 
   let themes = $state<ThemeRecord[]>([]);
   let activeId = $state<string>("");
