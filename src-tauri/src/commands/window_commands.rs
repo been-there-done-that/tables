@@ -30,7 +30,7 @@ pub async fn open_datasource_window(app: tauri::AppHandle) -> Result<(), String>
 
 #[tauri::command]
 pub async fn open_appearance_window(app: tauri::AppHandle) -> Result<(), String> {
-    const LABEL: &str = "datasource-window";
+    const LABEL: &str = "appearance-window";
 
     if let Some(window) = app.get_webview_window(LABEL) {
         let _ = window.unminimize();
@@ -51,7 +51,7 @@ pub async fn open_appearance_window(app: tauri::AppHandle) -> Result<(), String>
 
     let _window = builder
         .build()
-        .map_err(|e| format!("Failed to create datasource window: {}", e))?;
+        .map_err(|e| format!("Failed to create appearance window: {}", e))?;
 
     Ok(())
 }
