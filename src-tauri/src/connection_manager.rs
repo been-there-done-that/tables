@@ -208,23 +208,19 @@ impl ConnectionManager {
     }
 
     // Test connection
-    pub fn test_connection(&self, connection: &Connection, credentials: &SecureCredentials) -> Result<ConnectionInfo, String> {
-        // ... (existing mock logic, or call the new async one if needed)
-        // For now, let's keep it simple or redirect
-        Ok(ConnectionInfo {
-            connected: true,
-            version: Some("Mock Version".to_string()),
-            database_name: connection.database.clone(),
-            error: None,
-            response_time_ms: Some(0),
-        })
+    pub async fn test_connection(&self, connection: &Connection, _credentials: &SecureCredentials) -> Result<ConnectionInfo, String> {
+        // For saved connections, we use the stored config_json
+        let config: serde_json::Value = serde_json::from_str(&connection.config_json)
+            .map_err(|e| format!("Failed to parse connection config: {}", e))?;
+            
+        self.test_connection_params(connection.engine.clone(), config).await
     }
 
     pub async fn test_connection_params(&self, engine: String, config: serde_json::Value) -> Result<ConnectionInfo, String> {
         let start_time = std::time::Instant::now();
         
         let result = match engine.as_str() {
-            "postgresql" | "postgres" => self.test_postgres_raw(&config).await,
+            "postgresql" => self.test_postgres_raw(&config).await,
             "mysql" => self.test_mysql_raw(&config).await,
             "sqlite" => self.test_sqlite_raw(&config).await,
             "mongodb" => self.test_mongodb_raw(&config).await,
@@ -368,10 +364,16 @@ impl ConnectionManager {
         let client = redis::Client::open(url).map_err(|e| e.to_string())?;
         let mut conn = client.get_connection().map_err(|e| e.to_string())?;
         
-        let version: String = redis::cmd("INFO").arg("server").query(&mut conn)
+        let info: String = redis::cmd("INFO").arg("server").query(&mut conn)
             .map_err(|e| e.to_string())?;
         
-        Ok(("Redis Server".to_string(), "0".to_string()))
+        let version = info.lines()
+            .find(|l| l.starts_with("redis_version:"))
+            .and_then(|l| l.split(':').nth(1))
+            .unwrap_or("unknown")
+            .to_string();
+        
+        Ok((format!("Redis {}", version), "0".to_string()))
     }
 
     // Test Redis connection specifically

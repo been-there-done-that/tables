@@ -17,7 +17,7 @@ pub fn validate_config_json(json: &str, engine: &str) -> Result<(), String> {
     
     // Engine-specific validation
     match engine {
-        "postgres" => validate_postgres_config(&parsed)?,
+        "postgresql" => validate_postgres_config(&parsed)?,
         "mysql" => validate_mysql_config(&parsed)?,
         "sqlite" => validate_sqlite_config(&parsed)?,
         "mongodb" => validate_mongodb_config(&parsed)?,
@@ -222,7 +222,7 @@ mod tests {
         }
         "#;
         
-        assert!(validate_config_json(config, "postgres").is_ok());
+        assert!(validate_config_json(config, "postgresql").is_ok());
     }
     
     #[test]
@@ -260,7 +260,7 @@ mod tests {
         }
         "#;
         
-        assert!(validate_config_json(config, "postgres").is_ok());
+        assert!(validate_config_json(config, "postgresql").is_ok());
     }
     
     #[test]
@@ -326,6 +326,6 @@ mod tests {
         }
         "#;
         
-        assert!(validate_config_json(config, "postgres").is_err());
+        assert!(validate_config_json(config, "postgresql").is_err());
     }
 }

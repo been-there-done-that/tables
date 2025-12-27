@@ -79,7 +79,7 @@ pub async fn test_connection(
     conn_state: State<'_, ConnectionManagerState>,
 ) -> Result<ConnectionInfo, String> {
     let manager = ConnectionManager::from_state(&db_state, &conn_state);
-    manager.test_connection(&connection, &credentials)
+    manager.test_connection(&connection, &credentials).await
 }
 
 /// Get favorite connections
