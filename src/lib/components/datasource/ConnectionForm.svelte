@@ -25,9 +25,9 @@
 </script>
 
 {#if driver}
-    <div class="flex flex-col">
-        <div class="grow p-6 overflow-y-auto">
-            <!-- Top Common Fields -->
+    <div class="flex flex-col h-full">
+        <!-- Top Common Fields - fixed height -->
+        <div class="shrink-0 p-6 pb-0">
             <div class="flex w-full gap-x-4 mb-6 items-center text-sm">
                 <label for="name" class="text-right">Name:</label>
                 <div class="flex items-center w-full">
@@ -41,19 +41,19 @@
                     </div>
                 </div>
             </div>
+        </div>
 
-            <!-- Dynamic Form Content -->
-            <div class="mt-4">
-                {#if driver.id === "postgresql" || driver.id === "mysql" || driver.id === "mariadb"}
-                    <PostgresForm data={state.fields} onChange={handleChange} />
-                {:else if driver.id === "sqlite"}
-                    <SqliteForm data={state.fields} onChange={handleChange} />
-                {:else}
-                    <div class="text-center text-[--theme-fg-tertiary] mt-10">
-                        Configuration for {driver.name} is not yet implemented.
-                    </div>
-                {/if}
-            </div>
+        <!-- Dynamic Form Content - takes remaining height -->
+        <div class="grow px-6 min-h-0">
+            {#if driver.id === "postgresql" || driver.id === "mysql" || driver.id === "mariadb"}
+                <PostgresForm data={state.fields} onChange={handleChange} />
+            {:else if driver.id === "sqlite"}
+                <SqliteForm data={state.fields} onChange={handleChange} />
+            {:else}
+                <div class="text-center text-[--theme-fg-tertiary] mt-10">
+                    Configuration for {driver.name} is not yet implemented.
+                </div>
+            {/if}
         </div>
     </div>
 {:else}
