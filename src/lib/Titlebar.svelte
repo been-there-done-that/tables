@@ -131,7 +131,7 @@
         {/if}
 
         <button
-          class="h-6 w-8 text-xs gap-1 flex items-center justify-center rounded-md hover:bg-white/5 active:bg-white/10"
+          class="h-6 w-6 text-xs gap-1 flex items-center justify-center rounded-md hover:bg-white/5 active:bg-white/10"
           onclick={() => window.location.reload()}
           title="Reload Window"
         >
@@ -141,7 +141,7 @@
         {#if windowState.label === "main"}
           <button
             class={cn(
-              "h-6 w-9 flex items-center justify-center rounded-md border transition-all",
+              "h-6 w-7 flex items-center justify-center rounded-md border transition-all",
               windowState.settingsWindowOpen
                 ? "bg-white/10 border-white/20"
                 : "hover:bg-white/5 border-transparent",
