@@ -5,7 +5,7 @@
   import { connectionForm } from "$lib/components/datasource/connectionStore.svelte";
   import { onDestroy } from "svelte";
 
-  let selectedDriver = $state<Driver | null>(drivers[0]);
+  let selectedDriver = $state<Driver | null>(drivers[2]);
 
   function handleDriverSelect(driver: Driver | null) {
     selectedDriver = driver;

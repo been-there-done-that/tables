@@ -9,19 +9,19 @@ type NamedConfig = ConnectionConfig & { name: string };
 
 // Get default config for a driver
 function getDefaultConfig(driver: Driver): NamedConfig {
-  const engineType = driver.id === "postgresql" || driver.id === "mysql" || driver.id === "mariadb"
-    ? "postgres"
-    : driver.id === "sqlite"
-      ? "sqlite"
-      : driver.id === "mongodb"
-        ? "mongodb"
-        : driver.id === "redis"
-          ? "redis"
-          : driver.id === "elasticsearch"
-            ? "elasticsearch"
-            : "postgres"; // fallback
+  // const engineType = driver.id === "postgresql" || driver.id === "mysql" || driver.id === "mariadb"
+    // ? "postgres"
+    // : driver.id === "sqlite"
+    //   ? "sqlite"
+    //   : driver.id === "mongodb"
+    //     ? "mongodb"
+    //     : driver.id === "redis"
+    //       ? "redis"
+    //       : driver.id === "elasticsearch"
+    //         ? "elasticsearch"
+    //         : "postgres"; // fallback
 
-  const baseConfig = createEmptyConfig(engineType as any);
+  const baseConfig = createEmptyConfig(driver.id as any);
   return { ...baseConfig, name: driver.name } as NamedConfig;
 }
 
