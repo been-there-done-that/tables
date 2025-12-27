@@ -6,6 +6,8 @@
     import { getCurrentWindow } from "@tauri-apps/api/window";
     import { testConnectionParams } from "$lib/commands/client";
     import { connectionForm } from "$lib/components/datasource/connectionStore.svelte";
+    import ConnectionResultPopover from "../ConnectionResultPopover.svelte";
+    import { IconCheck, IconX } from "@tabler/icons-svelte";
 
     interface Props {
         data: any;
@@ -13,6 +15,8 @@
     }
 
     let { data, onChange }: Props = $props();
+    let showPopover = $state(false);
+    const testResult = $derived(connectionForm.state.testResult);
 
     async function browseFile() {
         // Mock browse for now
@@ -36,6 +40,9 @@
             return;
         }
 
+        showPopover = false;
+        connectionForm.setTestResult(null);
+
         console.debug(
             "Testing SQLite connection with payload",
             $state.snapshot(data),
@@ -47,6 +54,7 @@
 
         if (response.success && response.data) {
             connectionForm.setTestResult(response.data);
+            showPopover = true;
         }
     }
 </script>
@@ -159,12 +167,44 @@
     </div>
 
     <div
-        class="shrink-0 flex justify-center items-center py-4 border-t border-[--theme-border-default]"
+        class="shrink-0 flex justify-center items-center py-4 border-t border-[--theme-border-default] relative"
     >
-        <div class="flex space-x-3">
+        <div class="flex items-center space-x-3">
             <Button onClick={handleCancel}>Cancel</Button>
             <Button onClick={handleApply}>Apply</Button>
-            <Button onClick={handleTestConnection}>Test Connection</Button>
+
+            <div class="flex items-center gap-3 relative">
+                <div class="relative">
+                    <button
+                        onclick={handleTestConnection}
+                        class="text-xs text-[--theme-accent-primary] underline underline-offset-4 hover:text-[--theme-accent-hover] transition-colors cursor-pointer"
+                    >
+                        Test Connection
+                    </button>
+
+                    {#if testResult && showPopover}
+                        <ConnectionResultPopover
+                            result={testResult}
+                            onClose={() => (showPopover = false)}
+                        />
+                    {/if}
+                </div>
+
+                {#if testResult && !showPopover}
+                    <button
+                        class="flex items-center gap-1.5 text-xs text-[--theme-fg-tertiary] hover:text-[--theme-fg-secondary] transition-colors cursor-pointer"
+                        onclick={() => (showPopover = true)}
+                    >
+                        {#if testResult.connected}
+                            <IconCheck size={14} class="text-green-500" />
+                            <span>SQLite {testResult.version || ""}</span>
+                        {:else}
+                            <IconX size={14} class="text-red-500" />
+                            <span>Failed</span>
+                        {/if}
+                    </button>
+                {/if}
+            </div>
         </div>
     </div>
 </div>
