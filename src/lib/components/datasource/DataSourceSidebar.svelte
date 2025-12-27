@@ -23,7 +23,7 @@
     </div>
 
     <!-- Tree/List Area -->
-    <div class="grow overflow-y-auto">
+    <div class="grow overflow-y-auto p-3">
         <div class="space-y-0.5">
             {#each drivers as driver}
                 {@const IconComponent = driver.icon}

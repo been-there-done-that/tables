@@ -14,7 +14,7 @@
 
   let { isFullScreen } = $props();
   let icons = $state(false);
-  let datasourceWindowOpen = $state(false);
+  let datasourceWindowOpen = $state(true);
 
 
   const openDatasourceWindow = async () => {
@@ -93,7 +93,6 @@
   minWidth={920}
   minHeight={520}
   closeOnOverlayClick={false}
-  class="w-[520px]"
   contentClass="p-4 space-y-3"
   debug={true}
   onClose={() => (datasourceWindowOpen = false)}
