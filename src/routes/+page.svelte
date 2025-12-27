@@ -34,7 +34,6 @@
 
 <main class="p-4">
   <div class="flex items-center gap-3 mb-4">
-    {JSON.stringify(connectionForm.state)}
     <a href="/demo">Components Demo</a>
     <a href="/test">Test Route</a>
     <button
