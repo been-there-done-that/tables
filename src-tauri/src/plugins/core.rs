@@ -186,6 +186,7 @@ macro_rules! aggregate_plugin_commands {
             update_connection,
             delete_connection,
             test_connection,
+            test_connection_by_id, // Added
             get_favorite_connections,
             search_connections,
             update_connection_stats,

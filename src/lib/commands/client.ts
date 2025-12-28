@@ -65,7 +65,7 @@ export class CommandClient {
     return this.invokeCommand('create_connection', request);
   }
 
-  async getConnection(id: string): Promise<CommandResponse<Connection>> {
+  async getConnection(id: string): Promise<CommandResponse<[Connection, SecureCredentials]>> {
     return this.invokeCommand('get_connection', { id });
   }
 
@@ -89,6 +89,10 @@ export class CommandClient {
     return this.invokeCommand('test_connection', { connection, credentials });
   }
 
+  async testConnectionById(id: string): Promise<CommandResponse<ConnectionInfo>> {
+    return this.invokeCommand('test_connection_by_id', { id });
+  }
+
   async testConnectionParams(engine: string, config: any): Promise<CommandResponse<ConnectionInfo>> {
     console.debug("[client] testConnectionParams", { engine, config });
     return this.invokeCommand('test_connection_params', {
@@ -99,6 +103,8 @@ export class CommandClient {
   async getFavoriteConnections(): Promise<CommandResponse<Connection[]>> {
     return this.invokeCommand('get_favorite_connections');
   }
+  // ...
+
 
   async searchConnections(request: SearchRequest): Promise<CommandResponse<Connection[]>> {
     return this.invokeCommand('search_connections', request);
@@ -225,6 +231,8 @@ export const deleteConnection = (...args: Parameters<CommandClient["deleteConnec
   commandClient.deleteConnection(...args);
 export const testConnection = (...args: Parameters<CommandClient["testConnection"]>) =>
   commandClient.testConnection(...args);
+export const testConnectionById = (...args: Parameters<CommandClient["testConnectionById"]>) =>
+  commandClient.testConnectionById(...args);
 export const testConnectionParams = (...args: Parameters<CommandClient["testConnectionParams"]>) =>
   commandClient.testConnectionParams(...args);
 export const getFavoriteConnections = (...args: Parameters<CommandClient["getFavoriteConnections"]>) =>
