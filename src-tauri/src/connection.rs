@@ -372,3 +372,132 @@ pub fn load_connection_from_row(row: &rusqlite::Row<'_>) -> Result<Connection, r
         connection_count: row.get(15)?,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Utc;
+
+    #[test]
+    fn test_parse_config() {
+        let mut conn = Connection {
+            id: "test_id".to_string(),
+            name: "test_conn".to_string(),
+            engine: "postgresql".to_string(),
+            host: None,
+            port: None,
+            database: None,
+            username: None,
+            uses_ssh: false,
+            uses_tls: false,
+            config_json: "".to_string(),
+            is_favorite: false,
+            color_tag: None,
+            created_at: Utc::now().timestamp(),
+            updated_at: Utc::now().timestamp(),
+            last_connected_at: None,
+            connection_count: 0,
+        };
+
+        let config_json = r#"{
+            "version": 1,
+            "db": {
+                "host": "localhost",
+                "port": 5432,
+                "database": "testdb",
+                "username": "testuser"
+            },
+            "transport": {
+                "type": "direct"
+            },
+            "tls": {
+                "enabled": true,
+                "sslmode": "require"
+            },
+            "options": {}
+        }"#;
+
+        conn.parse_config(config_json).unwrap();
+
+        assert_eq!(conn.host, Some("localhost".to_string()));
+        assert_eq!(conn.port, Some(5432));
+        assert_eq!(conn.database, Some("testdb".to_string()));
+        assert_eq!(conn.username, Some("testuser".to_string()));
+        assert_eq!(conn.uses_ssh, false);
+        assert_eq!(conn.uses_tls, true);
+        assert_eq!(conn.config_json, config_json);
+    }
+
+    #[test]
+    fn test_update_config() {
+        let mut conn = Connection {
+            id: "test_id".to_string(),
+            name: "test_conn".to_string(),
+            engine: "postgresql".to_string(),
+            host: Some("oldhost".to_string()),
+            port: Some(5432),
+            database: Some("olddb".to_string()),
+            username: Some("olduser".to_string()),
+            uses_ssh: false,
+            uses_tls: false,
+            config_json: r#"{"version":1,"db":{"host":"oldhost"},"transport":{"type":"direct"},"tls":{"enabled":false},"options":{}}"#.to_string(),
+            is_favorite: false,
+            color_tag: None,
+            created_at: Utc::now().timestamp(),
+            updated_at: Utc::now().timestamp(),
+            last_connected_at: None,
+            connection_count: 0,
+        };
+
+        let new_config_json = r#"{
+            "version": 1,
+            "db": {
+                "host": "newhost",
+                "port": 5432,
+                "database": "newdb",
+                "username": "newuser"
+            },
+            "transport": {
+                "type": "direct"
+            },
+            "tls": {
+                "enabled": false
+            },
+            "options": {}
+        }"#;
+
+        conn.update_config(new_config_json).unwrap();
+
+        assert_eq!(conn.host, Some("newhost".to_string()));
+        assert_eq!(conn.database, Some("newdb".to_string()));
+        assert_eq!(conn.username, Some("newuser".to_string()));
+        assert_eq!(conn.config_json, new_config_json);
+        assert_eq!(conn.uses_tls, false);
+    }
+
+    #[test]
+    fn test_parse_config_invalid_json() {
+        let mut conn = Connection {
+            id: "test_id".to_string(),
+            name: "test_conn".to_string(),
+            engine: "postgresql".to_string(),
+            host: None,
+            port: None,
+            database: None,
+            username: None,
+            uses_ssh: false,
+            uses_tls: false,
+            config_json: "".to_string(),
+            is_favorite: false,
+            color_tag: None,
+            created_at: Utc::now().timestamp(),
+            updated_at: Utc::now().timestamp(),
+            last_connected_at: None,
+            connection_count: 0,
+        };
+
+        let invalid_json = r#"{"invalid": "json"}"#;
+
+        assert!(conn.parse_config(invalid_json).is_err());
+    }
+}

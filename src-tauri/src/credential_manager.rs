@@ -295,3 +295,110 @@ impl CredentialManager {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use rand::{RngCore, rngs::OsRng};
+
+    const CREATE_CREDENTIALS_TABLE: &str = r#"
+    CREATE TABLE IF NOT EXISTS credentials (
+        connection_id TEXT NOT NULL,
+        credential_key TEXT NOT NULL,
+        encrypted_value BLOB NOT NULL,
+        nonce BLOB NOT NULL,
+        encryption_version INTEGER NOT NULL DEFAULT 1,
+        updated_at INTEGER NOT NULL,
+        PRIMARY KEY (connection_id, credential_key)
+    );
+    "#;
+
+    fn create_test_manager() -> CredentialManager {
+        let temp_dir = std::env::temp_dir().join(format!("test_tables_{}", OsRng.next_u64()));
+        fs::create_dir_all(&temp_dir).unwrap();
+        let db = Arc::new(Mutex::new(Connection::open_in_memory().unwrap()));
+        db.lock().unwrap().execute(CREATE_CREDENTIALS_TABLE, []).unwrap();
+        CredentialManager::new(&temp_dir, db).unwrap()
+    }
+
+    #[test]
+    fn test_store_and_get_credential() {
+        let manager = create_test_manager();
+        manager.store_credential("conn1", "key1", "value1").unwrap();
+        let result = manager.get_credential("conn1", "key1").unwrap();
+        assert_eq!(result, Some("value1".to_string()));
+    }
+
+    #[test]
+    fn test_get_nonexistent_credential() {
+        let manager = create_test_manager();
+        let result = manager.get_credential("conn1", "key1").unwrap();
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_delete_credential() {
+        let manager = create_test_manager();
+        manager.store_credential("conn1", "key1", "value1").unwrap();
+        assert_eq!(manager.get_credential("conn1", "key1").unwrap(), Some("value1".to_string()));
+        manager.delete_credential("conn1", "key1").unwrap();
+        assert_eq!(manager.get_credential("conn1", "key1").unwrap(), None);
+    }
+
+    #[test]
+    fn test_store_credentials() {
+        let manager = create_test_manager();
+        let mut creds = SecureCredentials::new();
+        creds.password = Some("pass123".into());
+        creds.api_token = Some("token456".into());
+        manager.store_credentials("conn1", &creds).unwrap();
+        let retrieved = manager.get_credentials("conn1").unwrap();
+        assert_eq!(retrieved.password.as_ref().map(|s| s.expose()), Some("pass123"));
+        assert_eq!(retrieved.api_token.as_ref().map(|s| s.expose()), Some("token456"));
+        assert!(retrieved.ssh_private_key.is_none());
+    }
+
+    #[test]
+    fn test_get_credentials_empty() {
+        let manager = create_test_manager();
+        let creds = manager.get_credentials("conn1").unwrap();
+        assert!(creds.is_empty());
+    }
+
+    #[test]
+    fn test_delete_all_credentials() {
+        let manager = create_test_manager();
+        let mut creds = SecureCredentials::new();
+        creds.password = Some("pass123".into());
+        creds.api_token = Some("token456".into());
+        manager.store_credentials("conn1", &creds).unwrap();
+        assert!(manager.has_credentials("conn1").unwrap());
+        manager.delete_all_credentials("conn1").unwrap();
+        assert!(!manager.has_credentials("conn1").unwrap());
+        let retrieved = manager.get_credentials("conn1").unwrap();
+        assert!(retrieved.is_empty());
+    }
+
+    #[test]
+    fn test_has_credentials() {
+        let manager = create_test_manager();
+        assert!(!manager.has_credentials("conn1").unwrap());
+        manager.store_credential("conn1", "key1", "value1").unwrap();
+        assert!(manager.has_credentials("conn1").unwrap());
+    }
+
+    #[test]
+    fn test_is_available() {
+        let manager = create_test_manager();
+        assert!(manager.is_available());
+    }
+
+    #[test]
+    fn test_overwrite_credential() {
+        let manager = create_test_manager();
+        manager.store_credential("conn1", "key1", "value1").unwrap();
+        assert_eq!(manager.get_credential("conn1", "key1").unwrap(), Some("value1".to_string()));
+        manager.store_credential("conn1", "key1", "value2").unwrap();
+        assert_eq!(manager.get_credential("conn1", "key1").unwrap(), Some("value2".to_string()));
+    }
+}
