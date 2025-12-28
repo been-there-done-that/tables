@@ -1,49 +1,40 @@
 <script lang="ts">
-    import { onMount } from "svelte";
+    import { type Snippet } from "svelte";
 
-    /**
-     * The default ratio of the left panel (0 to 1).
-     * Default: 0.2 (20%)
-     */
-    export let defaultRatio = 0.2;
+    let {
+        defaultRatio = 0.2,
+        minLeft = "100px",
+        minRight = "100px",
+        gapSize = 1,
+        resizable = true,
+        orientation = "horizontal",
+        resetOnDisable = false,
+        left,
+        right,
+    }: {
+        defaultRatio?: number;
+        minLeft?: string;
+        minRight?: string;
+        gapSize?: number;
+        resizable?: boolean;
+        orientation?: "horizontal" | "vertical";
+        resetOnDisable?: boolean;
+        left?: Snippet;
+        right?: Snippet;
+    } = $props();
 
-    /**
-     * Minimum width of the left panel (CSS string, e.g., '200px', '10%').
-     * Default: '100px'
-     */
-    export let minLeft = "100px";
+    let container = $state<HTMLElement>();
+    let isDragging = $state(false);
+    let currentRatio = $state(defaultRatio * 100);
 
-    /**
-     * Minimum width of the right panel (CSS string, e.g., '200px', '10%').
-     * Default: '100px'
-     */
-    export let minRight = "100px";
-
-    /**
-     * Size of the visual gap between panels in pixels.
-     * Default: 1
-     */
-    export let gapSize = 1;
-
-    /**
-     * Whether the pane is resizable.
-     * Default: true
-     */
-    export let resizable = true;
-
-    export let resetOnDisable = false;
-
-    let container: HTMLElement;
-    let isDragging = false;
-    let leftWidthPercent = defaultRatio * 100;
+    let isVertical = $derived(orientation === "vertical");
 
     function startDrag(event: MouseEvent) {
         if (!resizable) return;
         isDragging = true;
-        document.body.style.cursor = "col-resize";
+        document.body.style.cursor = isVertical ? "row-resize" : "col-resize";
         document.body.style.userSelect = "none";
 
-        // Attach listeners to window to handle drags outside component
         window.addEventListener("mousemove", onDrag);
         window.addEventListener("mouseup", stopDrag);
     }
@@ -52,10 +43,20 @@
         if (!isDragging || !container) return;
 
         const containerRect = container.getBoundingClientRect();
-        const newLeftWidth = event.clientX - containerRect.left;
+
+        let newSize = 0;
+        let totalSize = 0;
+
+        if (isVertical) {
+            newSize = event.clientY - containerRect.top;
+            totalSize = containerRect.height;
+        } else {
+            newSize = event.clientX - containerRect.left;
+            totalSize = containerRect.width;
+        }
 
         // Convert to percentage
-        let newRatio = newLeftWidth / containerRect.width;
+        let newRatio = newSize / totalSize;
 
         // Parse constraints
         const parseLength = (val: string, total: number) => {
@@ -68,21 +69,20 @@
             return parseFloat(val) || 0;
         };
 
-        const minLeftPx = parseLength(minLeft, containerRect.width);
-        const minRightPx = parseLength(minRight, containerRect.width);
+        const minStartPx = parseLength(minLeft, totalSize); // minLeft acts as minTop in vertical
+        const minEndPx = parseLength(minRight, totalSize); // minRight acts as minBottom in vertical
 
-        // Convert constraints to ratios
-        const minRatio = minLeftPx / containerRect.width;
-        const maxRatio = 1 - minRightPx / containerRect.width;
+        const minRatioVal = minStartPx / totalSize;
+        const maxRatioVal = 1 - minEndPx / totalSize;
 
         // Apply clamping
-        if (minRatio > maxRatio) {
-            newRatio = 0.5; // Fallback if window too small
+        if (minRatioVal > maxRatioVal) {
+            newRatio = 0.5;
         } else {
-            newRatio = Math.max(minRatio, Math.min(newRatio, maxRatio));
+            newRatio = Math.max(minRatioVal, Math.min(newRatio, maxRatioVal));
         }
 
-        leftWidthPercent = newRatio * 100;
+        currentRatio = newRatio * 100;
     }
 
     function stopDrag() {
@@ -93,57 +93,86 @@
         window.removeEventListener("mouseup", stopDrag);
     }
 
-    $: if (!resizable && resetOnDisable) {
-        leftWidthPercent = defaultRatio * 100;
-    }
+    // Reset logic effect
+    $effect(() => {
+        if (!resizable && resetOnDisable) {
+            currentRatio = defaultRatio * 100;
+        }
+    });
 </script>
 
 <div
     bind:this={container}
-    class="flex flex-row w-full h-full overflow-hidden relative select-none"
+    class="relative flex h-full w-full select-none overflow-hidden"
+    class:flex-col={isVertical}
+    class:flex-row={!isVertical}
     role="group"
 >
-    <!-- Left Panel -->
+    <!-- First Panel (Left/Top) -->
     <div
-        class="flex-none h-full overflow-auto relative z-0 transition-[width] duration-0 ease-linear"
+        class="relative z-0 flex-none overflow-auto transition-[flex-basis] duration-0 ease-linear"
         class:transition-all={!isDragging}
         class:duration-300={!isDragging}
-        style="width: {leftWidthPercent}%; min-width: {minLeft};"
+        style="{isVertical ? 'height' : 'width'}: {currentRatio}%; {isVertical
+            ? 'min-height'
+            : 'min-width'}: {minLeft};"
     >
-        <slot name="left">
+        {#if left}
+            {@render left()}
+        {:else}
             <div class="p-4 text-gray-400">Left Content</div>
-        </slot>
+        {/if}
     </div>
 
     <!-- Handle -->
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
     <div
         role="separator"
         tabindex="0"
-        aria-valuenow={leftWidthPercent}
+        aria-valuenow={currentRatio}
         aria-valuemin={0}
         aria-valuemax={100}
-        class="relative h-full z-10 flex-non"
-        style="width: {gapSize}px; cursor: {resizable
-            ? 'col-resize'
+        class="relative z-10 flex-none"
+        class:w-full={isVertical}
+        class:h-auto={isVertical}
+        class:h-full={!isVertical}
+        class:w-auto={!isVertical}
+        style="{isVertical
+            ? 'height'
+            : 'width'}: {gapSize}px; cursor: {resizable
+            ? isVertical
+                ? 'row-resize'
+                : 'col-resize'
             : 'default'};"
-        on:mousedown={startDrag}
+        onmousedown={startDrag}
     >
         <!-- Visual Line -->
-        <div class="absolute inset-y-0 w-px bg-(--theme-border-default)"></div>
+        <div
+            class="absolute inset-0 bg-(--theme-border-default)"
+            class:h-px={isVertical}
+            class:w-full={isVertical}
+            class:w-px={!isVertical}
+            class:h-full={!isVertical}
+        ></div>
 
         <!-- Hit Area (Invisible, wider for easier grabbing) -->
         <div
-            class="absolute inset-y-0 -left-1 -right-1 z-20 bg-transparent"
+            class="absolute z-20 bg-transparent"
+            style={isVertical
+                ? "top: -3px; bottom: -3px; left: 0; right: 0;"
+                : "left: -3px; right: -3px; top: 0; bottom: 0;"}
         ></div>
     </div>
 
-    <!-- Right Panel -->
+    <!-- Second Panel (Right/Bottom) -->
     <div
-        class="flex-1 h-full overflow-auto relative z-0"
-        style="min-width: {minRight};"
+        class="relative z-0 flex-1 overflow-auto"
+        style="{isVertical ? 'min-height' : 'min-width'}: {minRight};"
     >
-        <slot name="right">
+        {#if right}
+            {@render right()}
+        {:else}
             <div class="p-4 text-gray-400">Right Content</div>
-        </slot>
+        {/if}
     </div>
 </div>

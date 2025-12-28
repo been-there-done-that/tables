@@ -6,6 +6,10 @@
   import IconLayoutSidebarFilled from "@tabler/icons-svelte/icons/layout-sidebar-filled";
   import IconLayoutSidebarRight from "@tabler/icons-svelte/icons/layout-sidebar-right";
   import IconLayoutSidebarRightFilled from "@tabler/icons-svelte/icons/layout-sidebar-right-filled";
+
+  import IconLayoutSidebarBottom from "@tabler/icons-svelte/icons/layout-sidebar-right";
+  import IconLayoutSidebarBottomFilled from "@tabler/icons-svelte/icons/layout-sidebar-right-filled";
+
   import IconRestore from "@tabler/icons-svelte/icons/restore";
   import PlaylistAdd from "@tabler/icons-svelte/icons/playlist-add";
   import IconPlus from "@tabler/icons-svelte/icons/plus";
@@ -17,8 +21,14 @@
   import ConnectionPicker from "$lib/components/ConnectionPicker.svelte";
 
   let { isFullScreen } = $props();
-  let icons = $state(false);
+  // let icons = $state(false);
   let datasourceWindowOpen = $state(false);
+
+  let layoutStates = $state({
+    left: false,
+    right: false,
+    bottom: false,
+  });
 
   const openDatasourceWindow = async () => {
     try {
@@ -76,14 +86,14 @@
       </div>
 
       <!-- Right side actions -->
-      <div class="flex items-center gap-2 pointer-events-auto pr-1">
+      <div class="flex items-center gap-2 pointer-events-auto">
         {#if windowState.label === "main"}
           <button
             class={cn(
               "h-6 w-6 flex items-center justify-center rounded-md border transition-all",
               datasourceWindowOpen
-                ? "bg-white/10 border-white/20"
-                : "hover:bg-white/5 border-transparent",
+                ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
+                : "hover:bg-(--theme-bg-hover) border-transparent",
             )}
             onclick={() => (datasourceWindowOpen = !datasourceWindowOpen)}
             title="New Datasource"
@@ -95,8 +105,8 @@
             class={cn(
               "h-6 w-7 flex items-center justify-center rounded-md border transition-all",
               windowState.datasourceWindowOpen
-                ? "bg-white/10 border-white/20"
-                : "hover:bg-white/5 border-transparent",
+                ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
+                : "hover:bg-(--theme-bg-hover) border-transparent",
             )}
             onclick={openDatasourceWindow}
             title="External Datasource Window"
@@ -104,55 +114,66 @@
             <IconPlus class="size-6" />
           </button>
 
-          <button
-            class="h-6 text-xs gap-1 flex items-center justify-center rounded-md hover:bg-white/5 active:bg-white/10"
-            onclick={() => false}
-          >
-            {#if false}
-              <IconLayoutSidebarFilled class="size-5" />
-            {:else}
-              <IconLayoutSidebar class="size-5" />
-            {/if}
-          </button>
+          <div class="flex items-center">
+            <button
+              class="h-6 w-7 text-xs flex items-center justify-center rounded-md hover:bg-(--theme-bg-hover) active:bg-(--theme-bg-active)"
+              onclick={() => false}
+            >
+              {#if false}
+                <IconLayoutSidebarFilled class="size-5" />
+              {:else}
+                <IconLayoutSidebar class="size-5" />
+              {/if}
+            </button>
 
-          <button
-            class="h-6 text-xs gap-1 flex items-center justify-center rounded-md hover:bg-white/5 active:bg-white/10"
-            onclick={() => false}
-          >
-            {#if false}
-              <IconLayoutSidebarRightFilled class="size-5" />
-            {:else}
-              <IconLayoutSidebarRight class="size-5" />
-            {/if}
-          </button>
+            <button
+              class="h-6 w-7 text-xs flex items-center justify-center rounded-md hover:bg-(--theme-bg-hover) active:bg-(--theme-bg-active)"
+              onclick={() => false}
+            >
+              {#if false}
+                <IconLayoutSidebarBottomFilled class="size-5 rotate-90" />
+              {:else}
+                <IconLayoutSidebarBottom class="size-5 rotate-90" />
+              {/if}
+            </button>
+
+            <button
+              class="h-6 w-7 text-xs flex items-center justify-center rounded-md hover:bg-(--theme-bg-hover) active:bg-(--theme-bg-active)"
+              onclick={() => false}
+            >
+              {#if false}
+                <IconLayoutSidebarRightFilled class="size-5" />
+              {:else}
+                <IconLayoutSidebarRight class="size-5" />
+              {/if}
+            </button>
+
+            <button
+              class={cn(
+                "h-6 w-7 flex items-center justify-center rounded-md border transition-all",
+                windowState.settingsWindowOpen
+                  ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
+                  : "hover:bg-(--theme-bg-hover) border-transparent",
+              )}
+              onclick={openSettingsWindow}
+              title="Settings"
+            >
+              {#if windowState.settingsWindowOpen}
+                <IconSettingsFilled class="size-5" />
+              {:else}
+                <IconSettings class="size-5" />
+              {/if}
+            </button>
+          </div>
         {/if}
 
         <button
-          class="h-6 w-6 text-xs gap-1 flex items-center justify-center rounded-md hover:bg-white/5 active:bg-white/10"
+          class="h-6 w-6 text-xs gap-1 flex items-center justify-center rounded-md hover:bg-(--theme-bg-hover) active:bg-(--theme-bg-active)"
           onclick={() => window.location.reload()}
           title="Reload Window"
         >
           <IconRestore class="size-5" />
         </button>
-
-        {#if windowState.label === "main"}
-          <button
-            class={cn(
-              "h-6 w-7 flex items-center justify-center rounded-md border transition-all",
-              windowState.settingsWindowOpen
-                ? "bg-white/10 border-white/20"
-                : "hover:bg-white/5 border-transparent",
-            )}
-            onclick={openSettingsWindow}
-            title="Settings"
-          >
-            {#if windowState.settingsWindowOpen}
-              <IconSettingsFilled class="size-5" />
-            {:else}
-              <IconSettings class="size-5" />
-            {/if}
-          </button>
-        {/if}
       </div>
     </div>
   </div>

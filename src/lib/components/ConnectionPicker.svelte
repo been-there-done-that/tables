@@ -197,7 +197,7 @@
 
 <div class="relative" bind:this={popoverRef}>
     <button
-        class="flex items-center gap-2 p-px text-sm rounded-md transition-colors hover:bg-white/10 active:bg-white/15 border border-transparent hover:border-white/10"
+        class="flex items-center gap-2 p-px text-sm rounded-md transition-colors hover:bg-(--theme-bg-hover) active:bg-(--theme-bg-active) border border-transparent hover:border-(--theme-border-subtle)"
         onclick={() => (isOpen = !isOpen)}
     >
         <div
