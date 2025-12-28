@@ -326,3 +326,96 @@ impl Default for AwsProfileManager {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use rand::{RngCore, rngs::OsRng};
+
+    #[test]
+    fn test_parse_credentials_file() {
+        let temp_dir = std::env::temp_dir().join(format!("test_aws_creds_{}", OsRng.next_u64()));
+        fs::create_dir_all(&temp_dir).unwrap();
+        let creds_file = temp_dir.join("credentials");
+        let content = r#"[default]
+aws_access_key_id = AKIAIOSFODNN7EXAMPLE
+aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+
+[profile user1]
+aws_access_key_id = AKIAI44QH8DHBEXAMPLE
+aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvbEXAMPLEKEY
+"#;
+        fs::write(&creds_file, content).unwrap();
+        let profiles = AwsProfileManager::parse_credentials_file(&creds_file).unwrap();
+        assert_eq!(profiles.len(), 2);
+        assert_eq!(profiles[0].name, "default");
+        assert_eq!(profiles[0].access_key_id, Some("AKIAIOSFODNN7EXAMPLE".to_string()));
+        assert_eq!(profiles[0].secret_access_key, Some("wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY".to_string()));
+        assert_eq!(profiles[1].name, "user1");
+        assert_eq!(profiles[1].profile_source, ProfileSource::CredentialsFile);
+    }
+
+    #[test]
+    fn test_parse_config_file() {
+        let temp_dir = std::env::temp_dir().join(format!("test_aws_config_{}", OsRng.next_u64()));
+        fs::create_dir_all(&temp_dir).unwrap();
+        let config_file = temp_dir.join("config");
+        let content = r#"[profile user1]
+region = us-west-2
+role_arn = arn:aws:iam::123456789012:role/MyRole
+"#;
+        fs::write(&config_file, content).unwrap();
+        let profiles = AwsProfileManager::parse_config_file(&config_file).unwrap();
+        assert_eq!(profiles.len(), 1);
+        assert_eq!(profiles[0].name, "user1");
+        assert_eq!(profiles[0].region, Some("us-west-2".to_string()));
+        assert_eq!(profiles[0].profile_source, ProfileSource::IamRole);
+    }
+
+    #[test]
+    fn test_test_profile_credentials_file() {
+        let profile = AwsProfile {
+            name: "test".to_string(),
+            region: None,
+            access_key_id: Some("key".to_string()),
+            secret_access_key: Some("secret".to_string()),
+            session_token: None,
+            profile_source: ProfileSource::CredentialsFile,
+        };
+        let manager = AwsProfileManager::new();
+        assert_eq!(manager.test_profile(&profile).unwrap(), true);
+    }
+
+    #[test]
+    fn test_test_profile_config_file() {
+        let profile = AwsProfile {
+            name: "test".to_string(),
+            region: Some("us-east-1".to_string()),
+            access_key_id: None,
+            secret_access_key: None,
+            session_token: None,
+            profile_source: ProfileSource::ConfigFile,
+        };
+        let manager = AwsProfileManager::new();
+        assert_eq!(manager.test_profile(&profile).unwrap(), true);
+    }
+
+    #[test]
+    fn test_get_credentials_file_path() {
+        let path = AwsProfileManager::get_credentials_file_path();
+        assert!(path.is_some());
+        let path_str = path.unwrap().to_string_lossy().to_string();
+        assert!(path_str.contains(".aws"));
+        assert!(path_str.contains("credentials"));
+    }
+
+    #[test]
+    fn test_get_config_file_path() {
+        let path = AwsProfileManager::get_config_file_path();
+        assert!(path.is_some());
+        let path_str = path.unwrap().to_string_lossy().to_string();
+        assert!(path_str.contains(".aws"));
+        assert!(path_str.contains("config"));
+    }
+}
