@@ -1,6 +1,7 @@
 mod migrations;
 mod connection;
 mod credentials;
+mod crypto;
 mod credential_manager;
 mod connection_manager;
 mod aws_profile_manager;
@@ -20,6 +21,8 @@ use commands::redis_commands::*;
 use commands::athena_commands::*;
 use commands::window_commands::*;
 use plugins::{PluginDiscovery, get_available_plugins, enable_plugin, disable_plugin, get_plugin_info, initialize_all_plugins};
+use connection_manager::ConnectionManager;
+use credential_manager::CredentialManager;
 
 // Re-export for command modules
 pub use connection_manager::ConnectionManagerState;
@@ -118,8 +121,14 @@ pub fn run() {
                 conn: Arc::new(Mutex::new(conn)),
             });
 
+            // Initialize CredentialManager
+            let credential_manager = Arc::new(CredentialManager::new(&app_data_dir, app.state::<DatabaseState>().conn.clone())
+                .expect("Failed to initialize credential manager"));
+
             // Initialize connection manager state
-            app.manage(ConnectionManagerState::new());
+            app.manage(ConnectionManagerState {
+                credential_manager: credential_manager.clone(),
+            });
 
             // Initialize plugin system and discover all plugins
             let discovery = PluginDiscovery::new();

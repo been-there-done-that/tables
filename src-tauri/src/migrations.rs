@@ -52,6 +52,18 @@ CREATE INDEX IF NOT EXISTS idx_connections_favorite ON connections(is_favorite);
 CREATE INDEX IF NOT EXISTS idx_connections_last_used ON connections(last_connected_at DESC);
 "#;
 
+const CREATE_CREDENTIALS_TABLE: &str = r#"
+CREATE TABLE IF NOT EXISTS credentials (
+    connection_id TEXT NOT NULL,
+    credential_key TEXT NOT NULL,
+    encrypted_value BLOB NOT NULL,
+    nonce BLOB NOT NULL,
+    encryption_version INTEGER NOT NULL DEFAULT 1,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (connection_id, credential_key)
+);
+"#;
+
 #[derive(Debug, Deserialize)]
 struct ThemeSeed {
     id: String,
@@ -109,6 +121,9 @@ pub fn apply(conn: &Connection, now_fn: impl Fn() -> i64) -> Result<(), String> 
 
     conn.execute_batch(CREATE_CONNECTIONS_TABLE)
         .map_err(|e| format!("Failed to create connections table: {e}"))?;
+
+    conn.execute_batch(CREATE_CREDENTIALS_TABLE)
+        .map_err(|e| format!("Failed to create credentials table: {e}"))?;
 
     let ts = now_fn();
 

@@ -14,16 +14,10 @@ pub struct ConnectionManagerState {
 }
 
 impl ConnectionManagerState {
-    pub fn new() -> Self {
+    pub fn new(credential_manager: Arc<CredentialManager>) -> Self {
         Self {
-            credential_manager: Arc::new(CredentialManager::new()),
+            credential_manager,
         }
-    }
-}
-
-impl Default for ConnectionManagerState {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
