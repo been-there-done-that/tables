@@ -14,6 +14,7 @@
   import { windowState } from "$lib/stores/window.svelte";
   import { cn } from "$lib/utils";
   import DataSource from "./components/datasource/DataSource.svelte";
+  import ConnectionPicker from "$lib/components/ConnectionPicker.svelte";
 
   let { isFullScreen } = $props();
   let icons = $state(false);
@@ -38,7 +39,7 @@
 
 {#if !isFullScreen}
   <div
-    class="fixed top-0 left-0 right-0 z-50 h-8 border-b select-none overflow-hidden"
+    class="fixed top-0 left-0 right-0 z-50 h-8 border-b select-none"
     style="background: var(--theme-bg-secondary); border-color: var(--theme-border-default); color: var(--theme-fg-primary);"
   >
     <!-- 
@@ -61,14 +62,7 @@
     >
       <!-- Left side (offset for Mac traffic lights) -->
       <div class="flex items-center gap-2 ml-20 pointer-events-auto">
-        {#if windowState.label === "main"}
-          <button
-            class="h-6 w-6 rounded-md active:bg-accent flex items-center justify-center transition-colors"
-            onclick={() => console.log("Logs clicked")}
-          >
-            <Logs class="size-5 opacity-70" />
-          </button>
-        {/if}
+        <!-- Left side items -->
       </div>
 
       <!-- Center Title (Optional) -->
@@ -76,6 +70,11 @@
         class="absolute inset-x-0 flex justify-center items-center h-full pointer-events-none"
       >
         <!-- Add window specific titles here if needed -->
+        <div class="pointer-events-auto">
+          {#if windowState.label === "main"}
+            <ConnectionPicker />
+          {/if}
+        </div>
       </div>
 
       <!-- Right side actions -->
