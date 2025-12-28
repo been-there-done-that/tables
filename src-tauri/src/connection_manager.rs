@@ -44,36 +44,38 @@ impl ConnectionManager {
     // Create a new connection
     pub fn create_connection(&self, connection: Connection, credentials: SecureCredentials) -> Result<String, String> {
         // Store connection metadata in database
-        let conn = self.db.lock()
-            .map_err(|e| format!("Failed to lock database: {}", e))?;
+        {
+            let conn = self.db.lock()
+                .map_err(|e| format!("Failed to lock database: {}", e))?;
 
-        conn.execute(
-            "INSERT INTO connections (
-                id, name, engine, host, port, database, username,
-                uses_ssh, uses_tls, config_json, is_favorite, color_tag,
-                created_at, updated_at, last_connected_at, connection_count
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
-            params![
-                connection.id,
-                connection.name,
-                connection.engine,
-                connection.host,
-                connection.port,
-                connection.database,
-                connection.username,
-                connection.uses_ssh as i64,
-                connection.uses_tls as i64,
-                connection.config_json,
-                connection.is_favorite as i64,
-                connection.color_tag,
-                connection.created_at,
-                connection.updated_at,
-                connection.last_connected_at,
-                connection.connection_count,
-            ],
-        ).map_err(|e| format!("Failed to insert connection: {}", e))?;
+            conn.execute(
+                "INSERT INTO connections (
+                    id, name, engine, host, port, database, username,
+                    uses_ssh, uses_tls, config_json, is_favorite, color_tag,
+                    created_at, updated_at, last_connected_at, connection_count
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
+                params![
+                    connection.id,
+                    connection.name,
+                    connection.engine,
+                    connection.host,
+                    connection.port,
+                    connection.database,
+                    connection.username,
+                    connection.uses_ssh as i64,
+                    connection.uses_tls as i64,
+                    connection.config_json,
+                    connection.is_favorite as i64,
+                    connection.color_tag,
+                    connection.created_at,
+                    connection.updated_at,
+                    connection.last_connected_at,
+                    connection.connection_count,
+                ],
+            ).map_err(|e| format!("Failed to insert connection: {}", e))?;
+        } // Lock is dropped here
 
-        // Store credentials in keyring
+        // Store credentials in secure storage
         if !credentials.is_empty() {
             self.credential_manager.store_credentials(&connection.id, &credentials)
                 .map_err(|e| format!("Failed to store credentials: {}", e))?;
@@ -145,33 +147,35 @@ impl ConnectionManager {
 
     // Update connection
     pub fn update_connection(&self, mut connection: Connection, credentials: Option<SecureCredentials>) -> Result<(), String> {
-        let conn = self.db.lock()
-            .map_err(|e| format!("Failed to lock database: {}", e))?;
+        {
+            let conn = self.db.lock()
+                .map_err(|e| format!("Failed to lock database: {}", e))?;
 
-        connection.update_timestamp();
+            connection.update_timestamp();
 
-        conn.execute(
-            "UPDATE connections SET
-                name = ?2, engine = ?3, host = ?4, port = ?5, database = ?6, username = ?7,
-                uses_ssh = ?8, uses_tls = ?9, config_json = ?10, is_favorite = ?11, color_tag = ?12,
-                updated_at = ?13
-             WHERE id = ?1",
-            params![
-                connection.id,
-                connection.name,
-                connection.engine,
-                connection.host,
-                connection.port,
-                connection.database,
-                connection.username,
-                connection.uses_ssh as i64,
-                connection.uses_tls as i64,
-                connection.config_json,
-                connection.is_favorite as i64,
-                connection.color_tag,
-                connection.updated_at
-            ],
-        ).map_err(|e| format!("Failed to update connection: {}", e))?;
+            conn.execute(
+                "UPDATE connections SET
+                    name = ?2, engine = ?3, host = ?4, port = ?5, database = ?6, username = ?7,
+                    uses_ssh = ?8, uses_tls = ?9, config_json = ?10, is_favorite = ?11, color_tag = ?12,
+                    updated_at = ?13
+                 WHERE id = ?1",
+                params![
+                    connection.id,
+                    connection.name,
+                    connection.engine,
+                    connection.host,
+                    connection.port,
+                    connection.database,
+                    connection.username,
+                    connection.uses_ssh as i64,
+                    connection.uses_tls as i64,
+                    connection.config_json,
+                    connection.is_favorite as i64,
+                    connection.color_tag,
+                    connection.updated_at
+                ],
+            ).map_err(|e| format!("Failed to update connection: {}", e))?;
+        } // Lock is dropped here
 
         // Update credentials if provided
         if let Some(credentials) = credentials {
@@ -187,13 +191,15 @@ impl ConnectionManager {
     // Delete connection
     pub fn delete_connection(&self, id: &str) -> Result<(), String> {
         // Delete from database
-        let conn = self.db.lock()
-            .map_err(|e| format!("Failed to lock database: {}", e))?;
+        {
+            let conn = self.db.lock()
+                .map_err(|e| format!("Failed to lock database: {}", e))?;
 
-        conn.execute("DELETE FROM connections WHERE id = ?1", params![id])
-            .map_err(|e| format!("Failed to delete connection: {}", e))?;
+            conn.execute("DELETE FROM connections WHERE id = ?1", params![id])
+                .map_err(|e| format!("Failed to delete connection: {}", e))?;
+        } // Lock is dropped here
 
-        // Delete credentials from keyring
+        // Delete credentials from secure storage
         self.credential_manager.delete_all_credentials(id)
             .map_err(|e| format!("Failed to delete credentials: {}", e))?;
 

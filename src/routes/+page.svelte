@@ -4,24 +4,35 @@
     IconPlus,
     IconRefresh,
     IconPlugConnected,
+    IconTrash,
   } from "@tabler/icons-svelte";
   import { onMount } from "svelte";
-  import { listConnections, testConnectionById } from "$lib/commands/client";
+  import {
+    listConnections,
+    testConnectionById,
+    deleteConnection,
+  } from "$lib/commands/client";
   import type { Connection } from "$lib/commands/types";
   import Button from "$lib/components/Button.svelte";
   import ConnectionModal from "$lib/components/datasource/ConnectionModal.svelte";
+  import ConfirmationModal from "$lib/components/ConfirmationModal.svelte";
 
   let connections = $state<Connection[]>([]);
   let isLoading = $state(true);
   let showModal = $state(false);
   let testingId = $state<string | null>(null);
 
+  // Delete confirmation state
+  let showDeleteConfirm = $state(false);
+  let connectionToDelete = $state<string | null>(null);
+  let isDeleting = $state(false);
+
   async function loadConnections() {
     isLoading = true;
     try {
       const result = await listConnections();
       if (result.success) {
-        connections = result.data;
+        connections = result.data || [];
       } else {
         console.error("Failed to load connections:", result.error);
       }
@@ -30,6 +41,36 @@
     } finally {
       isLoading = false;
     }
+  }
+
+  function confirmDelete(id: string) {
+    connectionToDelete = id;
+    showDeleteConfirm = true;
+  }
+
+  async function handleConfirmDelete() {
+    if (!connectionToDelete) return;
+
+    isDeleting = true;
+    try {
+      const result = await deleteConnection(connectionToDelete);
+      if (result.success) {
+        showDeleteConfirm = false;
+        await loadConnections();
+      } else {
+        alert(`Failed to delete connection: ${result.error}`);
+      }
+    } catch (err) {
+      console.error("Delete failed:", err);
+      alert(`Delete failed: ${String(err)}`);
+    } finally {
+      isDeleting = false;
+    }
+  }
+
+  function handleCancelDelete() {
+    showDeleteConfirm = false;
+    connectionToDelete = null;
   }
 
   async function handleTestStoredConnection(id: string) {
@@ -81,9 +122,10 @@
       >
         <IconRefresh class={`size-4 ${isLoading ? "animate-spin" : ""}`} />
       </button>
-      <Button onClick={() => (showModal = true)} icon={IconPlus}
-        >New Connection</Button
-      >
+      <Button onClick={() => (showModal = true)}>
+        <IconPlus class="size-4" />
+        New Connection
+      </Button>
     </div>
   </div>
 
@@ -109,9 +151,10 @@
         <p class="text-[--theme-fg-secondary] text-sm max-w-xs mb-6">
           Add your first database connection to start exploring your data.
         </p>
-        <Button onClick={() => (showModal = true)} icon={IconPlus}
-          >Add Connection</Button
-        >
+        <Button onClick={() => (showModal = true)}>
+          <IconPlus class="size-4" />
+          Add Connection
+        </Button>
       </div>
     {:else}
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -162,8 +205,16 @@
             </div>
 
             <div
-              class="mt-4 pt-3 border-t border-[--theme-border-default] flex justify-end"
+              class="mt-4 pt-3 border-t border-[--theme-border-default] flex justify-between items-center"
             >
+              <button
+                onclick={() => confirmDelete(conn.id)}
+                class="p-1.5 text-[--theme-fg-tertiary] hover:text-red-500 hover:bg-red-500/10 rounded-md transition-colors"
+                title="Delete Connection"
+              >
+                <IconTrash class="size-4" />
+              </button>
+
               <button
                 onclick={() => handleTestStoredConnection(conn.id)}
                 class="text-xs flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-[--theme-bg-tertiary] hover:bg-[--theme-bg-hover] text-[--theme-fg-secondary] hover:text-[--theme-fg-primary] border border-[--theme-border-default] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -186,3 +237,14 @@
 </div>
 
 <ConnectionModal bind:open={showModal} />
+
+<ConfirmationModal
+  bind:open={showDeleteConfirm}
+  title="Delete Connection"
+  message="Are you sure you want to delete this connection? This action is irreversible and requires you to re-enter credentials if you want to add it back."
+  confirmText="Delete Connection"
+  variant="danger"
+  isLoading={isDeleting}
+  onConfirm={handleConfirmDelete}
+  onCancel={handleCancelDelete}
+/>
