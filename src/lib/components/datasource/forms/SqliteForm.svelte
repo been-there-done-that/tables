@@ -6,6 +6,7 @@
     import {
         testConnectionParams,
         createConnection,
+        updateConnection,
     } from "$lib/commands/client";
     import { connectionForm } from "$lib/components/datasource/connectionStore.svelte";
     import ConnectionResultPopover from "../ConnectionResultPopover.svelte";
@@ -123,29 +124,22 @@
 
         isSaving = true;
         try {
-            // 1. Construct the RuntimeConnection / SqliteConfig object
-            // Corresponds to SqliteConfig struct in rust
-            const sqliteConfig = {
-                version: 1,
-                mode: data.mode || "file",
-                file: data.file,
-                options: data.options,
-            };
-
-            // 2. Wrap for RuntimeConnection enum serialization
-            // #[serde(tag = "engine", rename_all = "lowercase")] means we merge fields
-            // BUT for newtype variants, it expects the inner struct fields + the tag.
+            // 1. Construct RuntimeConnection (SqliteConfig)
             const runtimeConfig = {
                 engine: "sqlite",
-                ...sqliteConfig,
+                ...data,
             };
 
             const now = Math.floor(Date.now() / 1000);
 
-            // 3. Construct the full Connection struct expected by backend
-            const connectionPayload = {
-                id: crypto.randomUUID(), // Backend requires ID
-                name: data.name,
+            // Checks if we are updating an existing connection
+            // @ts-ignore
+            const existingId = data.id;
+
+            // 2. Prepare common payload data
+            const connectionData = {
+                // @ts-ignore
+                name: data.name || "Untitled SQLite",
                 engine: "sqlite",
                 host: null,
                 port: null,
@@ -153,33 +147,55 @@
                 username: null,
                 uses_ssh: false,
                 uses_tls: false,
-                config_json: JSON.stringify(runtimeConfig), // Backend requires serialized config
+                config_json: JSON.stringify(runtimeConfig),
                 is_favorite: false,
                 color_tag: null,
-                created_at: now,
                 updated_at: now,
                 last_connected_at: null,
                 connection_count: 0,
             };
 
-            // 4. Construct SecureCredentials (all optional fields null/None)
-            const credentialsPayload = {};
-
-            // The command expects (connection, credentials)
-            // But our client helper createConnection takes { connection, credentials } wrapper?
-            // Let's check client.ts. It expects CreateConnectionRequest which has { connection, credentials }
-            // So we match that structure.
-
-            const payload = {
-                connection: connectionPayload,
-                credentials: credentialsPayload,
+            const credentialsPayload = {
+                // SQLite has no creds usually, maybe password if encrypted, but here simplified.
+                password: null,
+                ssh_private_key: null,
+                ssh_passphrase: null,
+                ssl_certificate: null,
+                ssl_private_key: null,
+                ssl_ca_certificate: null,
+                api_token: null,
+                aws_access_key_id: null,
+                aws_secret_access_key: null,
+                aws_session_token: null,
             };
 
-            // @ts-ignore - mismatch in generated types vs manual construction
-            const response = await createConnection(payload);
+            let response;
+            if (existingId) {
+                // UPDATE
+                const payload = {
+                    id: existingId,
+                    connection: connectionData,
+                    credentials: credentialsPayload,
+                };
+                // @ts-ignore
+                response = await updateConnection(payload);
+            } else {
+                // CREATE
+                // @ts-ignore
+                const payload = {
+                    connection: {
+                        ...connectionData,
+                        id: crypto.randomUUID(), // If backend allows ID, otherwise remove
+                        created_at: now,
+                    },
+                    credentials: credentialsPayload,
+                };
+                // @ts-ignore
+                response = await createConnection(payload);
+            }
 
             if (response.success) {
-                console.log("Connection saved successfully:", response.data);
+                console.log("Saved/Updated:", response.data);
                 const window = getCurrentWindow();
                 await window.close();
             } else {
