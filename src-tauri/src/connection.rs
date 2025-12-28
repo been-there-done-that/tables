@@ -369,6 +369,7 @@ pub fn load_connection_from_row(row: &rusqlite::Row<'_>) -> Result<Connection, r
         created_at: row.get(12)?,
         updated_at: row.get(13)?,
         last_connected_at: row.get(14)?,
+        connection_count: row.get(15)?,
     })
 }
 
