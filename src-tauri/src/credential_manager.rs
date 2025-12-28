@@ -20,17 +20,28 @@ impl CredentialManager {
     // Password operations
     pub fn store_password(&self, connection_id: &str, password: &str) -> Result<(), Error> {
         let key = self.build_key(connection_id, "password");
+        debug!("Keyring store - Service: '{}', Key: '{}'", self.service_name, key);
         let entry = Entry::new(&self.service_name, &key)?;
         entry.set_password(password)
     }
 
     pub fn get_password(&self, connection_id: &str) -> Result<Option<String>, Error> {
         let key = self.build_key(connection_id, "password");
+        debug!("Keyring retrieve - Service: '{}', Key: '{}'", self.service_name, key);
         let entry = Entry::new(&self.service_name, &key)?;
         match entry.get_password() {
-            Ok(password) => Ok(Some(password)),
-            Err(Error::NoEntry) => Ok(None),
-            Err(e) => Err(e),
+            Ok(password) => {
+                debug!("Keyring retrieve success for key: '{}'", key);
+                Ok(Some(password))
+            },
+            Err(Error::NoEntry) => {
+                debug!("Keyring retrieve failed: NoEntry for key: '{}'", key);
+                Ok(None)
+            },
+            Err(e) => {
+                debug!("Keyring retrieve failed: {} for key: '{}'", e, key);
+                Err(e)
+            },
         }
     }
 
