@@ -61,8 +61,10 @@
       class="relative z-10 flex h-full items-center justify-between px-2 pointer-events-none"
     >
       <!-- Left side (offset for Mac traffic lights) -->
-      <div class="flex items-center gap-2 ml-20 pointer-events-auto">
-        <!-- Left side items -->
+      <div class="flex items-center gap-2 ml-24 pointer-events-auto">
+        {#if windowState.label === "main"}
+          <ConnectionPicker />
+        {/if}
       </div>
 
       <!-- Center Title (Optional) -->
@@ -70,11 +72,7 @@
         class="absolute inset-x-0 flex justify-center items-center h-full pointer-events-none"
       >
         <!-- Add window specific titles here if needed -->
-        <div class="pointer-events-auto">
-          {#if windowState.label === "main"}
-            <ConnectionPicker />
-          {/if}
-        </div>
+        <div class="pointer-events-auto"></div>
       </div>
 
       <!-- Right side actions -->
