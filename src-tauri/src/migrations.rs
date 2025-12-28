@@ -1,6 +1,7 @@
 use rusqlite::{params, Connection};
 use serde::Deserialize;
 use serde_json;
+use log::{info, debug, warn, error};
 
 const CREATE_THEMES_TABLE: &str = r#"
 CREATE TABLE IF NOT EXISTS themes (
@@ -116,20 +117,39 @@ const BUILTIN_THEME_FILES: &[(&str, &str)] = &[
 ];
 
 pub fn apply(conn: &Connection, now_fn: impl Fn() -> i64) -> Result<(), String> {
+    debug!("Applying database migrations");
+    
+    debug!("Creating themes table");
     conn.execute_batch(CREATE_THEMES_TABLE)
-        .map_err(|e| format!("Failed to create themes table: {e}"))?;
+        .map_err(|e| {
+            error!("Failed to create themes table: {}", e);
+            format!("Failed to create themes table: {e}")
+        })?;
 
+    debug!("Creating connections table");
     conn.execute_batch(CREATE_CONNECTIONS_TABLE)
-        .map_err(|e| format!("Failed to create connections table: {e}"))?;
+        .map_err(|e| {
+            error!("Failed to create connections table: {}", e);
+            format!("Failed to create connections table: {e}")
+        })?;
 
+    debug!("Creating credentials table");
     conn.execute_batch(CREATE_CREDENTIALS_TABLE)
-        .map_err(|e| format!("Failed to create credentials table: {e}"))?;
+        .map_err(|e| {
+            error!("Failed to create credentials table: {}", e);
+            format!("Failed to create credentials table: {e}")
+        })?;
 
     let ts = now_fn();
+    info!("Seeding {} builtin themes", BUILTIN_THEME_FILES.len());
 
     for (idx, (id, json)) in BUILTIN_THEME_FILES.iter().enumerate() {
+        debug!("Seeding theme '{}' (index {})", id, idx);
         let parsed: ThemeSeed = serde_json::from_str(json)
-            .map_err(|e| format!("Failed to parse theme {}: {e}", id))?;
+            .map_err(|e| {
+                error!("Failed to parse theme '{}': {}", id, e);
+                format!("Failed to parse theme {}: {e}", id)
+            })?;
 
         conn.execute(
             "INSERT INTO themes (id, name, author, description, theme_data, is_builtin, is_active, created_at, updated_at)
@@ -151,22 +171,34 @@ pub fn apply(conn: &Connection, now_fn: impl Fn() -> i64) -> Result<(), String> 
                 ts
             ],
         )
-        .map_err(|e| format!("Failed to seed theme {}: {e}", id))?;
+        .map_err(|e| {
+            error!("Failed to seed theme '{}': {}", id, e);
+            format!("Failed to seed theme {}: {e}", id)
+        })?;
     }
 
+    debug!("Ensuring exactly one active theme");
     // Ensure exactly one active theme.
     let active_count: i64 = conn
         .query_row("SELECT COUNT(*) FROM themes WHERE is_active = 1", [], |row| row.get(0))
         .unwrap_or(0);
     if active_count == 0 {
+        warn!("No active theme found, setting default");
         conn.execute("UPDATE themes SET is_active = 0", [])
-            .map_err(|e| format!("Failed to clear active theme: {e}"))?;
+            .map_err(|e| {
+                error!("Failed to clear active theme: {}", e);
+                format!("Failed to clear active theme: {e}")
+            })?;
         conn.execute(
             "UPDATE themes SET is_active = 1 WHERE id = (SELECT id FROM themes ORDER BY name LIMIT 1)",
             [],
         )
-        .map_err(|e| format!("Failed to set default active theme: {e}"))?;
+        .map_err(|e| {
+            error!("Failed to set default active theme: {}", e);
+            format!("Failed to set default active theme: {e}")
+        })?;
     }
 
+    info!("Database migrations applied successfully");
     Ok(())
 }

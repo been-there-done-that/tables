@@ -4,6 +4,7 @@ use crate::DatabaseState;
 use tauri::State;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use log::{info, debug, warn, error, trace};
 
 /// Execute Athena query
 #[tauri::command]
@@ -17,6 +18,8 @@ pub async fn execute_athena_query(
     _db_state: State<'_, DatabaseState>,
     _conn_state: State<'_, ConnectionManagerState>,
 ) -> Result<AthenaQueryResult, String> {
+    debug!("Executing Athena query: {}", query);
+    warn!("Athena query execution not implemented, returning mock data");
     // TODO: Implement actual Athena query execution using AWS SDK
     // For now, return mock data
     Ok(AthenaQueryResult {
@@ -39,6 +42,8 @@ pub async fn get_athena_query_status(
     _db_state: State<'_, DatabaseState>,
     _conn_state: State<'_, ConnectionManagerState>,
 ) -> Result<AthenaQueryStatus, String> {
+    debug!("Getting Athena query status for execution ID: {}", query_execution_id);
+    warn!("Athena query status not implemented, returning mock data");
     // TODO: Implement actual Athena query status using AWS SDK
     // For now, return mock data
     Ok(AthenaQueryStatus {
@@ -61,6 +66,8 @@ pub async fn list_athena_databases(
     _db_state: State<'_, DatabaseState>,
     _conn_state: State<'_, ConnectionManagerState>,
 ) -> Result<Vec<AthenaDatabase>, String> {
+    debug!("Listing Athena databases");
+    warn!("Athena database listing not implemented, returning mock data");
     // TODO: Implement actual Athena database listing using AWS SDK
     // For now, return mock data
     Ok(vec![
@@ -84,6 +91,8 @@ pub async fn list_athena_tables(
     _db_state: State<'_, DatabaseState>,
     _conn_state: State<'_, ConnectionManagerState>,
 ) -> Result<Vec<AthenaTable>, String> {
+    debug!("Listing Athena tables in database '{}'", database);
+    warn!("Athena table listing not implemented, returning mock data");
     // TODO: Implement actual Athena table listing using AWS SDK
     // For now, return mock data
     Ok(vec![
@@ -110,6 +119,8 @@ pub async fn get_athena_table_schema(
     _db_state: State<'_, DatabaseState>,
     _conn_state: State<'_, ConnectionManagerState>,
 ) -> Result<Vec<AthenaColumn>, String> {
+    debug!("Getting Athena table schema for '{}.{}'", database, table);
+    warn!("Athena table schema not implemented, returning mock data");
     // TODO: Implement actual Athena table schema using AWS SDK
     // For now, return mock data
     Ok(vec![
@@ -137,9 +148,11 @@ pub async fn cancel_athena_query(
     _db_state: State<'_, DatabaseState>,
     _conn_state: State<'_, ConnectionManagerState>,
 ) -> Result<(), String> {
+    debug!("Cancelling Athena query: {}", query_execution_id);
+    warn!("Athena query cancellation not implemented");
     // TODO: Implement actual Athena query cancellation using AWS SDK
     // For now, just return success
-    println!("Cancelling Athena query: {}", query_execution_id);
+    info!("Athena query '{}' cancelled (mock)", query_execution_id);
     Ok(())
 }
 
@@ -151,6 +164,8 @@ pub async fn list_athena_workgroups(
     _db_state: State<'_, DatabaseState>,
     _conn_state: State<'_, ConnectionManagerState>,
 ) -> Result<Vec<AthenaWorkgroup>, String> {
+    debug!("Listing Athena workgroups");
+    warn!("Athena workgroup listing not implemented, returning mock data");
     // TODO: Implement actual Athena workgroup listing using AWS SDK
     // For now, return mock data
     Ok(vec![

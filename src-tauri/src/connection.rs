@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use std::collections::HashMap;
+use log::{info, debug, warn, error, trace};
 use crate::configs::{RuntimeConnection, ConnectionSummary, validate_config_json};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -34,14 +34,21 @@ pub struct Connection {
 
 impl Connection {
     pub fn new(name: String, config: RuntimeConnection) -> Result<Self, String> {
+        debug!("Creating new connection '{}' with engine '{}'", name, config.engine());
         let summary = config.summary_fields();
         let engine = config.engine().to_string();
+        debug!("Serializing config to JSON for connection '{}'", name);
         let config_json = serde_json::to_string(&config)
-            .map_err(|e| format!("Failed to serialize config: {}", e))?;
+            .map_err(|e| {
+                error!("Failed to serialize config for connection '{}': {}", name, e);
+                format!("Failed to serialize config: {}", e)
+            })?;
         
+        debug!("Validating config JSON for connection '{}'", name);
         // Validate the config JSON before storing
         validate_config_json(&config_json, &engine)?;
         
+        debug!("Successfully created connection '{}' with ID '{}'", name, "to be generated");
         Ok(Self {
             id: Uuid::new_v4().to_string(),
             name,
@@ -69,15 +76,22 @@ impl Connection {
     }
     
     pub fn parse_config(&self) -> Result<RuntimeConnection, serde_json::Error> {
+        trace!("Parsing config JSON for connection '{}'", self.id);
         serde_json::from_str(&self.config_json)
     }
     
     pub fn update_config(&mut self, config: RuntimeConnection) -> Result<(), String> {
+        debug!("Updating config for connection '{}'", self.id);
         let summary = config.summary_fields();
         let engine = config.engine().to_string();
+        debug!("Serializing updated config to JSON for connection '{}'", self.id);
         let config_json = serde_json::to_string(&config)
-            .map_err(|e| format!("Failed to serialize config: {}", e))?;
+            .map_err(|e| {
+                error!("Failed to serialize updated config for connection '{}': {}", self.id, e);
+                format!("Failed to serialize config: {}", e)
+            })?;
         
+        debug!("Validating updated config JSON for connection '{}'", self.id);
         // Validate the config JSON before storing
         validate_config_json(&config_json, &engine)?;
         
@@ -93,10 +107,12 @@ impl Connection {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs() as i64;
+        debug!("Successfully updated config for connection '{}'", self.id);
         Ok(())
     }
 
     pub fn update_timestamp(&mut self) {
+        trace!("Updating timestamp for connection '{}'", self.id);
         self.updated_at = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -120,6 +136,7 @@ pub enum DatabaseEngine {
 
 impl DatabaseEngine {
     pub fn default_port(&self) -> Option<u16> {
+        trace!("Getting default port for database engine {:?}", self);
         match self {
             DatabaseEngine::PostgreSQL => Some(5432),
             DatabaseEngine::MySQL => Some(3306),
@@ -134,6 +151,7 @@ impl DatabaseEngine {
     }
 
     pub fn display_name(&self) -> &'static str {
+        trace!("Getting display name for database engine {:?}", self);
         match self {
             DatabaseEngine::PostgreSQL => "PostgreSQL",
             DatabaseEngine::MySQL => "MySQL",
@@ -171,6 +189,7 @@ impl AuthType {
     }
 
     pub fn to_string(&self) -> &'static str {
+        trace!("Converting auth type {:?} to string", self);
         match self {
             AuthType::Password => "password",
             AuthType::SshKey => "ssh_key",
@@ -221,6 +240,7 @@ pub struct SecureCredentials {
 
 impl SecureCredentials {
     pub fn new() -> Self {
+        trace!("Creating new secure credentials");
         Self {
             password: None,
             ssh_private_key: None,
@@ -236,7 +256,7 @@ impl SecureCredentials {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.password.is_none()
+        let result = self.password.is_none()
             && self.ssh_private_key.is_none()
             && self.ssh_passphrase.is_none()
             && self.ssl_certificate.is_none()
@@ -245,7 +265,9 @@ impl SecureCredentials {
             && self.api_token.is_none()
             && self.aws_access_key_id.is_none()
             && self.aws_secret_access_key.is_none()
-            && self.aws_session_token.is_none()
+            && self.aws_session_token.is_none();
+        trace!("Checking if secure credentials are empty: {}", result);
+        result
     }
 }
 
@@ -263,14 +285,17 @@ pub struct SecretString {
 
 impl SecretString {
     pub fn new(s: String) -> Self {
+        trace!("Creating new secret string");
         Self { inner: s }
     }
 
     pub fn expose(&self) -> &str {
+        warn!("Exposing secret string - ensure secure handling");
         &self.inner
     }
 
     pub fn into_string(mut self) -> String {
+        warn!("Converting secret to plain string - ensure zeroization");
         let result = self.inner.clone();
         self.zeroize();
         result
@@ -278,6 +303,7 @@ impl SecretString {
 
     /// Zeroize the secret when dropped
     fn zeroize(&mut self) {
+        trace!("Zeroizing secret string");
         // Simple zeroization - overwrite the string contents
         unsafe {
             let ptr = self.inner.as_mut_ptr();
@@ -326,6 +352,7 @@ pub struct ConnectionInfo {
 
 // Helper functions for database operations
 pub fn load_connection_from_row(row: &rusqlite::Row<'_>) -> Result<Connection, rusqlite::Error> {
+    debug!("Loading connection from database row");
     Ok(Connection {
         id: row.get(0)?,
         name: row.get(1)?,
