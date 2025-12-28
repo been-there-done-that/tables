@@ -642,3 +642,203 @@ impl ConnectionManager {
         Ok(connections)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::crypto::{MasterKeyManager, MasterKey};
+    use std::fs;
+    use rand::{RngCore, rngs::OsRng};
+
+    const CREATE_CONNECTIONS_TABLE: &str = r#"
+    CREATE TABLE IF NOT EXISTS connections (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        engine TEXT NOT NULL,
+        
+        -- Optional summary fields (for list views & indexing only)
+        host TEXT,
+        port INTEGER,
+        database TEXT,
+        username TEXT,
+        
+        -- Transport/security summary flags
+        uses_ssh INTEGER DEFAULT FALSE,
+        uses_tls INTEGER DEFAULT FALSE,
+        
+        -- Canonical, versioned configuration
+        config_json TEXT NOT NULL,
+        
+        -- UX / metadata
+        is_favorite INTEGER DEFAULT FALSE,
+        color_tag TEXT,
+        
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        last_connected_at INTEGER,
+        connection_count INTEGER DEFAULT 0
+    );
+    "#;
+
+    const CREATE_CONNECTIONS_INDEXES: &str = r#"
+    CREATE INDEX IF NOT EXISTS idx_connections_engine ON connections(engine);
+    CREATE INDEX IF NOT EXISTS idx_connections_name ON connections(name COLLATE NOCASE);
+    CREATE INDEX IF NOT EXISTS idx_connections_favorite ON connections(is_favorite);
+    CREATE INDEX IF NOT EXISTS idx_connections_last_used ON connections(last_connected_at DESC);
+    "#;
+
+    const CREATE_CREDENTIALS_TABLE: &str = r#"
+    CREATE TABLE IF NOT EXISTS credentials (
+        connection_id TEXT NOT NULL,
+        credential_key TEXT NOT NULL,
+        encrypted_value BLOB NOT NULL,
+        nonce BLOB NOT NULL,
+        encryption_version INTEGER NOT NULL DEFAULT 1,
+        updated_at INTEGER NOT NULL,
+        PRIMARY KEY (connection_id, credential_key)
+    );
+    "#;
+
+    fn create_test_manager() -> (ConnectionManager, Arc<Mutex<SqliteConnection>>) {
+        let temp_dir = std::env::temp_dir().join(format!("test_tables_conn_{}", OsRng.next_u64()));
+        fs::create_dir_all(&temp_dir).unwrap();
+        let db = Arc::new(Mutex::new(SqliteConnection::open_in_memory().unwrap()));
+        {
+            let conn = db.lock().unwrap();
+            conn.execute(CREATE_CONNECTIONS_TABLE, []).unwrap();
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_connections_engine ON connections(engine);", []).unwrap();
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_connections_name ON connections(name COLLATE NOCASE);", []).unwrap();
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_connections_favorite ON connections(is_favorite);", []).unwrap();
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_connections_last_used ON connections(last_connected_at DESC);", []).unwrap();
+            conn.execute(CREATE_CREDENTIALS_TABLE, []).unwrap();
+        }
+        let key_manager = MasterKeyManager::new(&temp_dir);
+        let _master_key = key_manager.load_or_generate().unwrap();
+        let credential_manager = Arc::new(CredentialManager::new(&temp_dir, Arc::clone(&db)).unwrap());
+        let manager = ConnectionManager::new(db, credential_manager);
+        (manager, Arc::new(Mutex::new(SqliteConnection::open_in_memory().unwrap()))) // dummy db for manager
+    }
+
+    fn create_sample_connection() -> Connection {
+        let now = chrono::Utc::now().timestamp();
+        Connection {
+            id: "test_conn_1".to_string(),
+            name: "Test Connection".to_string(),
+            engine: "postgresql".to_string(),
+            host: Some("localhost".to_string()),
+            port: Some(5432),
+            database: Some("testdb".to_string()),
+            username: Some("user".to_string()),
+            uses_ssh: false,
+            uses_tls: true,
+            config_json: r#"{"db":{"host":"localhost","port":5432,"database":"testdb","username":"user"}}"#.to_string(),
+            is_favorite: false,
+            color_tag: None,
+            created_at: now,
+            updated_at: now,
+            last_connected_at: None,
+            connection_count: 0,
+        }
+    }
+
+    #[test]
+    fn test_create_and_get_connection() {
+        let (manager, _) = create_test_manager();
+        let connection = create_sample_connection();
+        let creds = SecureCredentials::new();
+        manager.create_connection(connection.clone(), creds).unwrap();
+        let (retrieved_conn, retrieved_creds) = manager.get_connection("test_conn_1").unwrap();
+        assert_eq!(retrieved_conn.id, "test_conn_1");
+        assert_eq!(retrieved_conn.name, "Test Connection");
+        assert!(retrieved_creds.is_empty());
+    }
+
+    #[test]
+    fn test_create_connection_with_credentials() {
+        let (manager, _) = create_test_manager();
+        let connection = create_sample_connection();
+        let mut creds = SecureCredentials::new();
+        creds.password = Some("secret123".into());
+        manager.create_connection(connection.clone(), creds).unwrap();
+        let (retrieved_conn, retrieved_creds) = manager.get_connection("test_conn_1").unwrap();
+        assert_eq!(retrieved_conn.id, "test_conn_1");
+        assert_eq!(retrieved_creds.password.as_ref().map(|s| s.expose()), Some("secret123"));
+    }
+
+    #[test]
+    fn test_update_connection() {
+        let (manager, _) = create_test_manager();
+        let mut connection = create_sample_connection();
+        let creds = SecureCredentials::new();
+        manager.create_connection(connection.clone(), creds).unwrap();
+        connection.name = "Updated Connection".to_string();
+        manager.update_connection(connection, None).unwrap();
+        let (retrieved_conn, _) = manager.get_connection("test_conn_1").unwrap();
+        assert_eq!(retrieved_conn.name, "Updated Connection");
+    }
+
+    #[test]
+    fn test_delete_connection() {
+        let (manager, _) = create_test_manager();
+        let connection = create_sample_connection();
+        let creds = SecureCredentials::new();
+        manager.create_connection(connection, creds).unwrap();
+        assert!(manager.get_connection("test_conn_1").is_ok());
+        manager.delete_connection("test_conn_1").unwrap();
+        assert!(manager.get_connection("test_conn_1").is_err());
+    }
+
+    #[test]
+    fn test_list_connections() {
+        let (manager, _) = create_test_manager();
+        let connection1 = create_sample_connection();
+        let mut connection2 = create_sample_connection();
+        connection2.id = "test_conn_2".to_string();
+        connection2.name = "Test Connection 2".to_string();
+        manager.create_connection(connection1, SecureCredentials::new()).unwrap();
+        manager.create_connection(connection2, SecureCredentials::new()).unwrap();
+        let connections = manager.list_connections().unwrap();
+        assert_eq!(connections.len(), 2);
+    }
+
+    #[test]
+    fn test_get_connection_metadata() {
+        let (manager, _) = create_test_manager();
+        let connection = create_sample_connection();
+        manager.create_connection(connection.clone(), SecureCredentials::new()).unwrap();
+        let metadata = manager.get_connection_metadata("test_conn_1").unwrap();
+        assert_eq!(metadata.id, "test_conn_1");
+        assert_eq!(metadata.name, "Test Connection");
+    }
+
+    #[test]
+    fn test_update_connection_stats() {
+        let (manager, _) = create_test_manager();
+        let connection = create_sample_connection();
+        manager.create_connection(connection.clone(), SecureCredentials::new()).unwrap();
+        manager.update_connection_stats("test_conn_1").unwrap();
+        let (retrieved, _) = manager.get_connection("test_conn_1").unwrap();
+        assert_eq!(retrieved.connection_count, 1);
+    }
+
+    #[test]
+    fn test_get_favorite_connections() {
+        let (manager, _) = create_test_manager();
+        let mut connection = create_sample_connection();
+        connection.is_favorite = true;
+        manager.create_connection(connection.clone(), SecureCredentials::new()).unwrap();
+        let favorites = manager.get_favorite_connections().unwrap();
+        assert_eq!(favorites.len(), 1);
+        assert_eq!(favorites[0].id, "test_conn_1");
+    }
+
+    #[test]
+    fn test_search_connections() {
+        let (manager, _) = create_test_manager();
+        let connection = create_sample_connection();
+        manager.create_connection(connection.clone(), SecureCredentials::new()).unwrap();
+        let results = manager.search_connections("Test").unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].id, "test_conn_1");
+    }
+}

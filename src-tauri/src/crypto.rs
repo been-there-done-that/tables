@@ -169,3 +169,24 @@ pub fn decrypt(ciphertext: &[u8], nonce_bytes: &[u8], key: &MasterKey) -> Result
         
     Ok(plaintext)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_encrypt_decrypt() {
+        let key = MasterKey::new([0u8; 32]);
+        let data = b"hello world";
+        let (encrypted, nonce) = encrypt(data, &key).unwrap();
+        let decrypted = decrypt(&encrypted, &nonce, &key).unwrap();
+        assert_eq!(decrypted, data);
+    }
+
+    #[test]
+    fn test_master_key_new() {
+        let key_bytes = [1u8; 32];
+        let key = MasterKey::new(key_bytes);
+        assert_eq!(key.as_bytes(), &key_bytes);
+    }
+}
