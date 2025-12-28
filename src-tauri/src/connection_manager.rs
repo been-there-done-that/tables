@@ -87,26 +87,31 @@ impl ConnectionManager {
     // Get connection with credentials
     pub fn get_connection(&self, id: &str) -> Result<(Connection, SecureCredentials), String> {
         // Get connection metadata from database
-        let conn = self.db.lock()
-            .map_err(|e| format!("Failed to lock database: {}", e))?;
+        let connection = {
+            let conn = self.db.lock()
+                .map_err(|e| format!("Failed to lock database: {}", e))?;
 
-        let connection = conn.query_row(
-            "SELECT id, name, engine, host, port, database, username, uses_ssh, uses_tls, config_json, is_favorite, color_tag, created_at, updated_at, last_connected_at, connection_count
-             FROM connections WHERE id = ?1",
-            params![id],
-            load_connection_from_row,
-        ).map_err(|e| format!("Failed to get connection: {}", e))?;
+            conn.query_row(
+                "SELECT id, name, engine, host, port, database, username, uses_ssh, uses_tls, config_json, is_favorite, color_tag, created_at, updated_at, last_connected_at, connection_count
+                 FROM connections WHERE id = ?1",
+                params![id],
+                load_connection_from_row,
+            ).map_err(|e| format!("Failed to get connection: {}", e))?
+        }; // Lock is dropped here
 
-        debug!("Fetching credentials for connection {}", id);
-        // Get credentials from keyring
-        let credentials = self.credential_manager.get_credentials(id)
-            .map_err(|e| format!("Failed to get credentials: {}", e))?;
-        
-        if !credentials.is_empty() {
-            debug!("Successfully retrieved credentials for connection {}", id);
+        // Check if credentials exist for this connection
+        let has_creds = self.credential_manager.has_credentials(id)
+            .map_err(|e| format!("Failed to check if credentials exist: {}", e))?;
+
+        let credentials = if has_creds {
+            debug!("Fetching credentials for connection {} (found in DB)", id);
+            // Get credentials from secure storage
+            self.credential_manager.get_credentials(id)
+                .map_err(|e| format!("Failed to get credentials: {}", e))?
         } else {
-            debug!("No credentials found (or empty) for connection {}", id);
-        }
+            debug!("Skipping credential fetch for connection {} (none found in DB)", id);
+            SecureCredentials::new()
+        };
 
         Ok((connection, credentials))
     }
