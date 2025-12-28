@@ -328,4 +328,162 @@ mod tests {
         
         assert!(validate_config_json(config, "postgresql").is_err());
     }
+
+    #[test]
+    fn test_valid_mysql_config() {
+        let config = r#"
+        {
+            "version": 1,
+            "db": {
+                "host": "localhost",
+                "port": 3306,
+                "database": "test",
+                "username": "root"
+            },
+            "options": {}
+        }
+        "#;
+        
+        assert!(validate_config_json(config, "mysql").is_ok());
+    }
+
+    #[test]
+    fn test_valid_mongodb_config() {
+        let config = r#"
+        {
+            "version": 1,
+            "auth": {
+                "method": "standard"
+            },
+            "db": {
+                "host": "localhost",
+                "port": 27017
+            },
+            "options": {}
+        }
+        "#;
+        
+        assert!(validate_config_json(config, "mongodb").is_ok());
+    }
+
+    #[test]
+    fn test_valid_mongodb_uri_config() {
+        let config = r#"
+        {
+            "version": 1,
+            "auth": {
+                "method": "uri"
+            },
+            "db": {
+                "uri": "mongodb://localhost:27017"
+            },
+            "options": {}
+        }
+        "#;
+        
+        assert!(validate_config_json(config, "mongodb").is_ok());
+    }
+
+    #[test]
+    fn test_valid_redis_config() {
+        let config = r#"
+        {
+            "version": 1,
+            "db": {
+                "host": "localhost",
+                "port": 6379
+            },
+            "options": {}
+        }
+        "#;
+        
+        assert!(validate_config_json(config, "redis").is_ok());
+    }
+
+    #[test]
+    fn test_valid_elasticsearch_config() {
+        let config = r#"
+        {
+            "version": 1,
+            "auth": {
+                "method": "basic"
+            },
+            "db": {
+                "host": "localhost",
+                "port": 9200
+            },
+            "options": {}
+        }
+        "#;
+        
+        assert!(validate_config_json(config, "elasticsearch").is_ok());
+    }
+
+    #[test]
+    fn test_invalid_postgres_transport_type() {
+        let config = r#"
+        {
+            "version": 1,
+            "db": {
+                "host": "localhost",
+                "database": "test",
+                "username": "postgres"
+            },
+            "transport": {
+                "type": "invalid"
+            }
+        }
+        "#;
+        
+        assert!(validate_config_json(config, "postgresql").is_err());
+    }
+
+    #[test]
+    fn test_invalid_postgres_ssh_auth_type() {
+        let config = r#"
+        {
+            "version": 1,
+            "db": {
+                "host": "localhost",
+                "database": "test",
+                "username": "postgres"
+            },
+            "transport": {
+                "type": "ssh",
+                "ssh": {
+                    "host": "bastion",
+                    "user": "user",
+                    "auth": {
+                        "type": "invalid"
+                    }
+                }
+            }
+        }
+        "#;
+        
+        assert!(validate_config_json(config, "postgresql").is_err());
+    }
+
+    #[test]
+    fn test_invalid_postgres_sslmode() {
+        let config = r#"
+        {
+            "version": 1,
+            "db": {
+                "host": "localhost",
+                "database": "test",
+                "username": "postgres"
+            },
+            "transport": {
+                "type": "direct"
+            },
+            "tls": {
+                "enabled": true,
+                "sslmode": "invalid"
+            }
+        }
+        "#;
+        
+        assert!(validate_config_json(config, "postgresql").is_err());
+    }
 }
