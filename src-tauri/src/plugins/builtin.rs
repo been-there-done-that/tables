@@ -63,7 +63,7 @@ impl Plugin for ConnectionPlugin {
                 "athena".to_string(),
             ],
             dependencies: vec![],
-            command_count: 11,
+            command_count: 12,
             enabled: true,
         }
     }

@@ -82,6 +82,17 @@ pub async fn test_connection(
     manager.test_connection(&connection, &credentials).await
 }
 
+/// Test a stored connection by ID
+#[tauri::command]
+pub async fn test_connection_by_id(
+    id: String,
+    db_state: State<'_, DatabaseState>,
+    conn_state: State<'_, ConnectionManagerState>,
+) -> Result<ConnectionInfo, String> {
+    let manager = ConnectionManager::from_state(&db_state, &conn_state);
+    manager.test_connection_by_id(&id).await
+}
+
 /// Get favorite connections
 #[tauri::command]
 pub async fn get_favorite_connections(

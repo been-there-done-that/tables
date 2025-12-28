@@ -1,33 +1,54 @@
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/core";
-  import { listConnections } from "$lib/commands/client";
-  import type { Connection } from "$lib/commands/types";
+  import {
+    IconDatabase,
+    IconPlus,
+    IconRefresh,
+    IconPlugConnected,
+  } from "@tabler/icons-svelte";
   import { onMount } from "svelte";
-  import IconDatabase from "@tabler/icons-svelte/icons/database";
+  import { listConnections, testConnectionById } from "$lib/commands/client";
+  import type { Connection } from "$lib/commands/types";
+  import Button from "$lib/components/Button.svelte";
+  import ConnectionModal from "$lib/components/datasource/ConnectionModal.svelte";
 
-  let showDatasource = $state(false);
   let connections = $state<Connection[]>([]);
-  let loading = $state(true);
-
-  const openSettingsWindow = async () => {
-    try {
-      await invoke("open_appearance_window");
-    } catch (e) {
-      console.error("Failed to open appearance window:", e);
-    }
-  };
+  let isLoading = $state(true);
+  let showModal = $state(false);
+  let testingId = $state<string | null>(null);
 
   async function loadConnections() {
-    loading = true;
+    isLoading = true;
     try {
       const result = await listConnections();
-      if (result.success && result.data) {
+      if (result.success) {
         connections = result.data;
+      } else {
+        console.error("Failed to load connections:", result.error);
       }
     } catch (err) {
-      console.error("Failed to load connections:", err);
+      console.error("Error loading connections:", err);
     } finally {
-      loading = false;
+      isLoading = false;
+    }
+  }
+
+  async function handleTestStoredConnection(id: string) {
+    if (testingId) return; // Prevent concurrent tests
+    testingId = id;
+    try {
+      // 1. Test connection directly using ID (securely on backend)
+      const testResult = await testConnectionById(id);
+
+      if (testResult.success && testResult.data) {
+        alert(`Connection Successful!\nVersion: ${testResult.data.version}`);
+      } else {
+        alert(`Connection Failed:\n${testResult.error}`);
+      }
+    } catch (err) {
+      console.error("Test failed:", err);
+      alert(`Test failed: ${String(err)}`);
+    } finally {
+      testingId = null;
     }
   }
 
@@ -37,74 +58,131 @@
 </script>
 
 <div
-  class="h-full flex flex-col p-6 bg-[--theme-bg-primary] text-[--theme-fg-primary]"
+  class="h-full flex flex-col bg-[--theme-bg-primary] text-[--theme-fg-primary]"
 >
-  <div class="flex justify-between items-center mb-6">
-    <h1 class="text-xl font-medium tracking-tight">Connections</h1>
-    <button
-      class="px-3 py-1.5 text-xs font-medium bg-[--theme-bg-tertiary] hover:bg-[--theme-bg-secondary] text-[--theme-fg-secondary] hover:text-[--theme-fg-primary] rounded transition-colors"
-      onclick={loadConnections}
-    >
-      Refresh
-    </button>
+  <!-- Header -->
+  <div
+    class="h-14 shrink-0 border-b border-[--theme-border-default] px-6 flex items-center justify-between"
+  >
+    <div class="flex items-center gap-3">
+      <div
+        class="p-1.5 rounded-lg bg-[--theme-accent-primary]/10 text-[--theme-accent-primary]"
+      >
+        <IconDatabase class="size-5" />
+      </div>
+      <h1 class="font-medium">Database Connections</h1>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <button
+        onclick={loadConnections}
+        class="p-2 text-[--theme-fg-tertiary] hover:text-[--theme-fg-primary] hover:bg-[--theme-bg-secondary] rounded-md transition-colors"
+        title="Refresh List"
+      >
+        <IconRefresh class={`size-4 ${isLoading ? "animate-spin" : ""}`} />
+      </button>
+      <Button onClick={() => (showModal = true)} icon={IconPlus}
+        >New Connection</Button
+      >
+    </div>
   </div>
 
-  {#if loading}
-    <div class="text-[--theme-fg-secondary] text-sm">
-      Loading connections...
-    </div>
-  {:else if connections.length === 0}
-    <div
-      class="flex flex-col items-center justify-center py-12 text-[--theme-fg-tertiary]"
-    >
-      <IconDatabase class="size-12 mb-3 opacity-20" />
-      <p class="text-sm">No connections found</p>
-    </div>
-  {:else}
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {#each connections as conn}
-        <div
-          class="p-4 rounded-lg border border-[--theme-border-default] bg-[--theme-bg-secondary]/30 hover:bg-[--theme-bg-secondary]/50 transition-colors group"
+  <!-- Content -->
+  <div class="flex-1 overflow-y-auto p-6">
+    {#if isLoading && connections.length === 0}
+      <div
+        class="flex items-center justify-center h-48 text-[--theme-fg-tertiary]"
+      >
+        <span class="flex items-center gap-2">
+          <IconRefresh class="size-4 animate-spin" />
+          Loading connections...
+        </span>
+      </div>
+    {:else if connections.length === 0}
+      <div
+        class="flex flex-col items-center justify-center h-64 text-center border-2 border-dashed border-[--theme-border-default] rounded-xl bg-[--theme-bg-secondary]/10 m-4"
+      >
+        <div class="p-4 rounded-full bg-[--theme-bg-secondary] mb-4">
+          <IconDatabase class="size-8 text-[--theme-fg-tertiary]" />
+        </div>
+        <h3 class="text-lg font-medium mb-1">No connections yet</h3>
+        <p class="text-[--theme-fg-secondary] text-sm max-w-xs mb-6">
+          Add your first database connection to start exploring your data.
+        </p>
+        <Button onClick={() => (showModal = true)} icon={IconPlus}
+          >Add Connection</Button
         >
-          <div class="flex items-start justify-between mb-2">
-            <div class="flex items-center gap-2">
-              <div
-                class="size-8 rounded flex items-center justify-center bg-[--theme-bg-tertiary] text-[--theme-fg-secondary]"
-              >
-                <IconDatabase class="size-5" />
+      </div>
+    {:else}
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {#each connections as conn}
+          <div
+            class="p-4 rounded-lg border border-[--theme-border-default] bg-[--theme-bg-secondary]/30 hover:bg-[--theme-bg-secondary]/50 transition-colors group flex flex-col h-full"
+          >
+            <div class="flex items-start justify-between mb-2">
+              <div class="flex items-center gap-2">
+                <div
+                  class="size-8 rounded flex items-center justify-center bg-[--theme-bg-tertiary] text-[--theme-fg-secondary]"
+                >
+                  <IconDatabase class="size-5" />
+                </div>
+                <div>
+                  <div class="font-medium text-sm text-[--theme-fg-primary]">
+                    {conn.name}
+                  </div>
+                  <div class="text-xs text-[--theme-fg-tertiary] capitalize">
+                    {conn.engine}
+                  </div>
+                </div>
               </div>
-              <div>
-                <div class="font-medium text-sm text-[--theme-fg-primary]">
-                  {conn.name}
-                </div>
-                <div class="text-xs text-[--theme-fg-tertiary] capitalize">
-                  {conn.engine}
-                </div>
+
+              {#if conn.is_favorite}
+                <div class="size-1.5 rounded-full bg-amber-400"></div>
+              {/if}
+            </div>
+
+            <div
+              class="mt-4 pt-3 border-t border-[--theme-border-default] flex justify-between items-center text-xs text-[--theme-fg-tertiary]"
+            >
+              <span>{conn.host || "Local"}</span>
+              <span>{conn.port || "-"}</span>
+            </div>
+
+            <div
+              class="mt-3 pt-3 border-t border-[--theme-border-default] grow"
+            >
+              <div class="max-h-32 overflow-y-auto custom-scrollbar">
+                <pre
+                  class="text-[10px] leading-tight text-[--theme-fg-tertiary] p-2 bg-[--theme-bg-tertiary]/50 rounded">{JSON.stringify(
+                    conn,
+                    null,
+                    2,
+                  )}</pre>
               </div>
             </div>
 
-            {#if conn.is_favorite}
-              <div class="size-1.5 rounded-full bg-amber-400"></div>
-            {/if}
+            <div
+              class="mt-4 pt-3 border-t border-[--theme-border-default] flex justify-end"
+            >
+              <button
+                onclick={() => handleTestStoredConnection(conn.id)}
+                class="text-xs flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-[--theme-bg-tertiary] hover:bg-[--theme-bg-hover] text-[--theme-fg-secondary] hover:text-[--theme-fg-primary] border border-[--theme-border-default] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={testingId === conn.id}
+              >
+                {#if testingId === conn.id}
+                  <IconRefresh class="size-3.5 animate-spin" />
+                  Testing...
+                {:else}
+                  <IconPlugConnected class="size-3.5" />
+                  Test Connection
+                {/if}
+              </button>
+            </div>
           </div>
-
-          <div
-            class="mt-4 pt-3 border-t border-[--theme-border-default] flex justify-between items-center text-xs text-[--theme-fg-tertiary]"
-          >
-            <span>{conn.host || "Local"}</span>
-            <span>{conn.port || "-"}</span>
-          </div>
-
-          <div class="mt-3 pt-3 border-t border-[--theme-border-default]">
-            <pre
-              class="text-[10px] leading-tight text-[--theme-fg-tertiary] overflow-x-auto p-2 bg-[--theme-bg-tertiary]/50 rounded">{JSON.stringify(
-                conn,
-                null,
-                2,
-              )}</pre>
-          </div>
-        </div>
-      {/each}
-    </div>
-  {/if}
+        {/each}
+      </div>
+    {/if}
+  </div>
 </div>
+
+<ConnectionModal bind:open={showModal} />

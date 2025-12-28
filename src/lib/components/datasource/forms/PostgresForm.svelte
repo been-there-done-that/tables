@@ -123,6 +123,10 @@
             const runtimeConfig = {
                 engine: "postgresql",
                 ...data,
+                db: {
+                    ...data.db,
+                    password: null,
+                },
             };
 
             const now = Math.floor(Date.now() / 1000);

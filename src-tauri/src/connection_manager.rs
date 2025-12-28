@@ -200,15 +200,33 @@ impl ConnectionManager {
     }
 
     // Test connection
-    pub async fn test_connection(&self, connection: &Connection, _credentials: &SecureCredentials) -> Result<ConnectionInfo, String> {
+    pub async fn test_connection(&self, connection: &Connection, credentials: &SecureCredentials) -> Result<ConnectionInfo, String> {
         // For saved connections, we use the stored config_json
-        let config: serde_json::Value = serde_json::from_str(&connection.config_json)
+        let mut config: serde_json::Value = serde_json::from_str(&connection.config_json)
             .map_err(|e| {
                 error!("Failed to parse connection config for {}: {}", connection.id, e);
                 format!("Failed to parse connection config: {}", e)
             })?;
             
+        // Inject credentials into config
+        if let Some(db) = config.get_mut("db") {
+            if let Some(db_obj) = db.as_object_mut() {
+                if let Some(password) = &credentials.password {
+                    debug!("Injecting password from secure credentials into connection config");
+                    db_obj.insert("password".to_string(), serde_json::Value::String(password.expose().to_string()));
+                }
+            }
+        }
+            
         self.test_connection_params(connection.engine.clone(), config).await
+    }
+
+    pub async fn test_connection_by_id(&self, id: &str) -> Result<ConnectionInfo, String> {
+        // 1. Get connection metadata (no credentials returned)
+        let (connection, credentials) = self.get_connection(id).map_err(|e| format!("Failed to get connection: {}", e))?;
+        
+        // 2. Test using the retrieved internal credentials
+        self.test_connection(&connection, &credentials).await
     }
 
     pub async fn test_connection_params(&self, engine: String, config: serde_json::Value) -> Result<ConnectionInfo, String> {

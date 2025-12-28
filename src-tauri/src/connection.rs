@@ -195,26 +195,26 @@ impl Default for AuthType {
 // Sensitive data - never stored in database
 #[derive(Clone, Serialize, Deserialize)]
 pub struct SecureCredentials {
-    #[serde(skip)]
+    #[serde(skip_serializing)]
     pub password: Option<SecretString>,
-    #[serde(skip)]
+    #[serde(skip_serializing)]
     pub ssh_private_key: Option<SecretString>,
-    #[serde(skip)]
+    #[serde(skip_serializing)]
     pub ssh_passphrase: Option<SecretString>,
-    #[serde(skip)]
+    #[serde(skip_serializing)]
     pub ssl_certificate: Option<SecretString>,
-    #[serde(skip)]
+    #[serde(skip_serializing)]
     pub ssl_private_key: Option<SecretString>,
-    #[serde(skip)]
+    #[serde(skip_serializing)]
     pub ssl_ca_certificate: Option<SecretString>,
-    #[serde(skip)]
+    #[serde(skip_serializing)]
     pub api_token: Option<SecretString>,
     // AWS S3 credentials
-    #[serde(skip)]
+    #[serde(skip_serializing)]
     pub aws_access_key_id: Option<SecretString>,
-    #[serde(skip)]
+    #[serde(skip_serializing)]
     pub aws_secret_access_key: Option<SecretString>,
-    #[serde(skip)]
+    #[serde(skip_serializing)]
     pub aws_session_token: Option<SecretString>,
 }
 
@@ -254,7 +254,8 @@ impl Default for SecureCredentials {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct SecretString {
     inner: String,
 }
@@ -269,10 +270,10 @@ impl SecretString {
     }
 
     pub fn into_string(mut self) -> String {
-    let result = self.inner.clone();
-    self.zeroize();
-    result
-}
+        let result = self.inner.clone();
+        self.zeroize();
+        result
+    }
 
     /// Zeroize the secret when dropped
     fn zeroize(&mut self) {
