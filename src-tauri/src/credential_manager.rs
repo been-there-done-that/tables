@@ -202,6 +202,19 @@ impl CredentialManager {
         Ok(())
     }
 
+    // Check if any credentials exist for a connection without decrypting them
+    pub fn has_credentials(&self, connection_id: &str) -> Result<bool, String> {
+        let conn = self.db.lock().map_err(|e| format!("Database lock failed: {}", e))?;
+        
+        let count: i64 = conn.query_row(
+            "SELECT count(*) FROM credentials WHERE connection_id = ?1 LIMIT 1",
+            params![connection_id],
+            |row| row.get(0),
+        ).map_err(|e| format!("Failed to check credentials: {}", e))?;
+        
+        Ok(count > 0)
+    }
+
     // Check if store is available (always true for DB-backed)
     pub fn is_available(&self) -> bool {
         true
