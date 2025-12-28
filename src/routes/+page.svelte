@@ -27,6 +27,11 @@
   let connectionToDelete = $state<string | null>(null);
   let isDeleting = $state(false);
 
+  // Test result dialog state
+  let showTestResult = $state(false);
+  let testResultMessage = $state('');
+  let testResultType = $state<'success' | 'error'>('success');
+
   async function loadConnections() {
     isLoading = true;
     try {
@@ -81,13 +86,19 @@
       const testResult = await testConnectionById(id);
 
       if (testResult.success && testResult.data) {
-        alert(`Connection Successful!\nVersion: ${testResult.data.version}`);
+        testResultMessage = 'Connection test successful!';
+        testResultType = 'success';
+        showTestResult = true;
       } else {
-        alert(`Connection Failed:\n${testResult.error}`);
+        testResultMessage = `Connection test failed: ${testResult.error}`;
+        testResultType = 'error';
+        showTestResult = true;
       }
     } catch (err) {
       console.error("Test failed:", err);
-      alert(`Test failed: ${String(err)}`);
+      testResultMessage = `Test failed: ${String(err)}`;
+      testResultType = 'error';
+      showTestResult = true;
     } finally {
       testingId = null;
     }
@@ -248,3 +259,39 @@
   onConfirm={handleConfirmDelete}
   onCancel={handleCancelDelete}
 />
+
+<!-- Test Result Modal -->
+{#if showTestResult}
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+    <div class="bg-[--theme-bg-primary] rounded-lg p-6 max-w-md w-full mx-4 border border-[--theme-border-default]">
+      <div class="flex items-center gap-3 mb-4">
+        {#if testResultType === 'success'}
+          <div class="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
+            <svg class="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+            </svg>
+          </div>
+          <h3 class="text-lg font-semibold text-[--theme-fg-primary]">Success</h3>
+        {:else}
+          <div class="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center">
+            <svg class="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+            </svg>
+          </div>
+          <h3 class="text-lg font-semibold text-[--theme-fg-primary]">Error</h3>
+        {/if}
+      </div>
+      
+      <p class="text-[--theme-fg-secondary] mb-6">{testResultMessage}</p>
+      
+      <div class="flex justify-end">
+        <button
+          onclick={() => showTestResult = false}
+          class="px-4 py-2 bg-[--theme-bg-tertiary] hover:bg-[--theme-bg-hover] text-[--theme-fg-secondary] hover:text-[--theme-fg-primary] rounded-md border border-[--theme-border-default] transition-colors"
+        >
+          OK
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}

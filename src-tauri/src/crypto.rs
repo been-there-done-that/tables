@@ -8,7 +8,7 @@ use aes_gcm::{
 };
 use aes_gcm::aead::generic_array::GenericArray;
 use zeroize::{Zeroize, ZeroizeOnDrop};
-use log::{info, warn, error, debug};
+use log::{info, warn, error, debug, trace};
 use std::os::unix::fs::PermissionsExt;
 
 const KEY_SIZE: usize = 32;
@@ -54,6 +54,7 @@ impl MasterKeyManager {
     }
 
     pub fn load_or_generate(&self) -> Result<MasterKey, String> {
+        trace!("Checking if master key exists");
         if self.key_path.exists() {
             self.load()
         } else {
@@ -67,6 +68,7 @@ impl MasterKeyManager {
         // Verify permissions on Unix
         #[cfg(unix)]
         {
+            trace!("Verifying file permissions");
             let metadata = fs::metadata(&self.key_path)
                 .map_err(|e| format!("Failed to read key file metadata: {}", e))?;
             let permissions = metadata.permissions();
@@ -83,9 +85,11 @@ impl MasterKeyManager {
             }
         }
 
+        trace!("Reading key file");
         let hex_string = fs::read_to_string(&self.key_path)
             .map_err(|e| format!("Failed to read master key file: {}", e))?;
         
+        trace!("Decoding hex string");
         let key_bytes = hex::decode(hex_string.trim())
             .map_err(|e| format!("Failed to decode master key: {}", e))?;
 
@@ -93,6 +97,7 @@ impl MasterKeyManager {
             return Err(format!("Invalid master key size: expected {} bytes, got {}", KEY_SIZE, key_bytes.len()));
         }
 
+        trace!("Creating master key from bytes");
         let mut key_array = [0u8; KEY_SIZE];
         key_array.copy_from_slice(&key_bytes);
         
@@ -102,17 +107,21 @@ impl MasterKeyManager {
     fn generate(&self) -> Result<MasterKey, String> {
         debug!("Generating new master key at {:?}", self.key_path);
         
+        trace!("Generating random key bytes");
         let mut key_bytes = [0u8; KEY_SIZE];
         OsRng.fill_bytes(&mut key_bytes);
         
+        trace!("Encoding key bytes to hex");
         let hex_string = hex::encode(key_bytes);
         
         // Write file with restricted permissions
+        trace!("Creating key file");
         let mut file = fs::File::create(&self.key_path)
             .map_err(|e| format!("Failed to create master key file: {}", e))?;
             
         #[cfg(unix)]
         {
+            trace!("Setting secure permissions on key file");
             let mut perms = file.metadata()
                 .map_err(|e| format!("Failed to get file metadata: {}", e))?
                 .permissions();
@@ -121,6 +130,7 @@ impl MasterKeyManager {
                 .map_err(|e| format!("Failed to set permissions: {}", e))?;
         }
 
+        trace!("Writing hex string to key file");
         file.write_all(hex_string.as_bytes())
             .map_err(|e| format!("Failed to write master key: {}", e))?;
 
@@ -129,25 +139,33 @@ impl MasterKeyManager {
 }
 
 pub fn encrypt(data: &[u8], key: &MasterKey) -> Result<(Vec<u8>, Vec<u8>), String> {
+    trace!("Encrypting data with AES-256-GCM");
     let key_array = GenericArray::from_slice(key.as_bytes());
     let cipher = Aes256Gcm::new(key_array);
     
     let nonce = Aes256Gcm::generate_nonce(&mut OsRng); // 96-bits, unique per encryption
     
     let ciphertext = cipher.encrypt(&nonce, data)
-        .map_err(|e| format!("Encryption failed: {}", e))?;
+        .map_err(|e| {
+            warn!("Encryption failed: {}", e);
+            format!("Encryption failed: {}", e)
+        })?;
         
     Ok((ciphertext, nonce.to_vec()))
 }
 
 pub fn decrypt(ciphertext: &[u8], nonce_bytes: &[u8], key: &MasterKey) -> Result<Vec<u8>, String> {
+    trace!("Decrypting data with AES-256-GCM");
     let key_array = GenericArray::from_slice(key.as_bytes());
     let cipher = Aes256Gcm::new(key_array);
     
     let nonce = Nonce::from_slice(nonce_bytes);
     
     let plaintext = cipher.decrypt(nonce, ciphertext)
-        .map_err(|e| format!("Decryption failed: {}", e))?;
+        .map_err(|e| {
+            warn!("Decryption failed: {}", e);
+            format!("Decryption failed: {}", e)
+        })?;
         
     Ok(plaintext)
 }

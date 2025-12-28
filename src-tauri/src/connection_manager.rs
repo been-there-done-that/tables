@@ -43,10 +43,15 @@ impl ConnectionManager {
 
     // Create a new connection
     pub fn create_connection(&self, connection: Connection, credentials: SecureCredentials) -> Result<String, String> {
+        debug!("Creating connection '{}' with id {}", connection.name, connection.id);
         // Store connection metadata in database
         {
+            debug!("Storing connection metadata in database");
             let conn = self.db.lock()
-                .map_err(|e| format!("Failed to lock database: {}", e))?;
+                .map_err(|e| {
+                    error!("Failed to lock database for connection '{}': {}", connection.id, e);
+                    format!("Failed to lock database: {}", e)
+                })?;
 
             conn.execute(
                 "INSERT INTO connections (
@@ -72,89 +77,143 @@ impl ConnectionManager {
                     connection.last_connected_at,
                     connection.connection_count,
                 ],
-            ).map_err(|e| format!("Failed to insert connection: {}", e))?;
+            ).map_err(|e| {
+                error!("Failed to insert connection '{}' into database: {}", connection.id, e);
+                format!("Failed to insert connection: {}", e)
+            })?;
+            debug!("Connection metadata stored successfully");
         } // Lock is dropped here
 
         // Store credentials in secure storage
         if !credentials.is_empty() {
+            debug!("Storing credentials for connection '{}'", connection.id);
             self.credential_manager.store_credentials(&connection.id, &credentials)
-                .map_err(|e| format!("Failed to store credentials: {}", e))?;
+                .map_err(|e| {
+                    error!("Failed to store credentials for connection '{}': {}", connection.id, e);
+                    format!("Failed to store credentials: {}", e)
+                })?;
+            debug!("Credentials stored successfully");
+        } else {
+            debug!("No credentials to store for connection '{}'", connection.id);
         }
 
+        info!("Connection '{}' created successfully", connection.name);
         Ok(connection.id)
     }
 
     // Get connection with credentials
     pub fn get_connection(&self, id: &str) -> Result<(Connection, SecureCredentials), String> {
+        debug!("Retrieving connection with id '{}'", id);
         // Get connection metadata from database
         let connection = {
+            debug!("Fetching connection metadata from database");
             let conn = self.db.lock()
-                .map_err(|e| format!("Failed to lock database: {}", e))?;
+                .map_err(|e| {
+                    error!("Failed to lock database for connection '{}': {}", id, e);
+                    format!("Failed to lock database: {}", e)
+                })?;
 
             conn.query_row(
                 "SELECT id, name, engine, host, port, database, username, uses_ssh, uses_tls, config_json, is_favorite, color_tag, created_at, updated_at, last_connected_at, connection_count
                  FROM connections WHERE id = ?1",
                 params![id],
                 load_connection_from_row,
-            ).map_err(|e| format!("Failed to get connection: {}", e))?
+            ).map_err(|e| {
+                error!("Failed to get connection '{}' from database: {}", id, e);
+                format!("Failed to get connection: {}", e)
+            })?
         }; // Lock is dropped here
+        debug!("Connection metadata retrieved for '{}'", id);
 
         // Check if credentials exist for this connection
         let has_creds = self.credential_manager.has_credentials(id)
-            .map_err(|e| format!("Failed to check if credentials exist: {}", e))?;
+            .map_err(|e| {
+                error!("Failed to check credentials existence for connection '{}': {}", id, e);
+                format!("Failed to check if credentials exist: {}", e)
+            })?;
 
         let credentials = if has_creds {
-            debug!("Fetching credentials for connection {} (found in DB)", id);
+            debug!("Fetching credentials for connection '{}' (found in DB)", id);
             // Get credentials from secure storage
             self.credential_manager.get_credentials(id)
-                .map_err(|e| format!("Failed to get credentials: {}", e))?
+                .map_err(|e| {
+                    error!("Failed to get credentials for connection '{}': {}", id, e);
+                    format!("Failed to get credentials: {}", e)
+                })?
         } else {
-            debug!("Skipping credential fetch for connection {} (none found in DB)", id);
+            debug!("Skipping credential fetch for connection '{}' (none found in DB)", id);
             SecureCredentials::new()
         };
 
+        debug!("Connection '{}' retrieved successfully", id);
         Ok((connection, credentials))
     }
 
     // Get connection metadata only (without credentials)
     pub fn get_connection_metadata(&self, id: &str) -> Result<Connection, String> {
+        debug!("Getting connection metadata for id '{}'", id);
         let conn = self.db.lock()
-            .map_err(|e| format!("Failed to lock database: {}", e))?;
+            .map_err(|e| {
+                error!("Failed to lock database for connection metadata '{}': {}", id, e);
+                format!("Failed to lock database: {}", e)
+            })?;
 
         conn.query_row(
             "SELECT id, name, engine, host, port, database, username, uses_ssh, uses_tls, config_json, is_favorite, color_tag, created_at, updated_at, last_connected_at, connection_count
              FROM connections WHERE id = ?1",
             params![id],
             load_connection_from_row,
-        ).map_err(|e| format!("Failed to get connection: {}", e))
+        ).map_err(|e| {
+            error!("Failed to get connection metadata for '{}': {}", id, e);
+            format!("Failed to get connection: {}", e)
+        })
     }
 
     // List all connections (without credentials)
     pub fn list_connections(&self) -> Result<Vec<Connection>, String> {
+        debug!("Listing all connections");
         let conn = self.db.lock()
-            .map_err(|e| format!("Failed to lock database: {}", e))?;
+            .map_err(|e| {
+                error!("Failed to lock database for listing connections: {}", e);
+                format!("Failed to lock database: {}", e)
+            })?;
 
         let mut stmt = conn.prepare(
             "SELECT id, name, engine, host, port, database, username, uses_ssh, uses_tls, config_json, is_favorite, color_tag, created_at, updated_at, last_connected_at, connection_count
              FROM connections ORDER BY name COLLATE NOCASE"
-        ).map_err(|e| format!("Failed to prepare query: {}", e))?;
+        ).map_err(|e| {
+            error!("Failed to prepare query for listing connections: {}", e);
+            format!("Failed to prepare query: {}", e)
+        })?;
 
         let rows = stmt.query_map([], load_connection_from_row)
-            .map_err(|e| format!("Failed to query connections: {}", e))?;
+            .map_err(|e| {
+                error!("Failed to query connections: {}", e);
+                format!("Failed to query connections: {}", e)
+            })?;
 
         let mut connections = Vec::new();
         for row in rows {
-            connections.push(row.map_err(|e| format!("Failed to read connection: {}", e))?);
+            connections.push(row.map_err(|e| {
+                error!("Failed to read connection: {}", e);
+                format!("Failed to read connection: {}", e)
+            })?);
         }
 
+        debug!("Retrieved {} connections", connections.len());
         Ok(connections)
     }
 
     // Update connection
     pub fn update_connection(&self, mut connection: Connection, credentials: Option<SecureCredentials>) -> Result<(), String> {
+        debug!("Updating connection '{}' with id {}", connection.name, connection.id);
         {
+            debug!("Updating connection metadata in database");
             let conn = self.db.lock()
-                .map_err(|e| format!("Failed to lock database: {}", e))?;
+                .map_err(|e| {
+                    error!("Failed to lock database for updating connection '{}': {}", connection.id, e);
+                    format!("Failed to lock database: {}", e)
+                })?;
 
             connection.update_timestamp();
 
@@ -179,35 +238,62 @@ impl ConnectionManager {
                     connection.color_tag,
                     connection.updated_at
                 ],
-            ).map_err(|e| format!("Failed to update connection: {}", e))?;
+            ).map_err(|e| {
+                error!("Failed to update connection '{}' in database: {}", connection.id, e);
+                format!("Failed to update connection: {}", e)
+            })?;
+            debug!("Connection metadata updated successfully");
         } // Lock is dropped here
 
         // Update credentials if provided
         if let Some(credentials) = credentials {
             if !credentials.is_empty() {
+                debug!("Updating credentials for connection '{}'", connection.id);
                 self.credential_manager.store_credentials(&connection.id, &credentials)
-                    .map_err(|e| format!("Failed to store credentials: {}", e))?;
+                    .map_err(|e| {
+                        error!("Failed to store updated credentials for connection '{}': {}", connection.id, e);
+                        format!("Failed to store credentials: {}", e)
+                    })?;
+                debug!("Credentials updated successfully");
+            } else {
+                debug!("No credentials provided for connection '{}'", connection.id);
             }
         }
 
+        info!("Connection '{}' updated successfully", connection.name);
         Ok(())
     }
 
     // Delete connection
     pub fn delete_connection(&self, id: &str) -> Result<(), String> {
+        debug!("Deleting connection with id '{}'", id);
         // Delete from database
         {
+            debug!("Deleting connection metadata from database");
             let conn = self.db.lock()
-                .map_err(|e| format!("Failed to lock database: {}", e))?;
+                .map_err(|e| {
+                    error!("Failed to lock database for deleting connection '{}': {}", id, e);
+                    format!("Failed to lock database: {}", e)
+                })?;
 
             conn.execute("DELETE FROM connections WHERE id = ?1", params![id])
-                .map_err(|e| format!("Failed to delete connection: {}", e))?;
+                .map_err(|e| {
+                    error!("Failed to delete connection '{}' from database: {}", id, e);
+                    format!("Failed to delete connection: {}", e)
+                })?;
+            debug!("Connection metadata deleted successfully");
         } // Lock is dropped here
 
         // Delete credentials from secure storage
+        debug!("Deleting credentials for connection '{}'", id);
         self.credential_manager.delete_all_credentials(id)
-            .map_err(|e| format!("Failed to delete credentials: {}", e))?;
+            .map_err(|e| {
+                error!("Failed to delete credentials for connection '{}': {}", id, e);
+                format!("Failed to delete credentials: {}", e)
+            })?;
+        debug!("Credentials deleted successfully");
 
+        info!("Connection '{}' deleted successfully", id);
         Ok(())
     }
 
@@ -458,8 +544,12 @@ impl ConnectionManager {
 
     // Increment connection count and update last connected timestamp
     pub fn update_connection_stats(&self, id: &str) -> Result<(), String> {
+        debug!("Updating connection stats for id '{}'", id);
         let conn = self.db.lock()
-            .map_err(|e| format!("Failed to lock database: {}", e))?;
+            .map_err(|e| {
+                error!("Failed to lock database for updating stats for connection '{}': {}", id, e);
+                format!("Failed to lock database: {}", e)
+            })?;
 
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -469,36 +559,58 @@ impl ConnectionManager {
         conn.execute(
             "UPDATE connections SET connection_count = connection_count + 1, last_connected_at = ?2 WHERE id = ?1",
             params![id, now]
-        ).map_err(|e| format!("Failed to update connection stats: {}", e))?;
+        ).map_err(|e| {
+            error!("Failed to update connection stats for '{}': {}", id, e);
+            format!("Failed to update connection stats: {}", e)
+        })?;
 
+        debug!("Connection stats updated for '{}'", id);
         Ok(())
     }
 
     // Get favorite connections
     pub fn get_favorite_connections(&self) -> Result<Vec<Connection>, String> {
+        debug!("Getting favorite connections");
         let conn = self.db.lock()
-            .map_err(|e| format!("Failed to lock database: {}", e))?;
+            .map_err(|e| {
+                error!("Failed to lock database for getting favorite connections: {}", e);
+                format!("Failed to lock database: {}", e)
+            })?;
 
         let mut stmt = conn.prepare(
             "SELECT id, name, engine, host, port, database, username, uses_ssh, uses_tls, config_json, is_favorite, color_tag, created_at, updated_at, last_connected_at, connection_count
              FROM connections WHERE is_favorite = 1 ORDER BY name COLLATE NOCASE"
-        ).map_err(|e| format!("Failed to prepare query: {}", e))?;
+        ).map_err(|e| {
+            error!("Failed to prepare query for favorite connections: {}", e);
+            format!("Failed to prepare query: {}", e)
+        })?;
 
         let rows = stmt.query_map([], load_connection_from_row)
-            .map_err(|e| format!("Failed to query favorite connections: {}", e))?;
+            .map_err(|e| {
+                error!("Failed to query favorite connections: {}", e);
+                format!("Failed to query favorite connections: {}", e)
+            })?;
 
         let mut connections = Vec::new();
         for row in rows {
-            connections.push(row.map_err(|e| format!("Failed to read connection: {}", e))?);
+            connections.push(row.map_err(|e| {
+                error!("Failed to read favorite connection: {}", e);
+                format!("Failed to read connection: {}", e)
+            })?);
         }
 
+        debug!("Retrieved {} favorite connections", connections.len());
         Ok(connections)
     }
 
     // Search connections by name
     pub fn search_connections(&self, query: &str) -> Result<Vec<Connection>, String> {
+        debug!("Searching connections with query '{}'", query);
         let conn = self.db.lock()
-            .map_err(|e| format!("Failed to lock database: {}", e))?;
+            .map_err(|e| {
+                error!("Failed to lock database for searching connections: {}", e);
+                format!("Failed to lock database: {}", e)
+            })?;
 
         // Escape SQL LIKE special characters to prevent unexpected behavior
         let escaped_query = query.replace('%', "\\%").replace('_', "\\_");
@@ -507,16 +619,26 @@ impl ConnectionManager {
         let mut stmt = conn.prepare(
             "SELECT id, name, engine, host, port, database, username, uses_ssh, uses_tls, config_json, is_favorite, color_tag, created_at, updated_at, last_connected_at, connection_count
              FROM connections WHERE name LIKE ?1 ESCAPE '\\' OR host LIKE ?1 ESCAPE '\\' ORDER BY name COLLATE NOCASE"
-        ).map_err(|e| format!("Failed to prepare query: {}", e))?;
+        ).map_err(|e| {
+            error!("Failed to prepare search query for '{}': {}", query, e);
+            format!("Failed to prepare query: {}", e)
+        })?;
 
         let rows = stmt.query_map([search_pattern.as_str()], load_connection_from_row)
-            .map_err(|e| format!("Failed to search connections: {}", e))?;
+            .map_err(|e| {
+                error!("Failed to search connections for '{}': {}", query, e);
+                format!("Failed to search connections: {}", e)
+            })?;
 
         let mut connections = Vec::new();
         for row in rows {
-            connections.push(row.map_err(|e| format!("Failed to read connection: {}", e))?);
+            connections.push(row.map_err(|e| {
+                error!("Failed to read searched connection: {}", e);
+                format!("Failed to read connection: {}", e)
+            })?);
         }
 
+        debug!("Search for '{}' returned {} connections", query, connections.len());
         Ok(connections)
     }
 }
