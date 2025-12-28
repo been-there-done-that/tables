@@ -9,7 +9,7 @@
       <div slot="left" class="h-full flex flex-col bg-muted/20">
         <!-- Header -->
         <div
-          class="h-10 border-b border-(--theme-border-default) flex items-center px-4 bg-background/50 flex-none"
+          class="h-8 border-b border-(--theme-border-default) flex items-center px-4 bg-background/50 flex-none"
         >
           <h2 class="font-semibold text-sm">Explorer</h2>
         </div>
@@ -23,7 +23,7 @@
       <div slot="right" class="h-full flex flex-col bg-background">
         <!-- Header -->
         <div
-          class="h-10 border-b border-(--theme-border-default) flex items-center px-4 flex-none"
+          class="h-8 border-b border-(--theme-border-default) flex items-center px-4 flex-none"
         >
           <h2 class="font-semibold text-sm">Database Explorer</h2>
         </div>
