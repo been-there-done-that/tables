@@ -95,10 +95,7 @@ impl ConnectionManager {
             .map_err(|e| format!("Failed to lock database: {}", e))?;
 
         let connection = conn.query_row(
-            "SELECT id, name, engine, host, port, database, username, auth_type,
-                    ssl_enabled, ssh_tunnel_enabled, ssh_tunnel_host, ssh_tunnel_port,
-                    ssh_tunnel_username, connection_params, is_favorite, color_tag,
-                    created_at, updated_at, last_connected_at, connection_count
+            "SELECT id, name, engine, host, port, database, username, uses_ssh, uses_tls, config_json, is_favorite, color_tag, created_at, updated_at, last_connected_at, connection_count
              FROM connections WHERE id = ?1",
             params![id],
             load_connection_from_row,
@@ -117,10 +114,7 @@ impl ConnectionManager {
             .map_err(|e| format!("Failed to lock database: {}", e))?;
 
         conn.query_row(
-            "SELECT id, name, engine, host, port, database, username, auth_type,
-                    ssl_enabled, ssh_tunnel_enabled, ssh_tunnel_host, ssh_tunnel_port,
-                    ssh_tunnel_username, connection_params, is_favorite, color_tag,
-                    created_at, updated_at, last_connected_at, connection_count
+            "SELECT id, name, engine, host, port, database, username, uses_ssh, uses_tls, config_json, is_favorite, color_tag, created_at, updated_at, last_connected_at, connection_count
              FROM connections WHERE id = ?1",
             params![id],
             load_connection_from_row,
@@ -133,10 +127,7 @@ impl ConnectionManager {
             .map_err(|e| format!("Failed to lock database: {}", e))?;
 
         let mut stmt = conn.prepare(
-            "SELECT id, name, engine, host, port, database, username, auth_type,
-                    ssl_enabled, ssh_tunnel_enabled, ssh_tunnel_host, ssh_tunnel_port,
-                    ssh_tunnel_username, connection_params, is_favorite, color_tag,
-                    created_at, updated_at, last_connected_at, connection_count
+            "SELECT id, name, engine, host, port, database, username, uses_ssh, uses_tls, config_json, is_favorite, color_tag, created_at, updated_at, last_connected_at, connection_count
              FROM connections ORDER BY name COLLATE NOCASE"
         ).map_err(|e| format!("Failed to prepare query: {}", e))?;
 
@@ -266,11 +257,16 @@ impl ConnectionManager {
         let user = db.get("username").and_then(|v| v.as_str()).ok_or("Missing username")?;
         let database = db.get("database").and_then(|v| v.as_str()).ok_or("Missing database")?;
         let password = db.get("password").and_then(|v| v.as_str()).unwrap_or("");
-
-        let conn_str = format!("postgresql://{}:{}@{}:{}/{}", user, password, host, port, database);
         
+        let conn_str = format!("postgresql://{}:{}@{}:{}/{}", user, password, host, port, database);
+
         let (client, connection) = tokio_postgres::connect(&conn_str, tokio_postgres::NoTls).await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| {
+                if let Some(db_error) = e.as_db_error() {
+                    return db_error.message().to_string();
+                }
+                e.to_string()
+            })?;
 
         tokio::spawn(async move {
             if let Err(e) = connection.await {
@@ -279,7 +275,12 @@ impl ConnectionManager {
         });
 
         let row = client.query_one("SELECT version()", &[]).await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| {
+                if let Some(db_error) = e.as_db_error() {
+                    return db_error.message().to_string();
+                }
+                e.to_string()
+            })?;
         
         let version: String = row.get(0);
         Ok((version, database.to_string()))
@@ -449,10 +450,7 @@ impl ConnectionManager {
             .map_err(|e| format!("Failed to lock database: {}", e))?;
 
         let mut stmt = conn.prepare(
-            "SELECT id, name, engine, host, port, database, username, auth_type,
-                    ssl_enabled, ssh_tunnel_enabled, ssh_tunnel_host, ssh_tunnel_port,
-                    ssh_tunnel_username, connection_params, is_favorite, color_tag,
-                    created_at, updated_at, last_connected_at, connection_count
+            "SELECT id, name, engine, host, port, database, username, uses_ssh, uses_tls, config_json, is_favorite, color_tag, created_at, updated_at, last_connected_at, connection_count
              FROM connections WHERE is_favorite = 1 ORDER BY name COLLATE NOCASE"
         ).map_err(|e| format!("Failed to prepare query: {}", e))?;
 
@@ -477,10 +475,7 @@ impl ConnectionManager {
         let search_pattern = format!("%{}%", escaped_query);
 
         let mut stmt = conn.prepare(
-            "SELECT id, name, engine, host, port, database, username, auth_type,
-                    ssl_enabled, ssh_tunnel_enabled, ssh_tunnel_host, ssh_tunnel_port,
-                    ssh_tunnel_username, connection_params, is_favorite, color_tag,
-                    created_at, updated_at, last_connected_at, connection_count
+            "SELECT id, name, engine, host, port, database, username, uses_ssh, uses_tls, config_json, is_favorite, color_tag, created_at, updated_at, last_connected_at, connection_count
              FROM connections WHERE name LIKE ?1 ESCAPE '\\' OR host LIKE ?1 ESCAPE '\\' ORDER BY name COLLATE NOCASE"
         ).map_err(|e| format!("Failed to prepare query: {}", e))?;
 
