@@ -14,7 +14,7 @@ pub struct AwsProfile {
     pub profile_source: ProfileSource,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ProfileSource {
     CredentialsFile,
     ConfigFile,

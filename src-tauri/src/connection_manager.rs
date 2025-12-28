@@ -713,7 +713,7 @@ mod tests {
             conn.execute(CREATE_CREDENTIALS_TABLE, []).unwrap();
         }
         let key_manager = MasterKeyManager::new(&temp_dir);
-        let master_key = key_manager.load_or_generate().unwrap();
+        let _master_key = key_manager.load_or_generate().unwrap();
         let credential_manager = Arc::new(CredentialManager::new(&temp_dir, Arc::clone(&db)).unwrap());
         let manager = ConnectionManager::new(db, credential_manager);
         (manager, Arc::new(Mutex::new(SqliteConnection::open_in_memory().unwrap()))) // dummy db for manager
