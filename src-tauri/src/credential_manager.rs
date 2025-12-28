@@ -1,5 +1,6 @@
 use crate::connection::SecureCredentials;
 use keyring::{Entry, Error};
+use log::debug;
 
 pub struct CredentialManager {
     service_name: String,
@@ -186,7 +187,9 @@ impl CredentialManager {
 
     // Store all credentials for a connection
     pub fn store_credentials(&self, connection_id: &str, credentials: &SecureCredentials) -> Result<(), Error> {
+        debug!("Storing credentials for connection {}", connection_id);
         if let Some(password) = &credentials.password {
+            debug!("Storing password for connection {}", connection_id);
             self.store_password(connection_id, password.expose())?;
         }
 
@@ -232,10 +235,14 @@ impl CredentialManager {
 
     // Get all credentials for a connection
     pub fn get_credentials(&self, connection_id: &str) -> Result<SecureCredentials, Error> {
+        debug!("Retrieving credentials for connection {}", connection_id);
         let mut credentials = SecureCredentials::new();
 
         if let Ok(Some(password)) = self.get_password(connection_id) {
+            debug!("Found password for connection {}", connection_id);
             credentials.password = Some(password.into());
+        } else {
+            debug!("No password found for connection {}", connection_id);
         }
 
         if let Ok(Some(ssh_key)) = self.get_ssh_private_key(connection_id) {
