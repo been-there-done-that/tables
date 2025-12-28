@@ -116,10 +116,10 @@
 
           <div class="flex items-center">
             <button
-              class="h-6 w-7 text-xs flex items-center justify-center rounded-md hover:bg-(--theme-bg-hover) active:bg-(--theme-bg-active)"
-              onclick={() => false}
+              class="h-6 w-6"
+              onclick={() => (layoutStates.left = !layoutStates.left)}
             >
-              {#if false}
+              {#if layoutStates.left}
                 <IconLayoutSidebarFilled class="size-5" />
               {:else}
                 <IconLayoutSidebar class="size-5" />
@@ -127,10 +127,10 @@
             </button>
 
             <button
-              class="h-6 w-7 text-xs flex items-center justify-center rounded-md hover:bg-(--theme-bg-hover) active:bg-(--theme-bg-active)"
-              onclick={() => false}
+              class="h-6 w-6"
+              onclick={() => (layoutStates.bottom = !layoutStates.bottom)}
             >
-              {#if false}
+              {#if layoutStates.bottom}
                 <IconLayoutSidebarBottomFilled class="size-5 rotate-90" />
               {:else}
                 <IconLayoutSidebarBottom class="size-5 rotate-90" />
@@ -138,10 +138,10 @@
             </button>
 
             <button
-              class="h-6 w-7 text-xs flex items-center justify-center rounded-md hover:bg-(--theme-bg-hover) active:bg-(--theme-bg-active)"
-              onclick={() => false}
+              class="h-6 w-6"
+              onclick={() => (layoutStates.right = !layoutStates.right)}
             >
-              {#if false}
+              {#if layoutStates.right}
                 <IconLayoutSidebarRightFilled class="size-5" />
               {:else}
                 <IconLayoutSidebarRight class="size-5" />
