@@ -101,9 +101,16 @@ impl ConnectionManager {
             load_connection_from_row,
         ).map_err(|e| format!("Failed to get connection: {}", e))?;
 
+        debug!("Fetching credentials for connection {}", id);
         // Get credentials from keyring
         let credentials = self.credential_manager.get_credentials(id)
             .map_err(|e| format!("Failed to get credentials: {}", e))?;
+        
+        if !credentials.is_empty() {
+            debug!("Successfully retrieved credentials for connection {}", id);
+        } else {
+            debug!("No credentials found (or empty) for connection {}", id);
+        }
 
         Ok((connection, credentials))
     }
