@@ -10,6 +10,8 @@
     import { cn } from "$lib/utils";
     import ListSvg from "$lib/svg/List.svelte";
     import ArrowDownRightCircle from "@tabler/icons-svelte/icons/arrow-down-right-circle";
+    import DiagonalArrowSvg from "$lib/svg/DiagonalArrow.svelte";
+    import { drivers, resolveDriverIcon } from "./datasource/DriverList";
 
     let connections = $state<Connection[]>([]);
     let isOpen = $state(false);
@@ -142,7 +144,7 @@
                 // 2:1 is usually standard for center-aligned resizing.
 
                 const nextWidth = clamp(
-                    startWidth + deltaX * 2,
+                    startWidth + deltaX,
                     MIN_WIDTH,
                     maxWidth,
                 );
@@ -199,7 +201,7 @@
         onclick={() => (isOpen = !isOpen)}
     >
         <div
-            class="flex items-center gap-1 border border-(--theme-border-default) py-1 pl-3 pr-2 rounded-md justify-center shadow-xl bg-(--theme-bg-primary)"
+            class="flex items-center gap-1 border border-dashed border-(--theme-border-default) py-1 pl-3 pr-2 rounded-md justify-center shadow-sm bg-(--theme-bg-primary)"
         >
             {#if selectedConnection}
                 <div class="flex items-center gap-2">
@@ -226,7 +228,7 @@
     {#if rendered}
         <div
             bind:this={panelRef}
-            class="fixed top-[36px] left-1/2 -translate-x-1/2 bg-(--theme-bg-secondary) border border-(--theme-border-default) rounded-lg shadow-xl z-50 overflow-hidden flex flex-col min-w-[200px] anim-pop"
+            class="absolute top-full left-0 mt-1 bg-(--theme-bg-secondary) border border-(--theme-border-default) rounded-lg shadow-xl z-50 overflow-hidden flex flex-col min-w-[200px] anim-pop"
             style={`width: ${width}px; height: ${height}px;`}
             data-state={isOpen ? "open" : "closed"}
             onanimationend={handleAnimationEnd}
@@ -269,6 +271,8 @@
                         Recents
                     </div>
                     {#each connections as conn}
+                        {@const DriverIcon =
+                            resolveDriverIcon(conn.engine) || IconDatabase}
                         <button
                             class={cn(
                                 "w-full flex items-center justify-between px-2 py-1.5 rounded-md text-sm transition-colors group",
@@ -281,7 +285,7 @@
                             <div
                                 class="flex items-center gap-2 overflow-hidden"
                             >
-                                <IconDatabase
+                                <DriverIcon
                                     class={cn(
                                         "size-4 shrink-0",
                                         selectedConnection?.id === conn.id
@@ -307,25 +311,24 @@
 
             <!-- Footer/Status -->
             <div
-                class="px-2 py-1 border-t border-(--theme-border-default) text-[10px] opacity-50 bg-(--theme-bg-tertiary)/30 flex justify-between items-center"
+                class="px-2 py-1 text-[10px] opacity-50 bg-(--theme-bg-tertiary)/30 flex justify-center items-center select-none"
             >
-                <span>{connections.length} connections</span>
-                <div
-                    class="flex gap-1 text-[9px] uppercase tracking-wide opacity-60"
+                <span
+                    >{connections.length} Connection{connections.length === 1
+                        ? ""
+                        : "s"} (0 connected)</span
                 >
-                    resize
-                </div>
             </div>
 
             <!-- Corner resize handle for reliable dragging -->
             <button
                 type="button"
                 aria-label="Resize"
-                class="absolute bottom-1 right-1 w-4 h-4 rounded-sm border border-(--theme-border-default)/80 bg-(--theme-bg-primary)/70 hover:bg-(--theme-bg-primary) cursor-se-resize shadow-sm transition"
+                class="absolute bottom-1 right-1 p-0.5 text-(--theme-fg-secondary) opacity-50 hover:opacity-100 cursor-se-resize transition bg-transparent border border-dashed border-(--theme-border-default) rounded-sm"
                 onpointerdown={startManualResize}
                 title="Drag to resize"
             >
-                <ArrowDownRightCircle class="size-4" />
+                <DiagonalArrowSvg />
             </button>
         </div>
     {/if}
