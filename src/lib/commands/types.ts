@@ -223,6 +223,7 @@ export interface SearchRequest {
 export interface SystemMetrics {
   cpu_percent: number;
   threads: number;
+  pid: number;
 }
 
 export interface PaginatedResponse<T> {

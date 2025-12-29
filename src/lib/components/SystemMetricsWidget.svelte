@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
+  import { listen } from "@tauri-apps/api/event";
   import { getSystemMetrics } from "$lib/commands/client";
   import type { SystemMetrics } from "$lib/commands/types";
 
@@ -7,7 +8,7 @@
   let loading = $state(true);
   let error = $state<string | null>(null);
 
-  let intervalId: number | null = null;
+  let unlisten: (() => void) | null = null;
 
   async function fetchMetrics() {
     try {
@@ -25,23 +26,24 @@
     }
   }
 
-  function formatMemory(kb: number): string {
-    if (kb < 1024) return `${kb} KB`;
-    const mb = kb / 1024;
-    if (mb < 1024) return `${mb.toFixed(1)} MB`;
-    const gb = mb / 1024;
-    return `${gb.toFixed(1)} GB`;
-  }
-
   onMount(() => {
     fetchMetrics();
-    // Update every 2 seconds
-    intervalId = setInterval(fetchMetrics, 5000);
+    // Subscribe to backend broadcast updates
+    listen<SystemMetrics>("metrics:update", (event) => {
+      metrics = event.payload;
+      loading = false;
+      error = null;
+    }).then((off) => {
+      unlisten = off;
+    }).catch((err) => {
+      error = String(err);
+      loading = false;
+    });
   });
 
   onDestroy(() => {
-    if (intervalId) {
-      clearInterval(intervalId);
+    if (unlisten) {
+      unlisten();
     }
   });
 </script>
