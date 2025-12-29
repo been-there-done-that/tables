@@ -55,7 +55,8 @@ impl MetricsRegistry {
     pub fn register_history(&self, name: &'static str, capacity: usize) -> HistoryHandle {
         let mut histories = self.histories.write().unwrap();
         let entry = histories.entry(name).or_insert_with(|| {
-            HistoryHandle(Arc::new(Mutex::new(VecDeque::with_capacity(capacity))), capacity)
+            // (Current Sequence ID, Buffer)
+            HistoryHandle(Arc::new(Mutex::new((0, VecDeque::with_capacity(capacity)))), capacity)
         });
         
         entry.clone()
@@ -78,7 +79,8 @@ impl MetricsRegistry {
         
         for (name, handle) in histories.iter() {
              let data = handle.0.lock().unwrap();
-             history_values.insert(*name, data.iter().cloned().collect::<Vec<f64>>());
+             // Return vector of (seq_id, value)
+             history_values.insert(*name, data.1.iter().cloned().collect::<Vec<(u64, f64)>>());
         }
 
         MetricsSnapshot { values, histories: history_values }
@@ -107,23 +109,27 @@ impl GaugeHandle {
     }
 }
 
+// (Mutex<(NextSeqId, Data)>, Capacity)
 #[derive(Clone)]
-pub struct HistoryHandle(Arc<Mutex<VecDeque<f64>>>, usize);
+pub struct HistoryHandle(Arc<Mutex<(u64, VecDeque<(u64, f64)>)>>, usize);
 
 impl HistoryHandle {
     pub fn push(&self, v: f64) {
-        let mut data = self.0.lock().unwrap();
+        let mut state = self.0.lock().unwrap();
+        let (ref mut seq, ref mut data) = *state;
+        
         if data.len() >= self.1 {
             data.pop_front();
         }
-        data.push_back(v);
+        data.push_back((*seq, v));
+        *seq += 1;
     }
 }
 
 #[derive(Serialize, PartialEq, Debug)]
 pub struct MetricsSnapshot {
     values: HashMap<&'static str, f64>,
-    histories: HashMap<&'static str, Vec<f64>>,
+    histories: HashMap<&'static str, Vec<(u64, f64)>>,
 }
 
 // --- Emission Logic ---
