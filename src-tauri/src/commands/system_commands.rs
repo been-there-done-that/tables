@@ -30,7 +30,7 @@ pub fn get_system_metrics() -> Result<SystemMetrics, String> {
     thread::sleep(Duration::from_millis(200));
     sys.refresh_processes();
 
-    fn collect_process_tree(sys: &System, root_pid: sysinfo::Pid) -> (f32, u64, usize) {
+    fn collect_process_tree(sys: &System, root_pid: sysinfo::Pid) -> (f32, usize) {
         // Build a parent->children map once so traversal is O(n).
         let mut children: HashMap<Pid, Vec<Pid>> = HashMap::new();
         for (pid, proc) in sys.processes() {
@@ -40,7 +40,6 @@ pub fn get_system_metrics() -> Result<SystemMetrics, String> {
         }
 
         let mut total_cpu = 0.0;
-        let mut total_mem_kb = 0u64;
         let mut total_threads = 0usize;
         let mut stack = vec![root_pid];
         let mut seen = HashSet::new();
@@ -51,8 +50,6 @@ pub fn get_system_metrics() -> Result<SystemMetrics, String> {
             }
             if let Some(process) = sys.process(pid) {
                 total_cpu += process.cpu_usage();
-                // sysinfo returns memory in KiB.
-                total_mem_kb += process.memory();
                 // tasks() is None on some platforms; fall back to 1 when unavailable.
                 total_threads += process.tasks().map(|tasks| tasks.len()).unwrap_or(1);
 
@@ -62,19 +59,24 @@ pub fn get_system_metrics() -> Result<SystemMetrics, String> {
             }
         }
 
-        (total_cpu, total_mem_kb, total_threads)
+        (total_cpu, total_threads)
     }
 
     // Get current process info
     let pid = get_current_pid().map_err(|e| e.to_string())?;
     if sys.process(pid).is_some() {
-        let (total_cpu, total_mem_kb, total_threads) = collect_process_tree(&sys, pid);
+        let root_proc = sys
+            .process(pid)
+            .ok_or_else(|| "Could not find current process".to_string())?;
+        let memory_kb = root_proc.memory(); // RSS for root process only; avoids double-counting shared pages.
+
+        let (total_cpu, total_threads) = collect_process_tree(&sys, pid);
         let cores = sys.cpus().len().max(1) as f32;
         let cpu_percent = total_cpu / cores;
         let metrics = SystemMetrics {
             cpu_percent,
             cpu_total: total_cpu,
-            memory_kb: total_mem_kb,
+            memory_kb,
             threads: total_threads,
         };
 
