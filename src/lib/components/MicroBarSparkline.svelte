@@ -27,11 +27,11 @@
 
   /* ================= HELPERS ================= */
 
-  function computeRelativeMax(samples: number[]) {
-    if (!samples.length) return floor;
+  function computeRelativeMax(samples: number[], floorValue: number) {
+    if (!samples.length) return floorValue;
     const sorted = [...samples].sort((a, b) => a - b);
     const p95 = sorted[Math.floor(sorted.length * 0.95)] ?? 0;
-    return Math.max(p95 * 1.2, floor);
+    return Math.max(p95 * 1.2, floorValue);
   }
 
   function smooth(prev: number, next: number, a: number) {
@@ -54,7 +54,7 @@
       : values
   );
 
-  const target = $derived(computeRelativeMax(samples));
+  const target = $derived(computeRelativeMax(samples, floor));
   $effect(() => {
     dynamicMax = smooth(dynamicMax, target, maxAlpha);
   });

@@ -2,7 +2,6 @@
   import { onMount, onDestroy } from "svelte";
   import { listen } from "@tauri-apps/api/event";
   import type { UnlistenFn } from "@tauri-apps/api/event";
-  import MicroSparkline from "$lib/components/MicroSparkline.svelte";
   import type { SystemMetrics } from "$lib/commands/types";
   import MicroBarSparkline from "$lib/components/MicroBarSparkline.svelte";
 
