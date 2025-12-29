@@ -7,8 +7,8 @@
   import IconLayoutSidebarRight from "@tabler/icons-svelte/icons/layout-sidebar-right";
   import IconLayoutSidebarRightFilled from "@tabler/icons-svelte/icons/layout-sidebar-right-filled";
 
-  import IconLayoutSidebarBottom from "@tabler/icons-svelte/icons/layout-sidebar-right";
-  import IconLayoutSidebarBottomFilled from "@tabler/icons-svelte/icons/layout-sidebar-right-filled";
+  import IconLayoutBottombar from "@tabler/icons-svelte/icons/layout-bottombar";
+  import IconLayoutBottombarFilled from "@tabler/icons-svelte/icons/layout-bottombar-filled";
 
   import IconRestore from "@tabler/icons-svelte/icons/restore";
   import PlaylistAdd from "@tabler/icons-svelte/icons/playlist-add";
@@ -104,13 +104,19 @@
             )}
             onclick={openDatasourceWindow}
             title="External Datasource Window"
+            id="datasource-btn"
           >
             <IconPlus class="size-6" />
           </button>
 
-          <div class="flex items-center">
+          <div class="flex items-center gap-3">
             <button
-              class="h-6 w-6"
+              class={cn(
+                "h-6 w-6 flex items-center justify-center rounded-md border transition-all",
+                windowState.layout.left
+                  ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
+                  : "hover:bg-(--theme-bg-hover) border-transparent",
+              )}
               onclick={() =>
                 (windowState.layout.left = !windowState.layout.left)}
             >
@@ -122,19 +128,29 @@
             </button>
 
             <button
-              class="h-6 w-6"
+              class={cn(
+                "h-6 w-6 flex items-center justify-center rounded-md border transition-all",
+                windowState.layout.bottom
+                  ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
+                  : "hover:bg-(--theme-bg-hover) border-transparent",
+              )}
               onclick={() =>
                 (windowState.layout.bottom = !windowState.layout.bottom)}
             >
               {#if windowState.layout.bottom}
-                <IconLayoutSidebarBottomFilled class="size-5 rotate-90" />
+                <IconLayoutBottombarFilled class="size-5" />
               {:else}
-                <IconLayoutSidebarBottom class="size-5 rotate-90" />
+                <IconLayoutBottombar class="size-5" />
               {/if}
             </button>
 
             <button
-              class="h-6 w-6"
+              class={cn(
+                "h-6 w-6 flex items-center justify-center rounded-md border transition-all",
+                windowState.layout.right
+                  ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
+                  : "hover:bg-(--theme-bg-hover) border-transparent",
+              )}
               onclick={() =>
                 (windowState.layout.right = !windowState.layout.right)}
             >
@@ -165,7 +181,7 @@
         {/if}
 
         <button
-          class="h-6 w-6 text-xs gap-1 flex items-center justify-center rounded-md hover:bg-(--theme-bg-hover) active:bg-(--theme-bg-active)"
+          class="h-6 w-6 flex items-center justify-center rounded-md border transition-all border-transparent hover:bg-(--theme-bg-hover) active:bg-(--theme-bg-active)"
           onclick={() => window.location.reload()}
           title="Reload Window"
         >
