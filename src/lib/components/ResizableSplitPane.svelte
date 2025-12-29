@@ -113,78 +113,81 @@
     role="group"
 >
     <!-- First Panel (Left/Top) -->
-    {#if leftVisible}
-        <div
-            class="relative z-0 flex-none overflow-auto transition-[flex-basis] duration-0 ease-linear"
-            class:transition-all={!isDragging}
-            class:duration-300={!isDragging}
-            style="{isVertical ? 'height' : 'width'}: {rightVisible
-                ? currentRatio + '%'
-                : '100%'}; {isVertical
-                ? 'min-height'
-                : 'min-width'}: {minLeft};"
-        >
-            {#if left}
-                {@render left()}
-            {:else}
-                <div class="p-4 text-gray-400">Left Content</div>
-            {/if}
-        </div>
-    {/if}
+    <div
+        class="relative z-0 flex-none overflow-hidden transition-[flex-basis,width,height,min-width,min-height] duration-300 ease-in-out"
+        class:transition-none={isDragging}
+        style="{isVertical ? 'height' : 'width'}: {!leftVisible
+            ? '0px'
+            : rightVisible
+              ? currentRatio + '%'
+              : '100%'}; {isVertical
+            ? 'min-height'
+            : 'min-width'}: {!leftVisible ? '0px' : minLeft};"
+    >
+        {#if left}
+            {@render left()}
+        {:else}
+            <div class="p-4 text-gray-400">Left Content</div>
+        {/if}
+    </div>
 
     <!-- Handle -->
-    {#if leftVisible && rightVisible}
-        <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+    <div
+        role="separator"
+        tabindex="0"
+        aria-valuenow={currentRatio}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        class="relative z-10 flex-none transition-[width,height,opacity] duration-300 ease-in-out"
+        class:w-full={isVertical}
+        class:h-auto={isVertical}
+        class:h-full={!isVertical}
+        class:w-auto={!isVertical}
+        class:opacity-0={!leftVisible || !rightVisible}
+        class:pointer-events-none={!leftVisible || !rightVisible}
+        style="{isVertical ? 'height' : 'width'}: {leftVisible && rightVisible
+            ? gapSize + 'px'
+            : '0px'}; cursor: {resizable
+            ? isVertical
+                ? 'row-resize'
+                : 'col-resize'
+            : 'default'};"
+        onmousedown={startDrag}
+    >
+        <!-- Visual Line -->
         <div
-            role="separator"
-            tabindex="0"
-            aria-valuenow={currentRatio}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            class="relative z-10 flex-none"
+            class="absolute inset-0 bg-(--theme-border-default)"
+            class:h-px={isVertical}
             class:w-full={isVertical}
-            class:h-auto={isVertical}
+            class:w-px={!isVertical}
             class:h-full={!isVertical}
-            class:w-auto={!isVertical}
-            style="{isVertical
-                ? 'height'
-                : 'width'}: {gapSize}px; cursor: {resizable
-                ? isVertical
-                    ? 'row-resize'
-                    : 'col-resize'
-                : 'default'};"
-            onmousedown={startDrag}
-        >
-            <!-- Visual Line -->
-            <div
-                class="absolute inset-0 bg-(--theme-border-default)"
-                class:h-px={isVertical}
-                class:w-full={isVertical}
-                class:w-px={!isVertical}
-                class:h-full={!isVertical}
-            ></div>
+        ></div>
 
-            <!-- Hit Area (Invisible, wider for easier grabbing) -->
-            <div
-                class="absolute z-20 bg-transparent"
-                style={isVertical
-                    ? "top: -3px; bottom: -3px; left: 0; right: 0;"
-                    : "left: -3px; right: -3px; top: 0; bottom: 0;"}
-            ></div>
-        </div>
-    {/if}
+        <!-- Hit Area (Invisible, wider for easier grabbing) -->
+        <div
+            class="absolute z-20 bg-transparent"
+            style={isVertical
+                ? "top: -3px; bottom: -3px; left: 0; right: 0;"
+                : "left: -3px; right: -3px; top: 0; bottom: 0;"}
+        ></div>
+    </div>
 
     <!-- Second Panel (Right/Bottom) -->
-    {#if rightVisible}
-        <div
-            class="relative z-0 flex-1 overflow-auto"
-            style="{isVertical ? 'min-height' : 'min-width'}: {minRight};"
-        >
-            {#if right}
-                {@render right()}
-            {:else}
-                <div class="p-4 text-gray-400">Right Content</div>
-            {/if}
-        </div>
-    {/if}
+    <div
+        class="relative z-0 overflow-hidden transition-[flex-grow,min-width,min-height] duration-300 ease-in-out"
+        class:flex-1={rightVisible}
+        class:flex-none={!rightVisible}
+        style="{isVertical ? 'min-height' : 'min-width'}: {rightVisible
+            ? minRight
+            : '0px'}; {isVertical ? 'height' : 'width'}: {rightVisible
+            ? 'auto'
+            : '0px'};"
+    >
+        {#if right}
+            {@render right()}
+        {:else}
+            <div class="p-4 text-gray-400">Right Content</div>
+        {/if}
+    </div>
 </div>
