@@ -55,7 +55,7 @@
     <span title="CPU Usage (normalized)" class="flex items-center gap-1">
       {metrics.cpu_percent.toFixed(1)}%
       <div class="border">
-        <MicroSparkline values={cpuHistory} max={5} />
+        <MicroSparkline values={cpuHistory} />
       </div>
     </span>
     <span title="Threads">{metrics.threads}</span>
