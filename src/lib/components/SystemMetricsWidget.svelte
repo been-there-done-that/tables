@@ -14,6 +14,15 @@
   // Animation for numbers
   const displayedCpu = new Tween(0, { duration: 600, easing: cubicOut });
 
+  // Format memory
+  const memoryFormatted = $derived.by(() => {
+    const bytes = metrics.memory ?? 0;
+    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+    if (bytes < 1024 * 1024 * 1024)
+      return `${Math.round(bytes / (1024 * 1024))} MB`;
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+  });
+
   $effect(() => {
     displayedCpu.target = cpuPercent;
   });
@@ -32,6 +41,10 @@
   <div class="flex items-end gap-2" title="CPU Usage">
     <span class="font-mono tabular-nums"
       >{displayedCpu.current.toFixed(1)}%</span
+    >
+    <div class="h-3 w-px bg-(--theme-border) mx-1"></div>
+    <span class="font-mono tabular-nums" title="Memory Usage"
+      >{memoryFormatted}</span
     >
     <div class="group flex items-center">
       <MicroBarSparkline
