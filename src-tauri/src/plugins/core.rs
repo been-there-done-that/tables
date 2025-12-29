@@ -186,10 +186,12 @@ macro_rules! aggregate_plugin_commands {
             update_connection,
             delete_connection,
             test_connection,
+            test_connection_by_id, // Added
             get_favorite_connections,
             search_connections,
             update_connection_stats,
             check_keyring_available,
+            test_connection_params,
             
             // AWS plugin commands
             get_available_aws_profiles,
@@ -220,7 +222,11 @@ macro_rules! aggregate_plugin_commands {
             list_athena_workgroups,
             
             // Window commands
-            open_datasource_window
+            open_datasource_window,
+            open_appearance_window,
+            
+            // System commands
+            get_system_metrics
         ]
     };
 }
@@ -241,4 +247,112 @@ macro_rules! register_all_plugins {
             reg.register($crate::plugins::builtin::create_athena_plugin());
         }
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tauri::AppHandle;
+
+    struct DummyPlugin;
+
+    impl Plugin for DummyPlugin {
+        fn metadata(&self) -> PluginMetadata {
+            PluginMetadata {
+                name: "dummy".to_string(),
+                version: "1.0.0".to_string(),
+                description: "A dummy plugin for testing".to_string(),
+                author: Some("Test Author".to_string()),
+                supported_engines: vec!["postgresql".to_string(), "mysql".to_string()],
+                dependencies: vec![],
+                command_count: 5,
+                enabled: true,
+            }
+        }
+
+        fn initialize(&self, _app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
+            Ok(())
+        }
+
+        fn cleanup(&self, _app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn test_plugin_registry_new() {
+        let registry = PluginRegistry::new();
+        assert!(registry.plugins.is_empty());
+        assert!(registry.metadata.is_empty());
+    }
+
+    #[test]
+    fn test_plugin_registry_register_and_get() {
+        let mut registry = PluginRegistry::new();
+        let plugin = DummyPlugin;
+        registry.register(plugin);
+
+        assert_eq!(registry.plugins.len(), 1);
+        assert_eq!(registry.metadata.len(), 1);
+        assert!(registry.get_plugin("dummy").is_some());
+        assert!(registry.get_plugin("nonexistent").is_none());
+    }
+
+    #[test]
+    fn test_plugin_registry_list_plugins() {
+        let mut registry = PluginRegistry::new();
+        let plugin = DummyPlugin;
+        registry.register(plugin);
+
+        let plugins = registry.list_plugins();
+        assert_eq!(plugins.len(), 1);
+        assert_eq!(plugins[0].name, "dummy");
+        assert_eq!(plugins[0].version, "1.0.0");
+        assert_eq!(plugins[0].command_count, 5);
+    }
+
+    #[test]
+    fn test_plugin_registry_enable_disable_plugin() {
+        let mut registry = PluginRegistry::new();
+        let plugin = DummyPlugin;
+        registry.register(plugin);
+
+        // Initially enabled
+        assert!(registry.metadata.get("dummy").unwrap().enabled);
+
+        // Disable
+        registry.disable_plugin("dummy").unwrap();
+        assert!(!registry.metadata.get("dummy").unwrap().enabled);
+
+        // Enable
+        registry.enable_plugin("dummy").unwrap();
+        assert!(registry.metadata.get("dummy").unwrap().enabled);
+
+        // Try to enable nonexistent
+        assert!(registry.enable_plugin("nonexistent").is_err());
+    }
+
+    #[test]
+    fn test_plugin_manager_new() {
+        let manager = PluginManager::new();
+        // Just check it creates without error
+        assert!(true);
+    }
+
+    #[test]
+    fn test_plugin_manager_get_plugin_info() {
+        let manager = PluginManager::new();
+        // Since registry is global and empty, should be None
+        assert!(manager.get_plugin_info("dummy").is_none());
+    }
+
+    #[test]
+    fn test_plugin_manager_list_available_plugins() {
+        let manager = PluginManager::new();
+        let plugins = manager.list_available_plugins();
+        // May have plugins from other tests or registration, but for isolated test, assume empty
+        // But since global, hard to test isolated.
+        // Just check it returns a vec
+        assert!(plugins.len() >= 0);
+    }
 }

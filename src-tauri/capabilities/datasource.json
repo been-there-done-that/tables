@@ -2,7 +2,10 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "datasource",
   "description": "Capability for the datasource window",
-  "windows": ["datasource-window"],
+  "windows": [
+    "datasource-window",
+    "appearance-window"
+  ],
   "permissions": [
     "core:default",
     "opener:default",
@@ -11,6 +14,7 @@
     "core:window:allow-toggle-maximize",
     "core:window:allow-minimize",
     "core:window:allow-close",
-    "core:window:allow-is-fullscreen"
+    "core:window:allow-is-fullscreen",
+    "dialog:default"
   ]
 }

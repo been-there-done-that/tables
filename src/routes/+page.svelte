@@ -1,146 +1,97 @@
-<script lang="ts">
-  import Container from "$lib/Container.svelte";
-  import { getThemeContext } from "$lib/theme/context";
-  import type { ThemeRecord } from "$lib/theme/types";
-
-  let themes = $state<ThemeRecord[]>([]);
-  let activeId = $state<string>("");
-  let loading = $state(true);
-  let error = $state("");
-  let showDatasource = $state(false);
-
-  const { subscribe, setActive } = getThemeContext();
-
-  $effect(() => {
-    const unsubscribe = subscribe(
-      (s: {
-        themes: ThemeRecord[];
-        activeId: string;
-        loading: boolean;
-        error: string;
-      }) => {
-        themes = s.themes;
-        activeId = s.activeId;
-        loading = s.loading;
-        error = s.error;
-      },
-    );
-    return () => unsubscribe();
-  });
-
-  const handleSetActive = (id: string) => setActive(id);
+<script>
+  import ResizableSplitPane from "$lib/components/ResizableSplitPane.svelte";
+  import SystemMetricsWidget from "$lib/components/SystemMetricsWidget.svelte";
+  import { windowState } from "$lib/stores/window.svelte";
 </script>
 
-<main class="p-4">
-  <div class="flex items-center gap-3 mb-4">
-    <a href="/demo">Components Demo</a>
-    <a href="/test">Test Route</a>
-    <button
-      class="px-3 py-2 text-sm rounded border border-(--theme-border-default) bg-(--theme-bg-secondary) text-(--theme-fg-primary) hover:bg-(--theme-bg-primary) transition"
-      onclick={() => (showDatasource = true)}
-      type="button"
+<div class="flex h-full w-full flex-col bg-background text-foreground">
+  <div class="relative flex-1 overflow-hidden">
+    <!-- Level 1: Left Sidebar vs Everything Else -->
+    <ResizableSplitPane
+      defaultRatio={0.2}
+      minLeft="200px"
+      minRight="300px"
+      leftVisible={windowState.layout.left}
     >
-      Configure datasource
-    </button>
-  </div>
-  <Container class="space-y-6 max-w-4xl mx-auto">
-    <div class="flex items-center justify-between gap-4 flex-wrap">
-      <div class="space-y-1">
-        <div
-          class="inline-flex items-center gap-2 rounded-lg border px-3 py-1 text-sm"
-          style="border-color: var(--theme-border-default); background: color-mix(in srgb, var(--theme-bg-tertiary) 75%, transparent); color: var(--theme-fg-secondary);"
-        >
-          Built-in themes
+      <!-- Left Panel: Sidebar -->
+      {#snippet left()}
+        <div class="flex h-full flex-col bg-muted/20">
+          <div
+            class="flex h-8 flex-none items-center border-b border-(--theme-border-default) bg-background/50 px-4"
+          >
+            <h2 class="text-sm font-semibold">Explorer</h2>
+          </div>
+          <div class="flex-1 overflow-auto p-4">
+            <p class="text-xs text-muted-foreground">List items...</p>
+          </div>
         </div>
-        <h1
-          class="text-2xl font-semibold leading-tight"
-          style="color: var(--theme-fg-primary);"
-        >
-          Pick a theme
-        </h1>
-      </div>
-      {#if loading}
-        <div
-          class="inline-flex items-center gap-2 rounded-lg border px-3 py-1 text-sm"
-          style="border-color: var(--theme-border-default); background: color-mix(in srgb, var(--theme-bg-tertiary) 75%, transparent); color: var(--theme-fg-secondary);"
-        >
-          Loading…
-        </div>
-      {:else if error}
-        <div
-          class="inline-flex items-center gap-2 rounded-lg border px-3 py-1 text-sm"
-          style="border-color: var(--theme-border-default); background: color-mix(in srgb, var(--theme-bg-tertiary) 75%, transparent); color: #fca5a5;"
-        >
-          {error}
-        </div>
-      {/if}
-    </div>
+      {/snippet}
 
-    <div class="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
-      {#each themes as theme}
-        <div
-          role="button"
-          tabindex="0"
-          class="group flex w-full flex-col gap-3 rounded-xl border px-4 py-3 transition duration-150"
-          style={`background: color-mix(in srgb, var(--theme-bg-secondary) 92%, transparent); border-color: var(--theme-border-default); box-shadow: ${
-            theme.id === activeId
-              ? "0 0 0 1px color-mix(in srgb, var(--theme-accent-primary) 35%, transparent)"
-              : "none"
-          };`}
-          onclick={() => handleSetActive(theme.id)}
-          onkeydown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              handleSetActive(theme.id);
-            }
-          }}
-        >
-          <div class="flex items-center justify-between gap-3">
-            <div>
-              <div
-                class="font-semibold"
-                style="color: var(--theme-fg-primary);"
-              >
-                {theme.name}
+      <!-- Right Panel: Contains Center Area + Right Sidebar -->
+      {#snippet right()}
+        <div class="relative h-full w-full">
+          <!-- Level 2: Center Area vs Right Sidebar -->
+          <ResizableSplitPane
+            defaultRatio={0.75}
+            minLeft="300px"
+            minRight="200px"
+            rightVisible={windowState.layout.right}
+          >
+            <!-- Center Area (Editor + Bottom Panel) -->
+            {#snippet left()}
+              <div class="relative h-full w-full">
+                <!-- Level 3: Vertical Split (Editor / Bottom) -->
+                <ResizableSplitPane
+                  orientation="vertical"
+                  defaultRatio={0.7}
+                  minLeft="100px"
+                  minRight="50px"
+                  rightVisible={windowState.layout.bottom}
+                >
+                  <!-- Editor -->
+                  {#snippet left()}
+                    <div class="flex h-full flex-col bg-background">
+                      <div
+                        class="flex h-8 flex-none items-center border-b border-(--theme-border-default) px-4"
+                      >
+                        <h2 class="text-sm font-semibold">Main Editor</h2>
+                      </div>
+                      <div class="flex-1 overflow-auto p-4">
+                        <div class="rounded border p-2">Editor Content</div>
+                        <SystemMetricsWidget />
+                      </div>
+                    </div>
+                  {/snippet}
+
+                  <!-- Bottom Panel (Clean, no title) -->
+                  {#snippet right()}
+                    <div class="flex h-full flex-col bg-background">
+                      <!-- Removed redundant border -->
+                      <div class="flex-1 overflow-auto p-2">
+                        <pre class="text-xs font-mono">System ready.</pre>
+                      </div>
+                    </div>
+                  {/snippet}
+                </ResizableSplitPane>
               </div>
-              <div class="text-xs" style="color: var(--theme-fg-secondary);">
-                {theme.author}
+            {/snippet}
+
+            <!-- Right Sidebar -->
+            {#snippet right()}
+              <div class="flex h-full flex-col bg-muted/10">
+                <div
+                  class="flex h-8 flex-none items-center border-b border-(--theme-border-default) px-4"
+                >
+                  <h2 class="text-sm font-semibold">Properties</h2>
+                </div>
+                <div class="flex-1 overflow-auto p-4">
+                  <p class="text-xs">Property details...</p>
+                </div>
               </div>
-            </div>
-            {#if theme.id === activeId}
-              <div
-                class="inline-flex items-center gap-2 rounded-lg border px-3 py-1 text-xs"
-                style="border-color: var(--theme-border-default); background: color-mix(in srgb, var(--theme-bg-tertiary) 75%, transparent); color: var(--theme-fg-secondary);"
-              >
-                Active
-              </div>
-            {/if}
-          </div>
-          {#if theme.description}
-            <div
-              class="text-sm"
-              style="color: var(--theme-fg-secondary); margin-top: 6px;"
-            >
-              {theme.description}
-            </div>
-          {/if}
-          <div class="flex items-center gap-2 mt-2">
-            {#each (() => {
-              try {
-                const ui = JSON.parse(theme.theme_data).ui;
-                return [ui.background?.primary, ui.background?.secondary, ui.accent?.primary, ui.background?.hover, ui.background?.active].filter(Boolean);
-              } catch {
-                return [];
-              }
-            })() as color}
-              <span
-                class="h-4 w-4 rounded-md border"
-                style={`background:${color}; border-color: var(--theme-border-subtle);`}
-              ></span>
-            {/each}
-          </div>
+            {/snippet}
+          </ResizableSplitPane>
         </div>
-      {/each}
-    </div>
-  </Container>
-</main>
+      {/snippet}
+    </ResizableSplitPane>
+  </div>
+</div>

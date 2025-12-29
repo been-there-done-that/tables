@@ -1,5 +1,6 @@
 use crate::aws_profile_manager::{AwsProfileManager, AwsProfile};
 use tauri::State;
+use log::{info, debug, warn, error, trace};
 
 /// Get all available AWS profiles from system
 /// 
@@ -11,7 +12,12 @@ use tauri::State;
 /// Returns a list of all discovered profiles with their configurations
 #[tauri::command]
 pub async fn get_available_aws_profiles() -> Result<Vec<AwsProfile>, String> {
-    AwsProfileManager::load_available_profiles()
+    debug!("Getting available AWS profiles");
+    let result = AwsProfileManager::load_available_profiles();
+    if let Ok(ref profiles) = result {
+        debug!("Retrieved {} AWS profiles", profiles.len());
+    }
+    result
 }
 
 /// Get a specific AWS profile by name
@@ -24,7 +30,14 @@ pub async fn get_available_aws_profiles() -> Result<Vec<AwsProfile>, String> {
 pub async fn get_aws_profile_by_name(
     profile_name: String,
 ) -> Result<Option<AwsProfile>, String> {
-    AwsProfileManager::get_profile_by_name(&profile_name)
+    debug!("Getting AWS profile by name '{}'", profile_name);
+    let result = AwsProfileManager::get_profile_by_name(&profile_name);
+    if let Ok(Some(_)) = result {
+        trace!("Found AWS profile '{}'", profile_name);
+    } else {
+        trace!("AWS profile '{}' not found", profile_name);
+    }
+    result
 }
 
 /// Test if an AWS profile is valid and accessible
@@ -41,6 +54,7 @@ pub async fn get_aws_profile_by_name(
 pub async fn test_aws_profile(
     profile: AwsProfile,
 ) -> Result<bool, String> {
+    debug!("Testing AWS profile '{}'", profile.name);
     let manager = AwsProfileManager::new();
     manager.test_profile(&profile)
 }
@@ -57,6 +71,8 @@ pub async fn list_s3_buckets(
     _profile_name: String,
     _region: Option<String>,
 ) -> Result<Vec<String>, String> {
+    warn!("S3 bucket listing not implemented, returning mock data");
+    debug!("Listing S3 buckets for profile '{}' in region {:?}", _profile_name, _region);
     // TODO: Implement actual S3 bucket listing using AWS SDK
     // For now, return mock data
     Ok(vec![
@@ -82,6 +98,8 @@ pub async fn list_s3_objects(
     _prefix: Option<String>,
     _region: Option<String>,
 ) -> Result<Vec<S3Object>, String> {
+    warn!("S3 object listing not implemented, returning mock data");
+    debug!("Listing S3 objects in bucket '{}' with prefix {:?} for profile '{}' in region {:?}", _bucket_name, _prefix, _profile_name, _region);
     // TODO: Implement actual S3 object listing using AWS SDK
     // For now, return mock data
     Ok(vec![
@@ -118,6 +136,8 @@ pub async fn upload_s3_file(
     _content: String,
     _region: Option<String>,
 ) -> Result<String, String> {
+    warn!("S3 file upload not implemented, returning mock ETag");
+    debug!("Uploading file '{}' to S3 bucket '{}' with key '{}' for profile '{}' in region {:?}", _key, _bucket_name, _key, _profile_name, _region);
     // TODO: Implement actual S3 upload using AWS SDK
     // For now, return mock ETag
     Ok("\"upload-etag-12345\"".to_string())
@@ -139,6 +159,8 @@ pub async fn download_s3_file(
     _key: String,
     _region: Option<String>,
 ) -> Result<String, String> {
+    warn!("S3 file download not implemented, returning mock content");
+    debug!("Downloading file '{}' from S3 bucket '{}' for profile '{}' in region {:?}", _key, _bucket_name, _profile_name, _region);
     // TODO: Implement actual S3 download using AWS SDK
     // For now, return mock content
     Ok("mock-file-content-base64-encoded".to_string())
@@ -160,6 +182,8 @@ pub async fn delete_s3_object(
     _key: String,
     _region: Option<String>,
 ) -> Result<(), String> {
+    warn!("S3 object deletion not implemented");
+    debug!("Deleting S3 object '{}' from bucket '{}' for profile '{}' in region {:?}", _key, _bucket_name, _profile_name, _region);
     // TODO: Implement actual S3 delete using AWS SDK
     // For now, just return success
     Ok(())
@@ -179,6 +203,8 @@ pub async fn get_s3_bucket_info(
     _bucket_name: String,
     _region: Option<String>,
 ) -> Result<S3BucketInfo, String> {
+    warn!("S3 bucket info not implemented, returning mock data");
+    debug!("Getting S3 bucket info for '{}' in region {:?} for profile '{}'", _bucket_name, _region, _profile_name);
     // TODO: Implement actual S3 bucket info using AWS SDK
     // For now, return mock data
     Ok(S3BucketInfo {

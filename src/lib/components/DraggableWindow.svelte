@@ -18,8 +18,8 @@
     open = $bindable(true),
     showCloseButton = true,
     onClose,
-    openShortcut,
-    closeShortcut,
+    openShortcut = undefined,
+    closeShortcut = undefined,
     modal = false,
     class: className = "",
     headerClass = "",
@@ -29,7 +29,7 @@
     initialPosition = "center" as Position | "center",
     style: customStyle = "",
     children,
-    headerActions,
+    headerActions = undefined,
   } = $props();
 
   let position = $state<Position>({ x: 0, y: 0 });
@@ -40,10 +40,15 @@
   let dragSize = $state<{ w: number; h: number }>({ w: 0, h: 0 });
   let hasCustomPosition = $state(false);
 
-  const normalizeShortcut = (shortcut?: KeyboardShortcut | string): KeyboardShortcut | undefined => {
+  const normalizeShortcut = (
+    shortcut?: KeyboardShortcut | string,
+  ): KeyboardShortcut | undefined => {
     if (!shortcut) return undefined;
     if (typeof shortcut === "string") {
-      const parts = shortcut.toLowerCase().split("+").map((p) => p.trim());
+      const parts = shortcut
+        .toLowerCase()
+        .split("+")
+        .map((p) => p.trim());
       return {
         key: parts[parts.length - 1],
         ctrl: parts.includes("ctrl"),
@@ -91,7 +96,10 @@
   }
 
   function handleMouseDown(e: MouseEvent) {
-    if (e.target instanceof HTMLElement && e.target.closest("[data-drag-handle]")) {
+    if (
+      e.target instanceof HTMLElement &&
+      e.target.closest("[data-drag-handle]")
+    ) {
       isDragging = true;
       dragStart = { x: e.clientX - position.x, y: e.clientY - position.y };
       if (windowElement) {
@@ -109,8 +117,14 @@
       const marginX = 8;
       const minY = 40; // keep below titlebar/toolbar area
       const marginY = 8;
-      const maxX = Math.max(marginX, window.innerWidth - (dragSize.w || 0) - marginX);
-      const maxY = Math.max(minY, window.innerHeight - (dragSize.h || 0) - marginY);
+      const maxX = Math.max(
+        marginX,
+        window.innerWidth - (dragSize.w || 0) - marginX,
+      );
+      const maxY = Math.max(
+        minY,
+        window.innerHeight - (dragSize.h || 0) - marginY,
+      );
       position = {
         x: Math.min(Math.max(marginX, nextX), maxX),
         y: Math.min(Math.max(minY, nextY), maxY),
@@ -150,12 +164,19 @@
   });
 </script>
 
-<svelte:window onmousemove={handleMouseMove} onmouseup={handleMouseUp} onkeydown={handleKeyDown} />
+<svelte:window
+  onmousemove={handleMouseMove}
+  onmouseup={handleMouseUp}
+  onkeydown={handleKeyDown}
+/>
 
 {#if rendered}
   {#if modal}
     <div
-      class={cn("fixed inset-0 bg-black/50 z-40 cursor-pointer modal-overlay", overlayClass)}
+      class={cn(
+        "fixed inset-0 bg-black/50 z-40 cursor-pointer modal-overlay",
+        overlayClass,
+      )}
       role="presentation"
       aria-label="Close dialog"
       data-state={open ? "open" : "closed"}
@@ -191,7 +212,12 @@
         headerClass,
       )}
     >
-      <h2 id="dialog-title" class={cn("font-semibold text-xs w-full", titleClass)}>{title}</h2>
+      <h2
+        id="dialog-title"
+        class={cn("font-semibold text-xs w-full", titleClass)}
+      >
+        {title}
+      </h2>
       <div class="flex items-center gap-2">
         {@render headerActions?.()}
         {#if showCloseButton}

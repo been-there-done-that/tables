@@ -23,6 +23,23 @@ export type ThemeData = {
       focus: string;
     };
   };
+  syntax?: {
+    keyword?: string;
+    string?: string;
+    number?: string;
+    comment?: string;
+    function?: string;
+    variable?: string;
+    operator?: string;
+    type?: string;
+  };
+  editor?: {
+    background?: string;
+    foreground?: string;
+    selection?: string;
+    cursor?: string;
+    bracket?: string;
+  };
 };
 
 export type ThemeRecord = {

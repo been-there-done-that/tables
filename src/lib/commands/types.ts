@@ -219,6 +219,13 @@ export interface SearchRequest {
   offset?: number;
 }
 
+// System metrics types
+export interface SystemMetrics {
+  cpu_percent: number;
+  threads: number;
+  pid: number;
+}
+
 export interface PaginatedResponse<T> {
   items: T[];
   total: number;

@@ -8,12 +8,12 @@ use std::collections::HashMap;
 /// Get Redis server information
 #[tauri::command]
 pub async fn get_redis_info(
-    connection: DatabaseConnection,
-    credentials: SecureCredentials,
+    connection_id: String,
     db_state: State<'_, DatabaseState>,
     conn_state: State<'_, ConnectionManagerState>,
 ) -> Result<RedisInfo, String> {
     let manager = ConnectionManager::from_state(&db_state, &conn_state);
+    let (connection, credentials) = manager.get_connection(&connection_id)?;
     
     // Test connection and get info
     let client = create_redis_client(&connection, &credentials)?;
@@ -35,8 +35,8 @@ pub async fn get_redis_info(
         .map_err(|e| format!("Failed to get database size: {}", e))?;
     
     Ok(RedisInfo {
-        version: extract_redis_version(&info),
-        mode: extract_redis_mode(&info),
+        redis_version: extract_redis_version(&info),
+        redis_mode: extract_redis_mode(&info),
         role: extract_redis_role(&info),
         os: extract_redis_os(&info),
         uptime: extract_redis_uptime(&info),
@@ -51,11 +51,12 @@ pub async fn get_redis_info(
 /// List all Redis databases
 #[tauri::command]
 pub async fn list_redis_databases(
-    connection: DatabaseConnection,
-    credentials: SecureCredentials,
+    connection_id: String,
     db_state: State<'_, DatabaseState>,
     conn_state: State<'_, ConnectionManagerState>,
 ) -> Result<Vec<RedisDatabase>, String> {
+    let manager = ConnectionManager::from_state(&db_state, &conn_state);
+    let (connection, credentials) = manager.get_connection(&connection_id)?;
     let client = create_redis_client(&connection, &credentials)?;
     let mut conn = client.get_connection().map_err(|e| format!("Failed to connect to Redis: {}", e))?;
     
@@ -70,14 +71,15 @@ pub async fn list_redis_databases(
 /// Get all keys in a Redis database
 #[tauri::command]
 pub async fn list_redis_keys(
-    connection: DatabaseConnection,
-    credentials: SecureCredentials,
+    connection_id: String,
     database: Option<i64>,
     pattern: Option<String>,
     limit: Option<i64>,
     db_state: State<'_, DatabaseState>,
     conn_state: State<'_, ConnectionManagerState>,
 ) -> Result<Vec<RedisKey>, String> {
+    let manager = ConnectionManager::from_state(&db_state, &conn_state);
+    let (connection, credentials) = manager.get_connection(&connection_id)?;
     let client = create_redis_client(&connection, &credentials)?;
     let mut conn = client.get_connection().map_err(|e| format!("Failed to connect to Redis: {}", e))?;
     
@@ -126,13 +128,14 @@ pub async fn list_redis_keys(
 /// Get Redis key value and details
 #[tauri::command]
 pub async fn get_redis_key(
-    connection: DatabaseConnection,
-    credentials: SecureCredentials,
+    connection_id: String,
     key: String,
     database: Option<i64>,
     db_state: State<'_, DatabaseState>,
     conn_state: State<'_, ConnectionManagerState>,
 ) -> Result<RedisKeyValue, String> {
+    let manager = ConnectionManager::from_state(&db_state, &conn_state);
+    let (connection, credentials) = manager.get_connection(&connection_id)?;
     let client = create_redis_client(&connection, &credentials)?;
     let mut conn = client.get_connection().map_err(|e| format!("Failed to connect to Redis: {}", e))?;
     
@@ -167,14 +170,15 @@ pub async fn get_redis_key(
 /// Execute Redis command
 #[tauri::command]
 pub async fn execute_redis_command(
-    connection: DatabaseConnection,
-    credentials: SecureCredentials,
+    connection_id: String,
     command: String,
     args: Vec<String>,
     database: Option<i64>,
     db_state: State<'_, DatabaseState>,
     conn_state: State<'_, ConnectionManagerState>,
 ) -> Result<RedisCommandResult, String> {
+    let manager = ConnectionManager::from_state(&db_state, &conn_state);
+    let (connection, credentials) = manager.get_connection(&connection_id)?;
     let client = create_redis_client(&connection, &credentials)?;
     let mut conn = client.get_connection().map_err(|e| format!("Failed to connect to Redis: {}", e))?;
     
@@ -210,13 +214,14 @@ pub async fn execute_redis_command(
 /// Delete Redis key
 #[tauri::command]
 pub async fn delete_redis_key(
-    connection: DatabaseConnection,
-    credentials: SecureCredentials,
+    connection_id: String,
     key: String,
     database: Option<i64>,
     db_state: State<'_, DatabaseState>,
     conn_state: State<'_, ConnectionManagerState>,
 ) -> Result<bool, String> {
+    let manager = ConnectionManager::from_state(&db_state, &conn_state);
+    let (connection, credentials) = manager.get_connection(&connection_id)?;
     let client = create_redis_client(&connection, &credentials)?;
     let mut conn = client.get_connection().map_err(|e| format!("Failed to connect to Redis: {}", e))?;
     
@@ -245,11 +250,16 @@ fn create_redis_client(
     let host = connection.host.as_ref().ok_or("Host is required")?;
     let port = connection.port.unwrap_or(6379);
     
-    let mut connection_string = format!("redis://");
+    let scheme = if connection.uses_tls { "rediss" } else { "redis" };
+    let mut connection_string = format!("{}://", scheme);
     
     // Add authentication if provided
     if let Some(password) = &credentials.password {
-        connection_string.push_str(&format!(":{}@", password.expose()));
+        if let Some(username) = &connection.username {
+            connection_string.push_str(&format!("{}:{}@", username, password.expose()));
+        } else {
+            connection_string.push_str(&format!(":{}@", password.expose()));
+        }
     }
     
     connection_string.push_str(&format!("{}:{}", host, port));
@@ -328,7 +338,7 @@ fn parse_redis_databases(keyspace_info: &str) -> Result<Vec<RedisDatabase>, Stri
         if line.starts_with("db") {
             let parts: Vec<&str> = line.split(':').collect();
             if parts.len() == 2 {
-                let db_name = parts[0].to_string();
+                let db_index = parts[0].replace("db", "").parse::<i64>().unwrap_or(0);
                 let stats = parts[1];
                 
                 let keys = extract_stat(stats, "keys");
@@ -336,7 +346,7 @@ fn parse_redis_databases(keyspace_info: &str) -> Result<Vec<RedisDatabase>, Stri
                 let avg_ttl = extract_stat(stats, "avg_ttl");
                 
                 databases.push(RedisDatabase {
-                    name: db_name,
+                    index: db_index,
                     keys,
                     expires,
                     avg_ttl,
@@ -474,8 +484,8 @@ fn format_redis_value(value: &redis::Value) -> String {
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct RedisInfo {
-    pub version: String,
-    pub mode: String,
+    pub redis_version: String,
+    pub redis_mode: String,
     pub role: String,
     pub os: String,
     pub uptime: i64,
@@ -488,7 +498,7 @@ pub struct RedisInfo {
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct RedisDatabase {
-    pub name: String,
+    pub index: i64,
     pub keys: i64,
     pub expires: i64,
     pub avg_ttl: i64,
@@ -497,6 +507,7 @@ pub struct RedisDatabase {
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct RedisKey {
     pub key: String,
+    #[serde(rename = "type")]
     pub key_type: String,
     pub ttl: i64,
     pub size: i64,
@@ -506,6 +517,7 @@ pub struct RedisKey {
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct RedisKeyValue {
     pub key: String,
+    #[serde(rename = "type")]
     pub key_type: String,
     pub ttl: i64,
     pub value: String,
