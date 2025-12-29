@@ -1,22 +1,21 @@
 <script lang="ts">
-  import { windowState } from "$lib/stores/window.svelte";
+  import { metrics } from "$lib/stores/metrics.svelte";
   import MicroBarSparkline from "$lib/components/MicroBarSparkline.svelte";
   import { Tween } from "svelte/motion";
   import { cubicOut } from "svelte/easing";
   import { METRICS } from "$lib/constants";
   import { toast } from "svelte-sonner";
 
-  // Clean state: Default to valid empty values if null
-  let metrics = $derived(
-    windowState.metrics || { cpu_percent: 0, pid: 0, threads: 0 },
-  );
-  let history = $derived(windowState.cpuHistory);
+  // Clean state
+  let history = $derived(metrics.cpuHistory);
+  let cpuPercent = $derived(metrics.cpu);
+  let pid = $derived(metrics.pid);
 
   // Animation for numbers
   const displayedCpu = new Tween(0, { duration: 600, easing: cubicOut });
 
   $effect(() => {
-    displayedCpu.target = metrics.cpu_percent;
+    displayedCpu.target = cpuPercent;
   });
 
   function copyPid(pid: number) {
@@ -47,8 +46,8 @@
   <button
     class="font-mono hover:text-(--theme-fg-primary)"
     title="Click to copy Process ID"
-    onclick={() => copyPid(metrics.pid)}
+    onclick={() => copyPid(pid)}
   >
-    (PID: <span class="opacity-100">{metrics.pid}</span>)
+    (PID: <span class="opacity-100">{pid}</span>)
   </button>
 </div>
