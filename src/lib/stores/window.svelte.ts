@@ -1,6 +1,37 @@
 import { getCurrentWindow, getAllWindows } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 
+export interface CommandConfig {
+    id: string;
+    label: string;
+    defaultKeybinding: {
+        mac: string;
+        win: string;
+    };
+    execute: (store: WindowStateStore) => void;
+}
+
+const COMMANDS: CommandConfig[] = [
+    {
+        id: "workbench.action.toggleSidebarLeft",
+        label: "Toggle Left Sidebar",
+        defaultKeybinding: { mac: "Meta+j", win: "Control+j" },
+        execute: (s) => { s.layout.left = !s.layout.left; }
+    },
+    {
+        id: "workbench.action.toggleSidebarRight",
+        label: "Toggle Right Sidebar",
+        defaultKeybinding: { mac: "Meta+k", win: "Control+k" },
+        execute: (s) => { s.layout.right = !s.layout.right; }
+    },
+    {
+        id: "workbench.action.togglePanel",
+        label: "Toggle Bottom Panel",
+        defaultKeybinding: { mac: "Meta+n", win: "Control+n" },
+        execute: (s) => { s.layout.bottom = !s.layout.bottom; }
+    }
+];
+
 class WindowStateStore {
     label = $state("main");
     settingsWindowOpen = $state(false);
@@ -13,7 +44,7 @@ class WindowStateStore {
     private unlistenFunctions: (() => void)[] = [];
 
     // Command Registry
-    commands = new Map<string, { id: string; label: string; execute: () => void }>();
+    commands = new Map<string, CommandConfig>();
     keybindings = new Map<string, string>(); // Key combo -> Action ID
 
     constructor() {
@@ -27,36 +58,15 @@ class WindowStateStore {
     }
 
     private registerDefaultCommands() {
-        const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-        const mod = isMac ? "Meta" : "Control";
+        const isMac = navigator.userAgent.includes("Mac");
 
-        // Register Commands
-        this.registerCommand({
-            id: "workbench.action.toggleSidebarLeft",
-            label: "Toggle Left Sidebar",
-            execute: () => { this.layout.left = !this.layout.left; }
+        COMMANDS.forEach(cmd => {
+            this.commands.set(cmd.id, cmd);
+            const keybinding = isMac ? cmd.defaultKeybinding.mac : cmd.defaultKeybinding.win;
+            if (keybinding) {
+                this.registerKeybinding(cmd.id, keybinding);
+            }
         });
-
-        this.registerCommand({
-            id: "workbench.action.toggleSidebarRight",
-            label: "Toggle Right Sidebar",
-            execute: () => { this.layout.right = !this.layout.right; }
-        });
-
-        this.registerCommand({
-            id: "workbench.action.togglePanel",
-            label: "Toggle Bottom Panel",
-            execute: () => { this.layout.bottom = !this.layout.bottom; }
-        });
-
-        // Register Keybindings
-        this.registerKeybinding("workbench.action.toggleSidebarLeft", `${mod}+j`);
-        this.registerKeybinding("workbench.action.toggleSidebarRight", `${mod}+k`);
-        this.registerKeybinding("workbench.action.togglePanel", `${mod}+n`);
-    }
-
-    registerCommand(command: { id: string; label: string; execute: () => void }) {
-        this.commands.set(command.id, command);
     }
 
     registerKeybinding(commandId: string, keybinding: string) {
@@ -66,10 +76,38 @@ class WindowStateStore {
     executeCommand(commandId: string) {
         const command = this.commands.get(commandId);
         if (command) {
-            command.execute();
+            command.execute(this);
         } else {
             console.warn(`[WindowStateStore] Command not found: ${commandId}`);
         }
+    }
+
+    // Public method for UI to get display string
+    formatKeybinding(commandId: string): string {
+        const isMac = navigator.userAgent.includes("Mac");
+        // Find keybinding for this command
+        let foundKey: string | undefined;
+        for (const [key, id] of this.keybindings.entries()) {
+            if (id === commandId) {
+                foundKey = key;
+                break;
+            }
+        }
+
+        if (!foundKey) return "None";
+
+        // Formatting logic
+        return foundKey
+            .split("+")
+            .map(part => {
+                part = part.trim();
+                if (part === "meta") return isMac ? "⌘" : "Ctrl";
+                if (part === "control") return "Ctrl";
+                if (part === "alt") return isMac ? "⌥" : "Alt";
+                if (part === "shift") return isMac ? "⇧" : "Shift";
+                return part.toUpperCase();
+            })
+            .join(isMac ? " " : "+"); // Mac uses spaces (⌘ ⇧ P), Win uses + (Ctrl+Shift+P)
     }
 
     handleKeydown(event: KeyboardEvent) {
