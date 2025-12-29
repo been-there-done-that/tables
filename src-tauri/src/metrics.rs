@@ -192,9 +192,11 @@ impl SystemMonitor {
                 sys.refresh_processes();
                 
                 if let Some(process) = sys.process(pid) {
-                    // System-wide CPU usage for this process (normalized)
-                    let cores = sys.cpus().len().max(1) as f32;
-                    let cpu = process.cpu_usage() / cores;
+                    // System-wide CPU usage (match top/Activity Monitor behavior: 100% = 1 core)
+                    // Previously divided by cores for total system %, but users expect top values.
+                    let raw_cpu = process.cpu_usage() as f64;
+                    // Clamp to 0.0 to handle rare underflow/glitch reporting (observed in top as large negative)
+                    let cpu = raw_cpu.max(0.0);
                     
                     // Simple thread count
                     let threads = process.tasks().map(|t| t.len()).unwrap_or(1) as f64;
