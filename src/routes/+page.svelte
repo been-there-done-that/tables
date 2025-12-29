@@ -1,11 +1,17 @@
 <script>
   import ResizableSplitPane from "$lib/components/ResizableSplitPane.svelte";
+  import { windowState } from "$lib/stores/window.svelte";
 </script>
 
 <div class="flex h-full w-full flex-col bg-background text-foreground">
   <div class="relative flex-1 overflow-hidden">
     <!-- Level 1: Left Sidebar vs Everything Else -->
-    <ResizableSplitPane defaultRatio={0.2} minLeft="200px" minRight="300px">
+    <ResizableSplitPane
+      defaultRatio={0.2}
+      minLeft="200px"
+      minRight="300px"
+      leftVisible={windowState.layout.left}
+    >
       <!-- Left Panel: Sidebar -->
       {#snippet left()}
         <div class="flex h-full flex-col bg-muted/20">
@@ -28,6 +34,7 @@
             defaultRatio={0.75}
             minLeft="300px"
             minRight="200px"
+            rightVisible={windowState.layout.right}
           >
             <!-- Center Area (Editor + Bottom Panel) -->
             {#snippet left()}
@@ -38,6 +45,7 @@
                   defaultRatio={0.7}
                   minLeft="100px"
                   minRight="50px"
+                  rightVisible={windowState.layout.bottom}
                 >
                   <!-- Editor -->
                   {#snippet left()}
@@ -56,10 +64,7 @@
                   <!-- Bottom Panel (Clean, no title) -->
                   {#snippet right()}
                     <div class="flex h-full flex-col bg-background">
-                      <!-- Just the top border for separation, no text/height -->
-                      <div
-                        class="h-px w-full flex-none border-t border-(--theme-border-default)"
-                      ></div>
+                      <!-- Removed redundant border -->
                       <div class="flex-1 overflow-auto p-2">
                         <pre class="text-xs font-mono">System ready.</pre>
                       </div>

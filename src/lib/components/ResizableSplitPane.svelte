@@ -9,6 +9,8 @@
         resizable = true,
         orientation = "horizontal",
         resetOnDisable = false,
+        leftVisible = true,
+        rightVisible = true,
         left,
         right,
     }: {
@@ -19,6 +21,8 @@
         resizable?: boolean;
         orientation?: "horizontal" | "vertical";
         resetOnDisable?: boolean;
+        leftVisible?: boolean;
+        rightVisible?: boolean;
         left?: Snippet;
         right?: Snippet;
     } = $props();
@@ -109,70 +113,78 @@
     role="group"
 >
     <!-- First Panel (Left/Top) -->
-    <div
-        class="relative z-0 flex-none overflow-auto transition-[flex-basis] duration-0 ease-linear"
-        class:transition-all={!isDragging}
-        class:duration-300={!isDragging}
-        style="{isVertical ? 'height' : 'width'}: {currentRatio}%; {isVertical
-            ? 'min-height'
-            : 'min-width'}: {minLeft};"
-    >
-        {#if left}
-            {@render left()}
-        {:else}
-            <div class="p-4 text-gray-400">Left Content</div>
-        {/if}
-    </div>
+    {#if leftVisible}
+        <div
+            class="relative z-0 flex-none overflow-auto transition-[flex-basis] duration-0 ease-linear"
+            class:transition-all={!isDragging}
+            class:duration-300={!isDragging}
+            style="{isVertical ? 'height' : 'width'}: {rightVisible
+                ? currentRatio + '%'
+                : '100%'}; {isVertical
+                ? 'min-height'
+                : 'min-width'}: {minLeft};"
+        >
+            {#if left}
+                {@render left()}
+            {:else}
+                <div class="p-4 text-gray-400">Left Content</div>
+            {/if}
+        </div>
+    {/if}
 
     <!-- Handle -->
-    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-    <div
-        role="separator"
-        tabindex="0"
-        aria-valuenow={currentRatio}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        class="relative z-10 flex-none"
-        class:w-full={isVertical}
-        class:h-auto={isVertical}
-        class:h-full={!isVertical}
-        class:w-auto={!isVertical}
-        style="{isVertical
-            ? 'height'
-            : 'width'}: {gapSize}px; cursor: {resizable
-            ? isVertical
-                ? 'row-resize'
-                : 'col-resize'
-            : 'default'};"
-        onmousedown={startDrag}
-    >
-        <!-- Visual Line -->
+    {#if leftVisible && rightVisible}
+        <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
         <div
-            class="absolute inset-0 bg-(--theme-border-default)"
-            class:h-px={isVertical}
+            role="separator"
+            tabindex="0"
+            aria-valuenow={currentRatio}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            class="relative z-10 flex-none"
             class:w-full={isVertical}
-            class:w-px={!isVertical}
+            class:h-auto={isVertical}
             class:h-full={!isVertical}
-        ></div>
+            class:w-auto={!isVertical}
+            style="{isVertical
+                ? 'height'
+                : 'width'}: {gapSize}px; cursor: {resizable
+                ? isVertical
+                    ? 'row-resize'
+                    : 'col-resize'
+                : 'default'};"
+            onmousedown={startDrag}
+        >
+            <!-- Visual Line -->
+            <div
+                class="absolute inset-0 bg-(--theme-border-default)"
+                class:h-px={isVertical}
+                class:w-full={isVertical}
+                class:w-px={!isVertical}
+                class:h-full={!isVertical}
+            ></div>
 
-        <!-- Hit Area (Invisible, wider for easier grabbing) -->
-        <div
-            class="absolute z-20 bg-transparent"
-            style={isVertical
-                ? "top: -3px; bottom: -3px; left: 0; right: 0;"
-                : "left: -3px; right: -3px; top: 0; bottom: 0;"}
-        ></div>
-    </div>
+            <!-- Hit Area (Invisible, wider for easier grabbing) -->
+            <div
+                class="absolute z-20 bg-transparent"
+                style={isVertical
+                    ? "top: -3px; bottom: -3px; left: 0; right: 0;"
+                    : "left: -3px; right: -3px; top: 0; bottom: 0;"}
+            ></div>
+        </div>
+    {/if}
 
     <!-- Second Panel (Right/Bottom) -->
-    <div
-        class="relative z-0 flex-1 overflow-auto"
-        style="{isVertical ? 'min-height' : 'min-width'}: {minRight};"
-    >
-        {#if right}
-            {@render right()}
-        {:else}
-            <div class="p-4 text-gray-400">Right Content</div>
-        {/if}
-    </div>
+    {#if rightVisible}
+        <div
+            class="relative z-0 flex-1 overflow-auto"
+            style="{isVertical ? 'min-height' : 'min-width'}: {minRight};"
+        >
+            {#if right}
+                {@render right()}
+            {:else}
+                <div class="p-4 text-gray-400">Right Content</div>
+            {/if}
+        </div>
+    {/if}
 </div>
