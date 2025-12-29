@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::thread;
 use std::time::Duration;
 use sysinfo::{Pid, System, get_current_pid};
@@ -8,9 +8,14 @@ use log::debug;
 /// System metrics response structure
 #[derive(Serialize, Clone)]
 pub struct SystemMetrics {
-    pub cpu_usage: f32,      // CPU usage percentage
-    pub memory_kb: u64,      // Memory usage in KB
-    pub thread_count: usize, // Number of threads
+    /// CPU usage normalized to 0–100 across all logical cores.
+    pub cpu_percent: f32,
+    /// Raw summed CPU usage across all logical cores (can exceed 100).
+    pub cpu_total: f32,
+    /// Memory usage in KiB (sysinfo already returns KiB).
+    pub memory_kb: u64,
+    /// Number of threads across the process tree.
+    pub threads: usize,
 }
 
 /// Get current system metrics for the app process
@@ -26,8 +31,16 @@ pub fn get_system_metrics() -> Result<SystemMetrics, String> {
     sys.refresh_processes();
 
     fn collect_process_tree(sys: &System, root_pid: sysinfo::Pid) -> (f32, u64, usize) {
+        // Build a parent->children map once so traversal is O(n).
+        let mut children: HashMap<Pid, Vec<Pid>> = HashMap::new();
+        for (pid, proc) in sys.processes() {
+            if let Some(parent) = proc.parent() {
+                children.entry(parent).or_default().push(*pid);
+            }
+        }
+
         let mut total_cpu = 0.0;
-        let mut total_mem_bytes = 0u64;
+        let mut total_mem_kb = 0u64;
         let mut total_threads = 0usize;
         let mut stack = vec![root_pid];
         let mut seen = HashSet::new();
@@ -38,34 +51,40 @@ pub fn get_system_metrics() -> Result<SystemMetrics, String> {
             }
             if let Some(process) = sys.process(pid) {
                 total_cpu += process.cpu_usage();
-                total_mem_bytes += process.memory();
-                total_threads += process.tasks().map(|tasks| tasks.len()).unwrap_or(0);
-                println!("Process {} has {} threads {} pid {}", process.name(), total_threads, total_cpu, pid);
+                // sysinfo returns memory in KiB.
+                total_mem_kb += process.memory();
+                // tasks() is None on some platforms; fall back to 1 when unavailable.
+                total_threads += process.tasks().map(|tasks| tasks.len()).unwrap_or(1);
 
-                for (child_pid, child_proc) in sys.processes() {
-                    if child_proc.parent() == Some(pid) {
-                        stack.push(*child_pid);
-                    }
+                if let Some(child_pids) = children.get(&pid) {
+                    stack.extend(child_pids.iter().copied());
                 }
             }
         }
 
-        (total_cpu, total_mem_bytes, total_threads)
+        (total_cpu, total_mem_kb, total_threads)
     }
 
     // Get current process info
     let pid = get_current_pid().map_err(|e| e.to_string())?;
     if sys.process(pid).is_some() {
-        let (total_cpu, total_mem_bytes, total_threads) = collect_process_tree(&sys, pid);
+        let (total_cpu, total_mem_kb, total_threads) = collect_process_tree(&sys, pid);
+        let cores = sys.cpus().len().max(1) as f32;
+        let cpu_percent = total_cpu / cores;
         let metrics = SystemMetrics {
-            cpu_usage: total_cpu,
-            // sysinfo 0.30 returns bytes; convert to KB for display
-            memory_kb: total_mem_bytes / 1024,
-            thread_count: total_threads,
+            cpu_percent,
+            cpu_total: total_cpu,
+            memory_kb: total_mem_kb,
+            threads: total_threads,
         };
 
-        debug!("System metrics collected: CPU={:.2}%, Memory={}KB, Threads={}",
-               metrics.cpu_usage, metrics.memory_kb, metrics.thread_count);
+        debug!(
+            "System metrics collected: CPU(norm)={:.2}%, CPU(total)={:.2}%, Memory={}KiB, Threads={}",
+            metrics.cpu_percent,
+            metrics.cpu_total,
+            metrics.memory_kb,
+            metrics.threads
+        );
 
         Ok(metrics)
     } else {
