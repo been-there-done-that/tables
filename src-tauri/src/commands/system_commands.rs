@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::env;
 use std::time::Duration;
-use sysinfo::{Pid, System, get_current_pid};
+use sysinfo::{Pid, System};
 use serde::Serialize;
 use log::debug;
 use tauri::{AppHandle, Emitter};
@@ -65,7 +65,8 @@ fn collect_metrics(sys: &mut System) -> Result<SystemMetrics, String> {
     sys.refresh_processes();
 
     // Get current process info
-    let pid = get_current_pid().map_err(|e| e.to_string())?;
+    let pid_u32 = std::process::id();
+    let pid = Pid::from_u32(pid_u32);
     if sys.process(pid).is_some() {
         let (total_cpu, total_threads) = collect_process_tree(sys, pid);
         let cores = sys.cpus().len().max(1) as f32;
@@ -73,7 +74,7 @@ fn collect_metrics(sys: &mut System) -> Result<SystemMetrics, String> {
         let metrics = SystemMetrics {
             cpu_percent,
             threads: total_threads,
-            pid: pid.as_u32() as i32,
+            pid: pid_u32 as i32,
         };
 
         debug!(
