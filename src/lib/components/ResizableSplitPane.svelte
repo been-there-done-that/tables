@@ -65,6 +65,37 @@
         window.addEventListener("mouseup", stopDrag);
     }
 
+    function onKeyDown(e: KeyboardEvent) {
+        if (!resizable) return;
+        const horizontalKeys = ["ArrowLeft", "ArrowRight"];
+        const verticalKeys = ["ArrowUp", "ArrowDown"];
+
+        if (
+            (!isVertical && !horizontalKeys.includes(e.key)) ||
+            (isVertical && !verticalKeys.includes(e.key))
+        )
+            return;
+
+        e.preventDefault();
+        const step = 0.02;
+        const delta = e.key === "ArrowLeft" || e.key === "ArrowUp" ? -step : step;
+        clampRatio(ratio + delta);
+    }
+
+    const clampRatio = (next: number) => {
+        if (!container) return;
+        const rect = container.getBoundingClientRect();
+        const total = isVertical ? rect.height : rect.width;
+        if (total <= 0) return;
+
+        const parse = (v: string) =>
+            v.endsWith("%") ? (parseFloat(v) / 100) * total : parseFloat(v);
+
+        const minStart = parse(minLeft) / total;
+        const minEnd = 1 - parse(minRight) / total;
+        ratio = Math.max(minStart, Math.min(next, minEnd));
+    };
+
     function onDrag(e: MouseEvent) {
         if (!container) return;
 
@@ -74,15 +105,7 @@
             ? e.clientY - rect.top
             : e.clientX - rect.left;
 
-        // Parse constraints relative to total size
-        const parse = (v: string) =>
-            v.endsWith("%") ? (parseFloat(v) / 100) * total : parseFloat(v);
-
-        const minStart = parse(minLeft) / total;
-        const minEnd = 1 - parse(minRight) / total;
-
-        // Clamp ratio between minStart and minEnd
-        ratio = Math.max(minStart, Math.min(offset / total, minEnd));
+        clampRatio(offset / total);
     }
 
     function stopDrag() {
@@ -118,12 +141,14 @@
     </div>
 
     <!-- Divider -->
-    <!-- svelte-ignore a11y-no-implicit-role -->
-    <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
-    <!-- svelte-ignore a11y-no-noninteractive-tabindex -->
     <div
-        role="separator"
+        role="slider"
         tabindex="0"
+        aria-orientation={isVertical ? "vertical" : "horizontal"}
+        aria-valuemin="0"
+        aria-valuemax="1"
+        aria-valuenow={ratio}
+        aria-label="Resize panels"
         class="relative flex-none transition-all duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1)] outline-none"
         class:opacity-0={!leftVisible || !rightVisible}
         class:pointer-events-none={!leftVisible || !rightVisible}
@@ -131,6 +156,7 @@
         class:cursor-col-resize={resizable && !isVertical}
         style="{axis}: {dividerSize}; touch-action: none;"
         onmousedown={startDrag}
+        onkeydown={onKeyDown}
     >
         <!-- visual line -->
         <div
