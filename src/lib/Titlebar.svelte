@@ -82,7 +82,7 @@
       </div>
 
       <!-- Right side actions -->
-      <div class="flex items-center gap-2 pointer-events-auto">
+      <div class="flex items-center gap-3 pointer-events-auto">
         {#if windowState.label === "main"}
           <button
             class={cn(
@@ -111,7 +111,7 @@
             <IconPlus class="size-6" />
           </button>
 
-          <div class="flex items-center gap-3">
+          <div class="flex items-center gap-1">
             <button
               class={cn(
                 "h-6 w-6 flex items-center justify-center rounded-md border transition-all",

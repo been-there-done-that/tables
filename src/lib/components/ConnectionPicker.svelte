@@ -9,9 +9,8 @@
     import { invoke } from "@tauri-apps/api/core";
     import { cn } from "$lib/utils";
     import ListSvg from "$lib/svg/List.svelte";
-    import ArrowDownRightCircle from "@tabler/icons-svelte/icons/arrow-down-right-circle";
     import DiagonalArrowSvg from "$lib/svg/DiagonalArrow.svelte";
-    import { drivers, resolveDriverIcon } from "./datasource/DriverList";
+    import { resolveDriverIcon } from "./datasource/DriverList";
 
     let connections = $state<Connection[]>([]);
     let isOpen = $state(false);
