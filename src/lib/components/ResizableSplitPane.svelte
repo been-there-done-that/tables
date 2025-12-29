@@ -29,64 +29,59 @@
 
     let container = $state<HTMLElement>();
     let isDragging = $state(false);
-    let currentRatio = $state(defaultRatio * 100);
+    let ratio = $state(defaultRatio);
 
-    let isVertical = $derived(orientation === "vertical");
+    const isVertical = $derived(orientation === "vertical");
+    const axis = $derived(isVertical ? "height" : "width");
+    const cursor = $derived(isVertical ? "row-resize" : "col-resize");
 
-    function startDrag(event: MouseEvent) {
+    /* ---------- Derived layout ---------- */
+
+    const firstSize = $derived.by(() => {
+        if (!leftVisible) return "0px";
+        if (!rightVisible) return "100%";
+        return `${ratio * 100}%`;
+    });
+
+    const secondSize = $derived.by(() => {
+        if (!rightVisible) return "0px";
+        return "auto";
+    });
+
+    const dividerSize = $derived.by(() =>
+        leftVisible && rightVisible ? `${gapSize}px` : "0px",
+    );
+
+    const dividerOpacity = $derived.by(() =>
+        !leftVisible || !rightVisible ? "0" : "1",
+    );
+
+    const dividerPointerEvents = $derived.by(() =>
+        !leftVisible || !rightVisible ? "none" : "auto",
+    );
+
+    /* ---------- Drag logic ---------- */
+
+    function startDrag() {
         if (!resizable) return;
         isDragging = true;
-        document.body.style.cursor = isVertical ? "row-resize" : "col-resize";
+        document.body.style.cursor = cursor;
         document.body.style.userSelect = "none";
-
         window.addEventListener("mousemove", onDrag);
         window.addEventListener("mouseup", stopDrag);
     }
 
-    function onDrag(event: MouseEvent) {
-        if (!isDragging || !container) return;
+    function onDrag(e: MouseEvent) {
+        if (!container) return;
 
-        const containerRect = container.getBoundingClientRect();
+        const rect = container.getBoundingClientRect();
+        const total = isVertical ? rect.height : rect.width;
+        const offset = isVertical
+            ? e.clientY - rect.top
+            : e.clientX - rect.left;
 
-        let newSize = 0;
-        let totalSize = 0;
-
-        if (isVertical) {
-            newSize = event.clientY - containerRect.top;
-            totalSize = containerRect.height;
-        } else {
-            newSize = event.clientX - containerRect.left;
-            totalSize = containerRect.width;
-        }
-
-        // Convert to percentage
-        let newRatio = newSize / totalSize;
-
-        // Parse constraints
-        const parseLength = (val: string, total: number) => {
-            if (val.endsWith("%")) {
-                return (parseFloat(val) / 100) * total;
-            }
-            if (val.endsWith("px")) {
-                return parseFloat(val);
-            }
-            return parseFloat(val) || 0;
-        };
-
-        const minStartPx = parseLength(minLeft, totalSize); // minLeft acts as minTop in vertical
-        const minEndPx = parseLength(minRight, totalSize); // minRight acts as minBottom in vertical
-
-        const minRatioVal = minStartPx / totalSize;
-        const maxRatioVal = 1 - minEndPx / totalSize;
-
-        // Apply clamping
-        if (minRatioVal > maxRatioVal) {
-            newRatio = 0.5;
-        } else {
-            newRatio = Math.max(minRatioVal, Math.min(newRatio, maxRatioVal));
-        }
-
-        currentRatio = newRatio * 100;
+        // Simple ratio clamping between 0 and 1
+        ratio = Math.max(0, Math.min(offset / total, 1));
     }
 
     function stopDrag() {
@@ -97,97 +92,56 @@
         window.removeEventListener("mouseup", stopDrag);
     }
 
-    // Reset logic effect
     $effect(() => {
         if (!resizable && resetOnDisable) {
-            currentRatio = defaultRatio * 100;
+            ratio = defaultRatio;
         }
     });
 </script>
 
 <div
     bind:this={container}
-    class="relative flex h-full w-full select-none overflow-hidden"
+    class="flex h-full w-full overflow-hidden"
     class:flex-col={isVertical}
-    class:flex-row={!isVertical}
-    role="group"
 >
-    <!-- First Panel (Left/Top) -->
+    <!-- First panel -->
     <div
-        class="relative z-0 flex-none overflow-hidden transition-[flex-basis,width,height,min-width,min-height] duration-300 ease-in-out"
+        class="overflow-hidden transition-[width,height] duration-200 ease-out"
         class:transition-none={isDragging}
-        style="{isVertical ? 'height' : 'width'}: {!leftVisible
-            ? '0px'
-            : rightVisible
-              ? currentRatio + '%'
-              : '100%'}; {isVertical
-            ? 'min-height'
-            : 'min-width'}: {!leftVisible ? '0px' : minLeft};"
+        style="{axis}: {firstSize}; min-{axis}: {leftVisible ? minLeft : '0px'}"
     >
-        {#if left}
-            {@render left()}
-        {:else}
-            <div class="p-4 text-gray-400">Left Content</div>
-        {/if}
+        {@render left?.()}
     </div>
 
-    <!-- Handle -->
-    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+    <!-- Divider -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
-        role="separator"
-        tabindex="0"
-        aria-valuenow={currentRatio}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        class="relative z-10 flex-none transition-[width,height,opacity] duration-300 ease-in-out"
-        class:w-full={isVertical}
-        class:h-auto={isVertical}
-        class:h-full={!isVertical}
-        class:w-auto={!isVertical}
-        class:opacity-0={!leftVisible || !rightVisible}
-        class:pointer-events-none={!leftVisible || !rightVisible}
-        style="{isVertical ? 'height' : 'width'}: {leftVisible && rightVisible
-            ? gapSize + 'px'
-            : '0px'}; cursor: {resizable
-            ? isVertical
-                ? 'row-resize'
-                : 'col-resize'
-            : 'default'};"
+        class="relative flex-none transition-opacity duration-200"
+        style="{axis}: {dividerSize}; opacity: {dividerOpacity}; pointer-events: {dividerPointerEvents}"
         onmousedown={startDrag}
     >
-        <!-- Visual Line -->
+        <!-- visual line -->
         <div
             class="absolute inset-0 bg-(--theme-border-default)"
-            class:h-px={isVertical}
-            class:w-full={isVertical}
             class:w-px={!isVertical}
-            class:h-full={!isVertical}
+            class:h-px={isVertical}
         ></div>
 
-        <!-- Hit Area (Invisible, wider for easier grabbing) -->
+        <!-- hit area -->
         <div
-            class="absolute z-20 bg-transparent"
-            style={isVertical
-                ? "top: -3px; bottom: -3px; left: 0; right: 0;"
-                : "left: -3px; right: -3px; top: 0; bottom: 0;"}
+            class="absolute inset-0"
+            style={isVertical ? "top:-4px;bottom:-4px" : "left:-4px;right:-4px"}
+            style:cursor={resizable ? cursor : "default"}
         ></div>
     </div>
 
-    <!-- Second Panel (Right/Bottom) -->
+    <!-- Second panel -->
     <div
-        class="relative z-0 overflow-hidden transition-[flex-grow,min-width,min-height] duration-300 ease-in-out"
-        class:flex-1={rightVisible}
-        class:flex-none={!rightVisible}
-        style="{isVertical ? 'min-height' : 'min-width'}: {rightVisible
+        class="flex-1 overflow-hidden"
+        style="{axis}: {secondSize}; min-{axis}: {rightVisible
             ? minRight
-            : '0px'}; {isVertical ? 'height' : 'width'}: {rightVisible
-            ? 'auto'
-            : '0px'};"
+            : '0px'}"
     >
-        {#if right}
-            {@render right()}
-        {:else}
-            <div class="p-4 text-gray-400">Right Content</div>
-        {/if}
+        {@render right?.()}
     </div>
 </div>
