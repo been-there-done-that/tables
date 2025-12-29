@@ -35,6 +35,7 @@ class MetricsStore {
 
     get cpu() { return this.get("system.cpu"); }
     get cpuHistory() { return this.getHistory("system.cpu.history"); }
+    get memory() { return this.get("system.memory"); }
     get threads() { return this.get("system.threads"); }
     get pid() { return this.get("system.pid"); }
 }
