@@ -26,6 +26,7 @@ use commands::window_commands::*;
 use plugins::{PluginDiscovery, get_available_plugins, enable_plugin, disable_plugin, get_plugin_info, initialize_all_plugins};
 use connection_manager::ConnectionManager;
 use credential_manager::CredentialManager;
+use commands::system_commands::start_metrics_emitter;
 
 // Re-export for command modules
 pub use connection_manager::ConnectionManagerState;
@@ -214,6 +215,7 @@ pub fn run() {
                         window.set_position(tauri::Position::Physical(PhysicalPosition { x, y }));
                 }
             }
+            start_metrics_emitter(app.handle().clone());
             info!("Application setup complete");
             Ok(())
         })
