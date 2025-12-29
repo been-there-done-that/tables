@@ -1,5 +1,6 @@
 import { getCurrentWindow, getAllWindows } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core";
 import { METRICS } from "$lib/constants";
 import { listConnections } from "$lib/commands/client";
 import type { Connection } from "$lib/commands/types";
@@ -32,6 +33,18 @@ const COMMANDS: CommandConfig[] = [
         label: "Toggle Bottom Panel",
         defaultKeybinding: { mac: "Meta+n", win: "Control+n" },
         execute: (s) => { s.layout.bottom = !s.layout.bottom; }
+    },
+    {
+        id: "workbench.action.newWindow",
+        label: "New Window",
+        defaultKeybinding: { mac: "Meta+Shift+n", win: "Control+Shift+n" },
+        execute: async () => {
+            try {
+                await invoke("create_new_window");
+            } catch (e) {
+                console.error("Failed to create new window:", e);
+            }
+        }
     }
 ];
 
