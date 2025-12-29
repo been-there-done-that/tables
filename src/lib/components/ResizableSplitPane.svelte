@@ -52,14 +52,6 @@
         leftVisible && rightVisible ? `${gapSize}px` : "0px",
     );
 
-    const dividerOpacity = $derived.by(() =>
-        !leftVisible || !rightVisible ? "0" : "1",
-    );
-
-    const dividerPointerEvents = $derived.by(() =>
-        !leftVisible || !rightVisible ? "none" : "auto",
-    );
-
     /* ---------- Drag logic ---------- */
 
     function startDrag() {
@@ -80,8 +72,15 @@
             ? e.clientY - rect.top
             : e.clientX - rect.left;
 
-        // Simple ratio clamping between 0 and 1
-        ratio = Math.max(0, Math.min(offset / total, 1));
+        // Parse constraints relative to total size
+        const parse = (v: string) =>
+            v.endsWith("%") ? (parseFloat(v) / 100) * total : parseFloat(v);
+
+        const minStart = parse(minLeft) / total;
+        const minEnd = 1 - parse(minRight) / total;
+
+        // Clamp ratio between minStart and minEnd
+        ratio = Math.max(minStart, Math.min(offset / total, minEnd));
     }
 
     function stopDrag() {
@@ -114,10 +113,16 @@
     </div>
 
     <!-- Divider -->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <!-- svelte-ignore a11y_separator_implicit_roles -->
     <div
-        class="relative flex-none transition-opacity duration-200"
-        style="{axis}: {dividerSize}; opacity: {dividerOpacity}; pointer-events: {dividerPointerEvents}"
+        role="separator"
+        tabindex="0"
+        class="relative flex-none transition-opacity duration-200 outline-none"
+        class:opacity-0={!leftVisible || !rightVisible}
+        class:pointer-events-none={!leftVisible || !rightVisible}
+        class:cursor-row-resize={resizable && isVertical}
+        class:cursor-col-resize={resizable && !isVertical}
+        style="{axis}: {dividerSize}; touch-action: none;"
         onmousedown={startDrag}
     >
         <!-- visual line -->
@@ -131,7 +136,6 @@
         <div
             class="absolute inset-0"
             style={isVertical ? "top:-4px;bottom:-4px" : "left:-4px;right:-4px"}
-            style:cursor={resizable ? cursor : "default"}
         ></div>
     </div>
 
