@@ -8,6 +8,7 @@ mod aws_profile_manager;
 mod commands;
 mod plugins;
 mod configs;
+mod metrics;
 
 use tauri::{Manager, PhysicalPosition, PhysicalSize, Size, Emitter};
 use std::{path::PathBuf, sync::{Arc, Mutex}, time::SystemTime};
@@ -18,7 +19,7 @@ use tracing_log::LogTracer;
 use log::{info, debug, warn, error, trace};
 use commands::theme_commands::*;
 use commands::connection_commands::*;
-use commands::system_commands::*;
+// use commands::system_commands::*; // Removed
 use commands::aws_commands::*;
 use commands::redis_commands::*;
 use commands::athena_commands::*;
@@ -26,10 +27,12 @@ use commands::window_commands::*;
 use plugins::{PluginDiscovery, get_available_plugins, enable_plugin, disable_plugin, get_plugin_info, initialize_all_plugins};
 use connection_manager::ConnectionManager;
 use credential_manager::CredentialManager;
-use commands::system_commands::start_metrics_emitter;
+// use commands::system_commands::start_metrics_emitter; // OLD
+use metrics::{MetricsRegistry, SystemMonitor, start_metrics_emitter};
 
 // Re-export for command modules
 pub use connection_manager::ConnectionManagerState;
+pub use metrics::MetricsRegistry as SharedMetricsRegistry; // Optional if commands need it
 
 #[derive(Clone, Debug, Serialize)]
 pub struct Theme {
@@ -215,7 +218,20 @@ pub fn run() {
                         window.set_position(tauri::Position::Physical(PhysicalPosition { x, y }));
                 }
             }
-            start_metrics_emitter(app.handle().clone());
+
+            
+            // --- Metrics System Setup ---
+            debug!("Initializing metrics system");
+            let registry = Arc::new(MetricsRegistry::new());
+            app.manage(registry.clone()); // Optional: Allow commands to access registry via state
+            
+            // Start self-registering system monitor
+            let monitor = SystemMonitor::new(&registry);
+            monitor.run();
+
+            // Start emitter thread
+            start_metrics_emitter(app.handle().clone(), registry);
+
             info!("Application setup complete");
             Ok(())
         })
