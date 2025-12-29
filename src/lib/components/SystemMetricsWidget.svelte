@@ -4,6 +4,7 @@
   import type { UnlistenFn } from "@tauri-apps/api/event";
   import MicroSparkline from "$lib/components/MicroSparkline.svelte";
   import type { SystemMetrics } from "$lib/commands/types";
+  import MicroBarSparkline from "$lib/components/MicroBarSparkline.svelte";
 
   let metrics = $state<SystemMetrics | null>(null);
   let cpuHistory = $state<number[]>([]);
@@ -55,7 +56,7 @@
     <span title="CPU Usage (normalized)" class="flex items-center gap-1">
       {metrics.cpu_percent.toFixed(1)}%
       <div class="border">
-        <MicroSparkline values={cpuHistory} />
+        <MicroBarSparkline values={cpuHistory} />
       </div>
     </span>
     <span title="Threads">{metrics.threads}</span>
