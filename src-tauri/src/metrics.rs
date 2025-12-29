@@ -1,27 +1,30 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 use serde::Serialize;
 use sysinfo::{Pid, System};
-use log::{error, info, debug};
+use log::{error, info};
 
 // --- Core Registry Implementation ---
 
 pub enum Metric {
     Counter(Arc<AtomicU64>),
     Gauge(Arc<AtomicU64>), // store f64 via bits
+    // History is handled separately to avoid enum complexity with Generics/Mutexes
 }
 
 pub struct MetricsRegistry {
     metrics: RwLock<HashMap<&'static str, Metric>>,
+    histories: RwLock<HashMap<&'static str, HistoryHandle>>,
 }
 
 impl MetricsRegistry {
     pub fn new() -> Self {
         Self {
             metrics: RwLock::new(HashMap::new()),
+            histories: RwLock::new(HashMap::new()),
         }
     }
 
@@ -48,10 +51,22 @@ impl MetricsRegistry {
             _ => panic!("Metric {name} already registered with different type"),
         }
     }
+    
+    pub fn register_history(&self, name: &'static str, capacity: usize) -> HistoryHandle {
+        let mut histories = self.histories.write().unwrap();
+        let entry = histories.entry(name).or_insert_with(|| {
+            HistoryHandle(Arc::new(Mutex::new(VecDeque::with_capacity(capacity))), capacity)
+        });
+        
+        entry.clone()
+    }
 
     pub fn snapshot(&self) -> MetricsSnapshot {
         let metrics = self.metrics.read().unwrap();
+        let histories = self.histories.read().unwrap();
+        
         let mut values = HashMap::new();
+        let mut history_values = HashMap::new();
 
         for (name, metric) in metrics.iter() {
             let v = match metric {
@@ -60,11 +75,17 @@ impl MetricsRegistry {
             };
             values.insert(*name, v);
         }
+        
+        for (name, handle) in histories.iter() {
+             let data = handle.0.lock().unwrap();
+             history_values.insert(*name, data.iter().cloned().collect::<Vec<f64>>());
+        }
 
-        MetricsSnapshot { values }
+        MetricsSnapshot { values, histories: history_values }
     }
 }
 
+#[derive(Clone)]
 pub struct CounterHandle(Arc<AtomicU64>);
 
 impl CounterHandle {
@@ -77,6 +98,7 @@ impl CounterHandle {
     }
 }
 
+#[derive(Clone)]
 pub struct GaugeHandle(Arc<AtomicU64>);
 
 impl GaugeHandle {
@@ -85,9 +107,23 @@ impl GaugeHandle {
     }
 }
 
+#[derive(Clone)]
+pub struct HistoryHandle(Arc<Mutex<VecDeque<f64>>>, usize);
+
+impl HistoryHandle {
+    pub fn push(&self, v: f64) {
+        let mut data = self.0.lock().unwrap();
+        if data.len() >= self.1 {
+            data.pop_front();
+        }
+        data.push_back(v);
+    }
+}
+
 #[derive(Serialize, PartialEq, Debug)]
 pub struct MetricsSnapshot {
     values: HashMap<&'static str, f64>,
+    histories: HashMap<&'static str, Vec<f64>>,
 }
 
 // --- Emission Logic ---
@@ -98,12 +134,17 @@ pub fn start_metrics_emitter(app: AppHandle, registry: Arc<MetricsRegistry>) {
         let mut last = None;
 
         loop {
+            // Emit independent of change to ensure liveness? 
+            // The user wanted "only if modified". 
+            // But if we want the "Welcome" push to work, that's orthogonal.
+            // Let's stick to change detection, but wait... 
+            // If the user's "Welcome push" is handled in lib.rs, this loop can stay effecient.
+            
             std::thread::sleep(Duration::from_millis(1000)); // 1Hz
 
             let snapshot = registry.snapshot();
 
             if last.as_ref() != Some(&snapshot) {
-                // debug!("Emitting metrics snapshot: {:?}", snapshot);
                 if let Err(e) = app.emit("metrics:snapshot", &snapshot) {
                     error!("Failed to emit metrics snapshot: {}", e);
                 }
@@ -117,6 +158,7 @@ pub fn start_metrics_emitter(app: AppHandle, registry: Arc<MetricsRegistry>) {
 
 pub struct SystemMonitor {
     cpu_usage: GaugeHandle,
+    cpu_history: HistoryHandle,
     thread_count: GaugeHandle,
     pid: GaugeHandle,
 }
@@ -125,6 +167,7 @@ impl SystemMonitor {
     pub fn new(registry: &MetricsRegistry) -> Self {
         Self {
             cpu_usage: registry.register_gauge("system.cpu"),
+            cpu_history: registry.register_history("system.cpu.history", 30), // 30 seconds history
             thread_count: registry.register_gauge("system.threads"),
             pid: registry.register_gauge("system.pid"),
         }
@@ -151,6 +194,7 @@ impl SystemMonitor {
                     let threads = process.tasks().map(|t| t.len()).unwrap_or(1) as f64;
 
                     self.cpu_usage.set(cpu as f64);
+                    self.cpu_history.push(cpu as f64);
                     self.thread_count.set(threads);
                 }
 

@@ -10,7 +10,7 @@ mod plugins;
 mod configs;
 mod metrics;
 
-use tauri::{Manager, PhysicalPosition, PhysicalSize, Size, Emitter};
+use tauri::{Manager, PhysicalPosition, PhysicalSize, Size, Emitter, Listener};
 use std::{path::PathBuf, sync::{Arc, Mutex}, time::SystemTime};
 use rusqlite::{Connection, OptionalExtension};
 use serde::Serialize;
@@ -230,7 +230,18 @@ pub fn run() {
             monitor.run();
 
             // Start emitter thread
-            start_metrics_emitter(app.handle().clone(), registry);
+            start_metrics_emitter(app.handle().clone(), registry.clone());
+
+            // "Welcome Push": Listen for new windows and immediately emit current snapshot
+            let handle = app.handle().clone();
+            let reg_clone = registry.clone();
+            app.listen("window-created", move |_| {
+                info!("Window created, emitting welcome metrics snapshot");
+                let snapshot = reg_clone.snapshot();
+                if let Err(e) = handle.emit("metrics:snapshot", &snapshot) {
+                    error!("Failed to emit welcome metrics snapshot: {}", e);
+                }
+            });
 
             info!("Application setup complete");
             Ok(())
