@@ -36,7 +36,7 @@
   onMount(() => {
     fetchMetrics();
     // Update every 2 seconds
-    intervalId = setInterval(fetchMetrics, 2000);
+    intervalId = setInterval(fetchMetrics, 5000);
   });
 
   onDestroy(() => {
