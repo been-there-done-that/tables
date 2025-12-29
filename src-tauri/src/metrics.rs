@@ -165,6 +165,7 @@ pub fn start_metrics_emitter(app: AppHandle, registry: Arc<MetricsRegistry>) {
 pub struct SystemMonitor {
     cpu_usage: GaugeHandle,
     cpu_history: HistoryHandle,
+    memory_usage: GaugeHandle,
     thread_count: GaugeHandle,
     pid: GaugeHandle,
 }
@@ -174,6 +175,7 @@ impl SystemMonitor {
         Self {
             cpu_usage: registry.register_gauge("system.cpu"),
             cpu_history: registry.register_history("system.cpu.history", 30), // 30 seconds history
+            memory_usage: registry.register_gauge("system.memory"),
             thread_count: registry.register_gauge("system.threads"),
             pid: registry.register_gauge("system.pid"),
         }
@@ -198,11 +200,15 @@ impl SystemMonitor {
                     // Clamp to 0.0 to handle rare underflow/glitch reporting (observed in top as large negative)
                     let cpu = raw_cpu.max(0.0);
                     
+                    // Memory usage in bytes
+                    let memory = process.memory() as f64;
+
                     // Simple thread count
                     let threads = process.tasks().map(|t| t.len()).unwrap_or(1) as f64;
 
                     self.cpu_usage.set(cpu as f64);
                     self.cpu_history.push(cpu as f64);
+                    self.memory_usage.set(memory);
                     self.thread_count.set(threads);
                 }
 
