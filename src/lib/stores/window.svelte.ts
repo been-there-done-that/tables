@@ -5,6 +5,11 @@ class WindowStateStore {
     label = $state("main");
     settingsWindowOpen = $state(false);
     datasourceWindowOpen = $state(false);
+    layout = $state({
+        left: true,
+        right: true,
+        bottom: true
+    });
     private unlistenFunctions: (() => void)[] = [];
 
     constructor() {

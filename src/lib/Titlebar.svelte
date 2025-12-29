@@ -24,12 +24,6 @@
   // let icons = $state(false);
   let datasourceWindowOpen = $state(false);
 
-  let layoutStates = $state({
-    left: false,
-    right: false,
-    bottom: false,
-  });
-
   const openDatasourceWindow = async () => {
     try {
       await invoke("open_datasource_window");
@@ -117,9 +111,10 @@
           <div class="flex items-center">
             <button
               class="h-6 w-6"
-              onclick={() => (layoutStates.left = !layoutStates.left)}
+              onclick={() =>
+                (windowState.layout.left = !windowState.layout.left)}
             >
-              {#if layoutStates.left}
+              {#if windowState.layout.left}
                 <IconLayoutSidebarFilled class="size-5" />
               {:else}
                 <IconLayoutSidebar class="size-5" />
@@ -128,9 +123,10 @@
 
             <button
               class="h-6 w-6"
-              onclick={() => (layoutStates.bottom = !layoutStates.bottom)}
+              onclick={() =>
+                (windowState.layout.bottom = !windowState.layout.bottom)}
             >
-              {#if layoutStates.bottom}
+              {#if windowState.layout.bottom}
                 <IconLayoutSidebarBottomFilled class="size-5 rotate-90" />
               {:else}
                 <IconLayoutSidebarBottom class="size-5 rotate-90" />
@@ -139,9 +135,10 @@
 
             <button
               class="h-6 w-6"
-              onclick={() => (layoutStates.right = !layoutStates.right)}
+              onclick={() =>
+                (windowState.layout.right = !windowState.layout.right)}
             >
-              {#if layoutStates.right}
+              {#if windowState.layout.right}
                 <IconLayoutSidebarRightFilled class="size-5" />
               {:else}
                 <IconLayoutSidebarRight class="size-5" />
