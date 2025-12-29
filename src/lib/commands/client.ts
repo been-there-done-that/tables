@@ -19,7 +19,8 @@ import type {
   AthenaQueryRequest,
   AthenaQueryResult,
   PluginInfo,
-  SearchRequest
+  SearchRequest,
+  SystemMetrics
 } from './types';
 
 /**
@@ -205,6 +206,11 @@ export class CommandClient {
   async initializeAllPlugins(): Promise<CommandResponse<void>> {
     return this.invokeCommand('initialize_all_plugins');
   }
+
+  // System Commands
+  async getSystemMetrics(): Promise<CommandResponse<SystemMetrics>> {
+    return this.invokeCommand('get_system_metrics');
+  }
 }
 
 // Create singleton instance
@@ -281,6 +287,8 @@ export const enablePlugin = (...args: Parameters<CommandClient["enablePlugin"]>)
   commandClient.enablePlugin(...args);
 export const disablePlugin = (...args: Parameters<CommandClient["disablePlugin"]>) =>
   commandClient.disablePlugin(...args);
+export const getSystemMetrics = (...args: Parameters<CommandClient["getSystemMetrics"]>) =>
+  commandClient.getSystemMetrics(...args);
 export const getPluginInfo = (...args: Parameters<CommandClient["getPluginInfo"]>) =>
   commandClient.getPluginInfo(...args);
 export const initializeAllPlugins = (...args: Parameters<CommandClient["initializeAllPlugins"]>) =>

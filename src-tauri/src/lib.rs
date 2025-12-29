@@ -18,6 +18,7 @@ use tracing_log::LogTracer;
 use log::{info, debug, warn, error, trace};
 use commands::theme_commands::*;
 use commands::connection_commands::*;
+use commands::system_commands::*;
 use commands::aws_commands::*;
 use commands::redis_commands::*;
 use commands::athena_commands::*;
