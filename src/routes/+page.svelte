@@ -1,5 +1,6 @@
 <script>
   import ResizableSplitPane from "$lib/components/ResizableSplitPane.svelte";
+  import SystemMetricsWidget from "$lib/components/SystemMetricsWidget.svelte";
   import { windowState } from "$lib/stores/window.svelte";
 </script>
 
@@ -57,6 +58,7 @@
                       </div>
                       <div class="flex-1 overflow-auto p-4">
                         <div class="rounded border p-2">Editor Content</div>
+                        <SystemMetricsWidget />
                       </div>
                     </div>
                   {/snippet}
