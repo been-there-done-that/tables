@@ -45,7 +45,8 @@
 
   /* ================= STATE ================= */
 
-  let dynamicMax = $state(floor);
+  const floorValue = $derived(floor);
+  let dynamicMax = $state(0);
 
   // keep only last N samples
   const samples = $derived(
@@ -54,9 +55,14 @@
       : values
   );
 
-  const target = $derived(computeRelativeMax(samples, floor));
+  const target = $derived.by<number>(() => computeRelativeMax(samples, floorValue));
   $effect(() => {
     dynamicMax = smooth(dynamicMax, target, maxAlpha);
+  });
+
+  // keep dynamicMax seeded to current floor
+  $effect(() => {
+    if (dynamicMax < floorValue) dynamicMax = floorValue;
   });
 
   /* ================= BAR LAYOUT ================= */
