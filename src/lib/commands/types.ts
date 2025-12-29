@@ -222,8 +222,6 @@ export interface SearchRequest {
 // System metrics types
 export interface SystemMetrics {
   cpu_percent: number;
-  cpu_total: number;
-  memory_kb: number;
   threads: number;
 }
 
