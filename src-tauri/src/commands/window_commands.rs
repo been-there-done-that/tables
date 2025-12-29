@@ -15,13 +15,20 @@ pub async fn open_datasource_window(app: tauri::AppHandle) -> Result<(), String>
     }
 
     debug!("Creating new datasource window");
-    let builder = WebviewWindowBuilder::new(&app, LABEL, tauri::WebviewUrl::App("/datasource".into()))
+    let mut builder = WebviewWindowBuilder::new(&app, LABEL, tauri::WebviewUrl::App("/datasource".into()))
         .title("Datasource")
         .inner_size(960.0, 640.0)
         .resizable(true)
-        .decorations(true)
-        .title_bar_style(TitleBarStyle::Overlay)
-        .hidden_title(true)
+        .decorations(true);
+
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder
+            .title_bar_style(TitleBarStyle::Overlay)
+            .hidden_title(true);
+    }
+
+    let builder = builder
         .transparent(true)
         .focused(true);
 
@@ -53,13 +60,20 @@ pub async fn open_appearance_window(app: tauri::AppHandle) -> Result<(), String>
     }
 
     debug!("Creating new appearance window");
-    let builder = WebviewWindowBuilder::new(&app, LABEL, tauri::WebviewUrl::App("/settings".into()))
+    let mut builder = WebviewWindowBuilder::new(&app, LABEL, tauri::WebviewUrl::App("/settings".into()))
         .title("Appearance")
         .inner_size(960.0, 640.0)
         .resizable(true)
-        .decorations(true)
-        .title_bar_style(TitleBarStyle::Overlay)
-        .hidden_title(true)
+        .decorations(true);
+
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder
+            .title_bar_style(TitleBarStyle::Overlay)
+            .hidden_title(true);
+    }
+
+    let builder = builder
         .transparent(true)
         .focused(true);
 
@@ -84,7 +98,7 @@ pub async fn create_new_window(app: tauri::AppHandle) -> Result<(), String> {
     debug!("Creating new independent window: {}", label);
 
     // Create a new window with the same configuration as the main window
-    let builder = WebviewWindowBuilder::new(&app, &label, tauri::WebviewUrl::App("/".into()))
+    let mut builder = WebviewWindowBuilder::new(&app, &label, tauri::WebviewUrl::App("/".into()))
         .title("Tables")
         // Use a default size, or let the OS/Tauri handle it. 
         // Emulating the main window's typical startup size if desired, 
@@ -92,9 +106,16 @@ pub async fn create_new_window(app: tauri::AppHandle) -> Result<(), String> {
         .inner_size(1200.0, 800.0) 
         .min_inner_size(800.0, 600.0)
         .resizable(true)
-        .decorations(true)
-        .title_bar_style(TitleBarStyle::Overlay)
-        .hidden_title(true)
+        .decorations(true);
+
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder
+            .title_bar_style(TitleBarStyle::Overlay)
+            .hidden_title(true);
+    }
+
+    let builder = builder
         .transparent(true)
         .focused(true);
 
