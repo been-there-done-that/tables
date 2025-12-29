@@ -4,15 +4,7 @@
     let commands = $derived(Array.from(windowState.commands.values()));
 
     function getKeybinding(actionId: string): string {
-        for (const [key, id] of windowState.keybindings.entries()) {
-            if (id === actionId) {
-                return key
-                    .split("+")
-                    .map((k) => k.charAt(0).toUpperCase() + k.slice(1))
-                    .join(" + ");
-            }
-        }
-        return "None";
+        return windowState.formatKeybinding(actionId);
     }
 </script>
 
