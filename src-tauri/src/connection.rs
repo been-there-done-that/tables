@@ -1,29 +1,123 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use uuid::Uuid;
+use log::{info, debug, warn, error, trace};
+use crate::configs::{RuntimeConnection, ConnectionSummary, validate_config_json};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Connection {
     pub id: String,                    // UUID
     pub name: String,
-    pub engine: DatabaseEngine,
+    pub engine: String,                 // "postgres", "sqlite", etc.
+    
+    // Summary fields for indexing and list views
     pub host: Option<String>,
     pub port: Option<u16>,
     pub database: Option<String>,
     pub username: Option<String>,
-    pub auth_type: AuthType,
-    pub ssl_enabled: bool,
-    pub ssh_tunnel_enabled: bool,
-    pub ssh_tunnel_host: Option<String>,
-    pub ssh_tunnel_port: Option<u16>,
-    pub ssh_tunnel_username: Option<String>,
-    pub connection_params: HashMap<String, serde_json::Value>,
+    
+    // Security flags
+    pub uses_ssh: bool,
+    pub uses_tls: bool,
+    
+    // Canonical configuration
+    pub config_json: String,            // Serialized RuntimeConnection
+    
+    // UX / metadata
     pub is_favorite: bool,
     pub color_tag: Option<String>,
+    
     pub created_at: i64,
     pub updated_at: i64,
     pub last_connected_at: Option<i64>,
     pub connection_count: i32,
+}
+
+impl Connection {
+    pub fn new(name: String, config: RuntimeConnection) -> Result<Self, String> {
+        debug!("Creating new connection '{}' with engine '{}'", name, config.engine());
+        let summary = config.summary_fields();
+        let engine = config.engine().to_string();
+        debug!("Serializing config to JSON for connection '{}'", name);
+        let config_json = serde_json::to_string(&config)
+            .map_err(|e| {
+                error!("Failed to serialize config for connection '{}': {}", name, e);
+                format!("Failed to serialize config: {}", e)
+            })?;
+        
+        debug!("Validating config JSON for connection '{}'", name);
+        // Validate the config JSON before storing
+        validate_config_json(&config_json, &engine)?;
+        
+        debug!("Successfully created connection '{}' with ID '{}'", name, "to be generated");
+        Ok(Self {
+            id: Uuid::new_v4().to_string(),
+            name,
+            engine,
+            host: summary.host,
+            port: summary.port,
+            database: summary.database,
+            username: summary.username,
+            uses_ssh: summary.uses_ssh,
+            uses_tls: summary.uses_tls,
+            config_json,
+            is_favorite: false,
+            color_tag: None,
+            created_at: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs() as i64,
+            updated_at: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs() as i64,
+            last_connected_at: None,
+            connection_count: 0,
+        })
+    }
+    
+    pub fn parse_config(&self) -> Result<RuntimeConnection, serde_json::Error> {
+        trace!("Parsing config JSON for connection '{}'", self.id);
+        serde_json::from_str(&self.config_json)
+    }
+    
+    pub fn update_config(&mut self, config: RuntimeConnection) -> Result<(), String> {
+        debug!("Updating config for connection '{}'", self.id);
+        let summary = config.summary_fields();
+        let engine = config.engine().to_string();
+        debug!("Serializing updated config to JSON for connection '{}'", self.id);
+        let config_json = serde_json::to_string(&config)
+            .map_err(|e| {
+                error!("Failed to serialize updated config for connection '{}': {}", self.id, e);
+                format!("Failed to serialize config: {}", e)
+            })?;
+        
+        debug!("Validating updated config JSON for connection '{}'", self.id);
+        // Validate the config JSON before storing
+        validate_config_json(&config_json, &engine)?;
+        
+        self.engine = engine;
+        self.host = summary.host;
+        self.port = summary.port;
+        self.database = summary.database;
+        self.username = summary.username;
+        self.uses_ssh = summary.uses_ssh;
+        self.uses_tls = summary.uses_tls;
+        self.config_json = config_json;
+        self.updated_at = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64;
+        debug!("Successfully updated config for connection '{}'", self.id);
+        Ok(())
+    }
+
+    pub fn update_timestamp(&mut self) {
+        trace!("Updating timestamp for connection '{}'", self.id);
+        self.updated_at = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64;
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -42,6 +136,7 @@ pub enum DatabaseEngine {
 
 impl DatabaseEngine {
     pub fn default_port(&self) -> Option<u16> {
+        trace!("Getting default port for database engine {:?}", self);
         match self {
             DatabaseEngine::PostgreSQL => Some(5432),
             DatabaseEngine::MySQL => Some(3306),
@@ -56,6 +151,7 @@ impl DatabaseEngine {
     }
 
     pub fn display_name(&self) -> &'static str {
+        trace!("Getting display name for database engine {:?}", self);
         match self {
             DatabaseEngine::PostgreSQL => "PostgreSQL",
             DatabaseEngine::MySQL => "MySQL",
@@ -68,6 +164,7 @@ impl DatabaseEngine {
             DatabaseEngine::Custom(_) => "Custom",
         }
     }
+
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -92,6 +189,7 @@ impl AuthType {
     }
 
     pub fn to_string(&self) -> &'static str {
+        trace!("Converting auth type {:?} to string", self);
         match self {
             AuthType::Password => "password",
             AuthType::SshKey => "ssh_key",
@@ -117,31 +215,32 @@ impl Default for AuthType {
 // Sensitive data - never stored in database
 #[derive(Clone, Serialize, Deserialize)]
 pub struct SecureCredentials {
-    #[serde(skip)]
+    #[serde(skip_serializing)]
     pub password: Option<SecretString>,
-    #[serde(skip)]
+    #[serde(skip_serializing)]
     pub ssh_private_key: Option<SecretString>,
-    #[serde(skip)]
+    #[serde(skip_serializing)]
     pub ssh_passphrase: Option<SecretString>,
-    #[serde(skip)]
+    #[serde(skip_serializing)]
     pub ssl_certificate: Option<SecretString>,
-    #[serde(skip)]
+    #[serde(skip_serializing)]
     pub ssl_private_key: Option<SecretString>,
-    #[serde(skip)]
+    #[serde(skip_serializing)]
     pub ssl_ca_certificate: Option<SecretString>,
-    #[serde(skip)]
+    #[serde(skip_serializing)]
     pub api_token: Option<SecretString>,
     // AWS S3 credentials
-    #[serde(skip)]
+    #[serde(skip_serializing)]
     pub aws_access_key_id: Option<SecretString>,
-    #[serde(skip)]
+    #[serde(skip_serializing)]
     pub aws_secret_access_key: Option<SecretString>,
-    #[serde(skip)]
+    #[serde(skip_serializing)]
     pub aws_session_token: Option<SecretString>,
 }
 
 impl SecureCredentials {
     pub fn new() -> Self {
+        trace!("Creating new secure credentials");
         Self {
             password: None,
             ssh_private_key: None,
@@ -157,7 +256,7 @@ impl SecureCredentials {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.password.is_none()
+        let result = self.password.is_none()
             && self.ssh_private_key.is_none()
             && self.ssh_passphrase.is_none()
             && self.ssl_certificate.is_none()
@@ -166,7 +265,9 @@ impl SecureCredentials {
             && self.api_token.is_none()
             && self.aws_access_key_id.is_none()
             && self.aws_secret_access_key.is_none()
-            && self.aws_session_token.is_none()
+            && self.aws_session_token.is_none();
+        trace!("Checking if secure credentials are empty: {}", result);
+        result
     }
 }
 
@@ -176,28 +277,33 @@ impl Default for SecureCredentials {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct SecretString {
     inner: String,
 }
 
 impl SecretString {
     pub fn new(s: String) -> Self {
+        trace!("Creating new secret string");
         Self { inner: s }
     }
 
     pub fn expose(&self) -> &str {
+        warn!("Exposing secret string - ensure secure handling");
         &self.inner
     }
 
     pub fn into_string(mut self) -> String {
-    let result = self.inner.clone();
-    self.zeroize();
-    result
-}
+        warn!("Converting secret to plain string - ensure zeroization");
+        let result = self.inner.clone();
+        self.zeroize();
+        result
+    }
 
     /// Zeroize the secret when dropped
     fn zeroize(&mut self) {
+        trace!("Zeroizing secret string");
         // Simple zeroization - overwrite the string contents
         unsafe {
             let ptr = self.inner.as_mut_ptr();
@@ -243,110 +349,155 @@ pub struct ConnectionInfo {
     pub response_time_ms: Option<u64>,
 }
 
-impl Connection {
-    pub fn new(name: String, engine: DatabaseEngine) -> Self {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs() as i64;
-
-        Self {
-            id: Uuid::new_v4().to_string(),
-            name,
-            engine: engine.clone(),
-            host: None,
-            port: engine.default_port(),
-            database: None,
-            username: None,
-            auth_type: AuthType::default(),
-            ssl_enabled: false,
-            ssh_tunnel_enabled: false,
-            ssh_tunnel_host: None,
-            ssh_tunnel_port: None,
-            ssh_tunnel_username: None,
-            connection_params: HashMap::new(),
-            is_favorite: false,
-            color_tag: None,
-            created_at: now,
-            updated_at: now,
-            last_connected_at: None,
-            connection_count: 0,
-        }
-    }
-
-    pub fn update_timestamp(&mut self) {
-        self.updated_at = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs() as i64;
-    }
-
-    pub fn increment_connection_count(&mut self) {
-        self.connection_count += 1;
-        self.last_connected_at = Some(std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs() as i64);
-        self.update_timestamp();
-    }
-}
 
 // Helper functions for database operations
 pub fn load_connection_from_row(row: &rusqlite::Row<'_>) -> Result<Connection, rusqlite::Error> {
-    let engine_str: String = row.get(3)?;
-    let engine = match engine_str.as_str() {
-        "postgresql" => DatabaseEngine::PostgreSQL,
-        "mysql" => DatabaseEngine::MySQL,
-        "sqlite" => DatabaseEngine::SQLite,
-        "mongodb" => DatabaseEngine::MongoDB,
-        "redis" => DatabaseEngine::Redis,
-        "elasticsearch" => DatabaseEngine::Elasticsearch,
-        custom => DatabaseEngine::Custom(custom.to_string()),
-    };
-
-    let auth_type_str: String = row.get(8)?;
-    let auth_type = match auth_type_str.as_str() {
-        "password" => AuthType::Password,
-        "ssh_key" => AuthType::SshKey,
-        "ssl_cert" => AuthType::SslCert,
-        "api_token" => AuthType::ApiToken,
-        "windows_auth" => AuthType::WindowsAuth,
-        "kerberos" => AuthType::Kerberos,
-        "none" => AuthType::None,
-        "aws_credentials" => AuthType::AwsCredentials,
-        "aws_profile" => AuthType::AwsProfile,
-        "aws_iam_role" => AuthType::AwsIamRole,
-        "athena_jdbc" => AuthType::AthenaJdbc,
-        _ => AuthType::Password,
-    };
-
-    let connection_params_json: Option<String> = row.get(15)?;
-    let connection_params = if let Some(json) = connection_params_json {
-        serde_json::from_str(&json).unwrap_or_default()
-    } else {
-        HashMap::new()
-    };
-
+    debug!("Loading connection from database row");
     Ok(Connection {
         id: row.get(0)?,
         name: row.get(1)?,
-        engine,
-        host: row.get(4)?,
-        port: row.get(5)?,
-        database: row.get(6)?,
-        username: row.get(7)?,
-        auth_type,
-        ssl_enabled: row.get::<_, i64>(9)? != 0,
-        ssh_tunnel_enabled: row.get::<_, i64>(10)? != 0,
-        ssh_tunnel_host: row.get(11)?,
-        ssh_tunnel_port: row.get(12)?,
-        ssh_tunnel_username: row.get(13)?,
-        connection_params,
-        is_favorite: row.get::<_, i64>(16)? != 0,
-        color_tag: row.get(17)?,
-        created_at: row.get(18)?,
-        updated_at: row.get(19)?,
-        last_connected_at: row.get::<_, Option<i64>>(20)?,
-        connection_count: row.get(21)?,
+        engine: row.get(2)?,
+        host: row.get(3)?,
+        port: row.get(4)?,
+        database: row.get(5)?,
+        username: row.get(6)?,
+        uses_ssh: row.get::<_, i64>(7)? != 0,
+        uses_tls: row.get::<_, i64>(8)? != 0,
+        config_json: row.get(9)?,
+        is_favorite: row.get::<_, i64>(10)? != 0,
+        color_tag: row.get(11)?,
+        created_at: row.get(12)?,
+        updated_at: row.get(13)?,
+        last_connected_at: row.get(14)?,
+        connection_count: row.get(15)?,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Utc;
+
+    #[test]
+    fn test_parse_config() {
+        let mut conn = Connection {
+            id: "test_id".to_string(),
+            name: "test_conn".to_string(),
+            engine: "postgresql".to_string(),
+            host: None,
+            port: None,
+            database: None,
+            username: None,
+            uses_ssh: false,
+            uses_tls: false,
+            config_json: "".to_string(),
+            is_favorite: false,
+            color_tag: None,
+            created_at: Utc::now().timestamp(),
+            updated_at: Utc::now().timestamp(),
+            last_connected_at: None,
+            connection_count: 0,
+        };
+
+        let config_json = r#"{
+            "version": 1,
+            "db": {
+                "host": "localhost",
+                "port": 5432,
+                "database": "testdb",
+                "username": "testuser"
+            },
+            "transport": {
+                "type": "direct"
+            },
+            "tls": {
+                "enabled": true,
+                "sslmode": "require"
+            },
+            "options": {}
+        }"#;
+
+        conn.parse_config(config_json).unwrap();
+
+        assert_eq!(conn.host, Some("localhost".to_string()));
+        assert_eq!(conn.port, Some(5432));
+        assert_eq!(conn.database, Some("testdb".to_string()));
+        assert_eq!(conn.username, Some("testuser".to_string()));
+        assert_eq!(conn.uses_ssh, false);
+        assert_eq!(conn.uses_tls, true);
+        assert_eq!(conn.config_json, config_json);
+    }
+
+    #[test]
+    fn test_update_config() {
+        let mut conn = Connection {
+            id: "test_id".to_string(),
+            name: "test_conn".to_string(),
+            engine: "postgresql".to_string(),
+            host: Some("oldhost".to_string()),
+            port: Some(5432),
+            database: Some("olddb".to_string()),
+            username: Some("olduser".to_string()),
+            uses_ssh: false,
+            uses_tls: false,
+            config_json: r#"{"version":1,"db":{"host":"oldhost"},"transport":{"type":"direct"},"tls":{"enabled":false},"options":{}}"#.to_string(),
+            is_favorite: false,
+            color_tag: None,
+            created_at: Utc::now().timestamp(),
+            updated_at: Utc::now().timestamp(),
+            last_connected_at: None,
+            connection_count: 0,
+        };
+
+        let new_config_json = r#"{
+            "version": 1,
+            "db": {
+                "host": "newhost",
+                "port": 5432,
+                "database": "newdb",
+                "username": "newuser"
+            },
+            "transport": {
+                "type": "direct"
+            },
+            "tls": {
+                "enabled": false
+            },
+            "options": {}
+        }"#;
+
+        conn.update_config(new_config_json).unwrap();
+
+        assert_eq!(conn.host, Some("newhost".to_string()));
+        assert_eq!(conn.database, Some("newdb".to_string()));
+        assert_eq!(conn.username, Some("newuser".to_string()));
+        assert_eq!(conn.config_json, new_config_json);
+        assert_eq!(conn.uses_tls, false);
+    }
+
+    #[test]
+    fn test_parse_config_invalid_json() {
+        let mut conn = Connection {
+            id: "test_id".to_string(),
+            name: "test_conn".to_string(),
+            engine: "postgresql".to_string(),
+            host: None,
+            port: None,
+            database: None,
+            username: None,
+            uses_ssh: false,
+            uses_tls: false,
+            config_json: "".to_string(),
+            is_favorite: false,
+            color_tag: None,
+            created_at: Utc::now().timestamp(),
+            updated_at: Utc::now().timestamp(),
+            last_connected_at: None,
+            connection_count: 0,
+        };
+
+        let invalid_json = r#"{"invalid": "json"}"#;
+
+        assert!(conn.parse_config(invalid_json).is_err());
+    }
 }

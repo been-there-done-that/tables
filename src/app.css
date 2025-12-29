@@ -18,6 +18,11 @@
   --theme-border-default: hsl(220 16% 25%);
   --theme-border-subtle: hsl(220 16% 18%);
   --theme-border-focus: hsl(217 91% 60%);
+  /* Global animation tokens */
+  --anim-pop-in: 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  --anim-pop-out: 170ms ease-in;
+  --anim-overlay-in: 220ms ease-out;
+  --anim-overlay-out: 160ms ease-in;
   color: var(--theme-fg-primary);
   background: var(--theme-bg-primary);
   font-family: "Inter", system-ui, -apple-system, sans-serif;
@@ -83,4 +88,67 @@
 
 .animate-float-up {
   animation: float-up 0.7s ease-out forwards;
+}
+
+/* Global pop/overlay animations for reuse */
+.anim-overlay {
+  animation: overlayFadeIn var(--anim-overlay-in);
+}
+.anim-overlay[data-state="closed"] {
+  animation: overlayFadeOut var(--anim-overlay-out) forwards;
+}
+
+.anim-pop {
+  animation: fadeScaleIn var(--anim-pop-in);
+  transform-origin: center;
+}
+.anim-pop[data-state="closed"] {
+  animation: fadeScaleOut var(--anim-pop-out) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-overlay,
+  .anim-pop {
+    animation: none !important;
+  }
+}
+
+@keyframes fadeScaleIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes fadeScaleOut {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+}
+
+@keyframes overlayFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes overlayFadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
 }

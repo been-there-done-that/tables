@@ -2,6 +2,7 @@ use crate::connection::{Connection as DatabaseConnection, SecureCredentials, Con
 use crate::connection_manager::{ConnectionManager, ConnectionManagerState};
 use crate::DatabaseState;
 use tauri::State;
+use log::{info, debug, warn, error, trace};
 
 /// Create a new database connection
 #[tauri::command]
@@ -11,8 +12,13 @@ pub async fn create_connection(
     db_state: State<'_, DatabaseState>,
     conn_state: State<'_, ConnectionManagerState>,
 ) -> Result<String, String> {
+    debug!("Creating connection '{}' with engine '{}'", connection.name, connection.engine);
     let manager = ConnectionManager::from_state(&db_state, &conn_state);
-    manager.create_connection(connection, credentials)
+    let result = manager.create_connection(connection, credentials);
+    if let Ok(ref id) = result {
+        info!("Connection '{}' created with ID '{}'", "name", id);
+    }
+    result
 }
 
 /// Get a connection with its credentials
@@ -22,6 +28,7 @@ pub async fn get_connection(
     db_state: State<'_, DatabaseState>,
     conn_state: State<'_, ConnectionManagerState>,
 ) -> Result<(DatabaseConnection, SecureCredentials), String> {
+    debug!("Getting connection '{}'", id);
     let manager = ConnectionManager::from_state(&db_state, &conn_state);
     manager.get_connection(&id)
 }
@@ -33,6 +40,7 @@ pub async fn get_connection_metadata(
     db_state: State<'_, DatabaseState>,
     conn_state: State<'_, ConnectionManagerState>,
 ) -> Result<DatabaseConnection, String> {
+    debug!("Getting connection metadata for '{}'", id);
     let manager = ConnectionManager::from_state(&db_state, &conn_state);
     manager.get_connection_metadata(&id)
 }
@@ -43,8 +51,13 @@ pub async fn list_connections(
     db_state: State<'_, DatabaseState>,
     conn_state: State<'_, ConnectionManagerState>,
 ) -> Result<Vec<DatabaseConnection>, String> {
+    debug!("Listing all connections");
     let manager = ConnectionManager::from_state(&db_state, &conn_state);
-    manager.list_connections()
+    let result = manager.list_connections();
+    if let Ok(ref connections) = result {
+        debug!("Listed {} connections", connections.len());
+    }
+    result
 }
 
 /// Update an existing connection
@@ -55,8 +68,13 @@ pub async fn update_connection(
     db_state: State<'_, DatabaseState>,
     conn_state: State<'_, ConnectionManagerState>,
 ) -> Result<(), String> {
+    debug!("Updating connection '{}' with engine '{}'", connection.name, connection.engine);
     let manager = ConnectionManager::from_state(&db_state, &conn_state);
-    manager.update_connection(connection, credentials)
+    let result = manager.update_connection(connection, credentials);
+    if result.is_ok() {
+        info!("Connection '{}' updated successfully", "name");
+    }
+    result
 }
 
 /// Delete a connection
@@ -66,8 +84,13 @@ pub async fn delete_connection(
     db_state: State<'_, DatabaseState>,
     conn_state: State<'_, ConnectionManagerState>,
 ) -> Result<(), String> {
+    debug!("Deleting connection '{}'", id);
     let manager = ConnectionManager::from_state(&db_state, &conn_state);
-    manager.delete_connection(&id)
+    let result = manager.delete_connection(&id);
+    if result.is_ok() {
+        info!("Connection '{}' deleted successfully", id);
+    }
+    result
 }
 
 /// Test a connection
@@ -78,8 +101,21 @@ pub async fn test_connection(
     db_state: State<'_, DatabaseState>,
     conn_state: State<'_, ConnectionManagerState>,
 ) -> Result<ConnectionInfo, String> {
+    debug!("Testing connection '{}' with engine '{}'", connection.name, connection.engine);
     let manager = ConnectionManager::from_state(&db_state, &conn_state);
-    manager.test_connection(&connection, &credentials)
+    manager.test_connection(&connection, &credentials).await
+}
+
+/// Test a stored connection by ID
+#[tauri::command]
+pub async fn test_connection_by_id(
+    id: String,
+    db_state: State<'_, DatabaseState>,
+    conn_state: State<'_, ConnectionManagerState>,
+) -> Result<ConnectionInfo, String> {
+    debug!("Testing connection by ID '{}'", id);
+    let manager = ConnectionManager::from_state(&db_state, &conn_state);
+    manager.test_connection_by_id(&id).await
 }
 
 /// Get favorite connections
@@ -88,8 +124,13 @@ pub async fn get_favorite_connections(
     db_state: State<'_, DatabaseState>,
     conn_state: State<'_, ConnectionManagerState>,
 ) -> Result<Vec<DatabaseConnection>, String> {
+    debug!("Getting favorite connections");
     let manager = ConnectionManager::from_state(&db_state, &conn_state);
-    manager.get_favorite_connections()
+    let result = manager.get_favorite_connections();
+    if let Ok(ref connections) = result {
+        debug!("Retrieved {} favorite connections", connections.len());
+    }
+    result
 }
 
 /// Search connections by name or host
@@ -99,8 +140,13 @@ pub async fn search_connections(
     db_state: State<'_, DatabaseState>,
     conn_state: State<'_, ConnectionManagerState>,
 ) -> Result<Vec<DatabaseConnection>, String> {
+    debug!("Searching connections with query '{}'", query);
     let manager = ConnectionManager::from_state(&db_state, &conn_state);
-    manager.search_connections(&query)
+    let result = manager.search_connections(&query);
+    if let Ok(ref connections) = result {
+        debug!("Search returned {} connections", connections.len());
+    }
+    result
 }
 
 /// Update connection statistics (last used, connection count)
@@ -110,8 +156,27 @@ pub async fn update_connection_stats(
     db_state: State<'_, DatabaseState>,
     conn_state: State<'_, ConnectionManagerState>,
 ) -> Result<(), String> {
+    debug!("Updating connection stats for '{}'", id);
     let manager = ConnectionManager::from_state(&db_state, &conn_state);
     manager.update_connection_stats(&id)
+}
+
+/// Test a connection with raw parameters (unsaved)
+#[derive(serde::Deserialize)]
+pub struct TestConnectionParams {
+    pub engine: String,
+    pub config: serde_json::Value,
+}
+
+#[tauri::command]
+pub async fn test_connection_params(
+    params: TestConnectionParams,
+    db_state: State<'_, DatabaseState>,
+    conn_state: State<'_, ConnectionManagerState>,
+) -> Result<ConnectionInfo, String> {
+    debug!("Testing connection with raw params for engine '{}'", params.engine);
+    let manager = ConnectionManager::from_state(&db_state, &conn_state);
+    manager.test_connection_params(params.engine, params.config).await
 }
 
 /// Check if keyring is available for secure credential storage
@@ -119,5 +184,6 @@ pub async fn update_connection_stats(
 pub async fn check_keyring_available(
     conn_state: State<'_, ConnectionManagerState>,
 ) -> Result<bool, String> {
+    trace!("Checking keyring availability");
     Ok(conn_state.credential_manager.is_available())
 }
