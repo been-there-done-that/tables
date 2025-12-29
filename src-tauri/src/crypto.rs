@@ -9,6 +9,7 @@ use aes_gcm::{
 use aes_gcm::aead::generic_array::GenericArray;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 use log::{info, warn, error, debug, trace};
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
 const KEY_SIZE: usize = 32;
