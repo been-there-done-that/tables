@@ -1,0 +1,364 @@
+    Checking tables v0.1.0 (/Users/__deesh_reddy__/projects/personal_git/rust_builds/tables/src-tauri)
+error[E0583]: file not found for module `metrics_commands`
+ --> src/commands/mod.rs:8:1
+  |
+8 | pub mod metrics_commands; // Future placeholder if needed
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = help: to create the module `metrics_commands`, create file "src/commands/metrics_commands.rs" or "src/commands/metrics_commands/mod.rs"
+  = note: if there is a `mod metrics_commands` elsewhere in the crate already, import it with `use crate::...` instead
+
+error[E0428]: the name `window_commands` is defined multiple times
+ --> src/commands/mod.rs:7:1
+  |
+6 | pub mod window_commands;
+  | ------------------------ previous definition of the module `window_commands` here
+7 | pub mod window_commands;
+  | ^^^^^^^^^^^^^^^^^^^^^^^^ `window_commands` redefined here
+  |
+  = note: `window_commands` must be defined only once in the type namespace of this module
+
+error[E0428]: the name `__cmd__open_datasource_window` is defined multiple times
+ --> src/commands/window_commands.rs:4:1
+  |
+4 | #[tauri::command]
+  | ^^^^^^^^^^^^^^^^^
+  | |
+  | `__cmd__open_datasource_window` redefined here
+  | previous definition of the macro `__cmd__open_datasource_window` here
+  |
+  = note: `__cmd__open_datasource_window` must be defined only once in the macro namespace of this module
+  = note: this error originates in the attribute macro `tauri::command` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0428]: the name `__cmd__open_appearance_window` is defined multiple times
+  --> src/commands/window_commands.rs:42:1
+   |
+42 | #[tauri::command]
+   | ^^^^^^^^^^^^^^^^^
+   | |
+   | `__cmd__open_appearance_window` redefined here
+   | previous definition of the macro `__cmd__open_appearance_window` here
+   |
+   = note: `__cmd__open_appearance_window` must be defined only once in the macro namespace of this module
+   = note: this error originates in the attribute macro `tauri::command` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0428]: the name `__cmd__create_new_window` is defined multiple times
+  --> src/commands/window_commands.rs:80:1
+   |
+80 | #[tauri::command]
+   | ^^^^^^^^^^^^^^^^^
+   | |
+   | `__cmd__create_new_window` redefined here
+   | previous definition of the macro `__cmd__create_new_window` here
+   |
+   = note: `__cmd__create_new_window` must be defined only once in the macro namespace of this module
+   = note: this error originates in the attribute macro `tauri::command` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0432]: unresolved import `commands::system_commands`
+  --> src/lib.rs:22:15
+   |
+22 | use commands::system_commands::*;
+   |               ^^^^^^^^^^^^^^^ could not find `system_commands` in `commands`
+
+warning: unused import: `info`
+ --> src/connection.rs:3:11
+  |
+3 | use log::{info, debug, warn, error, trace};
+  |           ^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+warning: unused import: `ConnectionSummary`
+ --> src/connection.rs:4:41
+  |
+4 | use crate::configs::{RuntimeConnection, ConnectionSummary, validate_config_json};
+  |                                         ^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `Deserialize` and `Serialize`
+ --> src/credentials.rs:1:13
+  |
+1 | use serde::{Deserialize, Serialize};
+  |             ^^^^^^^^^^^  ^^^^^^^^^
+
+warning: unused import: `info`
+ --> src/credentials.rs:5:11
+  |
+5 | use log::{info, debug, warn, error, trace};
+  |           ^^^^
+
+warning: unused imports: `Key` and `OsRng as AeadOsRng`
+ --> src/crypto.rs:6:27
+  |
+6 |     aead::{Aead, KeyInit, OsRng as AeadOsRng, AeadCore},
+  |                           ^^^^^^^^^^^^^^^^^^
+7 |     Aes256Gcm, Nonce, Key // Or GenericArray
+  |                       ^^^
+
+warning: unused import: `info`
+  --> src/crypto.rs:11:11
+   |
+11 | use log::{info, warn, error, debug, trace};
+   |           ^^^^
+
+warning: unused imports: `info` and `warn`
+ --> src/credential_manager.rs:6:11
+  |
+6 | use log::{info, debug, warn, error, trace};
+  |           ^^^^         ^^^^
+
+warning: unused import: `crate::configs::RuntimeConnection`
+ --> src/connection_manager.rs:2:5
+  |
+2 | use crate::configs::RuntimeConnection;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `info`
+ --> src/aws_profile_manager.rs:5:11
+  |
+5 | use log::{info, debug, warn, error, trace};
+  |           ^^^^
+
+warning: unused import: `rusqlite::OptionalExtension`
+ --> src/commands/theme_commands.rs:3:5
+  |
+3 | use rusqlite::OptionalExtension;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `info` and `warn`
+ --> src/commands/theme_commands.rs:4:11
+  |
+4 | use log::{info, debug, warn, error, trace};
+  |           ^^^^         ^^^^
+
+warning: unused imports: `error` and `warn`
+ --> src/commands/connection_commands.rs:5:24
+  |
+5 | use log::{info, debug, warn, error, trace};
+  |                        ^^^^  ^^^^^
+
+warning: unused import: `tauri::State`
+ --> src/commands/aws_commands.rs:2:5
+  |
+2 | use tauri::State;
+  |     ^^^^^^^^^^^^
+
+warning: unused imports: `error` and `info`
+ --> src/commands/aws_commands.rs:3:11
+  |
+3 | use log::{info, debug, warn, error, trace};
+  |           ^^^^               ^^^^^
+
+warning: unused import: `ConnectionInfo`
+ --> src/commands/redis_commands.rs:1:78
+  |
+1 | use crate::connection::{Connection as DatabaseConnection, SecureCredentials, ConnectionInfo};
+  |                                                                              ^^^^^^^^^^^^^^
+
+warning: unused import: `RedisResult`
+ --> src/commands/redis_commands.rs:5:21
+  |
+5 | use redis::{Client, RedisResult};
+  |                     ^^^^^^^^^^^
+
+warning: unused import: `ConnectionInfo`
+ --> src/commands/athena_commands.rs:1:78
+  |
+1 | use crate::connection::{Connection as DatabaseConnection, SecureCredentials, ConnectionInfo};
+  |                                                                              ^^^^^^^^^^^^^^
+
+warning: unused import: `ConnectionManager`
+ --> src/commands/athena_commands.rs:2:33
+  |
+2 | use crate::connection_manager::{ConnectionManager, ConnectionManagerState};
+  |                                 ^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `Deserialize` and `Serialize`
+ --> src/commands/athena_commands.rs:5:13
+  |
+5 | use serde::{Deserialize, Serialize};
+  |             ^^^^^^^^^^^  ^^^^^^^^^
+
+warning: unused import: `std::collections::HashMap`
+ --> src/commands/athena_commands.rs:6:5
+  |
+6 | use std::collections::HashMap;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `error` and `trace`
+ --> src/commands/athena_commands.rs:7:30
+  |
+7 | use log::{info, debug, warn, error, trace};
+  |                              ^^^^^  ^^^^^
+
+warning: unused import: `warn`
+ --> src/commands/window_commands.rs:2:24
+  |
+2 | use log::{info, debug, warn, error, trace};
+  |                        ^^^^
+
+warning: unused import: `theme_commands::*`
+  --> src/commands/mod.rs:11:9
+   |
+11 | pub use theme_commands::*;
+   |         ^^^^^^^^^^^^^^^^^
+
+warning: unused import: `connection_commands::*`
+  --> src/commands/mod.rs:12:9
+   |
+12 | pub use connection_commands::*;
+   |         ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `aws_commands::*`
+  --> src/commands/mod.rs:13:9
+   |
+13 | pub use aws_commands::*;
+   |         ^^^^^^^^^^^^^^^
+
+warning: unused import: `redis_commands::*`
+  --> src/commands/mod.rs:14:9
+   |
+14 | pub use redis_commands::*;
+   |         ^^^^^^^^^^^^^^^^^
+
+warning: unused import: `athena_commands::*`
+  --> src/commands/mod.rs:15:9
+   |
+15 | pub use athena_commands::*;
+   |         ^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `window_commands::*`
+  --> src/commands/mod.rs:16:9
+   |
+16 | pub use window_commands::*;
+   |         ^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `Manager` and `State`
+  --> src/plugins/core.rs:16:24
+   |
+16 | use tauri::{AppHandle, State, Manager};
+   |                        ^^^^^  ^^^^^^^
+
+warning: unused import: `Manager`
+ --> src/plugins/builtin.rs:2:24
+  |
+2 | use tauri::{AppHandle, Manager};
+  |                        ^^^^^^^
+
+warning: unused import: `State`
+ --> src/plugins/discovery.rs:3:24
+  |
+3 | use tauri::{AppHandle, State};
+  |                        ^^^^^
+
+warning: unused imports: `PluginManager`, `Plugin`, and `get_plugin_registry`
+  --> src/plugins/mod.rs:16:16
+   |
+16 | pub use core::{Plugin, PluginMetadata, PluginManager, get_plugin_registry};
+   |                ^^^^^^                  ^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `builtin::*`
+  --> src/plugins/mod.rs:18:9
+   |
+18 | pub use builtin::*;
+   |         ^^^^^^^^^^
+
+warning: unused import: `BaseConfig`
+ --> src/configs/postgres.rs:3:13
+  |
+3 | use super::{BaseConfig, Transport, TlsConfig};
+  |             ^^^^^^^^^^
+
+warning: unused import: `super::BaseConfig`
+ --> src/configs/sqlite.rs:3:5
+  |
+3 | use super::BaseConfig;
+  |     ^^^^^^^^^^^^^^^^^
+
+warning: unused import: `BaseConfig`
+ --> src/configs/mongodb.rs:3:13
+  |
+3 | use super::{BaseConfig, Transport, TlsConfig};
+  |             ^^^^^^^^^^
+
+warning: unused import: `BaseConfig`
+ --> src/configs/redis.rs:3:13
+  |
+3 | use super::{BaseConfig, Transport, TlsConfig};
+  |             ^^^^^^^^^^
+
+warning: unused import: `BaseConfig`
+ --> src/configs/elasticsearch.rs:3:13
+  |
+3 | use super::{BaseConfig, Transport, TlsConfig};
+  |             ^^^^^^^^^^
+
+warning: unused import: `super::BaseConfig`
+ --> src/configs/s3.rs:3:5
+  |
+3 | use super::BaseConfig;
+  |     ^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `PostgresConfig`, `RuntimeConnection`, and `SqliteConfig`
+ --> src/configs/validation.rs:2:22
+  |
+2 | use crate::configs::{RuntimeConnection, PostgresConfig, SqliteConfig};
+  |                      ^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^  ^^^^^^^^^^^^
+
+warning: unused import: `std::collections::HashMap`
+  --> src/configs/mod.rs:11:5
+   |
+11 | use std::collections::HashMap;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `debug`
+ --> src/metrics.rs:8:24
+  |
+8 | use log::{error, info, debug};
+  |                        ^^^^^
+
+warning: unused import: `tracing_log::LogTracer`
+  --> src/lib.rs:18:5
+   |
+18 | use tracing_log::LogTracer;
+   |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `connection_manager::ConnectionManager`
+  --> src/lib.rs:28:5
+   |
+28 | use connection_manager::ConnectionManager;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: variable does not need to be mutable
+   --> src/connection_manager.rs:495:13
+    |
+495 |         let mut url = if let Some(p) = pass {
+    |             ----^^^
+    |             |
+    |             help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` on by default
+
+warning: unused variable: `connection`
+   --> src/connection_manager.rs:528:38
+    |
+528 |     fn test_athena_connection(&self, connection: &Connection, credentials: &SecureCredentials) -> bool {
+    |                                      ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_connection`
+    |
+    = note: `#[warn(unused_variables)]` on by default
+
+warning: unused variable: `connection`
+   --> src/connection_manager.rs:537:34
+    |
+537 |     fn test_s3_connection(&self, connection: &Connection, credentials: &SecureCredentials) -> bool {
+    |                                  ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_connection`
+
+warning: unused variable: `read_only`
+   --> src/configs/validation.rs:116:21
+    |
+116 |         if let Some(read_only) = options.get("read_only").and_then(|v| v.as_bool()) {
+    |                     ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_read_only`
+
+Some errors have detailed explanations: E0428, E0432, E0583.
+For more information about an error, try `rustc --explain E0428`.
+warning: `tables` (lib) generated 48 warnings
+error: could not compile `tables` (lib) due to 6 previous errors; 48 warnings emitted
