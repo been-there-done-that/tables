@@ -3,8 +3,10 @@ import { METRICS } from "$lib/constants";
 
 export interface MetricsSnapshot {
     values: Record<string, number>;
-    histories: Record<string, number[]>;
+    histories: Record<string, [number, number][]>;
 }
+
+export type HistoryItem = { id: number; val: number };
 
 class MetricsStore {
     snapshot = $state<MetricsSnapshot | null>(null);
@@ -24,8 +26,11 @@ class MetricsStore {
         return this.snapshot?.values[key] ?? 0;
     }
 
-    getHistory(key: string): number[] {
-        return this.snapshot?.histories[key] ?? [];
+    getHistory(key: string): HistoryItem[] {
+        const data = this.snapshot?.histories[key];
+        if (!data) return [];
+        // Convert tuples to objects
+        return data.map(([id, val]) => ({ id, val }));
     }
 
     get cpu() { return this.get("system.cpu"); }
