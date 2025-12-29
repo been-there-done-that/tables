@@ -213,6 +213,12 @@ pub fn run() {
                     let _ = window.set_size(Size::Physical(PhysicalSize { width, height }));
                     let _ =
                         window.set_position(tauri::Position::Physical(PhysicalPosition { x, y }));
+                    
+                    #[cfg(not(target_os = "macos"))]
+                    {
+                        debug!("Disabling decorations for main window on non-macOS");
+                        let _ = window.set_decorations(false);
+                    }
                 }
             }
 
