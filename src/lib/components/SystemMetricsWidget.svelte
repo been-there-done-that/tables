@@ -55,8 +55,13 @@
   <div class="text-xs text-red-400" title={error}>Metrics unavailable</div>
 {:else if metrics}
   <div class="flex items-center gap-3 text-xs text-[--theme-fg-tertiary]">
-    <span title="CPU Usage">{metrics.cpu_usage.toFixed(1)}%</span>
+    <span title="CPU Usage (normalized)">
+      {metrics.cpu_percent.toFixed(1)}%
+    </span>
+    <span title="CPU Usage (total cores)">
+      {metrics.cpu_total.toFixed(1)}%
+    </span>
     <span title="Memory Usage">{formatMemory(metrics.memory_kb)}</span>
-    <span title="Threads">{metrics.thread_count}</span>
+    <span title="Threads">{metrics.threads}</span>
   </div>
 {/if}

@@ -221,9 +221,10 @@ export interface SearchRequest {
 
 // System metrics types
 export interface SystemMetrics {
-  cpu_usage: number;
+  cpu_percent: number;
+  cpu_total: number;
   memory_kb: number;
-  thread_count: number;
+  threads: number;
 }
 
 export interface PaginatedResponse<T> {
