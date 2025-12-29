@@ -31,7 +31,7 @@
     let isDragging = $state(false);
 
     // Fix: unwrap defaultRatio to avoid reactive dependency warning if intended to be initial only
-    let ratio = $state(defaultRatio);
+    let ratio = $state(untrack(() => defaultRatio));
 
     const isVertical = $derived(orientation === "vertical");
     const axis = $derived(isVertical ? "height" : "width");
@@ -118,9 +118,9 @@
     </div>
 
     <!-- Divider -->
-    <!-- svelte-ignore a11y_separator_implicit_roles -->
-    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-    <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+    <!-- svelte-ignore a11y-no-implicit-role -->
+    <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+    <!-- svelte-ignore a11y-no-noninteractive-tabindex -->
     <div
         role="separator"
         tabindex="0"
