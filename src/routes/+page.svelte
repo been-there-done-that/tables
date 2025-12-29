@@ -16,6 +16,7 @@
   import Button from "$lib/components/Button.svelte";
   import ConnectionModal from "$lib/components/datasource/ConnectionModal.svelte";
   import ConfirmationModal from "$lib/components/ConfirmationModal.svelte";
+  import SystemMetricsWidget from "$lib/components/SystemMetricsWidget.svelte";
 
   let connections = $state<Connection[]>([]);
   let isLoading = $state(true);
@@ -129,6 +130,7 @@
     </div>
 
     <div class="flex items-center gap-3">
+      <SystemMetricsWidget />
       <button
         onclick={loadConnections}
         class="p-2 text-[--theme-fg-tertiary] hover:text-[--theme-fg-primary] hover:bg-[--theme-bg-secondary] rounded-md transition-colors"
