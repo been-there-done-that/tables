@@ -1,5 +1,6 @@
 import { getCurrentWindow, getAllWindows } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
+import { METRICS } from "$lib/constants";
 
 export interface CommandConfig {
     id: string;
@@ -171,9 +172,9 @@ class WindowStateStore {
                 const m = event.payload as { cpu_percent: number; pid: number; threads: number };
                 this.metrics = m;
 
-                // Update history buffer (keep last 100 samples to allow flexibility in UI)
+                // Update history buffer
                 const next = [...this.cpuHistory, m.cpu_percent];
-                if (next.length > 100) next.shift();
+                if (next.length > METRICS.HISTORY_SIZE) next.shift();
                 this.cpuHistory = next;
             });
             this.unlistenFunctions.push(unlistenMetrics);
