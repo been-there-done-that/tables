@@ -32,7 +32,7 @@
     <span class="font-mono tabular-nums"
       >{displayedCpu.current.toFixed(1)}%</span
     >
-    <div class="group flex items-center pt-1 border-b px-1">
+    <div class="group flex items-center">
       <MicroBarSparkline
         values={history}
         maxBars={METRICS.HISTORY_SIZE}
