@@ -6,6 +6,10 @@
   import IconLayoutSidebarFilled from "@tabler/icons-svelte/icons/layout-sidebar-filled";
   import IconLayoutSidebarRight from "@tabler/icons-svelte/icons/layout-sidebar-right";
   import IconLayoutSidebarRightFilled from "@tabler/icons-svelte/icons/layout-sidebar-right-filled";
+
+  import IconLayoutBottombar from "@tabler/icons-svelte/icons/layout-bottombar";
+  import IconLayoutBottombarFilled from "@tabler/icons-svelte/icons/layout-bottombar-filled";
+
   import IconRestore from "@tabler/icons-svelte/icons/restore";
   import PlaylistAdd from "@tabler/icons-svelte/icons/playlist-add";
   import IconPlus from "@tabler/icons-svelte/icons/plus";
@@ -17,7 +21,7 @@
   import ConnectionPicker from "$lib/components/ConnectionPicker.svelte";
 
   let { isFullScreen } = $props();
-  let icons = $state(false);
+  // let icons = $state(false);
   let datasourceWindowOpen = $state(false);
 
   const openDatasourceWindow = async () => {
@@ -61,8 +65,10 @@
       class="relative z-10 flex h-full items-center justify-between px-2 pointer-events-none"
     >
       <!-- Left side (offset for Mac traffic lights) -->
-      <div class="flex items-center gap-2 ml-20 pointer-events-auto">
-        <!-- Left side items -->
+      <div class="flex items-center gap-2 ml-24 pointer-events-auto">
+        {#if windowState.label === "main"}
+          <ConnectionPicker />
+        {/if}
       </div>
 
       <!-- Center Title (Optional) -->
@@ -70,22 +76,18 @@
         class="absolute inset-x-0 flex justify-center items-center h-full pointer-events-none"
       >
         <!-- Add window specific titles here if needed -->
-        <div class="pointer-events-auto">
-          {#if windowState.label === "main"}
-            <ConnectionPicker />
-          {/if}
-        </div>
+        <div class="pointer-events-auto"></div>
       </div>
 
       <!-- Right side actions -->
-      <div class="flex items-center gap-2 pointer-events-auto pr-1">
+      <div class="flex items-center gap-2 pointer-events-auto">
         {#if windowState.label === "main"}
           <button
             class={cn(
               "h-6 w-6 flex items-center justify-center rounded-md border transition-all",
               datasourceWindowOpen
-                ? "bg-white/10 border-white/20"
-                : "hover:bg-white/5 border-transparent",
+                ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
+                : "hover:bg-(--theme-bg-hover) border-transparent",
             )}
             onclick={() => (datasourceWindowOpen = !datasourceWindowOpen)}
             title="New Datasource"
@@ -97,64 +99,94 @@
             class={cn(
               "h-6 w-7 flex items-center justify-center rounded-md border transition-all",
               windowState.datasourceWindowOpen
-                ? "bg-white/10 border-white/20"
-                : "hover:bg-white/5 border-transparent",
+                ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
+                : "hover:bg-(--theme-bg-hover) border-transparent",
             )}
             onclick={openDatasourceWindow}
             title="External Datasource Window"
+            id="datasource-btn"
           >
             <IconPlus class="size-6" />
           </button>
 
-          <button
-            class="h-6 text-xs gap-1 flex items-center justify-center rounded-md hover:bg-white/5 active:bg-white/10"
-            onclick={() => false}
-          >
-            {#if false}
-              <IconLayoutSidebarFilled class="size-5" />
-            {:else}
-              <IconLayoutSidebar class="size-5" />
-            {/if}
-          </button>
+          <div class="flex items-center gap-3">
+            <button
+              class={cn(
+                "h-6 w-6 flex items-center justify-center rounded-md border transition-all",
+                windowState.layout.left
+                  ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
+                  : "hover:bg-(--theme-bg-hover) border-transparent",
+              )}
+              onclick={() =>
+                (windowState.layout.left = !windowState.layout.left)}
+            >
+              {#if windowState.layout.left}
+                <IconLayoutSidebarFilled class="size-5" />
+              {:else}
+                <IconLayoutSidebar class="size-5" />
+              {/if}
+            </button>
 
-          <button
-            class="h-6 text-xs gap-1 flex items-center justify-center rounded-md hover:bg-white/5 active:bg-white/10"
-            onclick={() => false}
-          >
-            {#if false}
-              <IconLayoutSidebarRightFilled class="size-5" />
-            {:else}
-              <IconLayoutSidebarRight class="size-5" />
-            {/if}
-          </button>
+            <button
+              class={cn(
+                "h-6 w-6 flex items-center justify-center rounded-md border transition-all",
+                windowState.layout.bottom
+                  ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
+                  : "hover:bg-(--theme-bg-hover) border-transparent",
+              )}
+              onclick={() =>
+                (windowState.layout.bottom = !windowState.layout.bottom)}
+            >
+              {#if windowState.layout.bottom}
+                <IconLayoutBottombarFilled class="size-5" />
+              {:else}
+                <IconLayoutBottombar class="size-5" />
+              {/if}
+            </button>
+
+            <button
+              class={cn(
+                "h-6 w-6 flex items-center justify-center rounded-md border transition-all",
+                windowState.layout.right
+                  ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
+                  : "hover:bg-(--theme-bg-hover) border-transparent",
+              )}
+              onclick={() =>
+                (windowState.layout.right = !windowState.layout.right)}
+            >
+              {#if windowState.layout.right}
+                <IconLayoutSidebarRightFilled class="size-5" />
+              {:else}
+                <IconLayoutSidebarRight class="size-5" />
+              {/if}
+            </button>
+
+            <button
+              class={cn(
+                "h-6 w-7 flex items-center justify-center rounded-md border transition-all",
+                windowState.settingsWindowOpen
+                  ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
+                  : "hover:bg-(--theme-bg-hover) border-transparent",
+              )}
+              onclick={openSettingsWindow}
+              title="Settings"
+            >
+              {#if windowState.settingsWindowOpen}
+                <IconSettingsFilled class="size-5" />
+              {:else}
+                <IconSettings class="size-5" />
+              {/if}
+            </button>
+          </div>
         {/if}
 
         <button
-          class="h-6 w-6 text-xs gap-1 flex items-center justify-center rounded-md hover:bg-white/5 active:bg-white/10"
+          class="h-6 w-6 flex items-center justify-center rounded-md border transition-all border-transparent hover:bg-(--theme-bg-hover) active:bg-(--theme-bg-active)"
           onclick={() => window.location.reload()}
           title="Reload Window"
         >
           <IconRestore class="size-5" />
         </button>
-
-        {#if windowState.label === "main"}
-          <button
-            class={cn(
-              "h-6 w-7 flex items-center justify-center rounded-md border transition-all",
-              windowState.settingsWindowOpen
-                ? "bg-white/10 border-white/20"
-                : "hover:bg-white/5 border-transparent",
-            )}
-            onclick={openSettingsWindow}
-            title="Settings"
-          >
-            {#if windowState.settingsWindowOpen}
-              <IconSettingsFilled class="size-5" />
-            {:else}
-              <IconSettings class="size-5" />
-            {/if}
-          </button>
-        {/if}
       </div>
     </div>
   </div>

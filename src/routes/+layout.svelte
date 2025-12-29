@@ -36,6 +36,8 @@
 	});
 </script>
 
+<svelte:window onkeydown={(e) => windowState.handleKeydown(e)} />
+
 <ThemeProvider>
 	<LoadingOverlay />
 	<div class="flex h-screen w-full flex-col overflow-hidden bg-background">

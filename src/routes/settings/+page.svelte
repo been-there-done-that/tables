@@ -3,6 +3,8 @@
   import { getThemeContext } from "$lib/theme/context";
   import type { ThemeRecord } from "$lib/theme/types";
   import ThemeComponent from "./Theme.svelte";
+  import ShortcutsComponent from "./Shortcuts.svelte";
+  import KeyboardIcon from "@tabler/icons-svelte/icons/keyboard";
 
   let themes = $state<ThemeRecord[]>([]);
   let activeId = $state<string>("");
@@ -27,6 +29,10 @@
     {
       name: "theme",
       icon: BrushIcon,
+    },
+    {
+      name: "shortcuts",
+      icon: KeyboardIcon,
     },
   ];
 </script>
@@ -55,7 +61,7 @@
               >
                 <IconComponent />
 
-                <span class="truncate">{second.name}</span>
+                <span class="truncate capitalize">{second.name}</span>
               </button>
             {/each}
           </div>
@@ -63,8 +69,12 @@
       </div>
     </div>
     <!-- Main Content -->
-    <div class="">
-      <ThemeComponent />
+    <div class="flex-1 overflow-auto">
+      {#if selectedSection === "theme"}
+        <ThemeComponent />
+      {:else if selectedSection === "shortcuts"}
+        <ShortcutsComponent />
+      {/if}
     </div>
   </div>
 </div>
