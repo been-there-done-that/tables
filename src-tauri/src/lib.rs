@@ -226,6 +226,12 @@ pub fn run() {
             }
         })
         .invoke_handler(aggregate_plugin_commands!())
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_app, event| match event {
+            tauri::RunEvent::ExitRequested { .. } => {
+                // Handle app exit if needed
+            }
+            _ => {}
+        });
 }
