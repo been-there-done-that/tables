@@ -224,6 +224,7 @@ macro_rules! aggregate_plugin_commands {
             // Window commands
             open_datasource_window,
             open_appearance_window,
+            create_new_window,
             
             // System commands
             get_system_metrics

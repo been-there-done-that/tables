@@ -2,24 +2,14 @@
   import DraggableWindow from "./DraggableWindow.svelte";
   import { cn } from "$lib/utils";
   import Footer from "./Footer.svelte";
-  import PostgresConfig from "./datasources/PostgresConfig.svelte";
-  import ComingSoon from "./datasources/ComingSoon.svelte";
+  //   import PostgresConfig from "./datasources/PostgresConfig.svelte";
+  //   import ComingSoon from "./datasources/ComingSoon.svelte";
 
-  const drivers = [
-    "postgresql",
-    "mysql",
-    "sqlite",
-    "custom",
-  ];
+  const drivers = ["postgresql", "mysql", "sqlite", "custom"];
 
   let selectedDriver = $state("sqlite");
 
-
-  let {
-    open = $bindable(false),
-    onClose,
-    onTest = undefined,
-  } = $props();
+  let { open = $bindable(false), onClose, onTest = undefined } = $props();
 
   type PostgresHandle = {
     triggerSave: () => void;
@@ -50,7 +40,7 @@
 
 <DraggableWindow
   bind:open
-  onClose={onClose}
+  {onClose}
   title="Configure datasource"
   modal
   class="max-w-5xl"
@@ -61,8 +51,12 @@
 >
   <div class="flex flex-col h-[660px]">
     <div class="flex flex-1 divide-x divide-(--theme-border-default) min-h-0">
-      <aside class="w-[20%] bg-(--theme-bg-secondary) space-y-3 overflow-y-auto">
-        <div class="flex w-full items-center gap-2 text-sm font-semibold text-(--theme-fg-secondary)">
+      <aside
+        class="w-[20%] bg-(--theme-bg-secondary) space-y-3 overflow-y-auto"
+      >
+        <div
+          class="flex w-full items-center gap-2 text-sm font-semibold text-(--theme-fg-secondary)"
+        >
           <div class="text-center w-full">Drivers</div>
         </div>
         <div class="space-y-">
@@ -70,13 +64,20 @@
             <button
               class={cn(
                 "w-full text-left py-2 rounded-lg border border-transparent hover:border-(--theme-border-default) hover:bg-(--theme-bg-primary)",
-                selectedDriver === driver && "border-(--theme-border-default) bg-[color-mix(in_srgb,var(--theme-bg-primary)_90%,transparent)]",
+                selectedDriver === driver &&
+                  "border-(--theme-border-default) bg-[color-mix(in_srgb,var(--theme-bg-primary)_90%,transparent)]",
               )}
               onclick={() => selectDriver(driver)}
             >
               <div class="flex items-start">
-                <div class="h-6 w-6 rounded bg-(--theme-border-default) flex items-center justify-center text-xs text-(--theme-fg-secondary)">{driver[0]}</div>
-                <p class="text-sm font-medium text-(--theme-fg-primary)">{driver}</p>
+                <div
+                  class="h-6 w-6 rounded bg-(--theme-border-default) flex items-center justify-center text-xs text-(--theme-fg-secondary)"
+                >
+                  {driver[0]}
+                </div>
+                <p class="text-sm font-medium text-(--theme-fg-primary)">
+                  {driver}
+                </p>
               </div>
             </button>
           {/each}
@@ -84,18 +85,24 @@
       </aside>
 
       <section class="w-[80%] flex-1 p-6 space-y-6 overflow-y-auto">
-
         <div class="space-y-4">
           {#if selectedDriver === "postgresql"}
-            <PostgresConfig bind:this={postgresRef} onCancel={handleCancel} onSave={handleSave} onTest={handleTest} />
+            <!-- <PostgresConfig bind:this={postgresRef} onCancel={handleCancel} onSave={handleSave} onTest={handleTest} /> -->
+            <div class="p-4 text-center text-gray-500">
+              Postgres configuration temporarily unavailable
+            </div>
           {:else if selectedDriver === "mysql"}
-            <ComingSoon />
+            <!-- <ComingSoon /> -->
+            <div class="p-4 text-center text-gray-500">Coming soon</div>
           {:else if selectedDriver === "sqlite"}
-            <ComingSoon />
+            <!-- <ComingSoon /> -->
+            <div class="p-4 text-center text-gray-500">Coming soon</div>
           {:else if selectedDriver === "custom"}
-            <ComingSoon />
+            <!-- <ComingSoon /> -->
+            <div class="p-4 text-center text-gray-500">Coming soon</div>
           {:else}
-            <ComingSoon />
+            <!-- <ComingSoon /> -->
+            <div class="p-4 text-center text-gray-500">Coming soon</div>
           {/if}
         </div>
       </section>

@@ -3,7 +3,10 @@
   "identifier": "default",
   "description": "Capability for the main window",
   "windows": [
-    "main"
+    "main",
+    "window-*",
+    "appearance-window",
+    "datasource-window"
   ],
   "permissions": [
     "core:default",

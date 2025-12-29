@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { type Driver } from "../DriverList";
+    import { type Driver } from "./DriverList";
     import PostgresForm from "./forms/PostgresForm.svelte";
     import SqliteForm from "./forms/SqliteForm.svelte";
     import { IconMaximize, IconCircleCheck } from "@tabler/icons-svelte";
