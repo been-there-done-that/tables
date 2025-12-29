@@ -4,6 +4,7 @@
   import { Tween } from "svelte/motion";
   import { cubicOut } from "svelte/easing";
   import { METRICS } from "$lib/constants";
+  import { toast } from "svelte-sonner";
 
   // Clean state: Default to valid empty values if null
   let metrics = $derived(
@@ -21,6 +22,7 @@
   function copyPid(pid: number) {
     console.log(pid);
     navigator.clipboard.writeText(pid.toString());
+    toast.success("PID copied to clipboard");
   }
 </script>
 
