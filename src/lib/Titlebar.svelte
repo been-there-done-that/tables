@@ -6,6 +6,7 @@
   import IconLayoutSidebarFilled from "@tabler/icons-svelte/icons/layout-sidebar-filled";
   import IconLayoutSidebarRight from "@tabler/icons-svelte/icons/layout-sidebar-right";
   import IconLayoutSidebarRightFilled from "@tabler/icons-svelte/icons/layout-sidebar-right-filled";
+  import SystemMetricsWidget from "$lib/components/SystemMetricsWidget.svelte";
 
   import IconLayoutBottombar from "@tabler/icons-svelte/icons/layout-bottombar";
   import IconLayoutBottombarFilled from "@tabler/icons-svelte/icons/layout-bottombar-filled";
@@ -76,6 +77,7 @@
         class="absolute inset-x-0 flex justify-center items-center h-full pointer-events-none"
       >
         <!-- Add window specific titles here if needed -->
+        <SystemMetricsWidget />
         <div class="pointer-events-auto"></div>
       </div>
 

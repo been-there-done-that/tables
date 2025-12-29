@@ -3,9 +3,7 @@
   import MicroBarSparkline from "$lib/components/MicroBarSparkline.svelte";
   import { Tween } from "svelte/motion";
   import { cubicOut } from "svelte/easing";
-
-  // Configuration
-  const MAX_BARS = 60;
+  import { METRICS } from "$lib/constants";
 
   // Clean state: Default to valid empty values if null
   let metrics = $derived(
@@ -18,28 +16,37 @@
 
   $effect(() => {
     displayedCpu.target = metrics.cpu_percent;
-    console.log(history.length);
   });
+
+  function copyPid(pid: number) {
+    console.log(pid);
+    navigator.clipboard.writeText(pid.toString());
+  }
 </script>
 
 <div
-  class="flex items-center gap-2 text-xs text-(--theme-fg-tertiary) h-full select-none"
+  class="flex items-end gap-2 text-xs text-(--theme-fg-tertiary) h-full select-none pointer-events-auto"
 >
   <!-- CPU Section -->
-  <div class="flex items-center gap-2" title="CPU Usage">
+  <div class="flex items-end gap-2" title="CPU Usage">
     <span class="font-mono tabular-nums"
       >{displayedCpu.current.toFixed(1)}%</span
     >
-    <div class="group flex items-center pt-1 border rounded-md px-1">
+    <div class="group flex items-center pt-1 border-b px-1">
       <MicroBarSparkline
         values={history}
-        maxBars={MAX_BARS}
-        barWidth={4}
+        maxBars={METRICS.HISTORY_SIZE}
+        barWidth={METRICS.BAR_WIDTH}
         gap={1}
-        height={120}
+        height={METRICS.CHART_HEIGHT}
       />
     </div>
   </div>
-
-  <span title="Process ID" class="font-mono opacity-50">PID {metrics.pid}</span>
+  <button
+    class="font-mono hover:text-(--theme-fg-primary)"
+    title="Click to copy Process ID"
+    onclick={() => copyPid(metrics.pid)}
+  >
+    (PID: <span class="opacity-100">{metrics.pid}</span>)
+  </button>
 </div>
