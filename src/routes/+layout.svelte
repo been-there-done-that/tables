@@ -7,6 +7,7 @@
 	import { windowState } from "$lib/stores/window.svelte";
 	import { onMount } from "svelte";
 	import LoadingOverlay from "$lib/LoadingOverlay.svelte";
+	import { Toaster } from "svelte-sonner";
 
 	const appWindow = getCurrentWindow();
 
@@ -47,4 +48,5 @@
 			{@render children()}
 		</div>
 	</div>
+	<Toaster position="bottom-right" />
 </ThemeProvider>
