@@ -8,6 +8,10 @@
 	import { onMount } from "svelte";
 	import LoadingOverlay from "$lib/LoadingOverlay.svelte";
 	import { Toaster } from "svelte-sonner";
+	import SuccessIcon from "$lib/svg/SuccessMark.svelte";
+	import ErrorIcon from "$lib/svg/ErrorMark.svelte";
+	import InfoIcon from "$lib/svg/InfoMark.svelte";
+	import WarnIcon from "$lib/svg/WarnMark.svelte";
 
 	const appWindow = getCurrentWindow();
 
@@ -48,5 +52,18 @@
 			{@render children()}
 		</div>
 	</div>
-	<Toaster position="bottom-right" />
+	<Toaster position="bottom-right" visibleToasts={40} expand={true}>
+		{#snippet successIcon()}
+			<SuccessIcon />
+		{/snippet}
+		{#snippet errorIcon()}
+			<ErrorIcon />
+		{/snippet}
+		{#snippet infoIcon()}
+			<InfoIcon />
+		{/snippet}
+		{#snippet warningIcon()}
+			<WarnIcon />
+		{/snippet}
+	</Toaster>
 </ThemeProvider>
