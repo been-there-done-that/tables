@@ -74,23 +74,31 @@
         }
 
         // Click outside handler
-        const handleClickOutside = (event: MouseEvent) => {
+        const handleClickOutside = (event: PointerEvent) => {
             if (isResizing) return; // Don't close while resizing
 
             if (
                 isOpen &&
                 popoverRef &&
                 panelRef &&
-                !popoverRef.contains(event.target as Node) &&
-                !panelRef.contains(event.target as Node)
+                !event.composedPath().includes(popoverRef) &&
+                !event.composedPath().includes(panelRef)
             ) {
                 isOpen = false;
             }
         };
-        document.addEventListener("mousedown", handleClickOutside);
+        const handleKeydown = (event: KeyboardEvent) => {
+            if (event.key === "Escape" && isOpen) {
+                isOpen = false;
+            }
+        };
+
+        document.addEventListener("pointerdown", handleClickOutside);
+        document.addEventListener("keydown", handleKeydown);
 
         return () => {
-            document.removeEventListener("mousedown", handleClickOutside);
+            document.removeEventListener("pointerdown", handleClickOutside);
+            document.removeEventListener("keydown", handleKeydown);
         };
     });
 
@@ -227,7 +235,7 @@
     {#if rendered}
         <div
             bind:this={panelRef}
-            class="absolute top-full left-0 mt-1 bg-(--theme-bg-secondary) border border-(--theme-border-default) rounded-lg shadow-xl z-50 overflow-hidden flex flex-col min-w-[200px] anim-pop"
+            class="absolute top-full left-0 mt-1 bg-(--theme-bg-secondary) border border-(--theme-border-default) rounded-lg shadow-xl z-50 overflow-hidden flex flex-col min-w-[200px] anim-pop select-none"
             style={`width: ${width}px; height: ${height}px;`}
             data-state={isOpen ? "open" : "closed"}
             onanimationend={handleAnimationEnd}

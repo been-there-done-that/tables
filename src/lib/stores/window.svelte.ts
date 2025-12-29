@@ -1,6 +1,8 @@
 import { getCurrentWindow, getAllWindows } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 import { METRICS } from "$lib/constants";
+import { listConnections } from "$lib/commands/client";
+import type { Connection } from "$lib/commands/types";
 
 export interface CommandConfig {
     id: string;
@@ -47,6 +49,10 @@ class WindowStateStore {
     // Metrics State
     metrics = $state<{ cpu_percent: number; pid: number; threads: number } | null>(null);
     cpuHistory = $state<number[]>([]);
+
+    // Global Connections (shared across components in this window)
+    connections = $state<Connection[]>([]);
+    loadingConnections = $state(false);
 
     private unlistenFunctions: (() => void)[] = [];
 
@@ -187,6 +193,21 @@ class WindowStateStore {
     cleanup() {
         this.unlistenFunctions.forEach(unlisten => unlisten());
         this.unlistenFunctions = [];
+    }
+    async loadConnections() {
+        this.loadingConnections = true;
+        try {
+            const response = await listConnections();
+            if (response.success && response.data) {
+                this.connections = response.data;
+            } else {
+                console.error("Failed to load connections:", response.error);
+            }
+        } catch (e) {
+            console.error("Failed to load connections:", e);
+        } finally {
+            this.loadingConnections = false;
+        }
     }
 }
 
