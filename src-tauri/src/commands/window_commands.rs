@@ -19,7 +19,7 @@ pub async fn open_datasource_window(app: tauri::AppHandle) -> Result<(), String>
         .title("Datasource")
         .inner_size(960.0, 640.0)
         .resizable(true)
-        .decorations(true);
+        .decorations(cfg!(target_os = "macos"));
 
     #[cfg(target_os = "macos")]
     {
@@ -64,7 +64,7 @@ pub async fn open_appearance_window(app: tauri::AppHandle) -> Result<(), String>
         .title("Appearance")
         .inner_size(960.0, 640.0)
         .resizable(true)
-        .decorations(true);
+        .decorations(cfg!(target_os = "macos"));
 
     #[cfg(target_os = "macos")]
     {
@@ -106,7 +106,7 @@ pub async fn create_new_window(app: tauri::AppHandle) -> Result<(), String> {
         .inner_size(1200.0, 800.0) 
         .min_inner_size(800.0, 600.0)
         .resizable(true)
-        .decorations(true);
+        .decorations(cfg!(target_os = "macos"));
 
     #[cfg(target_os = "macos")]
     {

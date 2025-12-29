@@ -21,9 +21,16 @@
   import DataSource from "./components/datasource/DataSource.svelte";
   import ConnectionPicker from "$lib/components/ConnectionPicker.svelte";
 
+
+  import WindowControls from "$lib/components/WindowControls.svelte";
+
   let { isFullScreen } = $props();
   // let icons = $state(false);
   let datasourceWindowOpen = $state(false);
+  
+  // Use user agent to detect Windows. 
+  // Note: This is a simple check. For improved reliability might want to use `@tauri-apps/plugin-os` in future.
+  const isWindows = navigator.userAgent.includes("Windows");
 
   const openDatasourceWindow = async () => {
     try {
@@ -32,7 +39,7 @@
       console.error("Failed to open datasource window:", e);
     }
   };
-
+   
   const openSettingsWindow = async () => {
     try {
       await invoke("open_appearance_window");
@@ -54,7 +61,7 @@
     -->
     <div
       data-tauri-drag-region
-      class="absolute inset-0 z-0 ml-20 pointer-events-auto"
+      class={cn("absolute inset-0 z-0 pointer-events-auto", !isWindows && "ml-20")}
       title="Draggable Region"
     ></div>
 
@@ -66,7 +73,7 @@
       class="relative z-10 flex h-full items-center justify-between px-2 pointer-events-none"
     >
       <!-- Left side (offset for Mac traffic lights) -->
-      <div class="flex items-center gap-2 ml-24 pointer-events-auto">
+      <div class={cn("flex items-center gap-2 pointer-events-auto", !isWindows && "ml-24")}>
         {#if windowState.label === "main"}
           <ConnectionPicker />
         {/if}
@@ -203,6 +210,10 @@
         >
           <IconRestore class="size-5" />
         </button>
+
+        {#if isWindows}
+            <WindowControls />
+        {/if}
       </div>
     </div>
   </div>
