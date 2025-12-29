@@ -77,12 +77,6 @@ fn collect_metrics(sys: &mut System) -> Result<SystemMetrics, String> {
             pid: pid_u32 as i32,
         };
 
-        debug!(
-            "System metrics collected: CPU(norm)={:.2}%, Threads={}",
-            metrics.cpu_percent,
-            metrics.threads
-        );
-
         Ok(metrics)
     } else {
         Err("Could not find current process".to_string())

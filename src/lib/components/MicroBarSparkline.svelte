@@ -1,20 +1,21 @@
 <script lang="ts">
   /* ================= PROPS (RUNES) ================= */
 
+  /* ================= PROPS (RUNES) ================= */
+
   const {
     values = [],
-    width = 56,
+    // width is now calculated dynamically
     height = 14,
     padding = 1,
-    levels = 5,          // ▁▂▃▄▅
-    maxBars = 10,
-    barWidth = 4,
+    levels = 5, // ▁▂▃▄▅
+    maxBars = 30, // Configurable history size
+    barWidth = 3, // Thinner bars for header
     gap = 1,
     maxAlpha = 0.15,
     floor = 0.1,
   } = $props<{
     values?: number[];
-    width?: number;
     height?: number;
     padding?: number;
     levels?: number;
@@ -24,6 +25,12 @@
     maxAlpha?: number;
     floor?: number;
   }>();
+
+  /* ================= LAYOUT CALC ================= */
+
+  const totalWidth = $derived(
+    padding * 2 + maxBars * barWidth + Math.max(0, maxBars - 1) * gap,
+  );
 
   /* ================= HELPERS ================= */
 
@@ -50,12 +57,12 @@
 
   // keep only last N samples
   const samples = $derived(
-    values.length > maxBars
-      ? values.slice(-maxBars)
-      : values
+    values.length > maxBars ? values.slice(-maxBars) : values,
   );
 
-  const target = $derived.by<number>(() => computeRelativeMax(samples, floorValue));
+  const target = $derived.by<number>(() =>
+    computeRelativeMax(samples, floorValue),
+  );
   $effect(() => {
     dynamicMax = smooth(dynamicMax, target, maxAlpha);
   });
@@ -72,8 +79,7 @@
 
     return samples.map((v: number, i: number) => {
       const level = quantize(v, dynamicMax);
-      const barHeight =
-        Math.round((level / levels) * (height - padding * 2));
+      const barHeight = Math.round((level / levels) * (height - padding * 2));
 
       return {
         x: padding + i * (barWidth + gap),
@@ -92,7 +98,7 @@
   const pressure = $derived(
     samples.length && dynamicMax
       ? Math.min(samples[samples.length - 1] / dynamicMax, 1)
-      : 0
+      : 0,
   );
 
   const color = $derived(() => {
@@ -103,19 +109,27 @@
 </script>
 
 <svg
-  viewBox={`0 0 ${width} ${height}`}
-  width={width}
-  height={height}
-  class="h-3 w-14"
+  viewBox={`0 0 ${totalWidth} ${height}`}
+  width={totalWidth}
+  {height}
+  class="overflow-visible"
   shape-rendering="crispEdges"
   style="color: {color}"
 >
   <style>
-    /* ONLY the newest bar animates */
+    @keyframes grow {
+      from {
+        transform: scaleY(0);
+      }
+      to {
+        transform: scaleY(1);
+      }
+    }
+
     .animate-in {
-      transition:
-        y 180ms ease-out,
-        height 180ms ease-out;
+      transform-box: fill-box;
+      transform-origin: bottom;
+      animation: grow 600ms cubic-bezier(0.2, 0, 0, 1) forwards;
     }
   </style>
 

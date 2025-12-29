@@ -1,64 +1,45 @@
 <script lang="ts">
-  import { onMount, onDestroy } from "svelte";
-  import { listen } from "@tauri-apps/api/event";
-  import type { UnlistenFn } from "@tauri-apps/api/event";
-  import type { SystemMetrics } from "$lib/commands/types";
+  import { windowState } from "$lib/stores/window.svelte";
   import MicroBarSparkline from "$lib/components/MicroBarSparkline.svelte";
+  import { Tween } from "svelte/motion";
+  import { cubicOut } from "svelte/easing";
 
-  let metrics = $state<SystemMetrics | null>(null);
-  let cpuHistory = $state<number[]>([]);
-  let loading = $state(true);
-  let error = $state<string | null>(null);
+  // Configuration
+  const MAX_BARS = 60;
 
-  let unlisten: UnlistenFn | null = null;
+  // Clean state: Default to valid empty values if null
+  let metrics = $derived(
+    windowState.metrics || { cpu_percent: 0, pid: 0, threads: 0 },
+  );
+  let history = $derived(windowState.cpuHistory);
 
-  function pushSample(buf: number[], value: number, max = 30) {
-    const next = [...buf, value];
-    if (next.length > max) next.shift();
-    return next;
-  }
+  // Animation for numbers
+  const displayedCpu = new Tween(0, { duration: 600, easing: cubicOut });
 
-  onMount(() => {
-    (async () => {
-      try {
-        unlisten = await listen<SystemMetrics>("metrics:update", (event) => {
-          metrics = event.payload;
-          if (metrics) {
-            cpuHistory = pushSample(cpuHistory, metrics.cpu_percent, 30);
-          }
-          loading = false;
-          error = null;
-        });
-      } catch (err) {
-        error = String(err);
-        loading = false;
-      }
-    })();
-  });
-
-  onDestroy(() => {
-    if (unlisten) {
-      unlisten();
-    }
+  $effect(() => {
+    displayedCpu.target = metrics.cpu_percent;
+    console.log(history.length);
   });
 </script>
 
-{#if loading}
-  <div class="flex items-center gap-2 text-xs text-[--theme-fg-tertiary]">
-    <div class="size-2 bg-current rounded-full animate-pulse"></div>
-    Loading...
+<div
+  class="flex items-center gap-2 text-xs text-(--theme-fg-tertiary) h-full select-none"
+>
+  <!-- CPU Section -->
+  <div class="flex items-center gap-2" title="CPU Usage">
+    <span class="font-mono tabular-nums"
+      >{displayedCpu.current.toFixed(1)}%</span
+    >
+    <div class="group flex items-center pt-1 border rounded-md px-1">
+      <MicroBarSparkline
+        values={history}
+        maxBars={MAX_BARS}
+        barWidth={4}
+        gap={1}
+        height={120}
+      />
+    </div>
   </div>
-{:else if error}
-  <div class="text-xs text-red-400" title={error}>Metrics unavailable</div>
-{:else if metrics}
-  <div class="flex items-center gap-3 text-xs text-[--theme-fg-tertiary]">
-    <span title="CPU Usage (normalized)" class="flex items-center gap-1">
-      {metrics.cpu_percent.toFixed(1)}%
-      <div class="border">
-        <MicroBarSparkline values={cpuHistory} />
-      </div>
-    </span>
-    <span title="Threads">{metrics.threads}</span>
-    <span title="PID">PID {metrics.pid}</span>
-  </div>
-{/if}
+
+  <span title="Process ID" class="font-mono opacity-50">PID {metrics.pid}</span>
+</div>

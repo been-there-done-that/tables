@@ -36,11 +36,17 @@ class WindowStateStore {
     label = $state("main");
     settingsWindowOpen = $state(false);
     datasourceWindowOpen = $state(false);
+    // Layout State
     layout = $state({
         left: true,
         right: true,
         bottom: true
     });
+
+    // Metrics State
+    metrics = $state<{ cpu_percent: number; pid: number; threads: number } | null>(null);
+    cpuHistory = $state<number[]>([]);
+
     private unlistenFunctions: (() => void)[] = [];
 
     // Command Registry
@@ -159,6 +165,18 @@ class WindowStateStore {
                 if (label === "datasource-window") this.datasourceWindowOpen = false;
             });
             this.unlistenFunctions.push(unlistenDestroyed);
+
+            // Listen for system metrics
+            const unlistenMetrics = await listen("metrics:update", (event) => {
+                const m = event.payload as { cpu_percent: number; pid: number; threads: number };
+                this.metrics = m;
+
+                // Update history buffer (keep last 100 samples to allow flexibility in UI)
+                const next = [...this.cpuHistory, m.cpu_percent];
+                if (next.length > 100) next.shift();
+                this.cpuHistory = next;
+            });
+            this.unlistenFunctions.push(unlistenMetrics);
 
         } catch (e) {
             console.error("[WindowStateStore] Failed to setup window listeners:", e);
