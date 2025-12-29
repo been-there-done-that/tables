@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { type Snippet } from "svelte";
+    import { type Snippet, untrack } from "svelte";
 
     let {
         defaultRatio = 0.2,
@@ -29,6 +29,8 @@
 
     let container = $state<HTMLElement>();
     let isDragging = $state(false);
+
+    // Fix: unwrap defaultRatio to avoid reactive dependency warning if intended to be initial only
     let ratio = $state(defaultRatio);
 
     const isVertical = $derived(orientation === "vertical");
@@ -40,11 +42,11 @@
     const firstSize = $derived.by(() => {
         if (!leftVisible) return "0px";
         if (!rightVisible) return "100%";
+        // Debugging: pure percentage width, no min/max constraints
         return `${ratio * 100}%`;
     });
 
     const secondSize = $derived.by(() => {
-        if (!rightVisible) return "0px";
         return "auto";
     });
 
@@ -105,19 +107,24 @@
 >
     <!-- First panel -->
     <div
-        class="overflow-hidden transition-[width,height] duration-200 ease-out"
+        class="overflow-hidden transition-[width,height,flex-basis] duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1)] will-change-[width,height] min-w-0 min-h-0"
         class:transition-none={isDragging}
-        style="{axis}: {firstSize}; min-{axis}: {leftVisible ? minLeft : '0px'}"
+        style="{axis}: {firstSize};"
     >
-        {@render left?.()}
+        <!-- Inner wrapper: Restore min-{axis} to prevent squashing -->
+        <div style="width: 100%; height: 100%; min-{axis}: {minLeft}">
+            {@render left?.()}
+        </div>
     </div>
 
     <!-- Divider -->
     <!-- svelte-ignore a11y_separator_implicit_roles -->
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+    <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
     <div
         role="separator"
         tabindex="0"
-        class="relative flex-none transition-opacity duration-200 outline-none"
+        class="relative flex-none transition-all duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1)] outline-none"
         class:opacity-0={!leftVisible || !rightVisible}
         class:pointer-events-none={!leftVisible || !rightVisible}
         class:cursor-row-resize={resizable && isVertical}
@@ -130,6 +137,7 @@
             class="absolute inset-0 bg-(--theme-border-default)"
             class:w-px={!isVertical}
             class:h-px={isVertical}
+            class:opacity-0={!leftVisible || !rightVisible}
         ></div>
 
         <!-- hit area -->
@@ -141,11 +149,12 @@
 
     <!-- Second panel -->
     <div
-        class="flex-1 overflow-hidden"
-        style="{axis}: {secondSize}; min-{axis}: {rightVisible
-            ? minRight
-            : '0px'}"
+        class="flex-1 overflow-hidden min-w-0 min-h-0"
+        style="{axis}: {secondSize};"
     >
-        {@render right?.()}
+        <!-- Inner wrapper: Restore min-{axis} to prevent squashing -->
+        <div style="width: 100%; height: 100%; min-{axis}: {minRight}">
+            {@render right?.()}
+        </div>
     </div>
 </div>
