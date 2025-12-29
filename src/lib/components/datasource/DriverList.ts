@@ -3,7 +3,7 @@ import MongoDbIcon from '$lib/svg/datasource/MongoDb.svelte'
 import ElasticsearchIcon from '$lib/svg/datasource/Elastic.svelte'
 import RedisIcon from '$lib/svg/datasource/Redis.svelte'
 import MySQLIcon from '$lib/svg/datasource/MySql.svelte'
-import SQLiteIcon from '$lib/svg/datasource/SQLite.svelte'
+import SQLiteIcon from '$lib/svg/datasource/Sqlite.svelte'
 
 export interface Driver {
   id: string;

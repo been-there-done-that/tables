@@ -83,7 +83,21 @@
 
       <!-- Right side actions -->
       <div class="flex items-center gap-3 pointer-events-auto">
-        {#if windowState.label === "main"}
+        {#if !["datasource-window", "appearance-window"].includes(windowState.label)}
+          <button
+            class="h-6 w-6 flex items-center justify-center rounded-md border transition-all hover:bg-(--theme-bg-hover) border-transparent"
+            onclick={async () => {
+              try {
+                await invoke("create_new_window");
+              } catch (e) {
+                console.error("Failed to create new window:", e);
+              }
+            }}
+            title="New Window"
+          >
+            <IconPlus class="size-6" />
+          </button>
+
           <button
             class={cn(
               "h-6 w-6 flex items-center justify-center rounded-md border transition-all",
