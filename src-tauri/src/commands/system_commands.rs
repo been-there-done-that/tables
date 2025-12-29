@@ -10,10 +10,6 @@ use log::debug;
 pub struct SystemMetrics {
     /// CPU usage normalized to 0–100 across all logical cores.
     pub cpu_percent: f32,
-    /// Raw summed CPU usage across all logical cores (can exceed 100).
-    pub cpu_total: f32,
-    /// Memory usage in KiB (sysinfo already returns KiB).
-    pub memory_kb: u64,
     /// Number of threads across the process tree.
     pub threads: usize,
 }
@@ -65,26 +61,17 @@ pub fn get_system_metrics() -> Result<SystemMetrics, String> {
     // Get current process info
     let pid = get_current_pid().map_err(|e| e.to_string())?;
     if sys.process(pid).is_some() {
-        let root_proc = sys
-            .process(pid)
-            .ok_or_else(|| "Could not find current process".to_string())?;
-        let memory_kb = root_proc.memory(); // RSS for root process only; avoids double-counting shared pages.
-
         let (total_cpu, total_threads) = collect_process_tree(&sys, pid);
         let cores = sys.cpus().len().max(1) as f32;
         let cpu_percent = total_cpu / cores;
         let metrics = SystemMetrics {
             cpu_percent,
-            cpu_total: total_cpu,
-            memory_kb,
             threads: total_threads,
         };
 
         debug!(
-            "System metrics collected: CPU(norm)={:.2}%, CPU(total)={:.2}%, Memory={}KiB, Threads={}",
+            "System metrics collected: CPU(norm)={:.2}%, Threads={}",
             metrics.cpu_percent,
-            metrics.cpu_total,
-            metrics.memory_kb,
             metrics.threads
         );
 

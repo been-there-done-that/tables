@@ -58,10 +58,6 @@
     <span title="CPU Usage (normalized)">
       {metrics.cpu_percent.toFixed(1)}%
     </span>
-    <span title="CPU Usage (total cores)">
-      {metrics.cpu_total.toFixed(1)}%
-    </span>
-    <span title="Memory Usage">{formatMemory(metrics.memory_kb)}</span>
     <span title="Threads">{metrics.threads}</span>
   </div>
 {/if}
