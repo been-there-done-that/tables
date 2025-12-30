@@ -57,6 +57,7 @@
                         <h2 class="text-sm font-semibold">Main Editor</h2>
                       </div>
                       <div class="flex-1 overflow-auto p-4">
+                        <a href="/table-test">Table Test</a>
                         <div class="rounded border p-2">Editor Content</div>
                         <SystemMetricsWidget />
                       </div>
