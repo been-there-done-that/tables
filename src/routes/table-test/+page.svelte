@@ -149,8 +149,18 @@
     <div class="flex-1 min-h-0">
         <Table
             columns={fullColumns}
+            readOnly={false}
             dataFetcher={fetchData}
             tableName="test_users"
+            onApplyEdits={(newRow) => {
+                console.log("Edit completed", newRow);
+                // Update local state
+                const idx = rows.findIndex((r) => r._rowId === newRow._rowId);
+                if (idx !== -1) {
+                    rows[idx] = newRow;
+                }
+                return Promise.resolve();
+            }}
         />
     </div>
 </div>
