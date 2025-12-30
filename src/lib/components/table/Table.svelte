@@ -113,10 +113,14 @@
         tableColumns = columns.map((c) => ({ ...c }));
     });
     let hiddenColumnIds = $state<Set<string>>(new Set());
+    let pinnedColumnIds = $state<string[]>([]);
 
-    let visibleColumns = $derived(
-        tableColumns.filter((c) => !hiddenColumnIds.has(c.id)),
-    );
+    let visibleColumns = $derived.by(() => {
+        const visible = tableColumns.filter((c) => !hiddenColumnIds.has(c.id));
+        const pinned = visible.filter((c) => pinnedColumnIds.includes(c.id));
+        const unpinned = visible.filter((c) => !pinnedColumnIds.includes(c.id));
+        return [...pinned, ...unpinned];
+    });
 
     let rows = $state<any[]>([]);
     let baselineRows = $state<Map<number, any>>(new Map());
@@ -661,6 +665,152 @@
     function handleHideColumn(columnId: string) {
         hiddenColumnIds.add(columnId);
         hiddenColumnIds = new Set(hiddenColumnIds);
+        pinnedColumnIds = pinnedColumnIds.filter((id) => id !== columnId);
+    }
+
+    function handleMoveColumn(fromId: string, toId: string) {
+        const fromIndex = tableColumns.findIndex((c) => c.id === fromId);
+        const toIndex = tableColumns.findIndex((c) => c.id === toId);
+        if (fromIndex === -1 || toIndex === -1) return;
+
+        const newColumns = [...tableColumns];
+        const [moved] = newColumns.splice(fromIndex, 1);
+        newColumns.splice(toIndex, 0, moved);
+        tableColumns = newColumns;
+    }
+
+    function handlePinColumn(columnId: string) {
+        if (pinnedColumnIds.includes(columnId)) return;
+        if (pinnedColumnIds.length >= 3) {
+            console.warn("Max 3 pinned columns allowed");
+            return;
+        }
+        const col = tableColumns.find((c) => c.id === columnId);
+        if (
+            col?.type === "json" ||
+            col?.type === "jsonb" ||
+            col?.type === "JSON"
+        ) {
+            console.warn("Pinned columns cannot be wide JSON types");
+            return;
+        }
+        pinnedColumnIds = [...pinnedColumnIds, columnId];
+    }
+
+    function handleUnpinColumn(columnId: string) {
+        pinnedColumnIds = pinnedColumnIds.filter((id) => id !== columnId);
+    }
+
+    // ---------- Persistence ----------
+    const STORAGE_VERSION = "v1";
+    let isInitialLoad = true;
+
+    function getStorageKey() {
+        if (!tableName) return null;
+        return `table_view_state_${tableSchema || "default"}_${tableName}_${STORAGE_VERSION}`;
+    }
+
+    function saveViewState() {
+        const key = getStorageKey();
+        if (!key || isInitialLoad) return;
+
+        const state = {
+            columnOrder: tableColumns.map((c) => c.id),
+            columnWidths: tableColumns.reduce(
+                (acc, c) => {
+                    if (c.width) acc[c.id] = c.width;
+                    return acc;
+                },
+                {} as Record<string, number>,
+            ),
+            hiddenColumnIds: Array.from(hiddenColumnIds),
+            pinnedColumnIds,
+        };
+        localStorage.setItem(key, JSON.stringify(state));
+        console.info("[Table] saveViewState", key, state);
+    }
+
+    function loadViewState() {
+        const key = getStorageKey();
+        if (!key) return;
+
+        try {
+            const saved = localStorage.getItem(key);
+            if (!saved) return;
+            const state = JSON.parse(saved);
+
+            if (state.columnOrder) {
+                const orderMap = new Map(
+                    state.columnOrder.map((id: string, i: number) => [id, i]),
+                );
+                tableColumns = [...tableColumns].sort((a, b) => {
+                    const aIdx = orderMap.get(a.id) ?? 999;
+                    const bIdx = orderMap.get(b.id) ?? 999;
+                    return aIdx - bIdx;
+                });
+            }
+
+            if (state.columnWidths) {
+                tableColumns = tableColumns.map((c) => ({
+                    ...c,
+                    width: state.columnWidths[c.id] ?? c.width,
+                }));
+            }
+
+            if (state.hiddenColumnIds) {
+                hiddenColumnIds = new Set(state.hiddenColumnIds);
+            }
+
+            if (state.pinnedColumnIds) {
+                pinnedColumnIds = state.pinnedColumnIds;
+            }
+            console.info("[Table] loadViewState", key, state);
+        } catch (e) {
+            console.error("Failed to load view state", e);
+        } finally {
+            isInitialLoad = false;
+        }
+    }
+
+    // Persist changes
+    $effect(() => {
+        // Track dependencies we want to persist
+        const _ = {
+            columns: tableColumns,
+            hidden: hiddenColumnIds,
+            pinned: pinnedColumnIds,
+        };
+        saveViewState();
+    });
+
+    function handleResetColumnWidth(columnId: string) {
+        tableColumns = tableColumns.map((c) => {
+            if (c.id === columnId) {
+                return { ...c, width: undefined };
+            }
+            return c;
+        });
+        // Let auto-size recalculate on next render if needed
+        tick().then(() => autoSizeColumns());
+    }
+
+    function handleResetColumnOrder() {
+        // Reset to original column order from props
+        const originalOrder = new Map(columns.map((c, i) => [c.id, i]));
+        tableColumns = [...tableColumns].sort((a, b) => {
+            const aIdx = originalOrder.get(a.id) ?? 999;
+            const bIdx = originalOrder.get(b.id) ?? 999;
+            return aIdx - bIdx;
+        });
+    }
+
+    function handleResetAll() {
+        hiddenColumnIds = new Set();
+        pinnedColumnIds = [];
+        tableColumns = columns.map((c) => ({ ...c, width: undefined }));
+        const key = getStorageKey();
+        if (key) localStorage.removeItem(key);
+        tick().then(() => autoSizeColumns());
     }
 
     function handleHideOtherColumns(columnId: string) {
@@ -690,6 +840,7 @@
     }
 
     onMount(() => {
+        loadViewState();
         loadData();
 
         // Prevent Cmd+A from selecting page text (desktop app behavior)
@@ -1102,6 +1253,35 @@
         if (e.key === "Escape") {
             e.preventDefault();
             clearSelection();
+            return;
+        }
+
+        if (
+            e.altKey &&
+            (e.key === "ArrowLeft" || e.key === "ArrowRight") &&
+            focusedCell
+        ) {
+            e.preventDefault();
+            const currentColId = visibleColumns[focusedCell.columnIndex].id;
+            const targetIndex =
+                e.key === "ArrowLeft"
+                    ? focusedCell.columnIndex - 1
+                    : focusedCell.columnIndex + 1;
+
+            if (targetIndex >= 0 && targetIndex < visibleColumns.length) {
+                const targetColId = visibleColumns[targetIndex].id;
+                handleMoveColumn(currentColId, targetColId);
+                // Update focused cell to follow the column
+                focusedCell = { ...focusedCell, columnIndex: targetIndex };
+                // Also update selection to match new position if needed
+                if (!e.shiftKey) {
+                    setSelection(focusedCell, focusedCell);
+                }
+                ensureCellVisible(
+                    focusedCell.rowIndex,
+                    focusedCell.columnIndex,
+                );
+            }
             return;
         }
 
@@ -1554,12 +1734,19 @@
                 columns={visibleColumns}
                 {sortState}
                 {filters}
+                {pinnedColumnIds}
                 onSort={handleSort}
                 onClearSort={handleClearSort}
                 onOpenInQueryEditor={handleOpenInQueryEditor}
                 onOpenNewQueryTab={handleOpenNewQueryTab}
                 onFilter={handleFilterChange}
                 onResize={handleResize}
+                onResetColumnWidth={handleResetColumnWidth}
+                onMoveColumn={handleMoveColumn}
+                onPinColumn={handlePinColumn}
+                onUnpinColumn={handleUnpinColumn}
+                onResetColumnOrder={handleResetColumnOrder}
+                onResetAll={handleResetAll}
                 onHideColumn={handleHideColumn}
                 onHideOtherColumns={handleHideOtherColumns}
                 onShowColumnList={handleShowColumnList}

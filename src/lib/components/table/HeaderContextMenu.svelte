@@ -11,6 +11,8 @@
         IconCheck,
         IconEdit,
         IconPlus,
+        IconPin,
+        IconRefresh,
     } from "@tabler/icons-svelte";
     import type { Column } from "./types";
 
@@ -27,6 +29,12 @@
         onSetLocalFilter: () => void;
         onOpenInQueryEditor?: () => void;
         onOpenNewQueryTab?: () => void;
+        isPinned?: boolean;
+        onPinColumn: () => void;
+        onUnpinColumn: () => void;
+        onResetWidth: () => void;
+        onResetOrder: () => void;
+        onResetAll: () => void;
     }
 
     let {
@@ -42,6 +50,12 @@
         onSetLocalFilter,
         onOpenInQueryEditor,
         onOpenNewQueryTab,
+        isPinned,
+        onPinColumn,
+        onUnpinColumn,
+        onResetWidth,
+        onResetOrder,
+        onResetAll,
     }: Props = $props();
 </script>
 
@@ -106,6 +120,32 @@
     <ContextMenuPrimitive.Item onclick={onOpenNewQueryTab}>
         <IconPlus class="mr-2 size-4" />
         Open in New Query Tab
+    </ContextMenuPrimitive.Item>
+
+    <ContextMenuPrimitive.Separator />
+    <ContextMenuPrimitive.Label>View & Layout</ContextMenuPrimitive.Label>
+    {#if isPinned}
+        <ContextMenuPrimitive.Item onclick={onUnpinColumn}>
+            <IconPin class="mr-2 size-4 rotate-45" />
+            Unpin Column
+        </ContextMenuPrimitive.Item>
+    {:else}
+        <ContextMenuPrimitive.Item onclick={onPinColumn}>
+            <IconPin class="mr-2 size-4" />
+            Pin Column (Stay Left)
+        </ContextMenuPrimitive.Item>
+    {/if}
+    <ContextMenuPrimitive.Item onclick={onResetWidth}>
+        <IconRefresh class="mr-2 size-4" />
+        Reset Column Width
+    </ContextMenuPrimitive.Item>
+    <ContextMenuPrimitive.Item onclick={onResetOrder}>
+        <IconRefresh class="mr-2 size-4" />
+        Reset Column Order
+    </ContextMenuPrimitive.Item>
+    <ContextMenuPrimitive.Item onclick={onResetAll} class="text-destructive">
+        <IconX class="mr-2 size-4" />
+        Reset All Customizations
     </ContextMenuPrimitive.Item>
 
     <!-- TODO: Add "Set Highlighting Language" if needed -->
