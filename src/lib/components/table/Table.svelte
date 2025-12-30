@@ -866,7 +866,17 @@
     }
 
     function handleCellDoubleClick(rowIndex: number, columnIndex: number) {
-        if (!onApplyEdits) return; // read-only mode when no edit handler provided
+        console.log("handleCellDoubleClick called", {
+            rowIndex,
+            columnIndex,
+            hasOnApplyEdits: !!onApplyEdits,
+        });
+        if (!onApplyEdits) {
+            console.warn(
+                "handleCellDoubleClick: Read-only mode (no onApplyEdits)",
+            );
+            return;
+        }
         const col = visibleColumns[columnIndex];
         const alwaysEditableTypes = [
             "boolean",
@@ -895,6 +905,8 @@
                 columnId: col.id,
             };
             console.info("[Table] edit:state-set", { editingCell });
+        } else {
+            console.warn("[Table] edit:refused - not editable");
         }
     }
 
@@ -906,6 +918,7 @@
         if (loading) return;
         event.preventDefault();
         event.stopPropagation();
+        console.log("handleCellContextMenu", { rowIndex, columnIndex });
 
         // Keep existing selection if it already includes this cell; otherwise select this cell
         if (!selectionIncludes(rowIndex, columnIndex)) {
@@ -919,19 +932,24 @@
         );
 
         contextMenuState = { open: true, x, y, rowIndex, columnIndex };
+        console.log("contextMenuState set", contextMenuState);
     }
 
     function closeContextMenu() {
+        console.log("closeContextMenu");
         contextMenuState = null;
     }
 
     function contextEdit() {
-        if (!contextMenuState) return;
+        console.log("contextEdit called", contextMenuState);
+        if (!contextMenuState) {
+            console.error("contextEdit: contextMenuState is null");
+            return;
+        }
+        const { rowIndex, columnIndex } = contextMenuState;
+        console.log("contextEdit extracting", { rowIndex, columnIndex });
         closeContextMenu();
-        handleCellDoubleClick(
-            contextMenuState.rowIndex,
-            contextMenuState.columnIndex,
-        );
+        handleCellDoubleClick(rowIndex, columnIndex);
     }
 
     function contextCopy() {
