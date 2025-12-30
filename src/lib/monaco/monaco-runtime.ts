@@ -1,4 +1,5 @@
 import * as monaco from 'monaco-editor';
+import { defineMonacoTheme } from './monaco-theme';
 import 'monaco-editor/min/vs/editor/editor.main.css';
 import EditorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
 import JsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker";
@@ -40,7 +41,10 @@ function registerLanguages(m: typeof monaco) {
 }
 
 function registerThemes(m: typeof monaco) {
-    // Register custom themes
+    // Register the dynamic application theme
+    defineMonacoTheme(m);
+
+    // Register custom legacy themes if any
     m.editor.defineTheme('custom-dark', {
         base: 'vs-dark',
         inherit: true,

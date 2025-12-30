@@ -4,6 +4,7 @@
     import { useMonacoEditor } from "$lib/monaco/useMonacoEditor";
     import type { EditorHandle } from "$lib/monaco/editor-types";
     import type * as Monaco from "monaco-editor";
+    import { MONACO_THEME_NAME } from "$lib/monaco/monaco-theme";
 
     interface Props {
         value: any;
@@ -23,14 +24,6 @@
     let position = $state({ top: 0, left: 0, width: 520 });
     let isVisible = $state(false);
     let errorMessage = $state<string | null>(null);
-
-    const matchDark =
-        typeof window !== "undefined"
-            ? window.matchMedia("(prefers-color-scheme: dark)")
-            : { matches: false };
-    const isDarkMode = document.documentElement.classList.contains("dark");
-    // Simple theme selection for now
-    const themeName = isDarkMode ? "vs-dark" : "vs";
 
     const GUTTER = 4;
 
@@ -89,7 +82,7 @@
             modelUri: modelUri,
             container: () => editorContainer,
             options: {
-                theme: themeName,
+                theme: MONACO_THEME_NAME,
                 minimap: { enabled: false },
                 stickyScroll: { enabled: false },
                 automaticLayout: true,

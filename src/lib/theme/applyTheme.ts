@@ -1,4 +1,6 @@
 import type { ThemeData, ThemeRecord } from "./types";
+import { preloadMonaco } from "../monaco/monaco-runtime";
+import { updateMonacoTheme } from "../monaco/monaco-theme";
 
 
 export function applyThemeStyles(themeJson: string): void {
@@ -31,24 +33,27 @@ export function applyThemeStyles(themeJson: string): void {
   root.style.setProperty("--theme-border-default", border.default);
   root.style.setProperty("--theme-border-subtle", border.subtle);
   root.style.setProperty("--theme-border-focus", border.focus);
+
+  // Sync Monaco theme
+  preloadMonaco().then((m) => updateMonacoTheme(m, data));
 }
 
 
 export function applyTheme(theme: ThemeRecord | undefined, useTransition = true) {
-    if (!theme) return;
-    const run = () => applyThemeStyles(theme.theme_data);
+  if (!theme) return;
+  const run = () => applyThemeStyles(theme.theme_data);
 
-    if (useTransition && typeof document !== "undefined" && "startViewTransition" in document) {
-      try {
-        // Call as method to preserve Document context; swallow aborts
-        (document as any)
-          .startViewTransition(() => run())
-          ?.finished?.catch(() => {});
-        return;
-      } catch (err) {
-        console.warn("View transition failed, falling back:", err);
-      }
+  if (useTransition && typeof document !== "undefined" && "startViewTransition" in document) {
+    try {
+      // Call as method to preserve Document context; swallow aborts
+      (document as any)
+        .startViewTransition(() => run())
+        ?.finished?.catch(() => { });
+      return;
+    } catch (err) {
+      console.warn("View transition failed, falling back:", err);
     }
-
-    run();
   }
+
+  run();
+}
