@@ -12,7 +12,7 @@ interface PooledEditor {
 }
 
 export class EditorPool {
-    private pool: PooledEditor[] = [];
+    public pool: PooledEditor[] = []; // Changed to public for dev-only health probe access
     private MAX = 3;
 
     constructor(
@@ -49,7 +49,10 @@ export class EditorPool {
         // Move the entire containerDiv to preserve Monaco's event delegation
         if (container) {
             pooled.containerDiv.style.position = 'absolute';
-            pooled.containerDiv.style.inset = '0';
+            pooled.containerDiv.style.top = '0';
+            pooled.containerDiv.style.left = '0';
+            pooled.containerDiv.style.width = '100%';
+            pooled.containerDiv.style.height = '100%';
             pooled.containerDiv.style.display = 'block';
             container.appendChild(pooled.containerDiv);
 
@@ -181,4 +184,64 @@ export function getModelRegistry(): ModelRegistry {
         throw new Error("ModelRegistry not initialized. Ensure getWindowEditorPool has been called with monaco instance.");
     }
     return registryInstance;
+}
+
+/**
+ * Dev-only health probe to monitor Monaco's internal state.
+ * Answers: are we leaking? is layout broken? are font metrics sane?
+ */
+export function getMonacoHealth(pool: EditorPool, monaco: typeof import("monaco-editor")) {
+    const editors = pool.pool;
+    const models = monaco.editor.getModels();
+    const sqlModels = models.filter(m => m.uri.scheme === "sql");
+    const jsonModels = models.filter(m => m.uri.scheme === "json");
+
+    let layoutInfo = null;
+    let metrics = null;
+    const activeEditor = editors.find(e => e.active)?.editor;
+    if (activeEditor) {
+        layoutInfo = activeEditor.getLayoutInfo();
+        const options = activeEditor.getOptions();
+
+        // Try multiple ways to get font metrics to be safe
+        const fontInfo = options.get((monaco.editor.EditorOption as any).fontInfo);
+        const lLineHeight = options.get((monaco.editor.EditorOption as any).lineHeight);
+
+        metrics = {
+            lineHeight: lLineHeight || (layoutInfo as any).lineHeight || 0,
+            charWidth: fontInfo?.typicalHalfwidthCharacterWidth || (layoutInfo as any).typicalHalfwidthCharacterWidth || 0
+        };
+    }
+
+    const warnings: string[] = [];
+    if (layoutInfo && metrics) {
+        if (metrics.lineHeight <= 0) warnings.push("Invalid lineHeight");
+        if (metrics.charWidth <= 0) warnings.push("Invalid char width");
+        if (layoutInfo.width < 50 || layoutInfo.height < 50) warnings.push("Suspicious editor size");
+    }
+
+    // Check for "ghost" editors (more than MAX)
+    if (editors.length > 3) warnings.push("Exceeded editor pool limit");
+
+    return {
+        editors: {
+            total: editors.length,
+            active: editors.filter(e => e.active).length,
+            idle: editors.filter(e => !e.active).length
+        },
+        models: {
+            total: models.length,
+            sql: sqlModels.length,
+            json: jsonModels.length
+        },
+        layout: layoutInfo && metrics
+            ? {
+                width: layoutInfo.width,
+                height: layoutInfo.height,
+                lineHeight: metrics.lineHeight,
+                charWidth: metrics.charWidth
+            }
+            : null,
+        warnings
+    };
 }
