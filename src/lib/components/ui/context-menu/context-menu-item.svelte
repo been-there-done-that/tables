@@ -1,27 +1,40 @@
 <script lang="ts">
-	import { ContextMenu as ContextMenuPrimitive } from "bits-ui";
-	import { cn } from "$lib/utils.js";
+	import { cn } from "$lib/utils";
+	import { getContext } from "svelte";
+
+	interface Props {
+		onclick?: (e: MouseEvent) => void;
+		class?: string;
+		children?: import("svelte").Snippet;
+		variant?: "default" | "danger";
+	}
 
 	let {
-		ref = $bindable(null),
+		onclick,
 		class: className,
-		inset,
+		children,
 		variant = "default",
-		...restProps
-	}: ContextMenuPrimitive.ItemProps & {
-		inset?: boolean;
-		variant?: "default" | "destructive";
-	} = $props();
+	}: Props = $props();
+
+	const ctx = getContext<{ setOpen: (val: boolean) => void }>("context-menu");
+
+	function handleClick(e: MouseEvent) {
+		onclick?.(e);
+		ctx?.setOpen(false);
+	}
 </script>
 
-<ContextMenuPrimitive.Item
-	bind:ref
-	data-slot="context-menu-item"
-	data-inset={inset}
-	data-variant={variant}
+<button
+	type="button"
 	class={cn(
-		"data-highlighted:bg-accent data-highlighted:text-accent-foreground data-[variant=destructive]:text-destructive data-[variant=destructive]:data-highlighted:bg-destructive/10 dark:data-[variant=destructive]:data-highlighted:bg-destructive/20 data-[variant=destructive]:data-highlighted:text-destructive data-[variant=destructive]:*:[svg]:!text-destructive [&_svg:not([class*='text-'])]:text-muted-foreground outline-hidden relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm data-[disabled]:pointer-events-none data-[inset]:ps-8 data-[disabled]:opacity-50 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
-		className
+		"flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors",
+		"hover:bg-(--theme-bg-hover) active:bg-(--theme-bg-active)",
+		variant === "danger"
+			? "text-red-500 hover:text-red-600"
+			: "text-(--theme-fg-default)",
+		className,
 	)}
-	{...restProps}
-/>
+	onclick={handleClick}
+>
+	{@render children?.()}
+</button>
