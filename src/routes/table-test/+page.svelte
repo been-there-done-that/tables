@@ -18,6 +18,46 @@
                 ).toISOString(),
                 balance: (Math.random() * 10000).toFixed(2),
                 notes: `Note for user ${i} with some long text to test overflow behavior`,
+                metadata: JSON.stringify(
+                    {
+                        id: `meta_${i}`,
+                        preferences: {
+                            theme: i % 2 === 0 ? "dark" : "light",
+                            notifications: {
+                                email: true,
+                                push: false,
+                                sms: true,
+                            },
+                            dashboard: {
+                                layout: "grid",
+                                widgets: [
+                                    "stats",
+                                    "recent_activity",
+                                    "logs",
+                                    "graphs",
+                                    "reports",
+                                ],
+                                refreshRate: 30,
+                            },
+                        },
+                        history: Array.from({ length: 50 }, (_, j) => ({
+                            action: `action_${j}`,
+                            timestamp: new Date().toISOString(),
+                            details: `Detailed log entry for action ${j} performed by user ${i}. Contains extra padding text to make this JSON blob larger and ensure we are testing the performance of the editor with substantial content.`,
+                        })),
+                        tags: [
+                            "user",
+                            "active",
+                            "test",
+                            "scale",
+                            "performance",
+                            "json",
+                            "data",
+                        ],
+                    },
+                    null,
+                    2,
+                ),
             });
         }
         return data;
@@ -35,6 +75,10 @@
             editable: false,
             filterable: true,
         },
+        // ... (previous columns kept implicitly if I don't replace them, but I am replacing the array definition partially/fully?
+        // Wait, replace_file_content replaces a block. I need to be careful with the range.
+        // I'll define the metadata column in the columns array)
+
         {
             id: "name",
             label: "Name",
@@ -95,6 +139,15 @@
             type: "text",
             width: 300,
             sortable: true,
+            editable: true,
+            filterable: true,
+        },
+        {
+            id: "metadata",
+            label: "Metadata",
+            type: "json",
+            width: 300,
+            sortable: false,
             editable: true,
             filterable: true,
         },

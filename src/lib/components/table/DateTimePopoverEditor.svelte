@@ -12,7 +12,7 @@
 
     let { value, mode, anchorEl, onCommit, onCancel }: Props = $props();
 
-    let overlayEl: HTMLElement | null = null;
+    let overlayEl = $state<HTMLElement | null>(null);
     let position = $state({ top: 0, left: 0, width: 280 });
     let isVisible = $state(false);
 
@@ -249,168 +249,199 @@
     }
 </script>
 
-<div
-    use:portal
-    bind:this={overlayEl}
-    role="dialog"
-    aria-label="Edit date/time value"
-    tabindex="-1"
-    onkeydown={handleKeydown}
-    class={cn(
-        "fixed bg-[var(--theme-bg-secondary)] border border-[var(--theme-border-focus)] rounded-md flex flex-col p-1",
-        isVisible ? "anim-pop opacity-100" : "opacity-0 pointer-events-none",
-    )}
-    style={`top:${position.top}px;left:${position.left}px;min-width:${position.width}px;max-width:340px;min-height:200px;transform-origin:center;z-index:1000`}
-    aria-hidden={!isVisible}
->
-    <div class="flex flex-col gap-3 p-3">
-        <div class="grid grid-cols-3 gap-2">
-            <div class="flex flex-col gap-1 text-xs text-muted-foreground">
-                <span>Day</span>
-                <select
-                    class="w-full rounded border border-[var(--theme-border-default)] px-2 py-1 text-sm bg-[var(--theme-bg-primary)] text-[var(--theme-fg-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-border-focus)]"
-                    bind:value={day}
-                >
-                    {#each dayOptions as d}
-                        <option value={d}>{d}</option>
-                    {/each}
-                </select>
-            </div>
-            <div class="flex flex-col gap-1 text-xs text-muted-foreground">
-                <span>Month</span>
-                <select
-                    class="w-full rounded border border-[var(--theme-border-default)] px-2 py-1 text-sm bg-[var(--theme-bg-primary)] text-[var(--theme-fg-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-border-focus)]"
-                    bind:value={month}
-                >
-                    {#each monthNames as label, idx}
-                        <option value={idx}>{label}</option>
-                    {/each}
-                </select>
-            </div>
-            <div class="flex flex-col gap-1 text-xs text-muted-foreground">
-                <span>Year</span>
-                <input
-                    type="number"
-                    class="w-full rounded border border-[var(--theme-border-default)] px-2 py-1 text-sm bg-[var(--theme-bg-primary)] text-[var(--theme-fg-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-border-focus)]"
-                    bind:value={year}
-                    min="1900"
-                    max="2100"
-                    step="1"
-                />
-            </div>
-        </div>
+<div class="h-full w-full relative">
+    <!-- Inline Trigger Input (stays in cell) -->
+    <input
+        type="text"
+        value={value
+            ? typeof value === "string"
+                ? value
+                : new Date(value).toLocaleDateString()
+            : ""}
+        readonly
+        class="h-full w-full px-2 py-1 bg-[var(--theme-bg-primary)] text-[var(--theme-fg-primary)] focus:outline-none cursor-pointer"
+        onclick={() => (isVisible = !isVisible)}
+        onkeydown={handleKeydown}
+        bind:this={anchorEl}
+    />
 
-        {#if mode === "datetime"}
-            <div class="grid grid-cols-3 gap-2">
-                <div class="flex flex-col gap-1 text-xs text-muted-foreground">
-                    <span>Hour</span>
-                    <input
-                        type="number"
-                        class="w-full rounded border px-2 py-1 text-sm bg-background"
-                        bind:value={hour}
-                        min="0"
-                        max="23"
-                        step="1"
-                    />
+    <!-- Portal Popover -->
+    {#if isVisible}
+        <div
+            use:portal
+            bind:this={overlayEl}
+            role="dialog"
+            aria-label="Edit date/time value"
+            tabindex="-1"
+            onkeydown={handleKeydown}
+            class={cn(
+                "fixed bg-[var(--theme-bg-secondary)] border border-[var(--theme-border-focus)] rounded-md flex flex-col p-1 shadow-lg",
+                "anim-pop opacity-100",
+            )}
+            style={`top:${position.top}px;left:${position.left}px;min-width:${position.width}px;max-width:340px;min-height:200px;transform-origin:center;z-index:9999`}
+        >
+            <div class="flex flex-col gap-3 p-3">
+                <div class="grid grid-cols-3 gap-2">
+                    <div
+                        class="flex flex-col gap-1 text-xs text-muted-foreground"
+                    >
+                        <span>Day</span>
+                        <select
+                            class="w-full rounded border border-[var(--theme-border-default)] px-2 py-1 text-sm bg-[var(--theme-bg-primary)] text-[var(--theme-fg-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-border-focus)]"
+                            bind:value={day}
+                        >
+                            {#each dayOptions as d}
+                                <option value={d}>{d}</option>
+                            {/each}
+                        </select>
+                    </div>
+                    <div
+                        class="flex flex-col gap-1 text-xs text-muted-foreground"
+                    >
+                        <span>Month</span>
+                        <select
+                            class="w-full rounded border border-[var(--theme-border-default)] px-2 py-1 text-sm bg-[var(--theme-bg-primary)] text-[var(--theme-fg-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-border-focus)]"
+                            bind:value={month}
+                        >
+                            {#each monthNames as label, idx}
+                                <option value={idx}>{label}</option>
+                            {/each}
+                        </select>
+                    </div>
+                    <div
+                        class="flex flex-col gap-1 text-xs text-muted-foreground"
+                    >
+                        <span>Year</span>
+                        <input
+                            type="number"
+                            class="w-full rounded border border-[var(--theme-border-default)] px-2 py-1 text-sm bg-[var(--theme-bg-primary)] text-[var(--theme-fg-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-border-focus)]"
+                            bind:value={year}
+                            min="1900"
+                            max="2100"
+                            step="1"
+                        />
+                    </div>
                 </div>
-                <div class="flex flex-col gap-1 text-xs text-muted-foreground">
-                    <span>Minute</span>
-                    <input
-                        type="number"
-                        class="w-full rounded border px-2 py-1 text-sm bg-background"
-                        bind:value={minute}
-                        min="0"
-                        max="59"
-                        step="1"
-                    />
-                </div>
-                <div class="flex flex-col gap-1 text-xs text-muted-foreground">
-                    <span>Second</span>
-                    <input
-                        type="number"
-                        class="w-full rounded border px-2 py-1 text-sm bg-background"
-                        bind:value={second}
-                        min="0"
-                        max="59"
-                        step="1"
-                    />
+
+                {#if mode === "datetime"}
+                    <div class="grid grid-cols-3 gap-2">
+                        <div
+                            class="flex flex-col gap-1 text-xs text-muted-foreground"
+                        >
+                            <span>Hour</span>
+                            <input
+                                type="number"
+                                class="w-full rounded border px-2 py-1 text-sm bg-background"
+                                bind:value={hour}
+                                min="0"
+                                max="23"
+                                step="1"
+                            />
+                        </div>
+                        <div
+                            class="flex flex-col gap-1 text-xs text-muted-foreground"
+                        >
+                            <span>Minute</span>
+                            <input
+                                type="number"
+                                class="w-full rounded border px-2 py-1 text-sm bg-background"
+                                bind:value={minute}
+                                min="0"
+                                max="59"
+                                step="1"
+                            />
+                        </div>
+                        <div
+                            class="flex flex-col gap-1 text-xs text-muted-foreground"
+                        >
+                            <span>Second</span>
+                            <input
+                                type="number"
+                                class="w-full rounded border px-2 py-1 text-sm bg-background"
+                                bind:value={second}
+                                min="0"
+                                max="59"
+                                step="1"
+                            />
+                        </div>
+                    </div>
+                {/if}
+
+                <div class="flex gap-2 text-xs text-muted-foreground">
+                    <button
+                        type="button"
+                        class="rounded border border-[var(--theme-border-default)] px-2 py-1 text-[var(--theme-fg-primary)] hover:bg-[var(--theme-bg-hover)] transition"
+                        onclick={() => {
+                            const now = new Date();
+                            day = now.getUTCDate();
+                            month = now.getUTCMonth();
+                            year = now.getUTCFullYear();
+                            if (mode === "datetime") {
+                                hour = now.getUTCHours();
+                                minute = now.getUTCMinutes();
+                                second = now.getUTCSeconds();
+                            }
+                        }}
+                    >
+                        {mode === "datetime" ? "Now" : "Today"}
+                    </button>
+                    <button
+                        type="button"
+                        class="rounded border px-2 py-1 hover:bg-accent transition"
+                        onclick={() => {
+                            const now = new Date();
+                            day = now.getUTCDate();
+                            month = now.getUTCMonth();
+                            year = now.getUTCFullYear();
+                            hour = 0;
+                            minute = 0;
+                            second = 0;
+                        }}
+                    >
+                        Reset
+                    </button>
+                    <button
+                        type="button"
+                        class="rounded border px-2 py-1 hover:bg-accent transition"
+                        onclick={() => {
+                            day = 0 as any;
+                            month = 0;
+                            year = 0 as any;
+                            hour = 0;
+                            minute = 0;
+                            second = 0;
+                        }}
+                    >
+                        Clear
+                    </button>
                 </div>
             </div>
-        {/if}
 
-        <div class="flex gap-2 text-xs text-muted-foreground">
-            <button
-                type="button"
-                class="rounded border border-[var(--theme-border-default)] px-2 py-1 text-[var(--theme-fg-primary)] hover:bg-[var(--theme-bg-hover)] transition"
-                onclick={() => {
-                    const now = new Date();
-                    day = now.getUTCDate();
-                    month = now.getUTCMonth();
-                    year = now.getUTCFullYear();
-                    if (mode === "datetime") {
-                        hour = now.getUTCHours();
-                        minute = now.getUTCMinutes();
-                        second = now.getUTCSeconds();
-                    }
-                }}
+            <div
+                class="flex items-center justify-end border-t border-[var(--theme-border-default)] px-2 py-1 gap-2 bg-[var(--theme-bg-secondary)]"
             >
-                {mode === "datetime" ? "Now" : "Today"}
-            </button>
-            <button
-                type="button"
-                class="rounded border px-2 py-1 hover:bg-accent transition"
-                onclick={() => {
-                    const now = new Date();
-                    day = now.getUTCDate();
-                    month = now.getUTCMonth();
-                    year = now.getUTCFullYear();
-                    hour = 0;
-                    minute = 0;
-                    second = 0;
-                }}
-            >
-                Reset
-            </button>
-            <button
-                type="button"
-                class="rounded border px-2 py-1 hover:bg-accent transition"
-                onclick={() => {
-                    day = 0 as any;
-                    month = 0;
-                    year = 0 as any;
-                    hour = 0;
-                    minute = 0;
-                    second = 0;
-                }}
-            >
-                Clear
-            </button>
+                <div class="text-xs text-[var(--theme-fg-secondary)] truncate">
+                    {mode === "datetime"
+                        ? "Ctrl/Cmd+Enter to save · Esc to cancel"
+                        : "Enter to save · Esc to cancel"}
+                </div>
+                <div class="flex items-center gap-2">
+                    <button
+                        type="button"
+                        class="px-2 py-1 text-sm rounded bg-[var(--theme-bg-tertiary)] text-[var(--theme-fg-primary)] hover:bg-[var(--theme-bg-hover)] transition"
+                        onclick={onCancel}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        type="button"
+                        class="px-2 py-1 text-sm rounded bg-[var(--theme-accent-primary)] text-white hover:bg-[var(--theme-accent-hover)] transition"
+                        onclick={commit}
+                    >
+                        Save
+                    </button>
+                </div>
+            </div>
         </div>
-    </div>
-
-    <div
-        class="flex items-center justify-end border-t border-[var(--theme-border-default)] px-2 py-1 gap-2 bg-[var(--theme-bg-secondary)]"
-    >
-        <div class="text-xs text-[var(--theme-fg-secondary)] truncate">
-            {mode === "datetime"
-                ? "Ctrl/Cmd+Enter to save · Esc to cancel"
-                : "Enter to save · Esc to cancel"}
-        </div>
-        <div class="flex items-center gap-2">
-            <button
-                type="button"
-                class="px-2 py-1 text-sm rounded bg-[var(--theme-bg-tertiary)] text-[var(--theme-fg-primary)] hover:bg-[var(--theme-bg-hover)] transition"
-                onclick={onCancel}
-            >
-                Cancel
-            </button>
-            <button
-                type="button"
-                class="px-2 py-1 text-sm rounded bg-[var(--theme-accent-primary)] text-white hover:bg-[var(--theme-accent-hover)] transition"
-                onclick={commit}
-            >
-                Save
-            </button>
-        </div>
-    </div>
+    {/if}
 </div>
