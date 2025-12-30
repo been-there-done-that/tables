@@ -1,16 +1,21 @@
 <script lang="ts">
   import type { Column, SortState } from "./types";
   import { cn } from "$lib/utils";
-  import { ArrowUp, ArrowDown, Filter, MoreHorizontal } from "lucide-svelte";
+  import {
+    IconArrowUp,
+    IconArrowDown,
+    IconFilter,
+    IconDots,
+    IconHash,
+  } from "@tabler/icons-svelte";
   import * as Tooltip from "$lib/components/ui/tooltip";
   import * as ContextMenu from "$lib/components/ui/context-menu";
   import * as Popover from "$lib/components/ui/popover";
   import { Button } from "$lib/components/ui/button";
   import HeaderContextMenu from "./HeaderContextMenu.svelte";
   import LocalFilter from "./LocalFilter.svelte";
-  import Grid4x4Icon from "@tabler/icons-svelte/icons/grid-4x4";
-  import GridGoldenRatioIcon from "@tabler/icons-svelte/icons/grid-goldenratio";
-  import Hash from "lucide-svelte/icons/hash";
+  import IconGrid4x4 from "@tabler/icons-svelte/icons/grid-4x4";
+  import IconGridGoldenratio from "@tabler/icons-svelte/icons/grid-goldenratio";
 
   interface Props {
     columns: Column[];
@@ -51,7 +56,7 @@
   function getSortIcon(columnId: string) {
     const sort = sortState.find((s) => s.columnId === columnId);
     if (!sort) return null;
-    return sort.direction === "asc" ? ArrowUp : ArrowDown;
+    return sort.direction === "asc" ? IconArrowUp : IconArrowDown;
   }
 
   function getSortIndex(columnId: string) {
@@ -108,7 +113,7 @@
     class="sticky left-0 z-20 flex items-center justify-center border-r border-[var(--theme-border-default)] bg-[var(--theme-bg-secondary)] py-1.5"
     style="width: 60px; flex-shrink: 0;"
   >
-    <Hash class="size-4" />
+    <IconHash class="size-4" />
   </div>
 
   <Tooltip.Provider>
@@ -179,7 +184,7 @@
                         filters[column.id] && "text-primary",
                       )}
                     >
-                      <Filter class="size-3" />
+                      <IconFilter class="size-3" />
                       {#if filters[column.id]}
                         <span
                           class="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary"
