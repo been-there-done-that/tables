@@ -255,10 +255,10 @@
     tabindex="-1"
     onkeydown={handleOverlayKeydown}
     class={cn(
-      "fixed z-[1000] bg-(--theme-bg-secondary) border rounded-md border-(--theme-border-default) shadow-2xl",
+      "fixed bg-(--theme-bg-secondary) border rounded-md border-(--theme-border-default) shadow-2xl",
       isVisible ? "opacity-100" : "opacity-0 pointer-events-none",
     )}
-    style={`top:${position.top}px;left:${position.left}px;min-width:${position.width}px;transform-origin:center`}
+    style={`top:${position.top}px;left:${position.left}px;min-width:${position.width}px;transform-origin:center;z-index:1000`}
     aria-hidden={!isVisible}
   >
     <div class="flex flex-col gap-1 p-1">
