@@ -88,7 +88,9 @@
     let minute = $state<number>(0);
     let second = $state<number>(0);
 
-    let dayOptions = $state<number[]>(Array.from({ length: 31 }, (_, i) => i + 1));
+    let dayOptions = $state<number[]>(
+        Array.from({ length: 31 }, (_, i) => i + 1),
+    );
 
     // keep local state in sync when incoming value changes
     $effect(() => {
@@ -103,7 +105,9 @@
 
     // recompute day options when month/year/day change
     $effect(() => {
-        const y = Number.isFinite(year) ? (year as number) : new Date().getFullYear();
+        const y = Number.isFinite(year)
+            ? (year as number)
+            : new Date().getFullYear();
         const m = Number.isFinite(month) ? (month as number) : 0;
         const max = daysInMonth(y, m);
         if (Number.isFinite(day) && (day as number) > max) {
@@ -138,7 +142,10 @@
         if (!fitsRight) {
             left = rect.left - width - margin;
         }
-        left = Math.max(margin, Math.min(left, window.innerWidth - width - margin));
+        left = Math.max(
+            margin,
+            Math.min(left, window.innerWidth - width - margin),
+        );
 
         let top = rect.top + rect.height / 2 - overlayHeight / 2;
         const minTop = margin;
@@ -153,7 +160,10 @@
         if (e.key === "Escape") {
             e.preventDefault();
             onCancel();
-        } else if (e.key === "Enter" && (e.metaKey || e.ctrlKey || mode === "date")) {
+        } else if (
+            e.key === "Enter" &&
+            (e.metaKey || e.ctrlKey || mode === "date")
+        ) {
             e.preventDefault();
             commit();
         }
@@ -168,9 +178,24 @@
             onCommit(null);
             return;
         }
-        const useHour = mode === "datetime" ? Number.isFinite(hour) ? (hour as number) : 0 : 0;
-        const useMinute = mode === "datetime" ? Number.isFinite(minute) ? (minute as number) : 0 : 0;
-        const useSecond = mode === "datetime" ? Number.isFinite(second) ? (second as number) : 0 : 0;
+        const useHour =
+            mode === "datetime"
+                ? Number.isFinite(hour)
+                    ? (hour as number)
+                    : 0
+                : 0;
+        const useMinute =
+            mode === "datetime"
+                ? Number.isFinite(minute)
+                    ? (minute as number)
+                    : 0
+                : 0;
+        const useSecond =
+            mode === "datetime"
+                ? Number.isFinite(second)
+                    ? (second as number)
+                    : 0
+                : 0;
 
         const y = year as number;
         const m = (month as number) + 1;
@@ -181,7 +206,9 @@
             return;
         }
 
-        onCommit(`${y}-${pad(m)}-${pad(d)}T${pad(useHour)}:${pad(useMinute)}:${pad(useSecond)}`);
+        onCommit(
+            `${y}-${pad(m)}-${pad(d)}T${pad(useHour)}:${pad(useMinute)}:${pad(useSecond)}`,
+        );
     }
 
     onMount(() => {
@@ -189,15 +216,20 @@
         const handleUpdate = () => requestAnimationFrame(updatePosition);
         window.addEventListener("resize", handleUpdate);
         window.addEventListener("scroll", handleUpdate, true);
-        const containerGetter: (() => HTMLElement | null | undefined) | undefined =
-            getContext("table-container");
+        const containerGetter:
+            | (() => HTMLElement | null | undefined)
+            | undefined = getContext("table-container");
         const containerEl = containerGetter?.();
-        containerEl?.addEventListener("scroll", handleUpdate, { passive: true });
+        containerEl?.addEventListener("scroll", handleUpdate, {
+            passive: true,
+        });
         document.addEventListener("mousedown", handleClickOutside);
 
         queueMicrotask(() => {
             (overlayEl as HTMLElement | null)?.focus();
-            (overlayEl?.querySelector("select,input") as HTMLElement | null)?.focus();
+            (
+                overlayEl?.querySelector("select,input") as HTMLElement | null
+            )?.focus();
             isVisible = true;
         });
 
@@ -225,8 +257,8 @@
     tabindex="-1"
     onkeydown={handleKeydown}
     class={cn(
-        "fixed z-1000 bg-popover border rounded-md border-blue-700 flex flex-col p-0.5",
-        isVisible ? "popoverpop" : "opacity-0 pointer-events-none"
+        "fixed z-1000 bg-[var(--theme-bg-secondary)] border border-[var(--theme-border-focus)] rounded-md flex flex-col p-1",
+        isVisible ? "popoverpop" : "opacity-0 pointer-events-none",
     )}
     style={`top:${position.top}px;left:${position.left}px;min-width:${position.width}px;max-width:340px;min-height:200px;transform-origin:center`}
     aria-hidden={!isVisible}
@@ -236,7 +268,7 @@
             <div class="flex flex-col gap-1 text-xs text-muted-foreground">
                 <span>Day</span>
                 <select
-                    class="w-full rounded border px-2 py-1 text-sm bg-background"
+                    class="w-full rounded border border-[var(--theme-border-default)] px-2 py-1 text-sm bg-[var(--theme-bg-primary)] text-[var(--theme-fg-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-border-focus)]"
                     bind:value={day}
                 >
                     {#each dayOptions as d}
@@ -247,7 +279,7 @@
             <div class="flex flex-col gap-1 text-xs text-muted-foreground">
                 <span>Month</span>
                 <select
-                    class="w-full rounded border px-2 py-1 text-sm bg-background"
+                    class="w-full rounded border border-[var(--theme-border-default)] px-2 py-1 text-sm bg-[var(--theme-bg-primary)] text-[var(--theme-fg-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-border-focus)]"
                     bind:value={month}
                 >
                     {#each monthNames as label, idx}
@@ -259,7 +291,7 @@
                 <span>Year</span>
                 <input
                     type="number"
-                    class="w-full rounded border px-2 py-1 text-sm bg-background"
+                    class="w-full rounded border border-[var(--theme-border-default)] px-2 py-1 text-sm bg-[var(--theme-bg-primary)] text-[var(--theme-fg-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-border-focus)]"
                     bind:value={year}
                     min="1900"
                     max="2100"
@@ -309,7 +341,7 @@
         <div class="flex gap-2 text-xs text-muted-foreground">
             <button
                 type="button"
-                class="rounded border px-2 py-1 hover:bg-accent transition"
+                class="rounded border border-[var(--theme-border-default)] px-2 py-1 text-[var(--theme-fg-primary)] hover:bg-[var(--theme-bg-hover)] transition"
                 onclick={() => {
                     const now = new Date();
                     day = now.getUTCDate();
@@ -356,21 +388,25 @@
         </div>
     </div>
 
-    <div class="flex items-center justify-end border-t px-2 py-1 gap-2 bg-popover">
-        <div class="text-xs text-muted-foreground truncate">
-            {mode === "datetime" ? "Ctrl/Cmd+Enter to save · Esc to cancel" : "Enter to save · Esc to cancel"}
+    <div
+        class="flex items-center justify-end border-t border-[var(--theme-border-default)] px-2 py-1 gap-2 bg-[var(--theme-bg-secondary)]"
+    >
+        <div class="text-xs text-[var(--theme-fg-secondary)] truncate">
+            {mode === "datetime"
+                ? "Ctrl/Cmd+Enter to save · Esc to cancel"
+                : "Enter to save · Esc to cancel"}
         </div>
         <div class="flex items-center gap-2">
             <button
                 type="button"
-                class="px-2 py-1 text-sm rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 transition"
+                class="px-2 py-1 text-sm rounded bg-[var(--theme-bg-tertiary)] text-[var(--theme-fg-primary)] hover:bg-[var(--theme-bg-hover)] transition"
                 onclick={onCancel}
             >
                 Cancel
             </button>
             <button
                 type="button"
-                class="px-2 py-1 text-sm rounded bg-primary text-primary-foreground hover:bg-primary/90 transition"
+                class="px-2 py-1 text-sm rounded bg-[var(--theme-accent-primary)] text-white hover:bg-[var(--theme-accent-hover)] transition"
                 onclick={commit}
             >
                 Save

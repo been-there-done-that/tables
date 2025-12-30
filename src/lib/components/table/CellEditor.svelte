@@ -47,7 +47,11 @@
     });
 
     function handleKeydown(e: KeyboardEvent) {
-        if (e.key === "Enter" && column.type !== "json" && column.type !== "JSON") {
+        if (
+            e.key === "Enter" &&
+            column.type !== "json" &&
+            column.type !== "JSON"
+        ) {
             onCommit(processValue(inputValue));
         } else if (e.key === "Escape") {
             onCancel();
@@ -72,7 +76,9 @@
         return t === "int" || t === "float";
     }
 
-    const numberKind = $derived(isNumberType(column.type) ? column.type : "int");
+    const numberKind = $derived(
+        isNumberType(column.type) ? column.type : "int",
+    );
 </script>
 
 <div
@@ -82,19 +88,9 @@
     role="presentation"
 >
     {#if column.type === "json" || column.type === "JSON"}
-        <JsonPopoverEditor
-            {value}
-            {anchorEl}
-            {onCommit}
-            {onCancel}
-        />
+        <JsonPopoverEditor {value} {anchorEl} {onCommit} {onCancel} />
     {:else if column.type === "boolean"}
-        <BooleanPopoverEditor
-            {value}
-            {anchorEl}
-            {onCommit}
-            {onCancel}
-        />
+        <BooleanPopoverEditor {value} {anchorEl} {onCommit} {onCancel} />
     {:else if column.type === "enum" && column.enumValues}
         <EnumPopoverEditor
             value={inputValue}
@@ -132,10 +128,9 @@
             bind:this={inputRef}
             bind:value={inputValue}
             type="text"
-            class="h-full w-full rounded-none border-0 px-2 py-1 focus-visible:ring-0 focus-visible:outline-none bg-background text-foreground"
+            class="h-full w-full rounded-none border-0 px-2 py-1 focus-visible:ring-0 focus-visible:outline-none bg-[var(--theme-bg-primary)] text-[var(--theme-fg-primary)]"
             onkeydown={handleKeydown}
             onblur={handleBlur}
         />
     {/if}
 </div>
-

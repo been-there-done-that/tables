@@ -44,7 +44,10 @@
         if (!fitsRight) {
             left = rect.left - width - margin;
         }
-        left = Math.max(margin, Math.min(left, window.innerWidth - width - margin));
+        left = Math.max(
+            margin,
+            Math.min(left, window.innerWidth - width - margin),
+        );
 
         let top = rect.top + rect.height / 2 - overlayHeight / 2;
         const minTop = margin;
@@ -88,16 +91,22 @@
         const handleUpdate = () => requestAnimationFrame(updatePosition);
         window.addEventListener("resize", handleUpdate);
         window.addEventListener("scroll", handleUpdate, true);
-        const containerGetter: (() => HTMLElement | null | undefined) | undefined =
-            getContext("table-container");
+        const containerGetter:
+            | (() => HTMLElement | null | undefined)
+            | undefined = getContext("table-container");
         const containerEl = containerGetter?.();
-        containerEl?.addEventListener("scroll", handleUpdate, { passive: true });
+        containerEl?.addEventListener("scroll", handleUpdate, {
+            passive: true,
+        });
         document.addEventListener("mousedown", handleClickOutside);
 
         queueMicrotask(() => {
             overlayEl?.focus();
             const first = overlayEl?.querySelector("input,textarea");
-            if (first instanceof HTMLInputElement || first instanceof HTMLTextAreaElement) {
+            if (
+                first instanceof HTMLInputElement ||
+                first instanceof HTMLTextAreaElement
+            ) {
                 first.focus();
             }
             isVisible = true;
@@ -127,34 +136,38 @@
     tabindex="-1"
     onkeydown={handleKeydown}
     class={cn(
-        "fixed z-1000 bg-popover border rounded-md border-blue-700 flex flex-col p-1",
-        isVisible ? "popoverpop" : "opacity-0 pointer-events-none"
+        "fixed z-1000 bg-[var(--theme-bg-secondary)] border border-[var(--theme-border-focus)] rounded-md flex flex-col p-1",
+        isVisible ? "popoverpop" : "opacity-0 pointer-events-none",
     )}
     style={`top:${position.top}px;left:${position.left}px;min-width:${position.width}px;max-width:320px;transform-origin:center`}
     aria-hidden={!isVisible}
 >
     <div class="flex flex-col gap-2">
         <textarea
-            class="w-full rounded border text-sm bg-background min-h-[120px] resize-none px-2 py-1"
+            class="w-full rounded border border-[var(--theme-border-default)] text-sm bg-[var(--theme-bg-primary)] text-[var(--theme-fg-primary)] min-h-[120px] resize-none px-2 py-1 focus:outline-none focus:ring-1 focus:ring-[var(--theme-border-focus)]"
             bind:value={inputValue}
             rows={4}
         ></textarea>
-        <div class="flex items-center justify-between text-xs text-muted-foreground">
+        <div
+            class="flex items-center justify-between text-xs text-[var(--theme-fg-secondary)]"
+        >
             <span>Cmd/Ctrl+Enter to save · Esc to cancel</span>
             <span class="text-[10px] uppercase tracking-wide">text</span>
         </div>
     </div>
-    <div class="flex items-center justify-end border-t px-2 py-1 gap-2 bg-popover">
+    <div
+        class="flex items-center justify-end border-t border-[var(--theme-border-default)] px-2 py-1 gap-2 bg-[var(--theme-bg-secondary)]"
+    >
         <button
             type="button"
-            class="px-2 py-1 text-sm rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 transition"
+            class="px-2 py-1 text-sm rounded bg-[var(--theme-bg-tertiary)] text-[var(--theme-fg-primary)] hover:bg-[var(--theme-bg-hover)] transition"
             onclick={onCancel}
         >
             Cancel
         </button>
         <button
             type="button"
-            class="px-2 py-1 text-sm rounded bg-primary text-primary-foreground hover:bg-primary/90 transition"
+            class="px-2 py-1 text-sm rounded bg-[var(--theme-accent-primary)] text-white hover:bg-[var(--theme-accent-hover)] transition"
             onclick={commit}
         >
             Save

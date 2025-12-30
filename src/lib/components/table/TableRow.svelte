@@ -100,11 +100,11 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
     class={cn(
-        "flex w-fit border-b hover:bg-muted/50 transition-colors cursor-default",
+        "flex w-fit border-b border-[var(--theme-border-default)] hover:bg-[var(--theme-bg-hover)] transition-colors cursor-default",
         selected
-            ? "bg-accent text-accent-foreground hover:bg-accent"
-            : "bg-background",
-        disabled && "opacity-70 pointer-events-none"
+            ? "bg-[var(--theme-bg-active)] text-[var(--theme-fg-primary)]"
+            : "bg-[var(--theme-bg-primary)] text-[var(--theme-fg-primary)]",
+        disabled && "opacity-70 pointer-events-none",
     )}
     onclick={handleClick}
     data-row
@@ -112,7 +112,7 @@
 >
     <!-- Row Number Cell -->
     <div
-        class="sticky left-0 z-10 flex items-center justify-center border-r bg-background px-2 py-1 text-xs text-muted-foreground font-mono select-none"
+        class="sticky left-0 z-10 flex items-center justify-center border-r border-[var(--theme-border-default)] bg-[var(--theme-bg-secondary)] px-2 py-1 text-xs text-[var(--theme-fg-secondary)] font-mono select-none"
         style="width: 60px; min-width: 60px; flex-shrink: 0;"
     >
         {row._rowId}
@@ -131,7 +131,7 @@
             isEditing={isCellEditing(columnIndex)}
             isPendingEdit={hasPendingCellEdit(columnIndex)}
             {pendingValue}
-            disabled={disabled}
+            {disabled}
             onClick={onCellClick}
             onMouseDown={onCellMouseDown}
             onMouseEnter={onCellMouseEnter}

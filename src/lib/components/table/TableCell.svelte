@@ -79,13 +79,19 @@
         unwrapValue(pendingValue !== undefined ? pendingValue : row[column.id]),
     );
 
-    import { DEFAULT_TOKEN, NULL_TOKEN, displayBooleanValue } from "./valueUtils";
+    import {
+        DEFAULT_TOKEN,
+        NULL_TOKEN,
+        displayBooleanValue,
+    } from "./valueUtils";
 
     const LONG_TEXT_THRESHOLD = 120;
 
     const isBoolean = () => column.type === "boolean";
     const isJson = () =>
-        column.type === "json" || column.type === "jsonb" || column.type === "JSON";
+        column.type === "json" ||
+        column.type === "jsonb" ||
+        column.type === "JSON";
     const isBinary = () =>
         column.type === "blob" ||
         column.type === "bytea" ||
@@ -139,7 +145,8 @@
     }
 
     function binaryInfo(val: any) {
-        if (val === null || val === undefined) return { length: 0, preview: "" };
+        if (val === null || val === undefined)
+            return { length: 0, preview: "" };
         if (typeof val === "string") {
             return {
                 length: val.length,
@@ -147,7 +154,11 @@
             };
         }
         if (ArrayBuffer.isView(val)) {
-            const uint = new Uint8Array(val.buffer, val.byteOffset, val.byteLength);
+            const uint = new Uint8Array(
+                val.buffer,
+                val.byteOffset,
+                val.byteLength,
+            );
             const hex = Array.from(uint.slice(0, 32))
                 .map((b) => b.toString(16).padStart(2, "0"))
                 .join("");
@@ -222,13 +233,12 @@
 <div
     bind:this={cellEl}
     class={cn(
-        "relative flex items-center border-r truncate text-sm select-none",
+        "relative flex items-center border-r truncate text-sm select-none text-[var(--theme-fg-primary)] border-[var(--theme-border-default)]",
         isSelected &&
-            "bg-blue-200 text-slate-900 dark:bg-blue-900/60 dark:text-slate-50 border-blue-400",
-        isFocused && "ring-2 ring-table-row-focused-ring ring-inset",
-        isPendingEdit &&
-            "bg-amber-200/80 dark:bg-amber-500/25 text-slate-900 dark:text-amber-50",
-        disabled && "opacity-70"
+            "bg-[var(--theme-accent-primary)]/20 text-[var(--theme-fg-primary)] border-[var(--theme-accent-primary)]/50",
+        isFocused && "ring-2 ring-[var(--theme-border-focus)] ring-inset z-10",
+        isPendingEdit && "bg-amber-500/20 text-[var(--theme-fg-primary)]",
+        disabled && "opacity-70",
     )}
     style="width: {column.width || 150}px; min-width: {column.minWidth ||
         50}px; max-width: {column.maxWidth}px; flex-shrink: 0;"
@@ -248,16 +258,22 @@
             onCancel={handleEditCancel}
         />
     {:else if isBoolean()}
-        <span class="truncate select-none px-2 py-1 w-full h-full block text-xs">
+        <span
+            class="truncate select-none px-2 py-1 w-full h-full block text-xs"
+        >
             {displayValue}
         </span>
     {:else if isJson()}
-        <span class="truncate select-none px-2 py-1 w-full h-full block font-mono text-xs text-muted-foreground">
+        <span
+            class="truncate select-none px-2 py-1 w-full h-full block font-mono text-xs text-muted-foreground"
+        >
             {jsonPreview(value)}
         </span>
     {:else if isBinary()}
         {@const info = binaryInfo(value)}
-        <span class="truncate select-none px-2 py-1 w-full h-full block font-mono text-xs text-muted-foreground">
+        <span
+            class="truncate select-none px-2 py-1 w-full h-full block font-mono text-xs text-muted-foreground"
+        >
             {`len ${info.length}${info.preview ? ` · ${info.preview}` : ""}`}
         </span>
     {:else if isDateLike()}
