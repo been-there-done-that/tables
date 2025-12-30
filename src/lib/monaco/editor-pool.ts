@@ -1,6 +1,7 @@
 import type * as monaco from 'monaco-editor';
 import { ModelRegistry } from './model-registry';
 import type { EditorContext, EditorHandle, EditorViewSnapshot } from './editor-types';
+import { MONACO_THEME_NAME } from './monaco-theme';
 
 interface PooledEditor {
     editor: monaco.editor.IStandaloneCodeEditor;
@@ -67,7 +68,11 @@ export class EditorPool {
             pooled.editor.updateOptions(context.options);
             if (context.options.theme) {
                 this.monacoInstance.editor.setTheme(context.options.theme);
+            } else {
+                this.monacoInstance.editor.setTheme(MONACO_THEME_NAME);
             }
+        } else {
+            this.monacoInstance.editor.setTheme(MONACO_THEME_NAME);
         }
 
         pooled.active = true;
@@ -142,7 +147,7 @@ export class EditorPool {
             poolContainer.appendChild(containerDiv);
 
             const editor = this.monacoInstance.editor.create(containerDiv, {
-                theme: 'vs-dark',
+                theme: MONACO_THEME_NAME,
                 automaticLayout: false,
                 minimap: { enabled: false }
             });
