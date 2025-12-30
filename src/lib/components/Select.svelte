@@ -37,8 +37,8 @@
 
   const normalized = $derived(
     options.map((opt) =>
-      typeof opt === "string" ? { value: opt, label: opt } : opt
-    )
+      typeof opt === "string" ? { value: opt, label: opt } : opt,
+    ),
   );
 
   const minWidthValue = $derived(minWidth);
@@ -146,7 +146,8 @@
     } else if (e.key === "ArrowUp") {
       if (!normalized.length) return;
       e.preventDefault();
-      selectedIndex = (selectedIndex - 1 + normalized.length) % normalized.length;
+      selectedIndex =
+        (selectedIndex - 1 + normalized.length) % normalized.length;
       focusButton(selectedIndex);
     } else if (e.key === "Enter") {
       if (!normalized.length) return;
@@ -156,7 +157,8 @@
       if (!normalized.length) return;
       e.preventDefault();
       const dir = e.shiftKey ? -1 : 1;
-      selectedIndex = (selectedIndex + dir + normalized.length) % normalized.length;
+      selectedIndex =
+        (selectedIndex + dir + normalized.length) % normalized.length;
       focusButton(selectedIndex);
     }
   }
@@ -184,7 +186,8 @@
       if (!open) open = true;
       requestAnimationFrame(updatePosition);
       const idx = normalized.findIndex((o) => o.value === value);
-      selectedIndex = idx >= 0 ? idx : e.key === "ArrowUp" ? normalized.length - 1 : 0;
+      selectedIndex =
+        idx >= 0 ? idx : e.key === "ArrowUp" ? normalized.length - 1 : 0;
       queueMicrotask(() => {
         isVisible = true;
         focusButton(selectedIndex);
@@ -224,7 +227,7 @@
       radius === "lg" && "rounded-lg",
       radius === "full" && "rounded-full",
       radius === "none" && "rounded-none",
-      disabled && "opacity-50 cursor-not-allowed"
+      disabled && "opacity-50 cursor-not-allowed",
     )}
     onclick={toggleOpen}
     onkeydown={handleTriggerKeydown}
@@ -252,8 +255,8 @@
     tabindex="-1"
     onkeydown={handleOverlayKeydown}
     class={cn(
-      "fixed z-1000 bg-(--theme-bg-secondary) border rounded-md border-(--theme-border-default) shadow-2xl",
-      isVisible ? "opacity-100" : "opacity-0 pointer-events-none"
+      "fixed z-[1000] bg-(--theme-bg-secondary) border rounded-md border-(--theme-border-default) shadow-2xl",
+      isVisible ? "opacity-100" : "opacity-0 pointer-events-none",
     )}
     style={`top:${position.top}px;left:${position.left}px;min-width:${position.width}px;transform-origin:center`}
     aria-hidden={!isVisible}
@@ -269,7 +272,7 @@
             "pl-2 pr-2 py-1.5 text-sm rounded text-left transition-colors flex items-center gap-1",
             selectedIndex === i
               ? "bg-[color-mix(in_srgb,var(--theme-accent-primary)_82%,var(--theme-bg-primary)_18%)] text-(--theme-bg-primary) font-semibold"
-              : "hover:bg-[color-mix(in_srgb,var(--theme-accent-primary)_18%,var(--theme-bg-secondary)_82%)] hover:text-(--theme-fg-primary)"
+              : "hover:bg-[color-mix(in_srgb,var(--theme-accent-primary)_18%,var(--theme-bg-secondary)_82%)] hover:text-(--theme-fg-primary)",
           )}
           onclick={() => handleSelect(option.value)}
           onmouseenter={() => (selectedIndex = i)}
@@ -277,7 +280,9 @@
           <span
             class={cn(
               "inline-block size-1 rounded-full mr-1",
-              option.value === originalValue ? "bg-(--theme-accent-primary)" : "invisible"
+              option.value === originalValue
+                ? "bg-(--theme-accent-primary)"
+                : "invisible",
             )}
             aria-hidden="true"
           ></span>
