@@ -31,10 +31,17 @@
     onOpenNewQueryTab?: (columnId: string) => void;
     onFilter: (columnId: string, value: any) => void;
     onResize?: (columnId: string, newWidth: number) => void;
+    onResetColumnWidth?: (columnId: string) => void;
+    onMoveColumn?: (fromId: string, toId: string) => void;
+    onPinColumn?: (columnId: string) => void;
+    onUnpinColumn?: (columnId: string) => void;
+    onResetColumnOrder?: () => void;
+    onResetAll?: () => void;
     onHideColumn?: (columnId: string) => void;
     onHideOtherColumns?: (columnId: string) => void;
     onShowColumnList?: () => void;
     getUniqueValues?: (columnId: string) => { value: any; count: number }[];
+    pinnedColumnIds?: string[];
   }
 
   let {
@@ -47,10 +54,17 @@
     onOpenNewQueryTab,
     onFilter,
     onResize,
+    onResetColumnWidth,
+    onMoveColumn,
+    onPinColumn,
+    onUnpinColumn,
+    onResetColumnOrder,
+    onResetAll,
     onHideColumn,
     onHideOtherColumns,
     onShowColumnList,
     getUniqueValues,
+    pinnedColumnIds = [],
   }: Props = $props();
 
   function getSortIcon(columnId: string) {
@@ -90,6 +104,42 @@
     resizingColumnId = null;
     window.removeEventListener("mousemove", handleMouseMove);
     window.removeEventListener("mouseup", handleMouseUp);
+  }
+
+  function handleDoubleClickResize(columnId: string) {
+    onResetColumnWidth?.(columnId);
+  }
+
+  // Drag & Drop Reordering
+  let draggedColumnId = $state<string | null>(null);
+  let dropTargetId = $state<string | null>(null);
+
+  function handleDragStart(e: DragEvent, columnId: string) {
+    draggedColumnId = columnId;
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", columnId);
+    }
+  }
+
+  function handleDragOver(e: DragEvent, columnId: string) {
+    if (draggedColumnId === columnId) return;
+    e.preventDefault();
+    dropTargetId = columnId;
+  }
+
+  function handleDragEnd() {
+    draggedColumnId = null;
+    dropTargetId = null;
+  }
+
+  function handleDrop(e: DragEvent, toId: string) {
+    e.preventDefault();
+    if (draggedColumnId && draggedColumnId !== toId) {
+      onMoveColumn?.(draggedColumnId, toId);
+    }
+    draggedColumnId = null;
+    dropTargetId = null;
   }
 
   // Filter state
@@ -134,10 +184,20 @@
       >
         <ContextMenu.Trigger>
           <div
-            class="relative flex items-center border-r border-[var(--theme-border-default)] px-2 py-1.5 bg-[var(--theme-bg-secondary)] hover:bg-[var(--theme-bg-hover)] transition-colors group"
+            class={cn(
+              "relative flex items-center border-r border-[var(--theme-border-default)] px-2 py-1.5 bg-[var(--theme-bg-secondary)] hover:bg-[var(--theme-bg-hover)] transition-colors group",
+              draggedColumnId === column.id && "opacity-50",
+              dropTargetId === column.id && "border-l-2 border-l-primary",
+            )}
             style="width: {column.width ||
               150}px; min-width: {column.minWidth ||
               50}px; max-width: {column.maxWidth}px; flex-shrink: 0;"
+            draggable="true"
+            ondragstart={(e) => handleDragStart(e, column.id)}
+            ondragover={(e) => handleDragOver(e, column.id)}
+            ondragend={handleDragEnd}
+            ondrop={(e) => handleDrop(e, column.id)}
+            ondragleave={() => (dropTargetId = null)}
           >
             <!-- Label & Sort -->
             <Tooltip.Root>
@@ -213,12 +273,14 @@
             <div
               class="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-[var(--theme-accent-primary)]/50 active:bg-[var(--theme-accent-primary)] z-10"
               onmousedown={(e) => handleMouseDown(e, column)}
+              ondblclick={() => handleDoubleClickResize(column.id)}
             ></div>
           </div>
         </ContextMenu.Trigger>
 
         <HeaderContextMenu
           {column}
+          isPinned={pinnedColumnIds.includes(column.id)}
           onCopyName={() => handleCopyName(column.label)}
           onSelectColumn={() => {
             /*TODO*/
@@ -234,6 +296,11 @@
           onSetLocalFilter={() => {
             openFilterColumnId = column.id;
           }}
+          onPinColumn={() => onPinColumn?.(column.id)}
+          onUnpinColumn={() => onUnpinColumn?.(column.id)}
+          onResetWidth={() => onResetColumnWidth?.(column.id)}
+          onResetOrder={() => onResetColumnOrder?.()}
+          onResetAll={() => onResetAll?.()}
         />
       </ContextMenu.Root>
     {/each}

@@ -46,7 +46,39 @@
 	}
 
 	function handleKeyDown(e: KeyboardEvent) {
-		if (e.key === "Escape") close();
+		if (e.key === "Escape") {
+			close();
+			return;
+		}
+
+		if (!menuElement) return;
+
+		const items = Array.from(
+			menuElement.querySelectorAll("button:not([disabled])"),
+		) as HTMLElement[];
+		if (items.length === 0) return;
+
+		const currentIndex = items.indexOf(
+			document.activeElement as HTMLElement,
+		);
+
+		if (e.key === "ArrowDown") {
+			e.preventDefault();
+			const nextIndex = (currentIndex + 1) % items.length;
+			items[nextIndex].focus();
+		} else if (e.key === "ArrowUp") {
+			e.preventDefault();
+			const prevIndex = (currentIndex - 1 + items.length) % items.length;
+			items[prevIndex].focus();
+		} else if (e.key === "Home") {
+			e.preventDefault();
+			items[0].focus();
+		} else if (e.key === "End") {
+			e.preventDefault();
+			items[items.length - 1].focus();
+		} else if (e.key === "Enter") {
+			// Button click will handle close via ContextMenuItem
+		}
 	}
 
 	function handleClickOutside(e: MouseEvent) {
@@ -54,6 +86,23 @@
 			close();
 		}
 	}
+
+	$effect(() => {
+		if (ctx?.open) {
+			// Auto-focus the first item when opened
+			setTimeout(() => {
+				if (
+					menuElement &&
+					!menuElement.contains(document.activeElement)
+				) {
+					const firstItem = menuElement.querySelector(
+						"button:not([disabled])",
+					) as HTMLElement;
+					firstItem?.focus();
+				}
+			}, 50);
+		}
+	});
 
 	onMount(() => {
 		window.addEventListener("keydown", handleKeyDown);

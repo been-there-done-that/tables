@@ -125,75 +125,72 @@
             <IconPlus class="size-6" />
           </button>
 
-          <div class="flex items-center gap-1">
-            <button
-              class={cn(
-                "h-6 w-6 flex items-center justify-center rounded-md border transition-all",
-                windowState.layout.left
-                  ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
-                  : "hover:bg-(--theme-bg-hover) border-transparent",
-              )}
-              onclick={() =>
-                (windowState.layout.left = !windowState.layout.left)}
-            >
-              {#if windowState.layout.left}
-                <IconLayoutSidebarFilled class="size-5" />
-              {:else}
-                <IconLayoutSidebar class="size-5" />
-              {/if}
-            </button>
+          <button
+            class={cn(
+              "h-6 w-6 flex items-center justify-center rounded-md border transition-all",
+              windowState.layout.left
+                ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
+                : "hover:bg-(--theme-bg-hover) border-transparent",
+            )}
+            onclick={() => (windowState.layout.left = !windowState.layout.left)}
+          >
+            {#if windowState.layout.left}
+              <IconLayoutSidebarFilled class="size-5" />
+            {:else}
+              <IconLayoutSidebar class="size-5" />
+            {/if}
+          </button>
 
-            <button
-              class={cn(
-                "h-6 w-6 flex items-center justify-center rounded-md border transition-all",
-                windowState.layout.bottom
-                  ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
-                  : "hover:bg-(--theme-bg-hover) border-transparent",
-              )}
-              onclick={() =>
-                (windowState.layout.bottom = !windowState.layout.bottom)}
-            >
-              {#if windowState.layout.bottom}
-                <IconLayoutBottombarFilled class="size-5" />
-              {:else}
-                <IconLayoutBottombar class="size-5" />
-              {/if}
-            </button>
+          <button
+            class={cn(
+              "h-6 w-6 flex items-center justify-center rounded-md border transition-all",
+              windowState.layout.bottom
+                ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
+                : "hover:bg-(--theme-bg-hover) border-transparent",
+            )}
+            onclick={() =>
+              (windowState.layout.bottom = !windowState.layout.bottom)}
+          >
+            {#if windowState.layout.bottom}
+              <IconLayoutBottombarFilled class="size-5" />
+            {:else}
+              <IconLayoutBottombar class="size-5" />
+            {/if}
+          </button>
 
-            <button
-              class={cn(
-                "h-6 w-6 flex items-center justify-center rounded-md border transition-all",
-                windowState.layout.right
-                  ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
-                  : "hover:bg-(--theme-bg-hover) border-transparent",
-              )}
-              onclick={() =>
-                (windowState.layout.right = !windowState.layout.right)}
-            >
-              {#if windowState.layout.right}
-                <IconLayoutSidebarRightFilled class="size-5" />
-              {:else}
-                <IconLayoutSidebarRight class="size-5" />
-              {/if}
-            </button>
+          <button
+            class={cn(
+              "h-6 w-6 flex items-center justify-center rounded-md border transition-all",
+              windowState.layout.right
+                ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
+                : "hover:bg-(--theme-bg-hover) border-transparent",
+            )}
+            onclick={() =>
+              (windowState.layout.right = !windowState.layout.right)}
+          >
+            {#if windowState.layout.right}
+              <IconLayoutSidebarRightFilled class="size-5" />
+            {:else}
+              <IconLayoutSidebarRight class="size-5" />
+            {/if}
+          </button>
 
-            <button
-              class={cn(
-                "h-6 w-7 flex items-center justify-center rounded-md border transition-all",
-                windowState.settingsWindowOpen
-                  ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
-                  : "hover:bg-(--theme-bg-hover) border-transparent",
-              )}
-              onclick={openSettingsWindow}
-              title="Settings"
-            >
-              {#if windowState.settingsWindowOpen}
-                <IconSettingsFilled class="size-5" />
-              {:else}
-                <IconSettings class="size-5" />
-              {/if}
-            </button>
-          </div>
+          <button
+            class={cn(
+              "h-6 w-7 flex items-center justify-center rounded-md border transition-all",
+              windowState.settingsWindowOpen
+                ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
+                : "hover:bg-(--theme-bg-hover) border-transparent",
+            )}
+            onclick={openSettingsWindow}
+            title="Settings"
+          >
+            {#if windowState.settingsWindowOpen}
+              <IconSettingsFilled class="size-5" />
+            {:else}
+              <IconSettings class="size-5" />
+            {/if}
+          </button>
         {/if}
 
         <button

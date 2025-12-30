@@ -32,6 +32,7 @@ export interface Column {
     width?: number;
     minWidth?: number;
     maxWidth?: number;
+    pinnable?: boolean;
     enumValues?: string[];
     format?: string;
     foreignKey?: {

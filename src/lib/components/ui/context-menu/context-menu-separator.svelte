@@ -9,8 +9,5 @@
 </script>
 
 <div
-	class={cn(
-		"my-1 h-px bg-[var(--theme-border-default)] opacity-50",
-		className,
-	)}
+	class={cn("my-1 h-px bg-(--theme-border-default) opacity-50", className)}
 ></div>
