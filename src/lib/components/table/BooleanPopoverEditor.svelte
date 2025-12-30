@@ -84,7 +84,10 @@
         if (!fitsRight) {
             left = rect.left - width - margin;
         }
-        left = Math.max(margin, Math.min(left, window.innerWidth - width - margin));
+        left = Math.max(
+            margin,
+            Math.min(left, window.innerWidth - width - margin),
+        );
 
         // Align vertically with cell center while keeping within viewport using the same gutter.
         let top = rect.top + rect.height / 2 - overlayHeight / 2;
@@ -123,7 +126,8 @@
             focusButton(selectedIndex);
         } else if (e.key === "ArrowUp") {
             e.preventDefault();
-            selectedIndex = (selectedIndex - 1 + options.length) % options.length;
+            selectedIndex =
+                (selectedIndex - 1 + options.length) % options.length;
             focusButton(selectedIndex);
         } else if (e.key === "Enter") {
             e.preventDefault();
@@ -131,7 +135,8 @@
         } else if (e.key === "Tab") {
             e.preventDefault();
             const dir = e.shiftKey ? -1 : 1;
-            selectedIndex = (selectedIndex + dir + options.length) % options.length;
+            selectedIndex =
+                (selectedIndex + dir + options.length) % options.length;
             focusButton(selectedIndex);
         }
     }
@@ -143,7 +148,9 @@
         window.addEventListener("scroll", handleUpdate, true);
         document.addEventListener("mousedown", handleClickOutside);
         containerEl = getContainer?.();
-        containerEl?.addEventListener("scroll", handleUpdate, { passive: true });
+        containerEl?.addEventListener("scroll", handleUpdate, {
+            passive: true,
+        });
 
         queueMicrotask(() => {
             overlayEl?.focus();
@@ -160,7 +167,6 @@
     });
 </script>
 
-
 <div
     use:portal
     bind:this={overlayEl}
@@ -169,8 +175,8 @@
     tabindex="-1"
     onkeydown={handleKeydown}
     class={cn(
-        "fixed z-1000 bg-popover border rounded-md border-blue-700 shadow-2xl",
-        isVisible ? "popoverpop" : "opacity-0 pointer-events-none"
+        "fixed z-1000 bg-[var(--theme-bg-secondary)] border border-[var(--theme-border-focus)] rounded-md shadow-2xl",
+        isVisible ? "popoverpop" : "opacity-0 pointer-events-none",
     )}
     style={`top:${position.top}px;left:${position.left}px;min-width:${position.width}px;transform-origin:center`}
     aria-hidden={!isVisible}
@@ -185,8 +191,8 @@
                 class={cn(
                     "pl-2 py-1 text-sm rounded text-left transition-colors flex items-center gap-1",
                     selectedIndex === i
-                        ? "bg-accent text-accent-foreground"
-                        : "hover:bg-accent hover:text-accent-foreground"
+                        ? "bg-[var(--theme-bg-active)] text-[var(--theme-fg-primary)]"
+                        : "hover:bg-[var(--theme-bg-hover)] hover:text-[var(--theme-fg-primary)]",
                 )}
                 onclick={() => handleSelect(option)}
                 onmouseenter={() => (selectedIndex = i)}
@@ -194,9 +200,10 @@
                 <span
                     class={cn(
                         "inline-block size-1 rounded-full mr-1",
-                        normalizeIncomingBoolean(option as any) === originalValue
-                            ? "bg-accent-foreground"
-                            : "invisible"
+                        normalizeIncomingBoolean(option as any) ===
+                            originalValue
+                            ? "bg-[var(--theme-accent-primary)]"
+                            : "invisible",
                     )}
                     aria-hidden="true"
                 ></span>
