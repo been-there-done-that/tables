@@ -4,6 +4,7 @@ import type { EditorContext, EditorHandle, EditorViewSnapshot } from './editor-t
 
 interface PooledEditor {
     editor: monaco.editor.IStandaloneCodeEditor;
+    containerDiv: HTMLDivElement;
     editorId: string;
     active: boolean;
     lastUsed: number;
@@ -33,7 +34,6 @@ export class EditorPool {
         console.log("[EditorPool] Model created/retrieved", { uri: model.uri.toString(), lineCount: model.getLineCount() });
 
         pooled.editor.setModel(model);
-        console.log("[EditorPool] Model attached to editor");
 
         if (pooled.snapshot?.modelUri === context.modelUri) {
             pooled.editor.restoreViewState(pooled.snapshot.viewState);
@@ -41,24 +41,23 @@ export class EditorPool {
         }
 
         const container = typeof context.container === 'function' ? context.container() : context.container;
-        console.log("[EditorPool] Container resolved", { exists: !!container, dimensions: container ? `${container.offsetWidth}x${container.offsetHeight}` : 'N/A' });
 
         if (!container) {
             console.warn("[EditorPool] Container not ready during acquire!");
         }
 
-        const editorNode = pooled.editor.getDomNode();
-        console.log("[EditorPool] Editor DOM node", { exists: !!editorNode });
+        // Move the entire containerDiv to preserve Monaco's event delegation
+        if (container) {
+            pooled.containerDiv.style.position = 'absolute';
+            pooled.containerDiv.style.inset = '0';
+            pooled.containerDiv.style.display = 'block';
+            container.appendChild(pooled.containerDiv);
 
-        if (editorNode && container) {
-            editorNode.style.position = 'absolute';
-            editorNode.style.top = '0';
-            editorNode.style.left = '0';
-            editorNode.style.width = '100%';
-            editorNode.style.height = '100%';
-            editorNode.style.display = 'block';
-            container.appendChild(editorNode);
-            console.log("[EditorPool] Editor DOM appended to container");
+            const w = container.clientWidth;
+            const h = container.clientHeight;
+            if (w > 0 && h > 0) {
+                pooled.editor.layout({ width: w, height: h });
+            }
         }
 
         if (context.options) {
@@ -66,22 +65,19 @@ export class EditorPool {
             if (context.options.theme) {
                 this.monacoInstance.editor.setTheme(context.options.theme);
             }
-            console.log("[EditorPool] Options applied", context.options);
         }
-
-        pooled.editor.layout();
-        console.log("[EditorPool] Layout triggered");
-
-        setTimeout(() => {
-            pooled.editor.layout();
-            const dom = pooled.editor.getDomNode();
-            console.log("[EditorPool] Delayed layout", { dimensions: dom ? `${dom.offsetWidth}x${dom.offsetHeight}` : 'N/A' });
-        }, 100);
 
         pooled.active = true;
         pooled.lastUsed = Date.now();
 
-        console.log("[EditorPool] Acquire complete, returning handle");
+        // Focus after attach + layout
+        pooled.editor.focus();
+
+        console.log("[EditorPool] Acquire complete", {
+            editorId: pooled.editorId,
+            hasTextFocus: pooled.editor.hasTextFocus()
+        });
+
         return {
             editorId: pooled.editorId,
             editor: pooled.editor,
@@ -102,14 +98,12 @@ export class EditorPool {
         pooled.active = false;
         pooled.lastUsed = Date.now();
 
-        // CRITICAL: Move editor back to pool container to keep it attached to DOM
-        // This prevents the editor from being destroyed if the component is destroyed
-        const node = pooled.editor.getDomNode();
+        // Move containerDiv back to pool
         const poolContainer = document.getElementById('monaco-editor-pool');
-        if (node && poolContainer) {
-            node.style.display = 'block'; // Keep it visible (just offscreen)
-            poolContainer.appendChild(node);
-            console.log("[EditorPool] Editor moved back to pool container");
+        if (poolContainer) {
+            pooled.containerDiv.style.display = 'block';
+            poolContainer.appendChild(pooled.containerDiv);
+            console.log("[EditorPool] Editor released back to pool");
         }
     }
 
@@ -118,42 +112,41 @@ export class EditorPool {
         if (idle) return idle;
 
         if (this.pool.length < this.MAX) {
-            // CRITICAL: Monaco editors MUST be created in an ATTACHED DOM element
-            // Use position:fixed with offscreen positioning (NOT visibility:hidden or display:none)
-            // IMPORTANT: Container must have real dimensions for Monaco to calculate font metrics correctly
+            // Pool container: offscreen, real dimensions, no pointer-events:none
             let poolContainer = document.getElementById('monaco-editor-pool');
             if (!poolContainer) {
                 poolContainer = document.createElement('div');
                 poolContainer.id = 'monaco-editor-pool';
-                poolContainer.style.position = 'fixed';
-                poolContainer.style.top = '-10000px';
-                poolContainer.style.left = '-10000px';
-                poolContainer.style.width = '800px';  // Real dimensions needed for font metrics
-                poolContainer.style.height = '600px';
-                poolContainer.style.overflow = 'hidden';
-                poolContainer.style.pointerEvents = 'none';
+                poolContainer.style.cssText = `
+                    position: fixed;
+                    top: -10000px;
+                    left: -10000px;
+                    width: 800px;
+                    height: 600px;
+                    overflow: hidden;
+                    opacity: 0;
+                `;
                 document.body.appendChild(poolContainer);
-                console.log("[EditorPool] Created hidden pool container (position: fixed, 800x600)");
+                console.log("[EditorPool] Created pool container");
             }
 
-            const editorDiv = document.createElement("div");
-            editorDiv.style.width = '100%';
-            editorDiv.style.height = '100%';
-            editorDiv.style.position = 'absolute';
-            editorDiv.style.top = '0';
-            editorDiv.style.left = '0';
-            poolContainer.appendChild(editorDiv);
+            // Container that moves WITH the editor
+            const containerDiv = document.createElement("div");
+            containerDiv.style.cssText = `
+                position: absolute;
+                inset: 0;
+            `;
+            poolContainer.appendChild(containerDiv);
 
-            console.log("[EditorPool] Creating new editor in attached pool container");
-            const editor = this.monacoInstance.editor.create(editorDiv, {
+            const editor = this.monacoInstance.editor.create(containerDiv, {
                 theme: 'vs-dark',
-                automaticLayout: true,
-                minimap: { enabled: false },
-                language: 'json'
+                automaticLayout: false,
+                minimap: { enabled: false }
             });
 
             const pooled: PooledEditor = {
                 editor,
+                containerDiv,
                 editorId: crypto.randomUUID(),
                 active: false,
                 lastUsed: Date.now()
@@ -164,7 +157,7 @@ export class EditorPool {
             return pooled;
         }
 
-        // LRU eviction: return the least recently used editor
+        // LRU eviction
         return this.pool.sort((a, b) => a.lastUsed - b.lastUsed)[0];
     }
 }
