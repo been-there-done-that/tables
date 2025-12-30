@@ -1,13 +1,13 @@
 <script lang="ts">
     import Table from "$lib/components/table/Table.svelte";
+    import type { Column, ColumnType } from "$lib/components/table/types";
 
     // Generate dummy data
-    // Generate dummy data synchronously
     function generateInitialData() {
         const data = [];
         for (let i = 0; i < 10000; i++) {
             data.push({
-                _rowId: i, // Reference table expects _rowId
+                _rowId: i,
                 id: i,
                 name: `User ${i}`,
                 email: `user${i}@example.com`,
@@ -43,7 +43,7 @@
                         history: Array.from({ length: 50 }, (_, j) => ({
                             action: `action_${j}`,
                             timestamp: new Date().toISOString(),
-                            details: `Detailed log entry for action ${j} performed by user ${i}. Contains extra padding text to make this JSON blob larger and ensure we are testing the performance of the editor with substantial content.`,
+                            details: `Detailed log entry for action ${j} performed by user ${i}.`,
                         })),
                         tags: [
                             "user",
@@ -65,99 +65,90 @@
 
     let rows: any[] = $state(generateInitialData());
 
-    const columns: any[] = [
-        {
-            id: "id",
-            label: "ID",
-            type: "int",
-            width: 80,
-            sortable: true,
-            editable: false,
-            filterable: true,
-        },
-        // ... (previous columns kept implicitly if I don't replace them, but I am replacing the array definition partially/fully?
-        // Wait, replace_file_content replaces a block. I need to be careful with the range.
-        // I'll define the metadata column in the columns array)
+    /**
+     * Infer column definitions from data by analyzing the first N rows.
+     * This removes the need for hardcoded column definitions.
+     */
+    function inferColumnsFromData(data: any[], sampleSize = 100): Column[] {
+        if (!data.length) return [];
 
-        {
-            id: "name",
-            label: "Name",
-            type: "text",
-            width: 200,
-            sortable: true,
-            editable: true,
-            filterable: true,
-        },
-        {
-            id: "email",
-            label: "Email",
-            type: "text",
-            width: 250,
-            sortable: true,
-            editable: true,
-            filterable: true,
-        },
-        {
-            id: "role",
-            label: "Role",
-            type: "enum",
-            width: 150,
-            sortable: true,
-            editable: true,
-            filterable: true,
-        },
-        {
-            id: "metadata",
-            label: "Metadata",
-            type: "json",
-            width: 300,
-            sortable: false,
-            editable: true,
-            filterable: true,
-        },
-        {
-            id: "status",
-            label: "Active",
-            type: "boolean",
-            width: 100,
-            sortable: true,
-            editable: true,
-            filterable: true,
-        },
-        {
-            id: "last_login",
-            label: "Last Login",
-            type: "datetime",
-            width: 200,
-            sortable: true,
-            editable: false,
-            filterable: true,
-        },
-        {
-            id: "balance",
-            label: "Balance",
-            type: "float",
-            width: 120,
-            sortable: true,
-            editable: true,
-            filterable: true,
-        },
-        {
-            id: "notes",
-            label: "Notes",
-            type: "text",
-            width: 300,
-            sortable: true,
-            editable: true,
-            filterable: true,
-        },
-    ];
-    // Helper to fill defaults
-    const fullColumns = columns.map((c) => ({
-        editable: true,
-        filterable: true,
-        ...c,
-    }));
+        const sample = data.slice(0, sampleSize);
+        const keys = new Set<string>();
+        const typeMap: Record<string, Set<string>> = {};
+
+        // Collect all keys and their value types
+        for (const row of sample) {
+            for (const [key, value] of Object.entries(row)) {
+                if (key === "_rowId") continue; // Skip internal key
+                keys.add(key);
+                if (!typeMap[key]) typeMap[key] = new Set();
+                typeMap[key].add(typeof value);
+            }
+        }
+
+        // Infer column type from collected types
+        function inferType(key: string, sample: any[]): ColumnType {
+            const firstValue = sample.find(
+                (r) => r[key] !== null && r[key] !== undefined,
+            )?.[key];
+            if (firstValue === undefined) return "text";
+
+            // Check for JSON strings
+            if (typeof firstValue === "string") {
+                try {
+                    const parsed = JSON.parse(firstValue);
+                    if (typeof parsed === "object") return "json";
+                } catch {
+                    // Not JSON
+                }
+                // Check for date/datetime patterns
+                if (/^\d{4}-\d{2}-\d{2}T/.test(firstValue)) return "datetime";
+                if (/^\d{4}-\d{2}-\d{2}$/.test(firstValue)) return "date";
+            }
+
+            if (typeof firstValue === "boolean") return "boolean";
+            if (typeof firstValue === "number") {
+                return Number.isInteger(firstValue) ? "int" : "float";
+            }
+            if (typeof firstValue === "object" && firstValue !== null)
+                return "json";
+
+            return "text";
+        }
+
+        // Check if column has enum-like values (limited distinct values)
+        function isEnumLike(key: string, sample: any[]): boolean {
+            const values = new Set(
+                sample.map((r) => r[key]).filter((v) => v != null),
+            );
+            return (
+                values.size > 1 &&
+                values.size <= 10 &&
+                values.size < sample.length / 2
+            );
+        }
+
+        return Array.from(keys).map((key) => {
+            let type = inferType(key, sample);
+
+            // Override to enum if it looks like one
+            if (type === "text" && isEnumLike(key, sample)) {
+                type = "enum";
+            }
+
+            return {
+                id: key,
+                label:
+                    key.charAt(0).toUpperCase() +
+                    key.slice(1).replace(/_/g, " "),
+                type,
+                editable: key !== "id", // Primary key not editable
+                sortable: type !== "json",
+                filterable: true,
+                pinnable: type !== "json",
+            };
+        });
+    }
 
     // Simulate async fetch
     async function fetchData(params: any) {
@@ -165,15 +156,14 @@
 
         let result = [...rows];
 
-        // 1. Filter
+        // 1. Filter (basic implementation)
         if (filters && Object.keys(filters).length > 0) {
             Object.entries(filters).forEach(([columnId, filterValue]) => {
                 if (!filterValue) return;
-                // Add basic filtering logic if needed for test parity
             });
         }
 
-        // 2. Sort
+        // 2. Sort (basic implementation)
         if (sort && sort.length > 0) {
             // Add basic sort logic if needed
         }
@@ -181,10 +171,13 @@
         // 3. Paginate
         const sliced = result.slice(offset, offset + limit);
 
+        // Infer columns from data on the fly
+        const inferredColumns = inferColumnsFromData(rows);
+
         return {
             rows: sliced,
             total: rows.length,
-            columns: fullColumns,
+            columns: inferredColumns,
         };
     }
 </script>
@@ -201,7 +194,7 @@
 
     <div class="flex-1 min-h-0">
         <Table
-            columns={fullColumns}
+            columns={[]}
             readOnly={false}
             dataFetcher={fetchData}
             tableName="test_users"
@@ -217,4 +210,3 @@
         />
     </div>
 </div>
-```

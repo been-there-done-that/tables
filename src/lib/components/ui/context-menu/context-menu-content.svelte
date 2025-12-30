@@ -46,6 +46,9 @@
 	}
 
 	function handleKeyDown(e: KeyboardEvent) {
+		// Only handle keys when THIS menu is open
+		if (!ctx?.open) return;
+
 		if (e.key === "Escape") {
 			close();
 			return;
@@ -56,6 +59,7 @@
 		const items = Array.from(
 			menuElement.querySelectorAll("button:not([disabled])"),
 		) as HTMLElement[];
+
 		if (items.length === 0) return;
 
 		const currentIndex = items.indexOf(
@@ -120,8 +124,7 @@
 		bind:this={menuElement}
 		transition:scale={{ duration: 100, start: 0.95 }}
 		class={cn(
-			"fixed z-9999 min-w-[160px] overflow-hidden rounded-md border border-(--theme-border-default) bg-(--theme-bg-secondary) p-1 shadow-xl",
-			"backdrop-blur-md bg-opacity-95",
+			"fixed z-50 min-w-[160px] overflow-hidden rounded-md border border-(--theme-border-default) bg-(--theme-bg-secondary) p-1 shadow-lg",
 			className,
 		)}
 		style="left: {adjustedCoords.x}px; top: {adjustedCoords.y}px;"
