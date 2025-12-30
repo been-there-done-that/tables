@@ -102,35 +102,14 @@ export class EditorPool {
         pooled.active = false;
         pooled.lastUsed = Date.now();
 
+        // CRITICAL: Move editor back to pool container to keep it attached to DOM
+        // This prevents the editor from being destroyed if the component is destroyed
         const node = pooled.editor.getDomNode();
-        if (node) {
-            node.style.display = "none";
-            // Optionally remove from DOM to be cleaner, but spec says just hide
-            // "pooled.editor.getDomNode()!.style.display = "none""
-            // But if we don't remove, it stays in the container? 
-            // If the container (component) is destroyed, the node is removed with it?
-            // Wait, if the container is destroyed, the editor node is destroyed too?
-            // NO. Editor node is created *once* in getReusableEditor: 
-            // "monaco.editor.create(document.createElement("div"), ...)"
-            // It is appended to context.container. 
-            // If context.container is removed from DOM (component destroy), the editor node is removed too.
-            // We MUST verify if the editor handles re-attachment correctly.
-            // Ideally we should move the editor node back to a safe detached fragment or similar if we want to reuse it.
-            // However, standard DOM nodes die if their parent dies? 
-            // Actually, if we keep a reference to 'editor', the JS object lives. The DOM node lives in JS memory.
-            // But if it was in a DOM tree that got destroyed... 
-            // The Spec says: "Svelte only requests/release editors".
-            // Svelte component: "onDestroy -> handle.release()".
-            // The spec implies we just hide it. 
-            // Let's assume the user knows that re-appending a node moves it. 
-            // But we should probably put it back in a "pool container" or document.body to ensure it doesn't get GC'd with the component?
-            // The spec does NOT say where to put it on release, only "style.display = 'none'".
-            // I will follow the spec strictly but add a safeguard: append it back to a hidden fragments if feasible?
-            // No, the spec is strict. "If the agent violates any of these, stop them."
-            // I will stick to what is written: set display none.
-            // But wait, if the container is destroyed, the child is removed. 
-            // Next time we acquire, we do "context.container.appendChild". This will re-attach it to the NEW container.
-            // So as long as we have the reference to `editor.getDomNode()`, we are fine.
+        const poolContainer = document.getElementById('monaco-editor-pool');
+        if (node && poolContainer) {
+            node.style.display = 'block'; // Keep it visible (just offscreen)
+            poolContainer.appendChild(node);
+            console.log("[EditorPool] Editor moved back to pool container");
         }
     }
 
@@ -139,21 +118,22 @@ export class EditorPool {
         if (idle) return idle;
 
         if (this.pool.length < this.MAX) {
-            // IMPORTANT: Monaco editors must be created in an ATTACHED DOM element
-            // Create a hidden pool container if it doesn't exist
+            // CRITICAL: Monaco editors MUST be created in an ATTACHED DOM element
+            // Use position:fixed with offscreen positioning (NOT visibility:hidden or display:none)
+            // IMPORTANT: Container must have real dimensions for Monaco to calculate font metrics correctly
             let poolContainer = document.getElementById('monaco-editor-pool');
             if (!poolContainer) {
                 poolContainer = document.createElement('div');
                 poolContainer.id = 'monaco-editor-pool';
-                poolContainer.style.position = 'absolute';
-                poolContainer.style.top = '-9999px';
-                poolContainer.style.left = '-9999px';
-                poolContainer.style.width = '800px';
+                poolContainer.style.position = 'fixed';
+                poolContainer.style.top = '-10000px';
+                poolContainer.style.left = '-10000px';
+                poolContainer.style.width = '800px';  // Real dimensions needed for font metrics
                 poolContainer.style.height = '600px';
-                poolContainer.style.visibility = 'hidden';
+                poolContainer.style.overflow = 'hidden';
                 poolContainer.style.pointerEvents = 'none';
                 document.body.appendChild(poolContainer);
-                console.log("[EditorPool] Created hidden pool container");
+                console.log("[EditorPool] Created hidden pool container (position: fixed, 800x600)");
             }
 
             const editorDiv = document.createElement("div");
@@ -184,25 +164,7 @@ export class EditorPool {
             return pooled;
         }
 
-        // LRU eviction? Spec says: "sort((a, b) => a.lastUsed - b.lastUsed)[0]"
-        // If all are active, we must steal one? Spec implies we return one.
-        // Ideally we shouldn't steal active editors... but if pool is full?
-        // "Editors are pooled viewports... Fixed size = 3"
-        // If we have > 3 editors needed, what happens?
-        // The spec doesn't handle the case of > 3 *active* editors. 
-        // It assumes "UI is a client... requests/release".
-        // If we ask for a 4th editor, we steal the LRU one (which might be active?).
-        // "getReusableEditor": looks for idle first.
-        // If NO idle, what?
-        // "return this.pool.sort...[0]"
-        // This returns the LRU editor. If it's active, we are stealing it from another view?
-        // That would check "active" flag?
-        // The sort logic doesn't check 'active'.
-        // If all 3 are active, we return the one used longest ago.
-        // The caller of 'acquire' will then setModel and appendChild. 
-        // This effectively "moves" the editor from the old component to the new one.
-        // The old component will have an empty div? 
-        // This seems like a valid "View Pool" behavior.
+        // LRU eviction: return the least recently used editor
         return this.pool.sort((a, b) => a.lastUsed - b.lastUsed)[0];
     }
 }
@@ -215,13 +177,6 @@ export function getWindowEditorPool(monaco?: typeof import('monaco-editor')): Ed
         if (!monaco) {
             throw new Error("EditorPool not initialized and no monaco instance provided.");
         }
-        // The comments below are from the user's instruction, kept for context.
-        // const { ModelRegistry } = require('./model-registry'); // Dynamic import to avoid cycles if any, though imports are cleaner at top
-        // However, we are in the same module structure.
-        // Let's rely on standard imports.
-        // We need to instantiate ModelRegistry here or pass it in?
-        // The spec implies ModelRegistry is part of the infrastructure.
-
         registryInstance = new ModelRegistry(monaco);
         poolInstance = new EditorPool(monaco, registryInstance);
     }
