@@ -44,8 +44,8 @@
         },
     ];
 
-    // 2. Generate 100,000 Rows
-    const rows: Row[] = Array.from({ length: 100000 }, (_, i) => ({
+    // 2. Generate 10,000 Rows
+    const rows: Row[] = Array.from({ length: 10000 }, (_, i) => ({
         _rowId: i,
         id: i,
         name: `User ${i}`,

@@ -9,33 +9,35 @@
         column,
         rowIndex,
         colIndex,
-        isSelected: rowSelected,
     }: {
         table: TableController;
         row: Row;
         column: Column;
         rowIndex: number;
         colIndex: number;
-        isSelected: boolean;
     } = $props();
 
     let value = $derived(row[column.id]);
 
     // Check if this specific cell is selected/focused
-    // Using simple derived state. In massive tables, Set lookups are fast enough.
-    // Optimization: Store could return a "isCellSelected" helper
+    // Optimization: Use Set lookup O(1)
+    let rowSelected = $derived(table.selectedRowIds.has(row._rowId));
+    let isCellSelected = $derived(
+        table.selectedCellSet.has(`${row._rowId}:${column.id}`),
+    );
     let isFocused = $derived(
         table.focusedCell?.rowIndex === rowIndex &&
             table.focusedCell?.columnIndex === colIndex,
     );
 
-    let isCellSelected = $derived.by(() => {
-        return table.selectedCells.some(
-            (c) => c.rowId === row._rowId && c.columnId === column.id,
-        );
-    });
+    let isEditing = $derived(
+        table.editingCell?.rowId === row._rowId &&
+            table.editingCell?.columnId === column.id,
+    );
 
     function onClick(e: MouseEvent) {
+        // Stop propagation to prevent Table container focus reset?
+        // No, keep it standard. table.selectCell handles state.
         table.selectCell(
             rowIndex,
             colIndex,
@@ -43,21 +45,46 @@
             e.shiftKey,
         );
     }
+
+    function onDblClick(e: MouseEvent) {
+        const target = e.currentTarget as HTMLElement;
+        const rect = target.getBoundingClientRect();
+        table.startEditing(rowIndex, colIndex, rect);
+    }
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
     class={cn(
-        "flex items-center px-3 text-sm truncate cursor-default select-none h-full outline-none",
-        rowSelected && "bg-blue-50 dark:bg-blue-900/20",
-        isCellSelected &&
-            "bg-blue-100 dark:bg-blue-900/40 ring-1 ring-inset ring-blue-300 dark:ring-blue-700",
-        isFocused && "ring-2 ring-inset ring-blue-600 dark:ring-blue-400 z-10",
+        "flex items-center px-3 text-sm truncate cursor-default select-none h-full outline-none border-r last:border-r-0 group",
+        // Default border
     )}
-    style="width: {column.width}px; min-width: {column.width}px;"
+    style="
+        width: {column.width}px;
+        min-width: {column.width}px;
+        border-color: var(--theme-border-subtle);
+        background-color: {isCellSelected
+        ? 'var(--theme-bg-tertiary)'
+        : rowSelected
+          ? 'var(--theme-bg-secondary)'
+          : 'transparent'};
+        color: {isCellSelected ? 'var(--theme-fg-primary)' : 'inherit'};
+    "
     onclick={onClick}
+    ondblclick={onDblClick}
+    role="gridcell"
 >
+    <!-- Focused Ring Overlay (Only for keyboard focus or active cell indicator) -->
+    {#if isFocused && !isEditing}
+        <!-- Use a subtle inset shadow or border instead of ring which might look like 'border highlight' user disliked? -->
+        <!-- User said: 'row highlight can't be border'. Focused cell usually needs a border. -->
+        <!-- I'll use a clean blue border for focused cell. -->
+        <div
+            class="absolute inset-0 pointer-events-none border-2 border-[var(--theme-accent-primary)] z-10 box-border"
+        ></div>
+    {/if}
+
     <!-- Simple rendering for now - extend based on types -->
     {#if column.type === "boolean"}
         <span

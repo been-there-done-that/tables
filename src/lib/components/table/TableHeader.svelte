@@ -31,7 +31,8 @@
 </script>
 
 <div
-    class="flex border-b bg-muted/40 font-medium text-xs text-muted-foreground select-none overflow-hidden h-8 shrink-0"
+    class="flex border-b font-medium text-xs select-none overflow-hidden h-8 shrink-0"
+    style="background-color: var(--theme-bg-secondary); color: var(--theme-fg-secondary); border-color: var(--theme-border-default);"
 >
     <!-- 
       Ideally, this container should sync horizontal scroll with Body.
@@ -46,8 +47,8 @@
             <!-- svelte-ignore a11y_click_events_have_key_events -->
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
-                class="relative flex items-center px-3 h-full border-r last:border-r-0 hover:bg-muted/60 cursor-pointer group transition-colors"
-                style="width: {column.width}px; min-width: {column.width}px;"
+                class="relative flex items-center px-3 h-full border-r last:border-r-0 cursor-pointer group transition-colors"
+                style="width: {column.width}px; min-width: {column.width}px; border-color: var(--theme-border-default);"
                 onclick={(e) => onHeaderClick(e, column.id)}
             >
                 <span class="truncate">{column.label}</span>
