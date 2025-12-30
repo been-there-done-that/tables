@@ -227,7 +227,11 @@ export function getMonacoHealth(pool: EditorPool, monaco: typeof import("monaco-
         editors: {
             total: editors.length,
             active: editors.filter(e => e.active).length,
-            idle: editors.filter(e => !e.active).length
+            idle: editors.filter(e => !e.active).length,
+            instances: editors.map(e => ({
+                id: e.editorId,
+                active: e.active
+            }))
         },
         models: {
             total: models.length,
