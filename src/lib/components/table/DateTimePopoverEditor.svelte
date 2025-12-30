@@ -257,8 +257,8 @@
     tabindex="-1"
     onkeydown={handleKeydown}
     class={cn(
-        "fixed z-1000 bg-[var(--theme-bg-secondary)] border border-[var(--theme-border-focus)] rounded-md flex flex-col p-1",
-        isVisible ? "popoverpop" : "opacity-0 pointer-events-none",
+        "fixed z-[1000] bg-[var(--theme-bg-secondary)] border border-[var(--theme-border-focus)] rounded-md flex flex-col p-1",
+        isVisible ? "anim-pop" : "opacity-0 pointer-events-none",
     )}
     style={`top:${position.top}px;left:${position.left}px;min-width:${position.width}px;max-width:340px;min-height:200px;transform-origin:center`}
     aria-hidden={!isVisible}
