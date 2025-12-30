@@ -56,10 +56,23 @@
 
         {#if snapshot}
             <div class="metrics">
-                <div class="section">
-                    <strong>Editors:</strong>
-                    {snapshot.editors.active} active / {snapshot.editors.idle} idle
-                    ({snapshot.editors.total} total)
+                <div class="section flex items-center gap-2">
+                    <strong>Pool:</strong>
+                    <div class="flex gap-1.5 ml-1">
+                        {#each snapshot.editors.instances as inst}
+                            <div
+                                class="w-2 h-2 rounded-full border border-white/5 {inst.active
+                                    ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.3)]'
+                                    : 'bg-slate-700'}"
+                                title={inst.id}
+                            ></div>
+                        {:else}
+                            <span class="text-[9px] text-slate-600">Empty</span>
+                        {/each}
+                    </div>
+                    <span class="ml-auto text-[9px] opacity-70">
+                        {snapshot.editors.active} / {snapshot.editors.total}
+                    </span>
                 </div>
                 <div class="section">
                     <strong>Models:</strong>
