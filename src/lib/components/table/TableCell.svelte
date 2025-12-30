@@ -1,107 +1,278 @@
 <script lang="ts">
-    import type { TableController } from "./store.svelte";
-    import type { Row, Column } from "./types";
+    import type { Column } from "./types";
     import { cn } from "$lib/utils";
+    import { Badge } from "$lib/components/ui/badge";
+    import CellEditor from "./CellEditor.svelte";
+
+    interface Props {
+        row: any;
+        column: Column;
+        rowIndex: number;
+        columnIndex: number;
+        isSelected?: boolean;
+        isEditing?: boolean;
+        isFocused?: boolean;
+        isPendingEdit?: boolean;
+        pendingValue?: any;
+        disabled?: boolean;
+        onClick?: (
+            rowIndex: number,
+            columnIndex: number,
+            event: MouseEvent,
+        ) => void;
+        onMouseDown?: (
+            rowIndex: number,
+            columnIndex: number,
+            event: MouseEvent,
+        ) => void;
+        onMouseEnter?: (rowIndex: number, columnIndex: number) => void;
+        onDoubleClick?: (rowIndex: number, columnIndex: number) => void;
+        onEditComplete?: (
+            rowIndex: number,
+            columnIndex: number,
+            newValue: any,
+        ) => void;
+        onEditCancel?: () => void;
+        onContextMenu?: (
+            rowIndex: number,
+            columnIndex: number,
+            event: MouseEvent,
+        ) => void;
+    }
 
     let {
-        table,
         row,
         column,
         rowIndex,
-        colIndex,
-    }: {
-        table: TableController;
-        row: Row;
-        column: Column;
-        rowIndex: number;
-        colIndex: number;
-    } = $props();
+        columnIndex,
+        isSelected,
+        isEditing,
+        isFocused,
+        isPendingEdit,
+        pendingValue,
+        disabled = false,
+        onClick,
+        onMouseDown,
+        onMouseEnter,
+        onDoubleClick,
+        onEditComplete,
+        onEditCancel,
+        onContextMenu,
+    }: Props = $props();
 
-    let value = $derived(row[column.id]);
-
-    // Check if this specific cell is selected/focused
-    // Optimization: Use Set lookup O(1)
-    let rowSelected = $derived(table.selectedRowIds.has(row._rowId));
-    let isCellSelected = $derived(
-        table.selectedCellSet.has(`${row._rowId}:${column.id}`),
-    );
-    let isFocused = $derived(
-        table.focusedCell?.rowIndex === rowIndex &&
-            table.focusedCell?.columnIndex === colIndex,
-    );
-
-    let isEditing = $derived(
-        table.editingCell?.rowId === row._rowId &&
-            table.editingCell?.columnId === column.id,
-    );
-
-    function onClick(e: MouseEvent) {
-        // Stop propagation to prevent Table container focus reset?
-        // No, keep it standard. table.selectCell handles state.
-        table.selectCell(
-            rowIndex,
-            colIndex,
-            e.metaKey || e.ctrlKey,
-            e.shiftKey,
-        );
+    function unwrapValue(v: any) {
+        let current = v;
+        let depth = 0;
+        while (typeof current === "function" && depth < 3) {
+            try {
+                current = current();
+            } catch {
+                break;
+            }
+            depth += 1;
+        }
+        return current;
     }
 
-    function onDblClick(e: MouseEvent) {
-        const target = e.currentTarget as HTMLElement;
-        const rect = target.getBoundingClientRect();
-        table.startEditing(rowIndex, colIndex, rect);
+    // Use pendingValue if it exists (even if it's falsy like 0 or ""), otherwise use original row value
+    let value = $derived(
+        unwrapValue(pendingValue !== undefined ? pendingValue : row[column.id]),
+    );
+
+    import { DEFAULT_TOKEN, NULL_TOKEN, displayBooleanValue } from "./valueUtils";
+
+    const LONG_TEXT_THRESHOLD = 120;
+
+    const isBoolean = () => column.type === "boolean";
+    const isJson = () =>
+        column.type === "json" || column.type === "jsonb" || column.type === "JSON";
+    const isBinary = () =>
+        column.type === "blob" ||
+        column.type === "bytea" ||
+        column.type === "binary";
+    const isDateLike = () =>
+        column.type === "date" ||
+        column.type === "time" ||
+        column.type === "datetime";
+
+    function formatDateValue(val: any) {
+        if (val === null || val === undefined) return "";
+        const d = val instanceof Date ? val : new Date(val);
+        if (Number.isNaN(d.getTime())) return String(val);
+        const opts: Intl.DateTimeFormatOptions =
+            column.type === "date"
+                ? { year: "numeric", month: "2-digit", day: "2-digit" }
+                : column.type === "time"
+                  ? {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        second: "2-digit",
+                    }
+                  : {
+                        year: "numeric",
+                        month: "2-digit",
+                        day: "2-digit",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        second: "2-digit",
+                        timeZoneName: "short",
+                    };
+        return new Intl.DateTimeFormat(undefined, opts).format(d);
     }
+
+    function jsonPreview(val: any) {
+        try {
+            const str =
+                typeof val === "string" ? val : JSON.stringify(val, null, 0);
+            return str.length > 80 ? str.slice(0, 80) + "…" : str;
+        } catch {
+            return String(val);
+        }
+    }
+
+    function jsonPretty(val: any) {
+        try {
+            return JSON.stringify(val, null, 2);
+        } catch {
+            return String(val);
+        }
+    }
+
+    function binaryInfo(val: any) {
+        if (val === null || val === undefined) return { length: 0, preview: "" };
+        if (typeof val === "string") {
+            return {
+                length: val.length,
+                preview: val.slice(0, 64),
+            };
+        }
+        if (ArrayBuffer.isView(val)) {
+            const uint = new Uint8Array(val.buffer, val.byteOffset, val.byteLength);
+            const hex = Array.from(uint.slice(0, 32))
+                .map((b) => b.toString(16).padStart(2, "0"))
+                .join("");
+            return { length: uint.length, preview: hex };
+        }
+        return { length: 0, preview: String(val).slice(0, 64) };
+    }
+
+    let displayValue = $derived.by(() => {
+        if (typeof value === "function") {
+            return "[fn]";
+        }
+        if (isBoolean()) {
+            return displayBooleanValue(value);
+        }
+        if (isJson()) return jsonPreview(value);
+        if (isBinary()) {
+            const info = binaryInfo(value);
+            return `len ${info.length}${info.preview ? ` · ${info.preview}` : ""}`;
+        }
+        if (isDateLike()) return formatDateValue(value);
+        return value;
+    });
+
+    let isLongText = $derived.by(
+        () =>
+            typeof displayValue === "string" &&
+            displayValue.length > LONG_TEXT_THRESHOLD,
+    );
+
+    function handleClick(e: MouseEvent) {
+        if (disabled) return;
+        e.stopPropagation();
+        onClick?.(rowIndex, columnIndex, e);
+    }
+
+    function handleMouseDown(e: MouseEvent) {
+        if (disabled) return;
+        onMouseDown?.(rowIndex, columnIndex, e);
+    }
+
+    function handleMouseEnter() {
+        if (disabled) return;
+        onMouseEnter?.(rowIndex, columnIndex);
+    }
+
+    function handleDoubleClick() {
+        if (disabled) return;
+        onDoubleClick?.(rowIndex, columnIndex);
+    }
+
+    function handleContextMenu(event: MouseEvent) {
+        if (disabled) return;
+        event.preventDefault();
+        event.stopPropagation();
+        onContextMenu?.(rowIndex, columnIndex, event);
+    }
+
+    function handleEditComplete(newValue: any) {
+        onEditComplete?.(rowIndex, columnIndex, newValue);
+    }
+
+    function handleEditCancel() {
+        onEditCancel?.();
+    }
+
+    let cellEl = $state<HTMLDivElement | null>(null);
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
+    bind:this={cellEl}
     class={cn(
-        "flex items-center px-3 text-sm truncate cursor-default select-none h-full outline-none border-r last:border-r-0 group",
-        // Default border
+        "relative flex items-center border-r truncate text-sm select-none",
+        isSelected &&
+            "bg-blue-200 text-slate-900 dark:bg-blue-900/60 dark:text-slate-50 border-blue-400",
+        isFocused && "ring-2 ring-table-row-focused-ring ring-inset",
+        isPendingEdit &&
+            "bg-amber-200/80 dark:bg-amber-500/25 text-slate-900 dark:text-amber-50",
+        disabled && "opacity-70"
     )}
-    style="
-        width: {column.width}px;
-        min-width: {column.width}px;
-        border-color: var(--theme-border-subtle);
-        background-color: {isCellSelected
-        ? 'var(--theme-bg-tertiary)'
-        : rowSelected
-          ? 'var(--theme-bg-secondary)'
-          : 'transparent'};
-        color: {isCellSelected ? 'var(--theme-fg-primary)' : 'inherit'};
-    "
-    onclick={onClick}
-    ondblclick={onDblClick}
-    role="gridcell"
+    style="width: {column.width || 150}px; min-width: {column.minWidth ||
+        50}px; max-width: {column.maxWidth}px; flex-shrink: 0;"
+    onclick={handleClick}
+    onmousedown={handleMouseDown}
+    onmouseenter={handleMouseEnter}
+    ondblclick={handleDoubleClick}
+    oncontextmenu={handleContextMenu}
+    aria-disabled={disabled}
 >
-    <!-- Focused Ring Overlay (Only for keyboard focus or active cell indicator) -->
-    {#if isFocused && !isEditing}
-        <!-- Use a subtle inset shadow or border instead of ring which might look like 'border highlight' user disliked? -->
-        <!-- User said: 'row highlight can't be border'. Focused cell usually needs a border. -->
-        <!-- I'll use a clean blue border for focused cell. -->
-        <div
-            class="absolute inset-0 pointer-events-none border-2 border-[var(--theme-accent-primary)] z-10 box-border"
-        ></div>
-    {/if}
-
-    <!-- Simple rendering for now - extend based on types -->
-    {#if column.type === "boolean"}
-        <span
-            class={cn(
-                "px-1.5 py-0.5 rounded text-[10px] font-medium border",
-                value
-                    ? "bg-green-100 border-green-200 text-green-700"
-                    : "bg-gray-100 border-gray-200 text-gray-600",
-            )}
-        >
-            {value ? "TRUE" : "FALSE"}
+    {#if isEditing}
+        <CellEditor
+            {value}
+            {column}
+            anchorEl={cellEl}
+            onCommit={handleEditComplete}
+            onCancel={handleEditCancel}
+        />
+    {:else if isBoolean()}
+        <span class="truncate select-none px-2 py-1 w-full h-full block text-xs">
+            {displayValue}
         </span>
-    {:else if column.type === "date" || column.type === "datetime"}
-        <span class="opacity-80 font-mono text-xs">
-            {value ? new Date(value).toLocaleDateString() : ""}
+    {:else if isJson()}
+        <span class="truncate select-none px-2 py-1 w-full h-full block font-mono text-xs text-muted-foreground">
+            {jsonPreview(value)}
+        </span>
+    {:else if isBinary()}
+        {@const info = binaryInfo(value)}
+        <span class="truncate select-none px-2 py-1 w-full h-full block font-mono text-xs text-muted-foreground">
+            {`len ${info.length}${info.preview ? ` · ${info.preview}` : ""}`}
+        </span>
+    {:else if isDateLike()}
+        <span class="truncate select-none px-2 py-1 w-full h-full block">
+            {formatDateValue(value)}
+        </span>
+    {:else if isLongText}
+        <span class="truncate select-none px-2 py-1 w-full h-full block">
+            {typeof displayValue === "string"
+                ? displayValue.slice(0, LONG_TEXT_THRESHOLD) + "…"
+                : displayValue}
         </span>
     {:else}
-        {value ?? ""}
+        <span class="truncate select-none px-2 py-1 w-full h-full block">
+            {displayValue}
+        </span>
     {/if}
 </div>

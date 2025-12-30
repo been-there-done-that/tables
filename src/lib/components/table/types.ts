@@ -1,4 +1,3 @@
-
 export type ColumnType =
     | "text"
     | "int"
@@ -9,29 +8,37 @@ export type ColumnType =
     | "datetime"
     | "json"
     | "jsonb"
+    | "JSON"
     | "enum"
-    | "blob";
+    | "blob"
+    | "bytea"
+    | "binary";
 
 export interface Column {
     id: string;
     label: string;
     type: ColumnType;
-    width: number;
+    editable: boolean;
+    sortable: boolean;
+    filterable: boolean;
+    width?: number;
     minWidth?: number;
     maxWidth?: number;
-    editable?: boolean;
-    sortable?: boolean;
-    filterable?: boolean;
-    // Metadata for specific editors
     enumValues?: string[];
     format?: string;
-    // Database specific
+    foreignKey?: {
+        refTable: string;
+        refColumn: string;
+    };
+    /**
+     * Backend-provided metadata to keep rendering/clipboard aware of DB-native types.
+     * Keeps the component "plug and play": the backend can set these and the table
+     * will render appropriately without hardcoded client mappings.
+     */
     dbType?: string;
-}
-
-export interface Row {
-    _rowId: number; // Internal stable ID
-    [key: string]: any;
+    dbSchema?: string;
+    dbTable?: string;
+    rawType?: string;
 }
 
 export interface SortState {
@@ -39,10 +46,40 @@ export interface SortState {
     direction: "asc" | "desc";
 }
 
-export interface FilterState {
+export interface DataFetcherParams {
+    offset: number;
+    limit: number;
+    sort: SortState[];
+    filters: Record<string, any>;
+}
+
+export interface DataFetcherResult {
+    rows: any[];
+    total: number;
+    columnStats?: Record<string, { value: any; count: number }[]>;
+    /**
+     * Optional column metadata supplied by the backend. When present, the table
+     * will adopt these definitions (merging width/visibility where possible).
+     */
+    columns?: Column[];
+}
+
+export type DataFetcher = (params: DataFetcherParams) => Promise<DataFetcherResult>;
+
+export interface EditResult {
+    success: boolean;
+    conflicts?: any[];
+}
+
+export type OnApplyEdits = (editedRows: Record<string, any>) => Promise<EditResult>;
+
+export interface RowSelection {
+    [rowId: number]: boolean;
+}
+
+export interface CellSelection {
+    rowId: number;
     columnId: string;
-    value: any;
-    operator: "equals" | "contains" | "gt" | "lt" | "in";
 }
 
 export interface SelectionAnchor {
@@ -57,15 +94,11 @@ export interface SelectionBounds {
     right: number;
 }
 
-export interface CellSelection {
-    rowId: number;
-    columnId: string;
-}
+export type ClipboardFormat = "tsv" | "csv" | "json";
 
-// For clipboard/export
-export type CellFormatter = (value: any, column: Column) => string;
-
-export interface TablePlatform {
-    readClipboard: () => Promise<string>;
-    writeClipboard: (text: string) => Promise<void>;
+export interface TableQueryContext {
+    tableName?: string;
+    tableSchema?: string;
+    columnId?: string;
+    selectedColumns?: string[];
 }
