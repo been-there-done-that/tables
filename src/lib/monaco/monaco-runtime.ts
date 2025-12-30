@@ -1,10 +1,18 @@
 import * as monaco from 'monaco-editor';
+import 'monaco-editor/min/vs/editor/editor.main.css';
+import EditorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
+import JsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker";
 
 let monacoPromise: Promise<typeof monaco> | null = null;
 
+/**
+ * Preloads the Monaco infrastructure. 
+ * Since we are bundling Monaco with Vite, we just initialize the workers 
+ * and return the singleton instance.
+ */
 export function preloadMonaco(): Promise<typeof monaco> {
     if (!monacoPromise) {
-        monacoPromise = Promise.resolve(monaco).then(m => {
+        monacoPromise = Promise.resolve(monaco).then((m) => {
             configureWorkers(m);
             registerLanguages(m);
             registerThemes(m);
@@ -14,8 +22,6 @@ export function preloadMonaco(): Promise<typeof monaco> {
     return monacoPromise;
 }
 
-import EditorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
-import JsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker";
 
 function configureWorkers(m: typeof monaco) {
     if (typeof self !== "undefined" && !(self as any).MonacoEnvironment) {
