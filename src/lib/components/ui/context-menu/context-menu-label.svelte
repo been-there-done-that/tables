@@ -11,7 +11,7 @@
 
 <div
 	class={cn(
-		"px-2 py-1.5 text-xs font-semibold text-[var(--theme-fg-secondary)] opacity-70 uppercase tracking-wider",
+		"px-2 py-1.5 text-xs font-semibold text-(--theme-fg-secondary) opacity-70 uppercase tracking-wider",
 		className,
 	)}
 >
