@@ -1,12 +1,28 @@
 <script lang="ts">
     import type { Column } from "./types";
     import { onMount } from "svelte";
+    import { resolveEditor } from "./resolver";
+    import { getEditorRenderer, registerEditorRenderer } from "./registry";
+
+    // Import editors to register them (side-effect or explicit)
+    import IndependentInlineTextEditor from "./editors/InlineTextEditor.svelte";
     import BooleanPopoverEditor from "./BooleanPopoverEditor.svelte";
     import EnumPopoverEditor from "./EnumPopoverEditor.svelte";
     import JsonPopoverEditor from "./JsonPopoverEditor.svelte";
     import DateTimePopoverEditor from "./DateTimePopoverEditor.svelte";
     import NumberPopoverEditor from "./NumberPopoverEditor.svelte";
+    // We map "TextPopoverEditor" to a registry key if needed, or use InlineTextEditor for "text"
     import TextPopoverEditor from "./TextPopoverEditor.svelte";
+
+    // Register default editors (idempotent)
+    registerEditorRenderer("text", IndependentInlineTextEditor);
+    registerEditorRenderer("boolean", BooleanPopoverEditor);
+    registerEditorRenderer("enum", EnumPopoverEditor);
+    registerEditorRenderer("json", JsonPopoverEditor);
+    registerEditorRenderer("datetime", DateTimePopoverEditor);
+    registerEditorRenderer("number", NumberPopoverEditor);
+    // You might want a "text-popover" for specific cases
+    registerEditorRenderer("text-popover", TextPopoverEditor);
 
     interface Props {
         value: any;
@@ -14,71 +30,36 @@
         onCommit: (newValue: any) => void;
         onCancel: () => void;
         anchorEl?: HTMLElement | null;
+        trigger?: string; // Optional trigger context
     }
 
-    let { value, column, onCommit, onCancel, anchorEl }: Props = $props();
+    let { value, column, onCommit, onCancel, anchorEl, trigger }: Props =
+        $props();
 
-    // Local editable value (synchronised via effect)
-    let inputValue = $state<any>();
+    // 1. Resolve configuration
+    let config = $derived(resolveEditor(column, value, trigger));
 
-    // Keep in sync if parent updates value while editor is open
+    // 2. Get renderer component
+    let RendererComponent = $derived(getEditorRenderer(config.renderer));
+
+    // 3. Normalize props
+    let rendererProps = $derived({
+        value,
+        column, // Some editors might still need column access
+        onCommit,
+        onCancel,
+        anchorEl,
+        ...config.props,
+    });
+
+    // Debug
     $effect(() => {
-        inputValue = value;
+        if (!RendererComponent) {
+            console.error(
+                `[CellEditor] No renderer found for key: "${config.renderer}" (col: ${column.id})`,
+            );
+        }
     });
-    let inputRef = $state<
-        HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | undefined
-    >();
-
-    onMount(() => {
-        if (
-            inputRef instanceof HTMLInputElement ||
-            inputRef instanceof HTMLTextAreaElement ||
-            inputRef instanceof HTMLSelectElement
-        ) {
-            inputRef.focus();
-        }
-
-        console.info("[CellEditor] mounted", {
-            column: column.id,
-            type: column.type,
-            value,
-            anchorPresent: Boolean(anchorEl),
-        });
-    });
-
-    function handleKeydown(e: KeyboardEvent) {
-        if (
-            e.key === "Enter" &&
-            column.type !== "json" &&
-            column.type !== "JSON"
-        ) {
-            onCommit(processValue(inputValue));
-        } else if (e.key === "Escape") {
-            onCancel();
-        }
-    }
-
-    function handleBlur() {
-        // Don't commit on blur for modal types
-        if (column.type !== "json" && column.type !== "JSON") {
-            onCommit(processValue(inputValue));
-        }
-    }
-
-    function processValue(val: any): any {
-        if (column.type === "int") return parseInt(val);
-        if (column.type === "float") return parseFloat(val);
-        if (column.type === "boolean") return val === "true" || val === true;
-        return val;
-    }
-
-    function isNumberType(t: Column["type"]): t is "int" | "float" {
-        return t === "int" || t === "float";
-    }
-
-    const numberKind = $derived(
-        isNumberType(column.type) ? column.type : "int",
-    );
 </script>
 
 <div
@@ -87,50 +68,10 @@
     onclick={(e) => e.stopPropagation()}
     role="presentation"
 >
-    {#if column.type === "json" || column.type === "JSON"}
-        <JsonPopoverEditor {value} {anchorEl} {onCommit} {onCancel} />
-    {:else if column.type === "boolean"}
-        <BooleanPopoverEditor {value} {anchorEl} {onCommit} {onCancel} />
-    {:else if column.type === "enum" && column.enumValues}
-        <EnumPopoverEditor
-            value={inputValue}
-            options={column.enumValues}
-            {anchorEl}
-            onCommit={(v) => onCommit(v)}
-            {onCancel}
-        />
-    {:else if column.type === "text"}
-        <TextPopoverEditor
-            value={inputValue}
-            {anchorEl}
-            onCommit={(v: any) => onCommit(processValue(v))}
-            {onCancel}
-        />
-    {:else if isNumberType(column.type)}
-        <NumberPopoverEditor
-            value={inputValue}
-            kind={numberKind}
-            {anchorEl}
-            onCommit={(v: any) => onCommit(processValue(v))}
-            {onCancel}
-        />
-    {:else if column.type === "date" || column.type === "datetime"}
-        <DateTimePopoverEditor
-            value={inputValue}
-            mode={column.type === "datetime" ? "datetime" : "date"}
-            {anchorEl}
-            {onCommit}
-            {onCancel}
-        />
+    {#if RendererComponent}
+        <RendererComponent {...rendererProps} />
     {:else}
-        <!-- Text / int / float / fallback -->
-        <input
-            bind:this={inputRef}
-            bind:value={inputValue}
-            type="text"
-            class="h-full w-full rounded-none border-0 px-2 py-1 focus-visible:ring-0 focus-visible:outline-none bg-[var(--theme-bg-primary)] text-[var(--theme-fg-primary)]"
-            onkeydown={handleKeydown}
-            onblur={handleBlur}
-        />
+        <!-- Fallback safe mode -->
+        <IndependentInlineTextEditor {...rendererProps} />
     {/if}
 </div>

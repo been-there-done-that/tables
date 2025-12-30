@@ -14,6 +14,14 @@ export type ColumnType =
     | "bytea"
     | "binary";
 
+export type EditorMode = "inline" | "popover" | "modal";
+
+export interface EditorConfig {
+    mode: EditorMode;
+    renderer: string;
+    props?: Record<string, any>;
+}
+
 export interface Column {
     id: string;
     label: string;
@@ -30,6 +38,11 @@ export interface Column {
         refTable: string;
         refColumn: string;
     };
+
+    // New architecture
+    renderer?: string;
+    editor?: Partial<EditorConfig>;
+
     /**
      * Backend-provided metadata to keep rendering/clipboard aware of DB-native types.
      * Keeps the component "plug and play": the backend can set these and the table
@@ -39,6 +52,16 @@ export interface Column {
     dbSchema?: string;
     dbTable?: string;
     rawType?: string;
+}
+
+export interface EditingState {
+    rowId: any;
+    columnId: string;
+    value: any;
+    mode: EditorMode;
+    renderer: string;
+    props?: Record<string, any>;
+    anchorRect?: DOMRect;
 }
 
 export interface SortState {
