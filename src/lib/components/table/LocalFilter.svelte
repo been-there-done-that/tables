@@ -2,7 +2,7 @@
     import { Input } from "$lib/components/ui/input";
     import { Button } from "$lib/components/ui/button";
     import { Checkbox } from "$lib/components/ui/checkbox";
-    import { Search, Loader2 } from "lucide-svelte";
+    import { IconSearch, IconLoader2 } from "@tabler/icons-svelte";
     import type { Column } from "./types";
 
     interface Props {
@@ -85,7 +85,9 @@
     </div>
 
     <div class="relative">
-        <Search class="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+        <IconSearch
+            class="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground"
+        />
         <Input
             placeholder="Search values..."
             class="pl-8 h-9"
@@ -96,10 +98,12 @@
 
     {#if isLoading}
         <div class="flex items-center justify-center py-8">
-            <Loader2 class="h-6 w-6 animate-spin text-muted-foreground" />
+            <IconLoader2 class="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
     {:else}
-        <div class="flex items-center space-x-2 py-2 border-b text-sm font-medium">
+        <div
+            class="flex items-center space-x-2 py-2 border-b text-sm font-medium"
+        >
             <Checkbox
                 id="select-all"
                 checked={selectAll}

@@ -2,6 +2,8 @@
     import { getContext, onMount } from "svelte";
     import { cn } from "$lib/utils";
 
+    import { IconCheck, IconX } from "@tabler/icons-svelte";
+
     interface Props {
         value: any;
         anchorEl?: HTMLElement | null;
@@ -14,9 +16,13 @@
     let overlayEl: HTMLElement | null = null;
     let position = $state({ top: 0, left: 0, width: 260 });
     let isVisible = $state(false);
-    let inputValue = $derived((value ?? "").toString());
+    let inputValue = $state("");
 
     const originalString = $derived((value ?? "").toString());
+
+    $effect(() => {
+        inputValue = (value ?? "").toString();
+    });
 
     function portal(node: HTMLElement) {
         if (typeof document === "undefined") return {};
@@ -35,9 +41,9 @@
             return;
         }
         const rect = anchorEl.getBoundingClientRect();
-        const width = Math.max(rect.width + 60, position.width);
-        const overlayHeight = overlayEl?.offsetHeight ?? 120;
-        const margin = 4;
+        const width = Math.max(rect.width + 100, position.width);
+        const overlayHeight = overlayEl?.offsetHeight ?? 200;
+        const margin = 8;
 
         let left = rect.right + margin;
         const fitsRight = left + width + margin <= window.innerWidth;
@@ -78,7 +84,7 @@
 
     function commit() {
         const parsed = parseValue(inputValue);
-        const unchanged = inputValue.toString() === originalString;
+        const unchanged = inputValue === originalString;
         if (unchanged) {
             onCancel();
             return;
@@ -136,41 +142,60 @@
     tabindex="-1"
     onkeydown={handleKeydown}
     class={cn(
-        "fixed bg-[var(--theme-bg-secondary)] border border-[var(--theme-border-focus)] rounded-md flex flex-col p-1",
+        "fixed bg-[var(--theme-bg-secondary)] border border-[var(--theme-border-focus)] rounded-lg shadow-2xl flex flex-col p-3 gap-3",
         isVisible ? "anim-pop opacity-100" : "opacity-0 pointer-events-none",
     )}
-    style={`top:${position.top}px;left:${position.left}px;min-width:${position.width}px;max-width:320px;transform-origin:center;z-index:1000`}
+    style={`top:${position.top}px;left:${position.left}px;min-width:${position.width}px;max-width:400px;transform-origin:center;z-index:1000`}
     aria-hidden={!isVisible}
 >
     <div class="flex flex-col gap-2">
         <textarea
-            class="w-full rounded border border-[var(--theme-border-default)] text-sm bg-[var(--theme-bg-primary)] text-[var(--theme-fg-primary)] min-h-[120px] resize-none px-2 py-1 focus:outline-none focus:ring-1 focus:ring-[var(--theme-border-focus)]"
+            class="w-full rounded-md border border-[var(--theme-border-default)] text-sm bg-[var(--theme-bg-primary)] text-[var(--theme-fg-primary)] min-h-[160px] resize-y px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[var(--theme-border-focus)] font-mono"
             bind:value={inputValue}
-            rows={4}
+            rows={6}
+            placeholder="Type long text here..."
         ></textarea>
         <div
-            class="flex items-center justify-between text-xs text-[var(--theme-fg-secondary)]"
+            class="flex items-center justify-between text-[10px] text-[var(--theme-fg-secondary)] uppercase tracking-widest px-1 font-medium"
         >
-            <span>Cmd/Ctrl+Enter to save · Esc to cancel</span>
-            <span class="text-[10px] uppercase tracking-wide">text</span>
+            <span>Cmd+Enter to save • Esc to cancel</span>
+            <span class="bg-[var(--theme-bg-tertiary)] px-1.5 py-0.5 rounded"
+                >Long Text</span
+            >
         </div>
     </div>
-    <div
-        class="flex items-center justify-end border-t border-[var(--theme-border-default)] px-2 py-1 gap-2 bg-[var(--theme-bg-secondary)]"
-    >
+    <div class="flex items-center justify-end gap-2 pt-1">
         <button
             type="button"
-            class="px-2 py-1 text-sm rounded bg-[var(--theme-bg-tertiary)] text-[var(--theme-fg-primary)] hover:bg-[var(--theme-bg-hover)] transition"
+            class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-[var(--theme-bg-tertiary)] text-[var(--theme-fg-primary)] hover:bg-[var(--theme-bg-hover)] transition-all active:scale-95 border border-[var(--theme-border-default)]"
             onclick={onCancel}
         >
+            <IconX class="size-3.5" />
             Cancel
         </button>
         <button
             type="button"
-            class="px-2 py-1 text-sm rounded bg-[var(--theme-accent-primary)] text-white hover:bg-[var(--theme-accent-hover)] transition"
+            class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-[var(--theme-accent-primary)] text-white hover:bg-[var(--theme-accent-hover)] transition-all active:scale-95 shadow-sm"
             onclick={commit}
         >
-            Save
+            <IconCheck class="size-3.5" />
+            Save Changes
         </button>
     </div>
 </div>
+
+<style>
+    .anim-pop {
+        animation: pop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes pop {
+        from {
+            transform: scale(0.95) translateY(4px);
+            opacity: 0;
+        }
+        to {
+            transform: scale(1) translateY(0);
+            opacity: 1;
+        }
+    }
+</style>

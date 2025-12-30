@@ -1,25 +1,84 @@
 <script lang="ts">
-	import { ContextMenu as ContextMenuPrimitive } from "bits-ui";
-	import { cn } from "$lib/utils.js";
+	import { getContext, onMount } from "svelte";
+	import { scale } from "svelte/transition";
+	import { cn } from "$lib/utils";
 
-	let {
-		ref = $bindable(null),
-		portalProps,
-		class: className,
-		...restProps
-	}: ContextMenuPrimitive.ContentProps & {
-		portalProps?: ContextMenuPrimitive.PortalProps;
-	} = $props();
+	interface Props {
+		class?: string;
+		children?: import("svelte").Snippet;
+	}
+
+	let { class: className, children }: Props = $props();
+
+	const ctx = getContext<{
+		open: boolean;
+		setOpen: (val: boolean) => void;
+		coords: { x: number; y: number };
+	}>("context-menu");
+
+	let menuElement = $state<HTMLElement | null>(null);
+	let adjustedCoords = $state({ x: 0, y: 0 });
+
+	$effect(() => {
+		if (ctx?.open && ctx?.coords) {
+			adjustedCoords = { ...ctx.coords };
+			// Small delay to ensure menuElement is rendered and we can measure it
+			setTimeout(() => {
+				if (menuElement) {
+					const rect = menuElement.getBoundingClientRect();
+					let newX = ctx.coords.x;
+					let newY = ctx.coords.y;
+
+					if (newX + rect.width > window.innerWidth) {
+						newX = window.innerWidth - rect.width - 10;
+					}
+					if (newY + rect.height > window.innerHeight) {
+						newY = window.innerHeight - rect.height - 10;
+					}
+					adjustedCoords = { x: newX, y: newY };
+				}
+			}, 0);
+		}
+	});
+
+	function close() {
+		ctx?.setOpen(false);
+	}
+
+	function handleKeyDown(e: KeyboardEvent) {
+		if (e.key === "Escape") close();
+	}
+
+	function handleClickOutside(e: MouseEvent) {
+		if (menuElement && !menuElement.contains(e.target as Node)) {
+			close();
+		}
+	}
+
+	onMount(() => {
+		window.addEventListener("keydown", handleKeyDown);
+		window.addEventListener("mousedown", handleClickOutside);
+		return () => {
+			window.removeEventListener("keydown", handleKeyDown);
+			window.removeEventListener("mousedown", handleClickOutside);
+		};
+	});
 </script>
 
-<ContextMenuPrimitive.Portal {...portalProps}>
-	<ContextMenuPrimitive.Content
-		bind:ref
-		data-slot="context-menu-content"
+{#if ctx?.open}
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div
+		bind:this={menuElement}
+		transition:scale={{ duration: 100, start: 0.95 }}
 		class={cn(
-			"bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-end-2 data-[side=right]:slide-in-from-start-2 data-[side=top]:slide-in-from-bottom-2 max-h-(--bits-context-menu-content-available-height) origin-(--bits-context-menu-content-transform-origin) z-50 min-w-[8rem] overflow-y-auto overflow-x-hidden rounded-md border p-1 shadow-md",
-			className
+			"fixed z-9999 min-w-[160px] overflow-hidden rounded-md border border-(--theme-border-default) bg-(--theme-bg-secondary) p-1 shadow-xl",
+			"backdrop-blur-md bg-opacity-95",
+			className,
 		)}
-		{...restProps}
-	/>
-</ContextMenuPrimitive.Portal>
+		style="left: {adjustedCoords.x}px; top: {adjustedCoords.y}px;"
+		oncontextmenu={(e) => e.preventDefault()}
+		onmousedown={(e) => e.stopPropagation()}
+	>
+		{@render children?.()}
+	</div>
+{/if}

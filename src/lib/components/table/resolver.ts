@@ -60,7 +60,17 @@ export function resolveEditor(
         };
     }
 
-    // Default: Text -> Inline
+    // Default: Text -> Inline or Popover correctly
+    const textValue = String(value ?? "");
+    const isLongText = textValue.length > 200 || textValue.includes("\n");
+
+    if (trigger === "double-click" || isLongText) {
+        return {
+            mode: "popover",
+            renderer: "text-popover"
+        };
+    }
+
     return {
         mode: "inline",
         renderer: "text"

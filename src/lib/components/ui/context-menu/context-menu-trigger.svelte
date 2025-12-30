@@ -1,7 +1,25 @@
 <script lang="ts">
-	import { ContextMenu as ContextMenuPrimitive } from "bits-ui";
+	import { getContext } from "svelte";
 
-	let { ref = $bindable(null), ...restProps }: ContextMenuPrimitive.TriggerProps = $props();
+	interface Props {
+		children?: import("svelte").Snippet;
+	}
+
+	let { children }: Props = $props();
+
+	const ctx = getContext<{
+		setOpen: (val: boolean) => void;
+		setCoords: (coords: { x: number; y: number }) => void;
+	}>("context-menu");
+
+	function handleContextMenu(e: MouseEvent) {
+		if (!ctx) return;
+		e.preventDefault();
+		ctx.setCoords({ x: e.clientX, y: e.clientY });
+		ctx.setOpen(true);
+	}
 </script>
 
-<ContextMenuPrimitive.Trigger bind:ref data-slot="context-menu-trigger" {...restProps} />
+<div class="contents" oncontextmenu={handleContextMenu}>
+	{@render children?.()}
+</div>
