@@ -58,6 +58,8 @@
                       </div>
                       <div class="flex-1 overflow-auto p-4">
                         <a href="/table-test">Table Test</a>
+                        <a href="/debug-monaco">Debug Monaco</a>
+                        <a href="/monaco-raw">Raw Monaco</a>
                         <div class="rounded border p-2">Editor Content</div>
                         <SystemMetricsWidget />
                       </div>
