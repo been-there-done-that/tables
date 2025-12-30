@@ -2,6 +2,7 @@
   import ResizableSplitPane from "$lib/components/ResizableSplitPane.svelte";
   import SystemMetricsWidget from "$lib/components/SystemMetricsWidget.svelte";
   import { windowState } from "$lib/stores/window.svelte";
+  import { METRICS } from "$lib/constants";
 </script>
 
 <div class="flex h-full w-full flex-col bg-background text-foreground">
@@ -58,7 +59,9 @@
                       </div>
                       <div class="flex-1 overflow-auto p-4">
                         <div class="rounded border p-2">Editor Content</div>
-                        <SystemMetricsWidget />
+                        {#if METRICS.ENABLED}
+                          <SystemMetricsWidget />
+                        {/if}
                       </div>
                     </div>
                   {/snippet}

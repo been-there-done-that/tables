@@ -1,4 +1,4 @@
-import { listen } from "@tauri-apps/api/event";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { METRICS } from "$lib/constants";
 
 export interface MetricsSnapshot {
@@ -10,16 +10,21 @@ export type HistoryItem = { id: number; val: number };
 
 class MetricsStore {
     snapshot = $state<MetricsSnapshot | null>(null);
+    private unlisten?: UnlistenFn;
 
-    constructor() {
-        this.init();
-    }
-
-    async init() {
-        // Listen for global snapshots
-        await listen<MetricsSnapshot>("metrics:snapshot", (event) => {
+    async start() {
+        if (this.unlisten) return;
+        // Listen for global snapshots only when active consumer mounts
+        this.unlisten = await listen<MetricsSnapshot>("metrics:snapshot", (event) => {
             this.snapshot = event.payload;
         });
+    }
+
+    stop() {
+        if (this.unlisten) {
+            this.unlisten();
+            this.unlisten = undefined;
+        }
     }
 
     get(key: string): number {

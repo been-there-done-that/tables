@@ -140,13 +140,8 @@ pub fn start_metrics_emitter(app: AppHandle, registry: Arc<MetricsRegistry>) {
         let mut last = None;
 
         loop {
-            // Emit independent of change to ensure liveness? 
-            // The user wanted "only if modified". 
-            // But if we want the "Welcome" push to work, that's orthogonal.
-            // Let's stick to change detection, but wait... 
-            // If the user's "Welcome push" is handled in lib.rs, this loop can stay effecient.
-            
-            std::thread::sleep(Duration::from_millis(1000)); // 1Hz
+            // Slow down emitter to lower idle CPU; UI still gets change-based updates.
+            std::thread::sleep(Duration::from_millis(3000)); // ~0.33Hz
 
             let snapshot = registry.snapshot();
 
@@ -191,7 +186,8 @@ impl SystemMonitor {
             self.pid.set(pid_u32 as f64);
 
             loop {
-                sys.refresh_processes();
+                // Refresh only the current process instead of all processes to cut CPU usage
+                sys.refresh_process(pid);
                 
                 if let Some(process) = sys.process(pid) {
                     // System-wide CPU usage (match top/Activity Monitor behavior: 100% = 1 core)
@@ -212,7 +208,8 @@ impl SystemMonitor {
                     self.thread_count.set(threads);
                 }
 
-                std::thread::sleep(Duration::from_secs(1));
+                // Poll less frequently; 2s keeps UI responsive while lowering idle CPU
+                std::thread::sleep(Duration::from_millis(2000));
             }
         });
     }

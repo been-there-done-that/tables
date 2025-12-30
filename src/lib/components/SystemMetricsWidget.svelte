@@ -1,18 +1,14 @@
 <script lang="ts">
   import { metrics } from "$lib/stores/metrics.svelte";
   import MicroBarSparkline from "$lib/components/MicroBarSparkline.svelte";
-  import { Tween } from "svelte/motion";
-  import { cubicOut } from "svelte/easing";
   import { METRICS } from "$lib/constants";
   import { toast } from "svelte-sonner";
+  import { onMount } from "svelte";
 
   // Clean state
   let history = $derived(metrics.cpuHistory);
   let cpuPercent = $derived(metrics.cpu);
   let pid = $derived(metrics.pid);
-
-  // Animation for numbers
-  const displayedCpu = new Tween(0, { duration: 600, easing: cubicOut });
 
   // Format memory
   const memoryFormatted = $derived.by(() => {
@@ -23,8 +19,9 @@
     return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
   });
 
-  $effect(() => {
-    displayedCpu.target = cpuPercent;
+  onMount(() => {
+    metrics.start();
+    return () => metrics.stop();
   });
 
   function copyPid(pid: number) {
@@ -40,7 +37,7 @@
   <!-- CPU Section -->
   <div class="flex items-end gap-2" title="CPU Usage">
     <span class="font-mono tabular-nums"
-      >{displayedCpu.current.toFixed(1)}%</span
+      >{cpuPercent.toFixed(1)}%</span
     >
     <div class="h-3 w-px bg-(--theme-border) mx-1"></div>
     <span class="font-mono tabular-nums" title="Memory Usage"
