@@ -67,18 +67,24 @@
             if (canUseNavigator) {
                 return {
                     readText: () => navigator.clipboard!.readText(),
-                    writeText: (text: string) => navigator.clipboard!.writeText(text),
+                    writeText: (text: string) =>
+                        navigator.clipboard!.writeText(text),
                 };
             }
 
             try {
-                const mod = await import("@tauri-apps/plugin-clipboard-manager");
+                const mod = await import(
+                    "@tauri-apps/plugin-clipboard-manager"
+                );
                 return {
                     readText: mod.readText,
                     writeText: (text: string) => mod.writeText(text),
                 };
             } catch (err) {
-                console.warn("Clipboard API unavailable; falling back to noop", err);
+                console.warn(
+                    "Clipboard API unavailable; falling back to noop",
+                    err,
+                );
                 return {
                     readText: async () => "",
                     writeText: async () => {},
@@ -219,12 +225,17 @@
 
             for (const row of samples) {
                 const text = normalizeCellValue(row[col.id]);
-                const w = measureTextWidth((text.slice(0, 200) + cellTz).trim());
+                const w = measureTextWidth(
+                    (text.slice(0, 200) + cellTz).trim(),
+                );
                 if (w > max) max = w;
             }
             const min = col.minWidth ?? AUTO_MIN;
             const maxClamp = col.maxWidth ?? AUTO_MAX;
-            const finalWidth = Math.min(Math.max(max + AUTO_PADDING, min), maxClamp);
+            const finalWidth = Math.min(
+                Math.max(max + AUTO_PADDING, min),
+                maxClamp,
+            );
             console.info("[AutoWidth]", {
                 column: col.id,
                 header: headerMeasured,
@@ -301,7 +312,9 @@
             totalRows = result.total;
             columnStats =
                 result.columnStats ||
-                (append ? columnStats : computeColumnStatsClientSide(result.rows));
+                (append
+                    ? columnStats
+                    : computeColumnStatsClientSide(result.rows));
         } catch (e) {
             console.error("Failed to load data", e);
         } finally {
@@ -389,7 +402,9 @@
     });
 
     // Selection helpers
-    function clampAnchor(anchor: SelectionAnchor | null): SelectionAnchor | null {
+    function clampAnchor(
+        anchor: SelectionAnchor | null,
+    ): SelectionAnchor | null {
         if (!anchor) return null;
         if (!filteredRows.length || !visibleColumns.length) return null;
 
@@ -445,15 +460,21 @@
         if (!clampedAnchor || !clampedHead) return;
 
         selectionAnchor = opts.preserveAnchor
-            ? selectionAnchor ?? clampedAnchor
+            ? (selectionAnchor ?? clampedAnchor)
             : clampedAnchor;
         selectionHead = clampedHead;
 
         const bounds: SelectionBounds = {
             top: Math.min(selectionAnchor.rowIndex, selectionHead.rowIndex),
             bottom: Math.max(selectionAnchor.rowIndex, selectionHead.rowIndex),
-            left: Math.min(selectionAnchor.columnIndex, selectionHead.columnIndex),
-            right: Math.max(selectionAnchor.columnIndex, selectionHead.columnIndex),
+            left: Math.min(
+                selectionAnchor.columnIndex,
+                selectionHead.columnIndex,
+            ),
+            right: Math.max(
+                selectionAnchor.columnIndex,
+                selectionHead.columnIndex,
+            ),
         };
 
         selectedCells = buildSelectedCells(bounds);
@@ -538,10 +559,10 @@
         pendingEdits = newPending;
 
         if (pushToUndo && Object.keys(previous).length > 0) {
-            undoStack = [
-                { label, edits, previous },
-                ...undoStack,
-            ].slice(0, MAX_UNDO);
+            undoStack = [{ label, edits, previous }, ...undoStack].slice(
+                0,
+                MAX_UNDO,
+            );
         }
     }
 
@@ -604,7 +625,9 @@
             tableName,
             tableSchema,
             columnId,
-            selectedColumns: columnId ? [columnId] : visibleColumns.map((c) => c.id),
+            selectedColumns: columnId
+                ? [columnId]
+                : visibleColumns.map((c) => c.id),
         };
     }
 
@@ -710,7 +733,10 @@
             target.scrollHeight - nearBottomThreshold;
 
         const canLoadMore =
-            !loadingMore && !loading && rows.length < totalRows && scrolledBottom;
+            !loadingMore &&
+            !loading &&
+            rows.length < totalRows &&
+            scrolledBottom;
 
         if (canLoadMore) {
             console.info("[Table] scroll:near-bottom", {
@@ -737,8 +763,7 @@
         const head: SelectionAnchor = { rowIndex, columnIndex };
 
         if (event.shiftKey) {
-            const anchor =
-                selectionAnchor ??
+            const anchor = selectionAnchor ??
                 focusedCell ?? {
                     rowIndex,
                     columnIndex,
@@ -751,7 +776,8 @@
                 columnId: visibleColumns[columnIndex].id,
             };
             const exists = selectedCells.findIndex(
-                (c) => c.rowId === cellId.rowId && c.columnId === cellId.columnId,
+                (c) =>
+                    c.rowId === cellId.rowId && c.columnId === cellId.columnId,
             );
             if (exists >= 0) {
                 const next = [...selectedCells];
@@ -811,7 +837,11 @@
         if (rowIndex < 0 || rowIndex >= filteredRows.length) return;
         if (columnIndex < 0 || columnIndex >= visibleColumns.length) return;
 
-        setSelection(dragStartCell, { rowIndex, columnIndex }, { preserveAnchor: true });
+        setSelection(
+            dragStartCell,
+            { rowIndex, columnIndex },
+            { preserveAnchor: true },
+        );
     }
 
     function handleMouseUp() {
@@ -845,7 +875,8 @@
             "json",
             "enum",
         ];
-        const canEdit = col.editable || alwaysEditableTypes.includes(col.type as any);
+        const canEdit =
+            col.editable || alwaysEditableTypes.includes(col.type as any);
         console.info("[Table] edit:request", {
             reason: "doubleClick-or-enter",
             rowIndex,
@@ -881,10 +912,7 @@
             setSelection({ rowIndex, columnIndex }, { rowIndex, columnIndex });
         }
 
-        const x = Math.min(
-            window.innerWidth - 180,
-            Math.max(8, event.clientX),
-        );
+        const x = Math.min(window.innerWidth - 180, Math.max(8, event.clientX));
         const y = Math.min(
             window.innerHeight - 200,
             Math.max(8, event.clientY),
@@ -900,7 +928,10 @@
     function contextEdit() {
         if (!contextMenuState) return;
         closeContextMenu();
-        handleCellDoubleClick(contextMenuState.rowIndex, contextMenuState.columnIndex);
+        handleCellDoubleClick(
+            contextMenuState.rowIndex,
+            contextMenuState.columnIndex,
+        );
     }
 
     function contextCopy() {
@@ -1094,7 +1125,10 @@
         if (e.key === "ArrowUp" && rowIndex > 0) {
             e.preventDefault();
             newRowIndex = rowIndex - 1;
-        } else if (e.key === "ArrowDown" && rowIndex < filteredRows.length - 1) {
+        } else if (
+            e.key === "ArrowDown" &&
+            rowIndex < filteredRows.length - 1
+        ) {
             e.preventDefault();
             newRowIndex = rowIndex + 1;
         } else if (e.key === "ArrowLeft" && columnIndex > 0) {
@@ -1140,7 +1174,8 @@
                 columnId: visibleColumns[newColumnIndex].id,
             };
             const existing = selectedCells.findIndex(
-                (c) => c.rowId === cellId.rowId && c.columnId === cellId.columnId,
+                (c) =>
+                    c.rowId === cellId.rowId && c.columnId === cellId.columnId,
             );
             if (existing >= 0) {
                 const next = [...selectedCells];
@@ -1149,7 +1184,10 @@
             } else {
                 selectedCells = [...selectedCells, cellId];
             }
-            selectionHead = { rowIndex: newRowIndex, columnIndex: newColumnIndex };
+            selectionHead = {
+                rowIndex: newRowIndex,
+                columnIndex: newColumnIndex,
+            };
             selectionAnchor = selectionAnchor ?? focusedCell;
             ensureCellVisible(newRowIndex, newColumnIndex);
             return;
@@ -1411,7 +1449,10 @@
 
                     const relativeC = c - anchor.left;
                     const rawValue = sourceRow[relativeC % dataCols] ?? "";
-                    const parsedValue = parseClipboardValue(rawValue, column.type);
+                    const parsedValue = parseClipboardValue(
+                        rawValue,
+                        column.type,
+                    );
 
                     if (!edits[row._rowId]) edits[row._rowId] = {};
                     edits[row._rowId][column.id] = parsedValue;
@@ -1463,7 +1504,7 @@
     bind:this={tableContainer}
     tabindex="-1"
     class={cn(
-        "flex flex-col flex-1 min-h-0 h-full w-full border overflow-hidden bg-background",
+        "flex flex-col flex-1 min-h-0 h-full w-full border border-[var(--theme-border-default)] overflow-hidden bg-[var(--theme-bg-primary)]",
         className,
     )}
     role="grid"
@@ -1487,7 +1528,10 @@
 >
     <!-- Header -->
     <div bind:this={headerContainer} class="flex-none overflow-hidden">
-        <div class="border-b bg-muted/50" style="width: {totalWidth + 60}px;">
+        <div
+            class="border-b border-[var(--theme-border-default)] bg-[var(--theme-bg-secondary)]"
+            style="width: {totalWidth + 60}px;"
+        >
             <TableHeader
                 columns={visibleColumns}
                 {sortState}
@@ -1545,44 +1589,43 @@
             }}
         ></div>
         <div
-            class="fixed z-1501 bg-popover border rounded-md shadow-md text-sm min-w-[180px] py-1"
+            class="fixed z-1501 bg-[var(--theme-bg-secondary)] border border-[var(--theme-border-default)] rounded-md shadow-md text-sm min-w-[180px] py-1 text-[var(--theme-fg-secondary)]"
             style={`top:${contextMenuState.y}px;left:${contextMenuState.x}px`}
             oncontextmenu={(e) => e.preventDefault()}
             role="menu"
             tabindex="-1"
         >
             <button
-                class="w-full text-left px-3 py-1.5 hover:bg-accent hover:text-accent-foreground"
+                class="w-full text-left px-3 py-1.5 hover:bg-[var(--theme-bg-hover)] hover:text-[var(--theme-fg-primary)] transition-colors"
                 onclick={contextEdit}
             >
                 Edit
             </button>
             <button
-                class="w-full text-left px-3 py-1.5 hover:bg-accent hover:text-accent-foreground"
+                class="w-full text-left px-3 py-1.5 hover:bg-[var(--theme-bg-hover)] hover:text-[var(--theme-fg-primary)] transition-colors"
                 onclick={contextCopy}
             >
                 Copy
             </button>
             <button
-                class="w-full text-left px-3 py-1.5 hover:bg-accent hover:text-accent-foreground"
+                class="w-full text-left px-3 py-1.5 hover:bg-[var(--theme-bg-hover)] hover:text-[var(--theme-fg-primary)] transition-colors"
                 onclick={contextPaste}
             >
                 Paste
             </button>
             <div class="my-1 border-t"></div>
             <button
-                class="w-full text-left px-3 py-1.5 hover:bg-accent hover:text-accent-foreground"
+                class="w-full text-left px-3 py-1.5 hover:bg-[var(--theme-bg-hover)] hover:text-[var(--theme-fg-primary)] transition-colors"
                 onclick={contextSetNull}
             >
                 Set NULL
             </button>
             <button
-                class="w-full text-left px-3 py-1.5 hover:bg-accent hover:text-accent-foreground"
+                class="w-full text-left px-3 py-1.5 hover:bg-[var(--theme-bg-hover)] hover:text-[var(--theme-fg-primary)] transition-colors"
                 onclick={contextSetDefault}
             >
                 Set DEFAULT
             </button>
         </div>
     {/if}
-
 </div>

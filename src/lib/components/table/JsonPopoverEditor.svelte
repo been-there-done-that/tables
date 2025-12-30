@@ -256,11 +256,12 @@
         const root = document.documentElement;
         const isDark = root.classList.contains("dark");
         const bg =
-            getComputedStyle(root).getPropertyValue("--popover")?.trim() ||
-            (isDark ? "#0f172a" : "#ffffff");
+            getComputedStyle(root)
+                .getPropertyValue("--theme-bg-secondary")
+                ?.trim() || (isDark ? "#0f172a" : "#ffffff");
         const fg =
             getComputedStyle(root)
-                .getPropertyValue("--popover-foreground")
+                .getPropertyValue("--theme-fg-primary")
                 ?.trim() || (isDark ? "#e2e8f0" : "#0f172a");
         const selection = isDark ? "#1f2a44" : "#dbeafe";
         const highlight = isDark ? "#1f2937" : "#e5e7eb";
@@ -438,7 +439,7 @@
     tabindex="-1"
     onkeydown={handleKeydown}
     class={cn(
-        "fixed z-1000 bg-popover border rounded-md border-blue-700 flex flex-col p-0.5",
+        "fixed z-1000 bg-[var(--theme-bg-secondary)] border border-[var(--theme-border-focus)] rounded-md flex flex-col p-1",
         isVisible ? "popoverpop" : "opacity-0 pointer-events-none",
     )}
     style={`top:${position.top}px;left:${position.left}px;min-width:${position.width}px;max-width:720px;min-height:420px;max-height:640px;transform-origin:center`}
@@ -464,22 +465,22 @@
     </div>
 
     <div
-        class="flex items-center justify-between border-t px-2 py-1 gap-2 bg-popover"
+        class="flex items-center justify-between border-t border-[var(--theme-border-default)] px-2 py-1 gap-2 bg-[var(--theme-bg-secondary)]"
     >
-        <div class="text-xs text-muted-foreground truncate">
+        <div class="text-xs text-[var(--theme-fg-secondary)] truncate">
             Ctrl/Cmd+Enter to save · Esc to cancel
         </div>
         <div class="flex items-center gap-2">
             <button
                 type="button"
-                class="px-2 py-1 text-sm rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 transition"
+                class="px-2 py-1 text-sm rounded bg-[var(--theme-bg-tertiary)] text-[var(--theme-fg-primary)] hover:bg-[var(--theme-bg-hover)] transition"
                 onclick={onCancel}
             >
                 Cancel
             </button>
             <button
                 type="button"
-                class="px-2 py-1 text-sm rounded bg-primary text-primary-foreground hover:bg-primary/90 transition"
+                class="px-2 py-1 text-sm rounded bg-[var(--theme-accent-primary)] text-white hover:bg-[var(--theme-accent-hover)] transition"
                 onclick={commitFromEditor}
             >
                 Save

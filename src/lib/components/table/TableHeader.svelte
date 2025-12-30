@@ -100,10 +100,12 @@
   }
 </script>
 
-<div class="flex select-none text-sm font-medium text-muted-foreground">
+<div
+  class="flex select-none text-sm font-medium text-[var(--theme-fg-secondary)]"
+>
   <!-- Row Number Header -->
   <div
-    class="sticky left-0 z-20 flex items-center justify-center border-r bg-background py-1.5"
+    class="sticky left-0 z-20 flex items-center justify-center border-r border-[var(--theme-border-default)] bg-[var(--theme-bg-secondary)] py-1.5"
     style="width: 60px; flex-shrink: 0;"
   >
     <Hash class="size-4" />
@@ -116,18 +118,18 @@
       {@const isFilterOpen = openFilterColumnId === column.id}
 
       <ContextMenu.Root
-          open={openContextColumnId === column.id}
-          onOpenChange={(open) => {
-            if (open) {
-              openContextColumnId = column.id;
-            } else if (openContextColumnId === column.id) {
-              openContextColumnId = null;
-            }
-          }}
-        >
+        open={openContextColumnId === column.id}
+        onOpenChange={(open) => {
+          if (open) {
+            openContextColumnId = column.id;
+          } else if (openContextColumnId === column.id) {
+            openContextColumnId = null;
+          }
+        }}
+      >
         <ContextMenu.Trigger>
           <div
-            class="relative flex items-center border-r px-2 py-1.5 hover:bg-muted/80 transition-colors group"
+            class="relative flex items-center border-r border-[var(--theme-border-default)] px-2 py-1.5 bg-[var(--theme-bg-secondary)] hover:bg-[var(--theme-bg-hover)] transition-colors group"
             style="width: {column.width ||
               150}px; min-width: {column.minWidth ||
               50}px; max-width: {column.maxWidth}px; flex-shrink: 0;"
@@ -179,7 +181,9 @@
                     >
                       <Filter class="size-3" />
                       {#if filters[column.id]}
-                        <span class="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary"></span>
+                        <span
+                          class="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary"
+                        ></span>
                       {/if}
                     </Button>
                   </Popover.Trigger>
@@ -202,7 +206,7 @@
             <!-- Resizer -->
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
-              class="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary/50 active:bg-primary z-10"
+              class="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-[var(--theme-accent-primary)]/50 active:bg-[var(--theme-accent-primary)] z-10"
               onmousedown={(e) => handleMouseDown(e, column)}
             ></div>
           </div>
