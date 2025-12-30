@@ -20,41 +20,45 @@ export class EditorPool {
     ) { }
 
     acquire(context: EditorContext): EditorHandle {
+        console.log("[EditorPool] acquire called", { modelUri: context.modelUri, kind: context.kind });
+
         const pooled = this.getReusableEditor();
+        console.log("[EditorPool] Got pooled editor", { editorId: pooled.editorId, active: pooled.active });
 
         const model = this.modelRegistry.getOrCreate(
             context.modelUri,
             context.kind === "sql" ? "sql" : "json",
             context.kind
         );
+        console.log("[EditorPool] Model created/retrieved", { uri: model.uri.toString(), lineCount: model.getLineCount() });
 
         pooled.editor.setModel(model);
+        console.log("[EditorPool] Model attached to editor");
 
         if (pooled.snapshot?.modelUri === context.modelUri) {
             pooled.editor.restoreViewState(pooled.snapshot.viewState);
+            console.log("[EditorPool] Restored view state");
         }
 
-        // Ensure container is cleared or we append correctly
-        // The spec says: context.container.appendChild(pooled.editor.getDomNode()!)
-        // We should probably remove it from its previous parent if any
         const container = typeof context.container === 'function' ? context.container() : context.container;
+        console.log("[EditorPool] Container resolved", { exists: !!container, dimensions: container ? `${container.offsetWidth}x${container.offsetHeight}` : 'N/A' });
+
         if (!container) {
-            console.warn("EditorPool: Container not ready during acquire");
-            // Should we throw or return a handle that might fail to attach?
-            // If we return, the editor exists but isn't in DOM.
-            // We'll proceed, but warn.
+            console.warn("[EditorPool] Container not ready during acquire!");
         }
 
         const editorNode = pooled.editor.getDomNode();
+        console.log("[EditorPool] Editor DOM node", { exists: !!editorNode });
+
         if (editorNode && container) {
-            if (editorNode.parentElement && editorNode.parentElement !== container) {
-                // Already attached elsewhere? It shouldn't be if it's inactive, 
-                // but for safety we can remove it.
-                // The logic below 'appendChild' moves the node, so strictly not required to remove first.
-                // However, we need to ensure the container is ready.
-                editorNode.style.display = 'block'; // Make sure it's visible again
-            }
+            editorNode.style.position = 'absolute';
+            editorNode.style.top = '0';
+            editorNode.style.left = '0';
+            editorNode.style.width = '100%';
+            editorNode.style.height = '100%';
+            editorNode.style.display = 'block';
             container.appendChild(editorNode);
+            console.log("[EditorPool] Editor DOM appended to container");
         }
 
         if (context.options) {
@@ -62,13 +66,22 @@ export class EditorPool {
             if (context.options.theme) {
                 this.monacoInstance.editor.setTheme(context.options.theme);
             }
+            console.log("[EditorPool] Options applied", context.options);
         }
 
         pooled.editor.layout();
+        console.log("[EditorPool] Layout triggered");
+
+        setTimeout(() => {
+            pooled.editor.layout();
+            const dom = pooled.editor.getDomNode();
+            console.log("[EditorPool] Delayed layout", { dimensions: dom ? `${dom.offsetWidth}x${dom.offsetHeight}` : 'N/A' });
+        }, 100);
 
         pooled.active = true;
         pooled.lastUsed = Date.now();
 
+        console.log("[EditorPool] Acquire complete, returning handle");
         return {
             editorId: pooled.editorId,
             editor: pooled.editor,
@@ -126,15 +139,38 @@ export class EditorPool {
         if (idle) return idle;
 
         if (this.pool.length < this.MAX) {
-            const div = document.createElement("div");
-            div.style.width = '100%';
-            div.style.height = '100%';
-            // Ensure the div doesn't look weird when initializing?
+            // IMPORTANT: Monaco editors must be created in an ATTACHED DOM element
+            // Create a hidden pool container if it doesn't exist
+            let poolContainer = document.getElementById('monaco-editor-pool');
+            if (!poolContainer) {
+                poolContainer = document.createElement('div');
+                poolContainer.id = 'monaco-editor-pool';
+                poolContainer.style.position = 'absolute';
+                poolContainer.style.top = '-9999px';
+                poolContainer.style.left = '-9999px';
+                poolContainer.style.width = '800px';
+                poolContainer.style.height = '600px';
+                poolContainer.style.visibility = 'hidden';
+                poolContainer.style.pointerEvents = 'none';
+                document.body.appendChild(poolContainer);
+                console.log("[EditorPool] Created hidden pool container");
+            }
 
-            const editor = this.monacoInstance.editor.create(
-                div,
-                { automaticLayout: false } // We call layout manualy
-            );
+            const editorDiv = document.createElement("div");
+            editorDiv.style.width = '100%';
+            editorDiv.style.height = '100%';
+            editorDiv.style.position = 'absolute';
+            editorDiv.style.top = '0';
+            editorDiv.style.left = '0';
+            poolContainer.appendChild(editorDiv);
+
+            console.log("[EditorPool] Creating new editor in attached pool container");
+            const editor = this.monacoInstance.editor.create(editorDiv, {
+                theme: 'vs-dark',
+                automaticLayout: true,
+                minimap: { enabled: false },
+                language: 'json'
+            });
 
             const pooled: PooledEditor = {
                 editor,
@@ -144,6 +180,7 @@ export class EditorPool {
             };
 
             this.pool.push(pooled);
+            console.log("[EditorPool] New editor created", { editorId: pooled.editorId });
             return pooled;
         }
 

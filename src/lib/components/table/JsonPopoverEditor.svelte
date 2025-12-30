@@ -89,15 +89,19 @@
             modelUri: modelUri,
             container: () => editorContainer,
             options: {
-                theme: themeName, // Explicitly set theme
+                theme: themeName,
                 minimap: { enabled: false },
                 stickyScroll: { enabled: false },
                 automaticLayout: true,
-                wordWrap: "on",
+                wordWrap: "off", // Enable horizontal scrolling
                 scrollBeyondLastLine: false,
                 lineNumbers: "on",
                 tabSize: 2,
-                fontSize: 13,
+                fontSize: 12, // Reduced from 13
+                scrollbar: {
+                    horizontal: "auto",
+                    vertical: "auto",
+                },
                 fontFamily:
                     "Fira Code, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
             },
