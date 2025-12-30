@@ -4,6 +4,7 @@
     import type { Column, Row } from "./types";
     import TableHeader from "./TableHeader.svelte";
     import VirtualTableBody from "./VirtualTableBody.svelte";
+    import CellEditor from "./CellEditor.svelte";
     import { cn } from "$lib/utils";
 
     interface Props {
@@ -35,9 +36,10 @@
 <div
     bind:this={container}
     class={cn(
-        "flex flex-col h-full w-full overflow-hidden border rounded-md bg-white dark:bg-zinc-900",
+        "flex flex-col h-full w-full overflow-hidden rounded-md outline-none",
         className,
     )}
+    style="background-color: var(--theme-bg-primary);"
     role="grid"
     tabindex="0"
     onkeydown={onKeyDown}
@@ -56,4 +58,7 @@
     >
         {table.processedRows.length} rows &middot; {table.selectedRowIds.size} selected
     </div>
+
+    <!-- Editors -->
+    <CellEditor {table} />
 </div>
