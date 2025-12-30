@@ -188,8 +188,13 @@
         const canvas = document.createElement("canvas");
         measureCtx = canvas.getContext("2d");
         if (measureCtx) {
+            // Use CSS computed font from document or fallback
+            const computedFont =
+                typeof document !== "undefined"
+                    ? getComputedStyle(document.body).font
+                    : "14px Inter, system-ui, sans-serif";
             measureCtx.font =
-                "14px Inter, 'Inter var', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+                computedFont || "14px Inter, system-ui, sans-serif";
         }
         return measureCtx;
     }
@@ -214,18 +219,30 @@
     function autoSizeColumns() {
         if (!rows.length) return;
         const needsAuto = tableColumns.some((c) => c.width == null);
-        if (!needsAuto) return;
+        if (!needsAuto) {
+            console.info(
+                "[Table] autoSizeColumns:skipped, all columns have widths",
+            );
+            return;
+        }
+
+        console.info("[Table] autoSizeColumns:starting", {
+            columnsWithoutWidth: tableColumns
+                .filter((c) => c.width == null)
+                .map((c) => c.id),
+        });
 
         const samples = rows.slice(0, AUTO_SAMPLE);
         const widthMap: Record<string, number> = {};
 
         for (const col of tableColumns) {
+            if (col.width != null) continue; // Skip columns that already have widths
+
             const isDateTime = col.type === "datetime";
             const headerTz = isDateTime ? " GMT+05:30" : "";
             const cellTz = isDateTime ? " AM GMT+05:30" : "";
 
             let max = measureTextWidth((col.label ?? col.id) + headerTz);
-            const headerMeasured = max;
 
             for (const row of samples) {
                 const text = normalizeCellValue(row[col.id]);
@@ -240,21 +257,16 @@
                 Math.max(max + AUTO_PADDING, min),
                 maxClamp,
             );
-            console.info("[AutoWidth]", {
-                column: col.id,
-                header: headerMeasured,
-                maxMeasured: max,
-                finalWidth,
-                min,
-                maxClamp,
-                sampleRows: samples.length,
-            });
             widthMap[col.id] = finalWidth;
         }
 
         tableColumns = tableColumns.map((c) =>
             c.width != null ? c : { ...c, width: widthMap[c.id] },
         );
+
+        console.info("[Table] autoSizeColumns:completed", {
+            autoSizedColumns: Object.keys(widthMap),
+        });
     }
 
     // Fetch data
@@ -288,6 +300,10 @@
                         result.columns!.some((c) => c.id === id),
                     ),
                 );
+                // Apply stored view state after columns are available
+                if (!append && isInitialLoad) {
+                    loadViewState();
+                }
             }
 
             const mappedRows = result.rows.map((row, index) => ({
@@ -308,7 +324,8 @@
                 undoStack = [];
             }
 
-            // Auto-size columns once we have data and widths are not set
+            // Auto-size columns ONLY for columns that don't have widths set
+            // Note: loadViewState already sets widths from storage, so this respects that
             if (!append) {
                 autoSizeColumns();
             }
@@ -710,6 +727,8 @@
         return `table_view_state_${tableSchema || "default"}_${tableName}_${STORAGE_VERSION}`;
     }
 
+    let saveTimeout: ReturnType<typeof setTimeout> | null = null;
+
     function saveViewState() {
         const key = getStorageKey();
         if (!key || isInitialLoad) return;
@@ -727,7 +746,17 @@
             pinnedColumnIds,
         };
         localStorage.setItem(key, JSON.stringify(state));
-        console.info("[Table] saveViewState", key, state);
+        console.info("[Table] saveViewState", {
+            key,
+            columnCount: tableColumns.length,
+        });
+    }
+
+    function debouncedSaveViewState() {
+        if (saveTimeout) clearTimeout(saveTimeout);
+        saveTimeout = setTimeout(() => {
+            saveViewState();
+        }, 300);
     }
 
     function loadViewState() {
@@ -736,8 +765,15 @@
 
         try {
             const saved = localStorage.getItem(key);
-            if (!saved) return;
+            if (!saved) {
+                console.info("[Table] loadViewState:no-saved-state", { key });
+                return;
+            }
             const state = JSON.parse(saved);
+            console.info("[Table] loadViewState:applying", {
+                key,
+                widthCount: Object.keys(state.columnWidths || {}).length,
+            });
 
             if (state.columnOrder) {
                 const orderMap = new Map(
@@ -755,6 +791,12 @@
                     ...c,
                     width: state.columnWidths[c.id] ?? c.width,
                 }));
+                console.info("[Table] loadViewState:applied-widths", {
+                    columns: tableColumns.map((c) => ({
+                        id: c.id,
+                        width: c.width,
+                    })),
+                });
             }
 
             if (state.hiddenColumnIds) {
@@ -764,7 +806,6 @@
             if (state.pinnedColumnIds) {
                 pinnedColumnIds = state.pinnedColumnIds;
             }
-            console.info("[Table] loadViewState", key, state);
         } catch (e) {
             console.error("Failed to load view state", e);
         } finally {
@@ -772,7 +813,6 @@
         }
     }
 
-    // Persist changes
     $effect(() => {
         // Track dependencies we want to persist
         const _ = {
@@ -780,7 +820,7 @@
             hidden: hiddenColumnIds,
             pinned: pinnedColumnIds,
         };
-        saveViewState();
+        debouncedSaveViewState();
     });
 
     function handleResetColumnWidth(columnId: string) {
@@ -840,7 +880,7 @@
     }
 
     onMount(() => {
-        loadViewState();
+        // Note: loadViewState is called inside loadData after columns arrive
         loadData();
 
         // Prevent Cmd+A from selecting page text (desktop app behavior)
