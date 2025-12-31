@@ -1,8 +1,62 @@
-<script>
+<script lang="ts">
   import ResizableSplitPane from "$lib/components/ResizableSplitPane.svelte";
   import SystemMetricsWidget from "$lib/components/SystemMetricsWidget.svelte";
-  import FileTree from "$lib/components/explorer/FileTree.svelte";
+  import FileTree, {
+    type NodeType,
+  } from "$lib/components/explorer/FileTree.svelte";
   import { windowState } from "$lib/stores/window.svelte";
+  import { schemaStore } from "$lib/stores/schema.svelte";
+  import IconLoader2 from "@tabler/icons-svelte/icons/loader-2";
+  import { cn } from "$lib/utils";
+
+  const treeData = $derived(
+    schemaStore.schemas.map((schema) => ({
+      id: `schema:${schema.name}`,
+      name: schema.name,
+      type: "schema" as NodeType,
+      children: schema.tables.map((table) => ({
+        id: `table:${schema.name}.${table.table_name}`,
+        name: table.table_name,
+        type: "table" as NodeType,
+        detail: table.table_type,
+        children: [
+          {
+            id: `cols:${schema.name}.${table.table_name}`,
+            name: "Columns",
+            type: "folder" as NodeType,
+            children: table.columns.map((col) => ({
+              id: `col:${schema.name}.${table.table_name}.${col.column_name}`,
+              name: col.column_name,
+              type: (col.is_primary_key ? "primary_key" : "column") as NodeType,
+              detail: col.logical_type,
+            })),
+          },
+          {
+            id: `idxs:${schema.name}.${table.table_name}`,
+            name: "Indexes",
+            type: "folder" as NodeType,
+            children: table.indexes.map((idx) => ({
+              id: `idx:${schema.name}.${table.table_name}.${idx.index_name}`,
+              name: idx.index_name,
+              type: "index" as NodeType,
+              detail: idx.is_unique ? "Unique" : "",
+            })),
+          },
+          {
+            id: `fks:${schema.name}.${table.table_name}`,
+            name: "Foreign Keys",
+            type: "folder" as NodeType,
+            children: table.foreign_keys.map((fk) => ({
+              id: `fk:${schema.name}.${table.table_name}.${fk.column_name}`,
+              name: fk.column_name,
+              type: "foreign_key" as NodeType,
+              detail: `-> ${fk.ref_table}.${fk.ref_column}`,
+            })),
+          },
+        ],
+      })),
+    })),
+  );
 </script>
 
 <div class="flex h-full w-full flex-col bg-background text-foreground">
@@ -22,41 +76,35 @@
           >
             <h2 class="text-sm font-semibold">Explorer</h2>
           </div>
-          <div class="flex-1 overflow-auto p-2">
-            <FileTree
-              items={[
-                {
-                  name: "src",
-                  type: "folder",
-                  children: [
-                    {
-                      name: "routes",
-                      type: "folder",
-                      children: [{ name: "demo/+page.svelte", type: "file" }],
-                    },
-                    {
-                      name: "lib",
-                      type: "folder",
-                      children: [
-                        { name: "components", type: "folder", children: [] },
-                      ],
-                    },
-                  ],
-                },
-                {
-                  name: "database",
-                  type: "folder",
-                  children: [
-                    { name: "themes.db", type: "database" },
-                    {
-                      name: "keys",
-                      type: "folder",
-                      children: [{ name: "api.key", type: "key" }],
-                    },
-                  ],
-                },
-              ]}
-            />
+          {#if schemaStore.status === "refreshing"}
+            <div
+              class="absolute inset-0 z-50 flex items-center justify-center bg-background/50 backdrop-blur-[1px]"
+            >
+              <IconLoader2 class="size-5 animate-spin text-muted-foreground" />
+            </div>
+          {/if}
+          <div
+            class={cn(
+              "flex-1 overflow-auto p-2 transition-opacity duration-200",
+              schemaStore.status === "refreshing" &&
+                "opacity-50 pointer-events-none",
+            )}
+          >
+            {#if schemaStore.schemas.length === 0 && schemaStore.status !== "connecting" && schemaStore.status !== "refreshing"}
+              <div class="p-4 text-center text-xs text-muted-foreground">
+                {#if schemaStore.activeConnectionId}
+                  <p>No schema found.</p>
+                  <button
+                    class="mt-2 text-primary hover:underline"
+                    onclick={() => schemaStore.refresh()}>Refresh Schema</button
+                  >
+                {:else}
+                  <p>Select a connection to view schema.</p>
+                {/if}
+              </div>
+            {:else}
+              <FileTree items={treeData} />
+            {/if}
           </div>
         </div>
       {/snippet}
