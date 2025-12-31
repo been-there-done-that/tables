@@ -117,6 +117,12 @@ fn init_connection(db_path: &PathBuf) -> Result<Connection, String> {
             error!("Failed to enable WAL: {}", e);
             format!("Failed to enable WAL: {e}")
         })?;
+    debug!("Setting busy timeout");
+    conn.pragma_update(None, "busy_timeout", 5000)
+        .map_err(|e| {
+            error!("Failed to set busy timeout: {}", e);
+            format!("Failed to set busy timeout: {e}")
+        })?;
     debug!("Enabling foreign key constraints");
     conn.pragma_update(None, "foreign_keys", "ON")
         .map_err(|e| {
