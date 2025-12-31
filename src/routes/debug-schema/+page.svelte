@@ -1,6 +1,7 @@
 <script lang="ts">
     import { invoke } from "@tauri-apps/api/core";
-    import { onMount } from "svelte";
+    import { listen } from "@tauri-apps/api/event";
+    import { onMount, type Snippet } from "svelte";
     import FileTree, {
         type TreeNode,
     } from "$lib/components/explorer/FileTree.svelte";
@@ -13,6 +14,7 @@
 
     interface MetaTable {
         connection_id: string;
+        schema: string;
         table_name: string;
         table_type: string;
         classification: string;
@@ -34,37 +36,84 @@
         }
     });
 
-    async function runIntrospection(id: string) {
-        selectedId = id;
+    // Load cache immediately when connection changes
+    $effect(() => {
+        if (selectedId) {
+            loadCachedTables(selectedId);
+        } else {
+            tables = [];
+        }
+    });
+
+    async function loadCachedTables(id: string) {
+        try {
+            status = "busy";
+            tables = await invoke("get_schema_tables", { connectionId: id });
+            status = "success";
+        } catch (e) {
+            console.error("Failed to load cache:", e);
+            status = "error";
+        }
+    }
+
+    async function refreshSchema() {
+        if (!selectedId) return;
         status = "busy";
-        error = null;
+        // Clear tables to show fresh stream? Or keep them and update?
+        // User request implied stream 'as soon as we start finding them'.
+        // To avoid duplicates, let's clear or upsert.
+        // For visual clarity of "freshness", let's clear.
         tables = [];
-        selectedTableDetails = null;
 
         try {
-            await invoke("introspect_connection", { id });
+            await invoke("introspect_connection", {
+                id: selectedId,
+            });
+            // Introspection complete, but we were listening to events mostly.
+            // A final fetch ensures we have everything if events failed?
+            // But let's rely on events + final fetch.
+            await loadCachedTables(selectedId);
             status = "success";
-            await loadTables(id);
         } catch (e) {
+            console.error("Failed to introspect:", e);
             status = "error";
             error = String(e);
-            console.error("Introspection failed:", e);
         }
     }
 
-    async function loadTables(connectionId: string) {
-        try {
-            tables = await invoke("get_schema_tables", { connectionId });
-        } catch (e) {
-            console.error("Failed to load tables:", e);
-        }
-    }
+    onMount(() => {
+        const unlisten = listen<MetaTable>(
+            "introspection://table-found",
+            (event) => {
+                const newTable = event.payload;
+                if (newTable.connection_id === selectedId) {
+                    // Upsert logic to prevent duplicates if any
+                    const idx = tables.findIndex(
+                        (t) =>
+                            t.table_name === newTable.table_name &&
+                            t.schema === newTable.schema,
+                    );
+                    if (idx >= 0) {
+                        tables[idx] = newTable;
+                    } else {
+                        tables = [...tables, newTable];
+                    }
+                }
+            },
+        );
 
-    async function viewTableDetails(tableName: string) {
+        // Cleanup
+        return () => {
+            unlisten.then((f) => f());
+        };
+    });
+
+    async function viewTableDetails(tableName: string, schema: string) {
         if (!selectedId) return;
         try {
             selectedTableDetails = await invoke("get_schema_table_details", {
                 connectionId: selectedId,
+                schema,
                 tableName,
             });
         } catch (e) {
@@ -79,74 +128,112 @@
         const conn = connections.find((c) => c.id === selectedId);
         const connectionName = conn?.name || "Database";
 
-        // Group by schema if applicable (defaulting to 'main' or 'public')
-        // For now, we put everything under a "Tables" folder inside a default schema
-        const tableNodes: TreeNode[] = tables.map((t) => {
-            const isSelected =
-                selectedTableDetails?.table_name === t.table_name;
-            const children: TreeNode[] = [];
-            const tableId = `conn-${selectedId}-table-${t.table_name}`;
-
-            if (isSelected && selectedTableDetails) {
-                // Add Columns
-                if (selectedTableDetails.columns?.length) {
-                    children.push({
-                        id: `${tableId}-columns`,
-                        name: "columns",
-                        type: "folder",
-                        children: selectedTableDetails.columns.map(
-                            (c: any) => ({
-                                id: `${tableId}-col-${c.column_name}`,
-                                name: c.column_name,
-                                type: c.is_primary_key
-                                    ? "primary_key"
-                                    : "column",
-                                detail: c.logical_type,
-                            }),
-                        ),
-                    });
-                }
-                // Add Indexes
-                if (selectedTableDetails.indexes?.length) {
-                    children.push({
-                        id: `${tableId}-indexes`,
-                        name: "indexes",
-                        type: "folder",
-                        children: selectedTableDetails.indexes.map(
-                            (idx: any) => ({
-                                id: `${tableId}-idx-${idx.name}`,
-                                name: idx.name,
-                                type: "index",
-                                detail: idx.is_unique ? "UNIQUE" : "",
-                            }),
-                        ),
-                    });
-                }
-                // Add Foreign Keys
-                if (selectedTableDetails.foreign_keys?.length) {
-                    children.push({
-                        id: `${tableId}-fks`,
-                        name: "foreign keys",
-                        type: "folder",
-                        children: selectedTableDetails.foreign_keys.map(
-                            (fk: any) => ({
-                                id: `${tableId}-fk-${fk.column_name}`,
-                                name: fk.column_name,
-                                type: "key",
-                                detail: `-> ${fk.ref_table}`,
-                            }),
-                        ),
-                    });
-                }
+        // Group by schema
+        const schemaMap = new Map<string, MetaTable[]>();
+        for (const t of tables) {
+            const schema = t.schema || "main";
+            if (!schemaMap.has(schema)) {
+                schemaMap.set(schema, []);
             }
+            schemaMap.get(schema)?.push(t);
+        }
 
-            return {
-                id: tableId,
-                name: t.table_name,
-                type: "table",
-                detail: t.table_type,
-                children: children.length ? children : undefined, // Leaf if no details loaded
-            };
+        const schemaNodes: TreeNode[] = [];
+
+        for (const [schemaName, schemaTables] of schemaMap) {
+            // Sort tables by name
+            schemaTables.sort((a, b) =>
+                a.table_name.localeCompare(b.table_name),
+            );
+
+            const tableNodes: TreeNode[] = schemaTables.map((t) => {
+                const isSelected =
+                    selectedTableDetails?.table_name === t.table_name;
+                const children: TreeNode[] = [];
+                const tableId = `conn-${selectedId}-schema-${schemaName}-table-${t.table_name}`;
+
+                if (isSelected && selectedTableDetails) {
+                    // Add Columns
+                    if (selectedTableDetails.columns?.length) {
+                        children.push({
+                            id: `${tableId}-columns`,
+                            name: "columns",
+                            type: "folder",
+                            children: selectedTableDetails.columns.map(
+                                (c: any) => ({
+                                    id: `${tableId}-col-${c.column_name}`,
+                                    name: c.column_name,
+                                    type: c.is_primary_key
+                                        ? "primary_key"
+                                        : "column",
+                                    detail: `${c.logical_type}`,
+                                }),
+                            ),
+                        });
+                    }
+                    // Add Indexes
+                    if (selectedTableDetails.indexes?.length) {
+                        children.push({
+                            id: `${tableId}-indexes`,
+                            name: "indexes",
+                            type: "folder",
+                            children: selectedTableDetails.indexes.map(
+                                (idx: any) => ({
+                                    id: `${tableId}-idx-${idx.name}`,
+                                    name: idx.name,
+                                    type: "index",
+                                    detail: idx.is_unique ? "UNIQUE" : "",
+                                }),
+                            ),
+                        });
+                    }
+                    // Add Foreign Keys
+                    if (selectedTableDetails.foreign_keys?.length) {
+                        children.push({
+                            id: `${tableId}-fks`,
+                            name: "foreign keys",
+                            type: "folder",
+                            children: selectedTableDetails.foreign_keys.map(
+                                (fk: any) => ({
+                                    id: `${tableId}-fk-${fk.column_name}`,
+                                    name: fk.column_name,
+                                    type: "key",
+                                    detail: `-> ${fk.ref_table}`,
+                                }),
+                            ),
+                        });
+                    }
+                }
+
+                return {
+                    id: tableId,
+                    name: t.table_name,
+                    type: "table",
+                    detail: t.table_type,
+                    children: children.length ? children : undefined, // Leaf if no details loaded
+                };
+            });
+
+            schemaNodes.push({
+                id: `conn-${selectedId}-schema-${schemaName}`,
+                name: schemaName,
+                type: "schema",
+                children: [
+                    {
+                        id: `conn-${selectedId}-schema-${schemaName}-tables`,
+                        name: "tables",
+                        type: "folder",
+                        children: tableNodes,
+                    },
+                ],
+            });
+        }
+
+        // Sort schemas (main first, then alphabetical)
+        schemaNodes.sort((a, b) => {
+            if (a.name === "main") return -1;
+            if (b.name === "main") return 1;
+            return a.name.localeCompare(b.name);
         });
 
         return [
@@ -154,28 +241,21 @@
                 id: `conn-${selectedId}-root`,
                 name: connectionName,
                 type: "database",
-                children: [
-                    {
-                        id: `conn-${selectedId}-schema-main`,
-                        name: "main", // TODO: Support multiple schemas
-                        type: "schema",
-                        children: [
-                            {
-                                id: `conn-${selectedId}-folder-tables`,
-                                name: "tables",
-                                type: "folder",
-                                children: tableNodes,
-                            },
-                        ],
-                    },
-                ],
+                children: schemaNodes,
             },
         ] as TreeNode[];
     });
 
     const handleNodeClick = (node: TreeNode) => {
         if (node.type === "table") {
-            viewTableDetails(node.name);
+            const table = tables.find(
+                (t) =>
+                    `conn-${selectedId}-schema-${t.schema || "main"}-table-${t.table_name}` ===
+                    node.id,
+            );
+            if (table) {
+                viewTableDetails(node.name, table.schema || "main");
+            }
         }
     };
 </script>
@@ -221,11 +301,14 @@
                         <button
                             class="px-3 py-1.5 bg-accent text-white rounded text-xs font-bold hover:bg-accent/80 disabled:opacity-50 transition-all"
                             disabled={status === "busy"}
-                            onclick={() => runIntrospection(conn.id)}
+                            onclick={() => {
+                                selectedId = conn.id; // Set selectedId first
+                                refreshSchema(); // Then refresh
+                            }}
                         >
                             {status === "busy" && selectedId === conn.id
                                 ? "RUNNING..."
-                                : "INTROSPECT"}
+                                : "REFRESH SCHEMA"}
                         </button>
                     </div>
                 {/each}
