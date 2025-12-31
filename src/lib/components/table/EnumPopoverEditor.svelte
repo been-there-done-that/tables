@@ -164,7 +164,7 @@
     tabindex="-1"
     onkeydown={handleKeydown}
     class={cn(
-        "fixed bg-[var(--theme-bg-secondary)] border border-[var(--theme-border-focus)] rounded-md shadow-2xl",
+        "fixed bg-surface border border-border-focus rounded-md shadow-2xl",
         isVisible ? "anim-pop opacity-100" : "opacity-0 pointer-events-none",
     )}
     style={`top:${position.top}px;left:${position.left}px;min-width:${position.width}px;transform-origin:center;z-index:1000`}
@@ -180,8 +180,8 @@
                 class={cn(
                     "pl-2 py-1 text-sm rounded text-left transition-colors flex items-center gap-1",
                     selectedIndex === i
-                        ? "bg-[var(--theme-bg-active)] text-[var(--theme-fg-primary)]"
-                        : "hover:bg-[var(--theme-bg-hover)] hover:text-[var(--theme-fg-primary)]",
+                        ? "bg-active text-foreground"
+                        : "hover:bg-muted hover:text-foreground",
                 )}
                 onclick={() => handleSelect(option)}
                 onmouseenter={() => (selectedIndex = i)}
@@ -189,9 +189,7 @@
                 <span
                     class={cn(
                         "inline-block size-1 rounded-full mr-1",
-                        option === originalValue
-                            ? "bg-[var(--theme-accent-primary)]"
-                            : "invisible",
+                        option === originalValue ? "bg-accent" : "invisible",
                     )}
                     aria-hidden="true"
                 ></span>
