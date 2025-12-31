@@ -49,5 +49,5 @@
 
 <div class="p-8 w-full max-w-sm border h-full bg-background text-foreground">
     <h2 class="mb-4 font-bold">Tree Test</h2>
-    <FileTree items={data} />
+    <FileTree items={data} indent={12} />
 </div>
