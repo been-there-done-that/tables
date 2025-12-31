@@ -23,7 +23,7 @@
           {
             id: `cols:${schema.name}.${table.table_name}`,
             name: `Columns (${table.columns.length})`,
-            type: "folder" as NodeType,
+            type: "group" as NodeType,
             children: table.columns.map((col) => ({
               id: `col:${schema.name}.${table.table_name}.${col.column_name}`,
               name: col.column_name,
@@ -34,7 +34,7 @@
           {
             id: `idxs:${schema.name}.${table.table_name}`,
             name: `Indexes (${table.indexes.length})`,
-            type: "folder" as NodeType,
+            type: "group" as NodeType,
             children: table.indexes.map((idx) => ({
               id: `idx:${schema.name}.${table.table_name}.${idx.index_name}`,
               name: idx.index_name,
@@ -45,7 +45,7 @@
           {
             id: `fks:${schema.name}.${table.table_name}`,
             name: `Foreign Keys (${table.foreign_keys.length})`,
-            type: "folder" as NodeType,
+            type: "group" as NodeType,
             children: table.foreign_keys.map((fk) => ({
               id: `fk:${schema.name}.${table.table_name}.${fk.column_name}`,
               name: fk.column_name,
