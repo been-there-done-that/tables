@@ -104,7 +104,7 @@
     class="relative flex flex-col h-full bg-background border {active
         ? isStolen
             ? 'border-yellow-500/40 cursor-pointer hover:bg-yellow-500/5'
-            : 'border-accent/40 shadow-[0_0_15px_rgba(var(--theme-accent-primary-rgb),0.1)]'
+            : 'border-accent/40 shadow-lg shadow-accent/20'
         : 'border-border'} rounded-lg overflow-hidden transition-all duration-300"
     onclick={() => {
         if (isStolen) ensureEditor();

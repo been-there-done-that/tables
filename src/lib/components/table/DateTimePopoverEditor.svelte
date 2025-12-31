@@ -259,7 +259,7 @@
                 : new Date(value).toLocaleDateString()
             : ""}
         readonly
-        class="h-full w-full px-2 py-1 bg-[var(--theme-bg-primary)] text-[var(--theme-fg-primary)] focus:outline-none cursor-pointer"
+        class="h-full w-full px-2 py-1 bg-background text-foreground focus:outline-none cursor-pointer"
         onclick={() => (isVisible = !isVisible)}
         onkeydown={handleKeydown}
         bind:this={anchorEl}
@@ -275,7 +275,7 @@
             tabindex="-1"
             onkeydown={handleKeydown}
             class={cn(
-                "fixed bg-[var(--theme-bg-secondary)] border border-[var(--theme-border-focus)] rounded-md flex flex-col p-1 shadow-lg",
+                "fixed bg-surface border border-border-focus rounded-md flex flex-col p-1 shadow-lg",
                 "anim-pop opacity-100",
             )}
             style={`top:${position.top}px;left:${position.left}px;min-width:${position.width}px;max-width:340px;min-height:200px;transform-origin:center;z-index:9999`}
@@ -287,7 +287,7 @@
                     >
                         <span>Day</span>
                         <select
-                            class="w-full rounded border border-[var(--theme-border-default)] px-2 py-1 text-sm bg-[var(--theme-bg-primary)] text-[var(--theme-fg-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-border-focus)]"
+                            class="w-full rounded border border-border px-2 py-1 text-sm bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-border-focus"
                             bind:value={day}
                         >
                             {#each dayOptions as d}
@@ -300,7 +300,7 @@
                     >
                         <span>Month</span>
                         <select
-                            class="w-full rounded border border-[var(--theme-border-default)] px-2 py-1 text-sm bg-[var(--theme-bg-primary)] text-[var(--theme-fg-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-border-focus)]"
+                            class="w-full rounded border border-border px-2 py-1 text-sm bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-border-focus"
                             bind:value={month}
                         >
                             {#each monthNames as label, idx}
@@ -314,7 +314,7 @@
                         <span>Year</span>
                         <input
                             type="number"
-                            class="w-full rounded border border-[var(--theme-border-default)] px-2 py-1 text-sm bg-[var(--theme-bg-primary)] text-[var(--theme-fg-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-border-focus)]"
+                            class="w-full rounded border border-border px-2 py-1 text-sm bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-border-focus"
                             bind:value={year}
                             min="1900"
                             max="2100"
@@ -370,7 +370,7 @@
                 <div class="flex gap-2 text-xs text-muted-foreground">
                     <button
                         type="button"
-                        class="rounded border border-[var(--theme-border-default)] px-2 py-1 text-[var(--theme-fg-primary)] hover:bg-[var(--theme-bg-hover)] transition"
+                        class="rounded border border-border px-2 py-1 text-foreground hover:bg-muted transition"
                         onclick={() => {
                             const now = new Date();
                             day = now.getUTCDate();
@@ -418,9 +418,9 @@
             </div>
 
             <div
-                class="flex items-center justify-end border-t border-[var(--theme-border-default)] px-2 py-1 gap-2 bg-[var(--theme-bg-secondary)]"
+                class="flex items-center justify-end border-t border-border px-2 py-1 gap-2 bg-surface"
             >
-                <div class="text-xs text-[var(--theme-fg-secondary)] truncate">
+                <div class="text-xs text-foreground-muted truncate">
                     {mode === "datetime"
                         ? "Ctrl/Cmd+Enter to save · Esc to cancel"
                         : "Enter to save · Esc to cancel"}
@@ -428,14 +428,14 @@
                 <div class="flex items-center gap-2">
                     <button
                         type="button"
-                        class="px-2 py-1 text-sm rounded bg-[var(--theme-bg-tertiary)] text-[var(--theme-fg-primary)] hover:bg-[var(--theme-bg-hover)] transition"
+                        class="px-2 py-1 text-sm rounded bg-tertiary text-foreground hover:bg-muted transition"
                         onclick={onCancel}
                     >
                         Cancel
                     </button>
                     <button
                         type="button"
-                        class="px-2 py-1 text-sm rounded bg-[var(--theme-accent-primary)] text-white hover:bg-[var(--theme-accent-hover)] transition"
+                        class="px-2 py-1 text-sm rounded bg-accent text-accent-foreground hover:bg-accent-hover transition"
                         onclick={commit}
                     >
                         Save

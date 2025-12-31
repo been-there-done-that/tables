@@ -12,10 +12,10 @@
 
     // Consolidated form data state
     let formData = $state({
-        name: driver?.name || "",
+        name: "",
         comment: "",
         host: "localhost",
-        port: driver?.defaultPort,
+        port: undefined as number | undefined,
         username: "",
         password: "",
         database: "",
@@ -28,6 +28,9 @@
         if (driver) {
             formData.name = driver.name; // Reset name to driver name default
             formData.port = driver.defaultPort;
+        } else {
+            formData.name = "";
+            formData.port = undefined;
         }
     });
 

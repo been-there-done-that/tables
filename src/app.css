@@ -5,9 +5,18 @@
   --color-foreground: var(--theme-fg-primary);
   --color-muted: var(--theme-bg-secondary);
   --color-muted-foreground: var(--theme-fg-secondary);
+  --color-surface: var(--theme-bg-secondary);
+  --color-surface-foreground: var(--theme-fg-primary);
+  --color-tertiary: var(--theme-bg-tertiary);
+  --color-hover: var(--theme-bg-hover);
+  --color-active: var(--theme-bg-active);
   --color-accent: var(--theme-accent-primary);
+  --color-accent-hover: var(--theme-accent-hover);
+  --color-accent-active: var(--theme-accent-active);
   --color-accent-foreground: var(--theme-fg-primary);
   --color-border: var(--theme-border-default);
+  --color-border-subtle: var(--theme-border-subtle);
+  --color-border-focus: var(--theme-border-focus);
   --color-primary: var(--theme-accent-primary);
   --color-primary-foreground: var(--theme-fg-primary);
 

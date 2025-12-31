@@ -263,7 +263,7 @@
     tabindex="-1"
     onkeydown={handleKeydown}
     class={cn(
-        "fixed bg-[var(--theme-bg-secondary)] border border-[var(--theme-border-focus)] rounded-md flex flex-col p-1",
+        "fixed bg-surface border border-border-focus rounded-md flex flex-col p-1",
         isVisible ? "anim-pop opacity-100" : "opacity-0 pointer-events-none",
     )}
     style={`top:${position.top}px;left:${position.left}px;min-width:${position.width}px;max-width:720px;min-height:200px;max-height:640px;transform-origin:center;z-index:1000`}
@@ -287,22 +287,22 @@
     </div>
 
     <div
-        class="flex items-center justify-between border-t border-[var(--theme-border-default)] px-2 py-1 gap-2 bg-[var(--theme-bg-secondary)]"
+        class="flex items-center justify-between border-t border-border px-2 py-1 gap-2 bg-surface"
     >
-        <div class="text-xs text-[var(--theme-fg-secondary)] truncate">
+        <div class="text-xs text-foreground-muted truncate">
             Ctrl/Cmd+Enter to save · Esc to cancel
         </div>
         <div class="flex items-center gap-2">
             <button
                 type="button"
-                class="px-2 py-1 text-sm rounded bg-[var(--theme-bg-tertiary)] text-[var(--theme-fg-primary)] hover:bg-[var(--theme-bg-hover)] transition"
+                class="px-2 py-1 text-sm rounded bg-tertiary text-foreground hover:bg-muted transition"
                 onclick={onCancel}
             >
                 Cancel
             </button>
             <button
                 type="button"
-                class="px-2 py-1 text-sm rounded bg-[var(--theme-accent-primary)] text-white hover:bg-[var(--theme-accent-hover)] transition"
+                class="px-2 py-1 text-sm rounded bg-accent text-accent-foreground hover:bg-accent-hover transition"
                 onclick={commitFromEditor}
             >
                 Save
