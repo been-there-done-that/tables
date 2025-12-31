@@ -1,5 +1,5 @@
 use crate::plugins::core::{Plugin, PluginMetadata};
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 use std::error::Error;
 
 /// Theme plugin implementation

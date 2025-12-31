@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use super::{BaseConfig, Transport, TlsConfig};
+use super::{Transport, TlsConfig};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct PostgresConfig {
