@@ -119,7 +119,7 @@ impl Introspector {
     }
 
     fn introspect_columns(&self, conn: &SqliteConnection, connection_id: &str, table_name: &str) -> Result<(), String> {
-        let mut stmt = conn.prepare(&format!("SELECT cid, name, type, notnull, dflt_value, pk FROM pragma_table_xinfo('{}')", table_name))
+        let mut stmt = conn.prepare(&format!("SELECT cid, name, type, \"notnull\", dflt_value, pk FROM pragma_table_xinfo('{}')", table_name))
             .map_err(|e| e.to_string())?;
 
         let rows = stmt.query_map([], |row| {
@@ -217,7 +217,7 @@ impl Introspector {
             })?;
 
             // Index Columns
-            let mut col_stmt = conn.prepare(&format!("SELECT name, seqno FROM pragma_index_info('{}')", index_name))
+            let mut col_stmt = conn.prepare(&format!("SELECT \"name\", \"seqno\" FROM pragma_index_info('{}')", index_name))
                 .map_err(|e| e.to_string())?;
             
             let col_rows = col_stmt.query_map([], |row| {
