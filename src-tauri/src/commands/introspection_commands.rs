@@ -1,4 +1,5 @@
-use tauri::State;
+use tauri::{State, Emitter};
+use tauri::AppHandle;
 use crate::DatabaseState;
 use crate::introspection::{Introspector, MetaTable};
 use crate::connection_manager::{ConnectionManager, ConnectionManagerState};
@@ -7,6 +8,7 @@ use log::{debug, info};
 #[tauri::command]
 pub async fn introspect_connection(
     id: String,
+    app: AppHandle,
     db_state: State<'_, DatabaseState>,
     conn_state: State<'_, ConnectionManagerState>,
 ) -> Result<(), String> {
@@ -30,7 +32,9 @@ pub async fn introspect_connection(
 
     // 3. Run introspection
     let introspector = Introspector::new(db_state.conn.clone());
-    introspector.introspect_sqlite(&id, sqlite_path)?;
+    introspector.introspect_sqlite(&id, sqlite_path, |table| {
+        let _ = app.emit("introspection://table-found", table);
+    })?;
 
     info!("Introspection finished for connection {}", id);
     Ok(())
@@ -49,10 +53,12 @@ pub async fn get_schema_tables(
 #[tauri::command]
 pub async fn get_schema_table_details(
     connection_id: String,
+    schema: Option<String>,
     table_name: String,
     db_state: State<'_, DatabaseState>,
 ) -> Result<serde_json::Value, String> {
-    debug!("Fetching cached details for table {} in connection {}", table_name, connection_id);
+    let schema = schema.unwrap_or_else(|| "main".to_string());
+    debug!("Fetching cached details for table {}.{} in connection {}", schema, table_name, connection_id);
     let introspector = Introspector::new(db_state.conn.clone());
-    introspector.get_table_details(&connection_id, &table_name)
+    introspector.get_table_details(&connection_id, &schema, &table_name)
 }

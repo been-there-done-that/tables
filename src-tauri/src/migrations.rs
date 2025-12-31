@@ -68,16 +68,18 @@ CREATE TABLE IF NOT EXISTS credentials (
 const CREATE_META_TABLES: &str = r#"
 CREATE TABLE IF NOT EXISTS meta_tables (
     connection_id TEXT NOT NULL,
+    schema TEXT NOT NULL DEFAULT 'main',
     table_name TEXT NOT NULL,
     type TEXT NOT NULL, -- 'table' or 'view'
     classification TEXT NOT NULL, -- 'user', 'system', 'fts', 'virtual'
     last_introspected_at INTEGER NOT NULL,
-    PRIMARY KEY (connection_id, table_name),
+    PRIMARY KEY (connection_id, schema, table_name),
     FOREIGN KEY (connection_id) REFERENCES connections(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS meta_columns (
     connection_id TEXT NOT NULL,
+    schema TEXT NOT NULL DEFAULT 'main',
     table_name TEXT NOT NULL,
     ordinal_position INTEGER NOT NULL,
     column_name TEXT NOT NULL,
@@ -86,37 +88,40 @@ CREATE TABLE IF NOT EXISTS meta_columns (
     nullable INTEGER DEFAULT 1,
     default_value TEXT,
     is_primary_key INTEGER DEFAULT 0,
-    PRIMARY KEY (connection_id, table_name, column_name),
-    FOREIGN KEY (connection_id, table_name) REFERENCES meta_tables(connection_id, table_name) ON DELETE CASCADE
+    PRIMARY KEY (connection_id, schema, table_name, column_name),
+    FOREIGN KEY (connection_id, schema, table_name) REFERENCES meta_tables(connection_id, schema, table_name) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS meta_indexes (
     connection_id TEXT NOT NULL,
+    schema TEXT NOT NULL DEFAULT 'main',
     table_name TEXT NOT NULL,
     index_name TEXT NOT NULL,
     is_unique INTEGER DEFAULT 0,
-    PRIMARY KEY (connection_id, table_name, index_name),
-    FOREIGN KEY (connection_id, table_name) REFERENCES meta_tables(connection_id, table_name) ON DELETE CASCADE
+    PRIMARY KEY (connection_id, schema, table_name, index_name),
+    FOREIGN KEY (connection_id, schema, table_name) REFERENCES meta_tables(connection_id, schema, table_name) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS meta_index_columns (
     connection_id TEXT NOT NULL,
+    schema TEXT NOT NULL DEFAULT 'main',
     table_name TEXT NOT NULL,
     index_name TEXT NOT NULL,
     column_name TEXT NOT NULL,
     seq_no INTEGER NOT NULL,
-    PRIMARY KEY (connection_id, table_name, index_name, column_name),
-    FOREIGN KEY (connection_id, table_name, index_name) REFERENCES meta_indexes(connection_id, table_name, index_name) ON DELETE CASCADE
+    PRIMARY KEY (connection_id, schema, table_name, index_name, column_name),
+    FOREIGN KEY (connection_id, schema, table_name, index_name) REFERENCES meta_indexes(connection_id, schema, table_name, index_name) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS meta_foreign_keys (
     connection_id TEXT NOT NULL,
+    schema TEXT NOT NULL DEFAULT 'main',
     table_name TEXT NOT NULL,
     column_name TEXT NOT NULL,
     ref_table TEXT NOT NULL,
     ref_column TEXT NOT NULL,
-    PRIMARY KEY (connection_id, table_name, column_name, ref_table, ref_column),
-    FOREIGN KEY (connection_id, table_name) REFERENCES meta_tables(connection_id, table_name) ON DELETE CASCADE
+    PRIMARY KEY (connection_id, schema, table_name, column_name, ref_table, ref_column),
+    FOREIGN KEY (connection_id, schema, table_name) REFERENCES meta_tables(connection_id, schema, table_name) ON DELETE CASCADE
 );
 "#;
 
@@ -201,6 +206,37 @@ pub fn apply(conn: &Connection, now_fn: impl Fn() -> i64) -> Result<(), String> 
             error!("Failed to create meta tables: {}", e);
             format!("Failed to create meta tables: {e}")
         })?;
+
+    // Migration: Add schema column if missing in other tables (force recreate)
+    let has_schema_col_in_cols: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM pragma_table_info('meta_columns') WHERE name='schema'",
+        [],
+        |row| row.get(0)
+    ).unwrap_or(0);
+
+    // Also check meta_tables schema column just in case
+    let has_schema_col_in_tables: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM pragma_table_info('meta_tables') WHERE name='schema'",
+        [],
+        |row| row.get(0)
+    ).unwrap_or(0);
+
+    if has_schema_col_in_cols == 0 || has_schema_col_in_tables == 0 {
+        debug!("Migrating meta tables: schema column missing. Recreating ALL meta tables.");
+        
+        // Drop in reverse dependency order
+        conn.execute_batch("
+            DROP TABLE IF EXISTS meta_foreign_keys;
+            DROP TABLE IF EXISTS meta_index_columns;
+            DROP TABLE IF EXISTS meta_indexes;
+            DROP TABLE IF EXISTS meta_columns;
+            DROP TABLE IF EXISTS meta_tables;
+        ").map_err(|e| format!("Failed to drop meta tables for migration: {e}"))?;
+        
+        // Re-run creation with new schema definitions
+        conn.execute_batch(CREATE_META_TABLES)
+             .map_err(|e| format!("Failed to recreate meta_tables: {e}"))?;
+    }
 
     let ts = now_fn();
     info!("Seeding {} builtin themes", BUILTIN_THEME_FILES.len());
