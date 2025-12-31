@@ -383,7 +383,7 @@ mod tests {
         let mut conn = Connection {
             id: "test_id".to_string(),
             name: "test_conn".to_string(),
-            engine: "postgresql".to_string(),
+            engine: "postgres".to_string(),
             host: None,
             port: None,
             database: None,
@@ -401,7 +401,7 @@ mod tests {
 
         let config_json = r#"{
             "version": 1,
-            "engine": "postgresql",
+            "engine": "postgres",
             "db": {
                 "host": "localhost",
                 "port": 5432,
@@ -419,7 +419,8 @@ mod tests {
         }"#;
 
         conn.config_json = config_json.to_string();
-        conn.parse_config().unwrap();
+        let config: RuntimeConnection = serde_json::from_str(config_json).unwrap();
+        conn.update_config(config).unwrap();
 
         assert_eq!(conn.host, Some("localhost".to_string()));
         assert_eq!(conn.port, Some(5432));
@@ -427,7 +428,10 @@ mod tests {
         assert_eq!(conn.username, Some("testuser".to_string()));
         assert_eq!(conn.uses_ssh, false);
         assert_eq!(conn.uses_tls, true);
-        assert_eq!(conn.config_json, config_json);
+        // We compare the parsed and re-serialized JSON to avoid whitespace issues
+        let serialized = serde_json::to_string(&conn.parse_config().unwrap()).unwrap();
+        let expected_compact = serde_json::to_string(&serde_json::from_str::<RuntimeConnection>(config_json).unwrap()).unwrap();
+        assert_eq!(serialized, expected_compact);
     }
 
     #[test]
@@ -435,7 +439,7 @@ mod tests {
         let mut conn = Connection {
             id: "test_id".to_string(),
             name: "test_conn".to_string(),
-            engine: "postgresql".to_string(),
+            engine: "postgres".to_string(),
             host: Some("oldhost".to_string()),
             port: Some(5432),
             database: Some("olddb".to_string()),
@@ -453,7 +457,7 @@ mod tests {
 
         let new_config_json = r#"{
             "version": 1,
-            "engine": "postgresql",
+            "engine": "postgres",
             "db": {
                 "host": "newhost",
                 "port": 5432,
@@ -475,8 +479,12 @@ mod tests {
         assert_eq!(conn.host, Some("newhost".to_string()));
         assert_eq!(conn.database, Some("newdb".to_string()));
         assert_eq!(conn.username, Some("newuser".to_string()));
-        assert_eq!(conn.config_json, new_config_json);
         assert_eq!(conn.uses_tls, false);
+        
+        // Use compact comparison
+        let serialized = conn.config_json.clone();
+        let expected_compact = serde_json::to_string(&serde_json::from_str::<RuntimeConnection>(new_config_json).unwrap()).unwrap();
+        assert_eq!(serialized, expected_compact);
     }
 
     #[test]

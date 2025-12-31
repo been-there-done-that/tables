@@ -49,7 +49,7 @@
 
         <!-- Dynamic Form Content - takes remaining height -->
         <div class="grow px-6 min-h-0">
-            {#if driver.id === "postgresql"}
+            {#if driver.id === "postgres"}
                 <PostgresForm
                     data={state.fields as any}
                     onChange={handleChange}

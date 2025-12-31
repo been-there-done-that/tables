@@ -121,7 +121,7 @@
             // 1. Construct RuntimeConnection (PostgresConfig)
             // We just use `data` but wrap it with engine tag
             const runtimeConfig = {
-                engine: "postgresql",
+                engine: "postgres",
                 ...data,
                 db: {
                     ...data.db,
@@ -136,7 +136,7 @@
                 id: crypto.randomUUID(),
                 // @ts-ignore - name might be on data even if not in type
                 name: data.name || "Untitled Postgres",
-                engine: "postgresql",
+                engine: "postgres",
                 host: data.db?.host || null,
                 port: data.db?.port || 5432,
                 database: data.db?.database || null,
@@ -204,7 +204,7 @@
 
         try {
             const response = await testConnectionParams(
-                "postgresql",
+                "postgres",
                 $state.snapshot(data),
             );
 
