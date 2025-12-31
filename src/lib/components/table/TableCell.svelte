@@ -233,11 +233,11 @@
 <div
     bind:this={cellEl}
     class={cn(
-        "relative flex items-center border-r truncate text-sm select-none text-[var(--theme-fg-primary)] border-[var(--theme-border-default)]",
+        "relative flex items-center border-r truncate text-sm select-none text-foreground border-border",
         isSelected &&
-            "bg-[var(--theme-accent-primary)]/20 text-[var(--theme-fg-primary)] border-[var(--theme-accent-primary)]/50",
-        isFocused && "ring-2 ring-[var(--theme-border-focus)] ring-inset z-10",
-        isPendingEdit && "bg-amber-500/20 text-[var(--theme-fg-primary)]",
+            "bg-accent/20 text-foreground border-accent/50",
+        isFocused && "ring-2 ring-border-focus ring-inset z-10",
+        isPendingEdit && "bg-amber-500/20 text-foreground",
         disabled && "opacity-70",
     )}
     style="width: {column.width || 150}px; min-width: {column.minWidth ||

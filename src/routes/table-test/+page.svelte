@@ -182,14 +182,10 @@
     }
 </script>
 
-<div
-    class="flex flex-col h-full w-full bg-(--theme-bg-primary) text-(--theme-fg-primary)"
->
-    <div
-        class="flex-none p-4 border-b border-(--theme-border-default) flex justify-between items-center"
-    >
+<div class="flex flex-col h-full w-full bg-background text-foreground">
+    <div class="flex-none p-4 border-b border-border flex justify-between items-center">
         <h1 class="text-xl font-bold">Virtual Table Feature Parity Test</h1>
-        <div class="text-sm text-(--theme-fg-tertiary)">
+        <div class="text-sm text-foreground-muted">
             10,000 Rows • Virtualized • Sorting • Filtering • Editing
         </div>
     </div>
@@ -197,7 +193,6 @@
     <div class="flex-1 min-h-0">
         <Table
             columns={[]}
-            readOnly={false}
             dataFetcher={fetchData}
             tableName="test_users"
             onApplyEdits={(newRow) => {
@@ -207,7 +202,7 @@
                 if (idx !== -1) {
                     rows[idx] = newRow;
                 }
-                return Promise.resolve();
+                return Promise.resolve({ success: true });
             }}
         />
     </div>

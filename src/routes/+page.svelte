@@ -17,7 +17,7 @@
       {#snippet left()}
         <div class="flex h-full flex-col bg-muted/20">
           <div
-            class="flex h-8 flex-none items-center border-b border-(--theme-border-default) bg-background/50 px-4"
+            class="flex h-8 flex-none items-center border-b border-border bg-background/50 px-4"
           >
             <h2 class="text-sm font-semibold">Explorer</h2>
           </div>
@@ -52,7 +52,7 @@
                   {#snippet left()}
                     <div class="flex h-full flex-col bg-background">
                       <div
-                        class="flex h-8 flex-none items-center border-b border-(--theme-border-default) px-4"
+                        class="flex h-8 flex-none items-center border-b border-border px-4"
                       >
                         <h2 class="text-sm font-semibold">Main Editor</h2>
                       </div>
@@ -106,7 +106,7 @@
             {#snippet right()}
               <div class="flex h-full flex-col bg-muted/10">
                 <div
-                  class="flex h-8 flex-none items-center border-b border-(--theme-border-default) px-4"
+                  class="flex h-8 flex-none items-center border-b border-border px-4"
                 >
                   <h2 class="text-sm font-semibold">Properties</h2>
                 </div>

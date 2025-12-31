@@ -156,11 +156,11 @@
 </script>
 
 <div
-  class="flex select-none text-sm font-medium text-[var(--theme-fg-secondary)]"
+  class="flex select-none text-sm font-medium text-foreground-muted"
 >
   <!-- Row Number Header -->
   <div
-    class="sticky left-0 z-20 flex items-center justify-center border-r border-[var(--theme-border-default)] bg-[var(--theme-bg-secondary)] py-1.5"
+    class="sticky left-0 z-20 flex items-center justify-center border-r border-border bg-surface py-1.5"
     style="width: 60px; flex-shrink: 0;"
   >
     <IconHash class="size-4" />
@@ -185,7 +185,7 @@
         <ContextMenu.Trigger>
           <div
             class={cn(
-              "relative flex items-center border-r border-[var(--theme-border-default)] px-2 py-1.5 bg-[var(--theme-bg-secondary)] hover:bg-[var(--theme-bg-hover)] transition-colors group",
+              "relative flex items-center border-r border-border px-2 py-1.5 bg-surface hover:bg-muted transition-colors group",
               draggedColumnId === column.id && "opacity-50",
               dropTargetId === column.id && "border-l-2 border-l-primary",
             )}
@@ -193,6 +193,8 @@
               150}px; min-width: {column.minWidth ||
               50}px; max-width: {column.maxWidth}px; flex-shrink: 0;"
             draggable="true"
+            role="columnheader"
+            tabindex="0"
             ondragstart={(e) => handleDragStart(e, column.id)}
             ondragover={(e) => handleDragOver(e, column.id)}
             ondragend={handleDragEnd}
@@ -271,7 +273,7 @@
             <!-- Resizer -->
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
-              class="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-[var(--theme-accent-primary)]/50 active:bg-[var(--theme-accent-primary)] z-10"
+              class="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-accent/50 active:bg-accent z-10"
               onmousedown={(e) => handleMouseDown(e, column)}
               ondblclick={() => handleDoubleClickResize(column.id)}
             ></div>
