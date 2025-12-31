@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use log::{info, debug, warn, error, trace};
-use crate::configs::{RuntimeConnection, ConnectionSummary, validate_config_json};
+use log::{debug, warn, error, trace};
+use crate::configs::{RuntimeConnection, validate_config_json};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Connection {
@@ -401,6 +401,7 @@ mod tests {
 
         let config_json = r#"{
             "version": 1,
+            "engine": "postgresql",
             "db": {
                 "host": "localhost",
                 "port": 5432,
@@ -417,7 +418,8 @@ mod tests {
             "options": {}
         }"#;
 
-        conn.parse_config(config_json).unwrap();
+        conn.config_json = config_json.to_string();
+        conn.parse_config().unwrap();
 
         assert_eq!(conn.host, Some("localhost".to_string()));
         assert_eq!(conn.port, Some(5432));
@@ -451,6 +453,7 @@ mod tests {
 
         let new_config_json = r#"{
             "version": 1,
+            "engine": "postgresql",
             "db": {
                 "host": "newhost",
                 "port": 5432,
@@ -466,7 +469,8 @@ mod tests {
             "options": {}
         }"#;
 
-        conn.update_config(new_config_json).unwrap();
+        let new_config: RuntimeConnection = serde_json::from_str(new_config_json).unwrap();
+        conn.update_config(new_config).unwrap();
 
         assert_eq!(conn.host, Some("newhost".to_string()));
         assert_eq!(conn.database, Some("newdb".to_string()));
@@ -498,6 +502,6 @@ mod tests {
 
         let invalid_json = r#"{"invalid": "json"}"#;
 
-        assert!(conn.parse_config(invalid_json).is_err());
+        assert!(conn.parse_config().is_err());
     }
 }

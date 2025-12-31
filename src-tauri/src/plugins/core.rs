@@ -229,10 +229,8 @@ macro_rules! aggregate_plugin_commands {
             // Introspection commands
             introspect_connection,
             get_schema_tables,
-            get_schema_table_details
-            
-            // System commands
-            // get_system_metrics (Removed in favor of push-only)
+            get_schema_table_details,
+            run_db_contention_test
         ]
     };
 }
