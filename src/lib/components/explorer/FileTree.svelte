@@ -17,6 +17,7 @@
 </script>
 
 <script lang="ts">
+    import { slide } from "svelte/transition";
     import { cn } from "$lib/utils";
 
     let {
@@ -28,6 +29,8 @@
     let expanded = $state<Set<string>>(new Set());
 
     // Helper to generate a unique key if id is missing
+    // NOTE: For streaming data, ensure each node has a stable unique 'id'.
+    // Relying on name+index fallback may cause issues if items are inserted/reordered.
     const getKey = (node: TreeNode, index: number) =>
         node.id || `${node.name}-${index}`;
 
@@ -158,7 +161,7 @@
 
         <!-- Children -->
         {#if isFolder && isOpen && node.children}
-            <div class="relative">
+            <div class="relative" transition:slide={{ duration: 500 }}>
                 <!-- Vertical Line -->
                 <!-- 
                    The line needs to align with the arrow center.
