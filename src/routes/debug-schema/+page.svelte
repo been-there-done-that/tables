@@ -85,18 +85,23 @@
             const isSelected =
                 selectedTableDetails?.table_name === t.table_name;
             const children: TreeNode[] = [];
+            const tableId = `conn-${selectedId}-table-${t.table_name}`;
 
             if (isSelected && selectedTableDetails) {
                 // Add Columns
                 if (selectedTableDetails.columns?.length) {
                     children.push({
+                        id: `${tableId}-columns`,
                         name: "columns",
                         type: "folder",
                         children: selectedTableDetails.columns.map(
                             (c: any) => ({
+                                id: `${tableId}-col-${c.column_name}`,
                                 name: c.column_name,
-                                type: "column",
-                                detail: `${c.logical_type}${c.is_primary_key ? " PK" : ""}`,
+                                type: c.is_primary_key
+                                    ? "primary_key"
+                                    : "column",
+                                detail: c.logical_type,
                             }),
                         ),
                     });
@@ -104,10 +109,12 @@
                 // Add Indexes
                 if (selectedTableDetails.indexes?.length) {
                     children.push({
+                        id: `${tableId}-indexes`,
                         name: "indexes",
                         type: "folder",
                         children: selectedTableDetails.indexes.map(
                             (idx: any) => ({
+                                id: `${tableId}-idx-${idx.name}`,
                                 name: idx.name,
                                 type: "index",
                                 detail: idx.is_unique ? "UNIQUE" : "",
@@ -118,10 +125,12 @@
                 // Add Foreign Keys
                 if (selectedTableDetails.foreign_keys?.length) {
                     children.push({
+                        id: `${tableId}-fks`,
                         name: "foreign keys",
                         type: "folder",
                         children: selectedTableDetails.foreign_keys.map(
                             (fk: any) => ({
+                                id: `${tableId}-fk-${fk.column_name}`,
                                 name: fk.column_name,
                                 type: "key",
                                 detail: `-> ${fk.ref_table}`,
@@ -132,6 +141,7 @@
             }
 
             return {
+                id: tableId,
                 name: t.table_name,
                 type: "table",
                 detail: t.table_type,
@@ -141,14 +151,17 @@
 
         return [
             {
+                id: `conn-${selectedId}-root`,
                 name: connectionName,
                 type: "database",
                 children: [
                     {
+                        id: `conn-${selectedId}-schema-main`,
                         name: "main", // TODO: Support multiple schemas
                         type: "schema",
                         children: [
                             {
+                                id: `conn-${selectedId}-folder-tables`,
                                 name: "tables",
                                 type: "folder",
                                 children: tableNodes,
