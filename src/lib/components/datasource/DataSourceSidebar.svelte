@@ -1,8 +1,6 @@
 <script lang="ts">
     import { drivers, type Driver } from "./DriverList";
-    import {
-        IconDatabase,
-    } from "@tabler/icons-svelte";
+    import { IconDatabase } from "@tabler/icons-svelte";
 
     interface Props {
         onSelect: (driver: Driver | null) => void;
@@ -16,11 +14,9 @@
     }
 </script>
 
-<div class="flex flex-col h-full bg-(--theme-bg-) border-r border-(--theme-border-default)">
+<div class="flex flex-col h-full bg-background border-r border-border">
     <!-- Toolbar -->
-    <div class="text-center py-1 space-x-1 border-b border-(--theme-border-default)">
-        Drivers
-    </div>
+    <div class="text-center py-1 space-x-1 border-b border-border">Drivers</div>
 
     <!-- Tree/List Area -->
     <div class="grow overflow-y-auto p-3">
@@ -30,14 +26,17 @@
                 <button
                     class="w-full text-left px-3 py-1.5 flex items-center space-x-2 text-sm rounded-md
                     {selectedDriver?.id === driver.id
-                        ? 'bg-(--theme-accent-primary) text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.45)] hover:bg-[color-mix(in_srgb,var(--theme-accent-primary)_78%,black_22%)] focus-visible:ring-offset-2 focus-visible:ring-offset-(--theme-bg-primary)'
-                        : 'text-(--theme-fg-secondary) hover:bg-(--theme-bg-hover)'}"
+                        ? 'bg-accent text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.45)] hover:bg-[color-mix(in_srgb,var(--theme-accent-primary)_78%,black_22%)] focus-visible:ring-offset-2 focus-visible:ring-offset-background'
+                        : 'text-muted-foreground hover:bg-(--theme-bg-hover)'}"
                     onclick={() => selectDriver(driver)}
                 >
-                    {#if typeof IconComponent === 'function'}
+                    {#if typeof IconComponent === "function"}
                         <IconComponent />
                     {:else}
-                        <IconDatabase size={14} class="text-(--theme-fg-tertiary)" />
+                        <IconDatabase
+                            size={14}
+                            class="text-(--theme-fg-tertiary)"
+                        />
                     {/if}
 
                     <span class="truncate">{driver.name}</span>

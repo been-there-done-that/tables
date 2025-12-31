@@ -37,17 +37,11 @@
   ];
 </script>
 
-<div
-  class="flex flex-col w-full h-full bg-[--theme-bg-primary] overflow-hidden"
->
+<div class="flex flex-col w-full h-full bg-background overflow-hidden">
   <div class="flex grow w-full overflow-hidden">
     <!-- Sidebar -->
-    <div
-      class="max-w-60 w-full shrink-0 h-full border-r border-(--theme-border-default)"
-    >
-      <div
-        class="flex flex-col h-full bg-(--theme-bg-) border-r border-(--theme-border-default)"
-      >
+    <div class="max-w-60 w-full shrink-0 h-full border-r border-border">
+      <div class="flex flex-col h-full bg-background border-r border-border">
         <div class="p-3 flex w-full flex-col mt-24">
           <div class="space-y-0.5">
             {#each sections as second}
@@ -55,8 +49,8 @@
               <button
                 class="w-full text-left px-3 py-1.5 flex items-center space-x-2 text-sm rounded-md
                     {selectedSection === second.name
-                  ? 'bg-(--theme-accent-primary) text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.45)] hover:bg-[color-mix(in_srgb,var(--theme-accent-primary)_78%,black_22%)] focus-visible:ring-offset-2 focus-visible:ring-offset-(--theme-bg-primary)'
-                  : 'text-(--theme-fg-secondary) hover:bg-(--theme-bg-hover)'}"
+                  ? 'bg-accent text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.45)] hover:bg-[color-mix(in_srgb,var(--theme-accent-primary)_78%,black_22%)] focus-visible:ring-offset-2 focus-visible:ring-offset-background'
+                  : 'text-muted-foreground hover:bg-(--theme-bg-hover)'}"
                 onclick={() => (selectedSection = second.name)}
               >
                 <IconComponent />

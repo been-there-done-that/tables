@@ -21,19 +21,15 @@
   });
 </script>
 
-<div
-  class="flex flex-col w-full h-full bg-[--theme-bg-primary] overflow-hidden"
->
+<div class="flex flex-col w-full h-full bg-background overflow-hidden">
   <div class="flex grow w-full overflow-hidden">
     <!-- Sidebar -->
-    <div
-      class="max-w-60 w-full shrink-0 h-full border-r border-(--theme-border-default)"
-    >
+    <div class="max-w-60 w-full shrink-0 h-full border-r border-border">
       <DataSourceSidebar onSelect={handleDriverSelect} {selectedDriver} />
     </div>
 
     <!-- Main Content -->
-    <div class="grow h-full bg-[--theme-bg-primary] min-w-0">
+    <div class="grow h-full bg-background min-w-0">
       <ConnectionForm driver={selectedDriver} />
     </div>
   </div>
