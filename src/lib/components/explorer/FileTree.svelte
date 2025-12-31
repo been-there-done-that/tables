@@ -23,7 +23,7 @@
     let {
         items = [] as TreeNode[],
         class: className = "",
-        indent = 24,
+        indent = 18,
     } = $props();
 
     let expanded = $state<Set<string>>(new Set());
