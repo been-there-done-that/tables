@@ -5,7 +5,7 @@
   //   import PostgresConfig from "./datasources/PostgresConfig.svelte";
   //   import ComingSoon from "./datasources/ComingSoon.svelte";
 
-  const drivers = ["postgresql", "mysql", "sqlite", "custom"];
+  const drivers = ["postgres", "mysql", "sqlite", "custom"];
 
   let selectedDriver = $state("sqlite");
 
@@ -86,7 +86,7 @@
 
       <section class="w-[80%] flex-1 p-6 space-y-6 overflow-y-auto">
         <div class="space-y-4">
-          {#if selectedDriver === "postgresql"}
+          {#if selectedDriver === "postgres"}
             <!-- <PostgresConfig bind:this={postgresRef} onCancel={handleCancel} onSave={handleSave} onTest={handleTest} /> -->
             <div class="p-4 text-center text-gray-500">
               Postgres configuration temporarily unavailable
@@ -110,14 +110,14 @@
 
     <Footer
       onCancel={() => {
-        if (selectedDriver === "postgresql") {
+        if (selectedDriver === "postgres") {
           postgresRef?.triggerCancel();
         } else {
           handleCancel();
         }
       }}
       onTest={() => {
-        if (selectedDriver === "postgresql") {
+        if (selectedDriver === "postgres") {
           postgresRef?.triggerTest();
         } else {
           handleTest({});

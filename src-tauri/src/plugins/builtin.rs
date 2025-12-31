@@ -53,7 +53,7 @@ impl Plugin for ConnectionPlugin {
             description: "Database connection management".to_string(),
             author: Some("Tables Core Team".to_string()),
             supported_engines: vec![
-                "postgresql".to_string(),
+                "postgres".to_string(),
                 "mysql".to_string(),
                 "sqlite".to_string(),
                 "mongodb".to_string(),

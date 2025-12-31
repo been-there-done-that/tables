@@ -267,7 +267,7 @@ mod tests {
                 version: "1.0.0".to_string(),
                 description: "A dummy plugin for testing".to_string(),
                 author: Some("Test Author".to_string()),
-                supported_engines: vec!["postgresql".to_string(), "mysql".to_string()],
+                supported_engines: vec!["postgres".to_string(), "mysql".to_string()],
                 dependencies: vec![],
                 command_count: 5,
                 enabled: true,
