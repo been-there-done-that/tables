@@ -5,14 +5,30 @@
     import FileText from "@tabler/icons-svelte/icons/file-text";
     import Database from "@tabler/icons-svelte/icons/database";
     import Key from "@tabler/icons-svelte/icons/key";
+    import Table from "@tabler/icons-svelte/icons/table";
+    import Columns from "@tabler/icons-svelte/icons/columns";
+    import Bolt from "@tabler/icons-svelte/icons/bolt";
+    import ListSearch from "@tabler/icons-svelte/icons/list-search";
+    import Cube from "@tabler/icons-svelte/icons/cube"; // For Schema
 
-    export type NodeType = "folder" | "file" | "database" | "key";
+    export type NodeType =
+        | "folder"
+        | "file"
+        | "database"
+        | "key"
+        | "schema"
+        | "table"
+        | "column"
+        | "index"
+        | "trigger";
 
     export type TreeNode = {
         name: string;
         type?: NodeType;
         children?: TreeNode[];
         id?: string;
+        detail?: string; // For type info like "VARCHAR(45)"
+        icon?: any; // Allow overriding icon
     };
 </script>
 
@@ -23,7 +39,8 @@
     let {
         items = [] as TreeNode[],
         class: className = "",
-        indent = 18,
+        indent = 24,
+        onNodeClick = (node: TreeNode) => {},
     } = $props();
 
     let expanded = $state<Set<string>>(new Set());
@@ -39,6 +56,11 @@
         file: FileText,
         database: Database,
         key: Key,
+        schema: Cube,
+        table: Table,
+        column: Columns,
+        index: ListSearch,
+        trigger: Bolt,
     };
 
     function toggle(key: string) {
@@ -115,10 +137,11 @@
             )}
             style="padding-left: calc({indent}px * {depth} + 4px);"
             onclick={(e) => {
+                e.stopPropagation();
                 if (isFolder) {
-                    e.stopPropagation();
                     toggle(key);
                 }
+                onNodeClick(node);
             }}
             onkeydown={(e) =>
                 (e.key === "Enter" || e.key === " ") && isFolder && toggle(key)}
@@ -157,6 +180,13 @@
 
             <!-- Label -->
             <span class="truncate leading-none opacity-90">{node.name}</span>
+
+            <!-- Detail (Type info, etc) -->
+            {#if node.detail}
+                <span class="ml-2 text-xs text-muted-foreground truncate"
+                    >{node.detail}</span
+                >
+            {/if}
         </div>
 
         <!-- Children -->
