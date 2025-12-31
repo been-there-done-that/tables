@@ -251,3 +251,50 @@ export interface ConnectionChangeEvent {
   type: 'connection-changed';
   payload: Connection;
 }
+// Introspection types
+export interface MetaSchema {
+  name: string;
+  tables: MetaTable[];
+}
+
+export interface MetaTable {
+  connection_id: string;
+  schema: string;
+  table_name: string;
+  table_type: string;
+  classification: string;
+  last_introspected_at: number;
+  columns: MetaColumn[];
+  foreign_keys: MetaForeignKey[];
+  indexes: MetaIndex[];
+}
+
+export interface MetaColumn {
+  connection_id: string;
+  schema: string;
+  table_name: string;
+  ordinal_position: number;
+  column_name: string;
+  raw_type: string;
+  logical_type: string;
+  nullable: boolean;
+  default_value?: string;
+  is_primary_key: boolean;
+}
+
+export interface MetaForeignKey {
+  connection_id: string;
+  schema: string;
+  table_name: string;
+  column_name: string;
+  ref_table: string;
+  ref_column: string;
+}
+
+export interface MetaIndex {
+  connection_id: string;
+  schema: string;
+  table_name: string;
+  index_name: string;
+  is_unique: boolean;
+}

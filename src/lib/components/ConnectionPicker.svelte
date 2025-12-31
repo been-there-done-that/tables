@@ -11,6 +11,9 @@
     import { resolveDriverIcon } from "./datasource/DriverList";
     import * as Menu from "$lib/components/ui/context-menu";
 
+    import { schemaStore } from "$lib/stores/schema.svelte";
+    import IconLoader2 from "@tabler/icons-svelte/icons/loader-2";
+
     let connections = $state<Connection[]>([]);
     let isOpen = $state(false);
     let selectedConnection = $state<Connection | null>(null);
@@ -35,10 +38,10 @@
         loadConnectionsData();
     });
 
-    const selectConnection = (conn: Connection) => {
+    const selectConnection = async (conn: Connection) => {
         selectedConnection = conn;
         isOpen = false;
-        // TODO: Actually open connection / trigger global event
+        await schemaStore.connect(conn.id);
     };
 
     const openNewConnection = async () => {
@@ -86,12 +89,18 @@
                             >Select Connection</span
                         >
                     {/if}
-                    <IconChevronDown
-                        class={cn(
-                            "size-3 opacity-50 transition-transform duration-200",
-                            isOpen && "rotate-180",
-                        )}
-                    />
+                    {#if schemaStore.status === "connecting" || schemaStore.status === "refreshing"}
+                        <IconLoader2
+                            class="animate-spin size-3 opacity-50 transition-transform duration-200"
+                        />
+                    {:else}
+                        <IconChevronDown
+                            class={cn(
+                                "size-3 opacity-50 transition-transform duration-200",
+                                isOpen && "rotate-180",
+                            )}
+                        />
+                    {/if}
                 </div>
             </button>
         </Menu.DropdownTrigger>
