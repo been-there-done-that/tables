@@ -4,7 +4,7 @@ use crate::credential_manager::CredentialManager;
 use rusqlite::{params, Connection as SqliteConnection};
 use std::sync::{Arc, Mutex};
 use tauri::State;
-use log::{debug, info, warn, error};
+use log::{info, debug, warn, error, trace};
 
 // Import DatabaseState from the parent module
 use super::DatabaseState;
@@ -492,7 +492,7 @@ impl ConnectionManager {
         let pass = db.get("password").and_then(|v| v.as_str());
         let user = db.get("username").and_then(|v| v.as_str());
 
-        let mut url = if let Some(p) = pass {
+        let url = if let Some(p) = pass {
             if let Some(u) = user {
                 format!("redis://{}:{}@{}:{}", u, p, host, port)
             } else {

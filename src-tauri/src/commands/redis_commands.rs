@@ -1,8 +1,9 @@
-use crate::connection::{Connection as DatabaseConnection, SecureCredentials, ConnectionInfo};
+use crate::connection::{Connection as DatabaseConnection, SecureCredentials};
 use crate::connection_manager::{ConnectionManager, ConnectionManagerState};
 use crate::DatabaseState;
 use tauri::State;
-use redis::{Client, RedisResult};
+use log::{info, debug, warn, error, trace};
+use redis::Client;
 use std::collections::HashMap;
 
 /// Get Redis server information

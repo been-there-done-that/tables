@@ -1,5 +1,4 @@
 use crate::aws_profile_manager::{AwsProfileManager, AwsProfile};
-use tauri::State;
 use log::{info, debug, warn, error, trace};
 
 /// Get all available AWS profiles from system

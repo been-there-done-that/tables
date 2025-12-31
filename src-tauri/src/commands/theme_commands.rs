@@ -1,6 +1,5 @@
 use crate::{Theme, DatabaseState, load_theme, fetch_active_theme, now_ts};
 use tauri::{AppHandle, State, Emitter};
-use rusqlite::OptionalExtension;
 use log::{info, debug, warn, error, trace};
 
 /// Get all available themes
