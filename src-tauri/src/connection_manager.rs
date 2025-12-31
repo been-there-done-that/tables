@@ -332,7 +332,7 @@ impl ConnectionManager {
         debug!("Testing connection for engine={} with config={}", engine, config);
         
         let result = match engine.as_str() {
-            "postgresql" => self.test_postgres_raw(&config).await,
+            "postgres" => self.test_postgres_raw(&config).await,
             "mysql" => self.test_mysql_raw(&config).await,
             "sqlite" => self.test_sqlite_raw(&config).await,
             "mongodb" => self.test_mongodb_raw(&config).await,
@@ -374,7 +374,7 @@ impl ConnectionManager {
         let database = db.get("database").and_then(|v| v.as_str()).ok_or("Missing database")?;
         let password = db.get("password").and_then(|v| v.as_str()).unwrap_or("");
         
-        let conn_str = format!("postgresql://{}:{}@{}:{}/{}", user, password, host, port, database);
+        let conn_str = format!("postgres://{}:{}@{}:{}/{}", user, password, host, port, database);
 
         let (client, connection) = tokio_postgres::connect(&conn_str, tokio_postgres::NoTls).await
             .map_err(|e| {
@@ -724,7 +724,7 @@ mod tests {
         Connection {
             id: "test_conn_1".to_string(),
             name: "Test Connection".to_string(),
-            engine: "postgresql".to_string(),
+            engine: "postgres".to_string(),
             host: Some("localhost".to_string()),
             port: Some(5432),
             database: Some("testdb".to_string()),

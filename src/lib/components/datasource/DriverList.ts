@@ -13,7 +13,7 @@ export interface Driver {
 }
 
 export const drivers: Driver[] = [
-  { id: 'postgresql', name: 'PostgreSQL', icon: PostgresIcon, defaultPort: 5432 },
+  { id: 'postgres', name: 'PostgreSQL', icon: PostgresIcon, defaultPort: 5432 },
   { id: 'mysql', name: 'MySQL', icon: MySQLIcon, defaultPort: 3306 },
   { id: 'sqlite', name: 'SQLite', icon: SQLiteIcon, defaultPort: undefined },
   { id: 'mongodb', name: 'MongoDB', icon: MongoDbIcon, defaultPort: 27017 },

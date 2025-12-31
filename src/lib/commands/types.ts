@@ -22,7 +22,7 @@ export type ThemeRecord = Theme;
 
 // Connection types
 export interface DatabaseEngine {
-  PostgreSQL: 'postgresql';
+  PostgreSQL: 'postgres';
   MySQL: 'mysql';
   SQLite: 'sqlite';
   MongoDB: 'mongodb';
