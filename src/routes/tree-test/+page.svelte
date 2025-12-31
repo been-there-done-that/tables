@@ -1,7 +1,9 @@
 <script lang="ts">
-    import FileTree from "$lib/components/explorer/FileTree.svelte";
+    import FileTree, {
+        type TreeNode,
+    } from "$lib/components/explorer/FileTree.svelte";
 
-    const data = [
+    const data: TreeNode[] = [
         {
             name: "src",
             type: "folder",
