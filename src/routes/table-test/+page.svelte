@@ -182,12 +182,14 @@
     }
 </script>
 
-<div class="flex flex-col h-full w-full bg-zinc-950 text-zinc-200">
+<div
+    class="flex flex-col h-full w-full bg-(--theme-bg-primary) text-(--theme-fg-primary)"
+>
     <div
-        class="flex-none p-4 border-b border-zinc-800 flex justify-between items-center"
+        class="flex-none p-4 border-b border-(--theme-border-default) flex justify-between items-center"
     >
         <h1 class="text-xl font-bold">Virtual Table Feature Parity Test</h1>
-        <div class="text-sm text-zinc-400">
+        <div class="text-sm text-(--theme-fg-tertiary)">
             10,000 Rows • Virtualized • Sorting • Filtering • Editing
         </div>
     </div>

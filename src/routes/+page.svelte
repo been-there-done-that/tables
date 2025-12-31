@@ -56,11 +56,34 @@
                       >
                         <h2 class="text-sm font-semibold">Main Editor</h2>
                       </div>
-                      <div class="flex-1 overflow-auto p-4">
-                        <a href="/table-test">Table Test</a>
-                        <a href="/debug-monaco">Debug Monaco</a>
-                        <a href="/monaco-raw">Raw Monaco</a>
-                        <div class="rounded border p-2">Editor Content</div>
+                      <div class="flex-1 overflow-auto p-4 space-y-4">
+                        <div class="flex flex-col gap-2">
+                          <a
+                            href="/table-test"
+                            class="inline-flex items-center px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-accent hover:text-accent-foreground transition-colors w-fit"
+                            >Table Test</a
+                          >
+                          <a
+                            href="/debug-monaco"
+                            class="inline-flex items-center px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-accent hover:text-accent-foreground transition-colors w-fit"
+                            >Debug Monaco</a
+                          >
+                          <a
+                            href="/monaco-raw"
+                            class="inline-flex items-center px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-accent hover:text-accent-foreground transition-colors w-fit"
+                            >Raw Monaco</a
+                          >
+                        </div>
+                        <div
+                          class="rounded-lg border border-border bg-muted/30 p-4"
+                        >
+                          <h3 class="mb-2 text-sm font-medium">
+                            Editor Content
+                          </h3>
+                          <p class="text-xs text-muted-foreground">
+                            Select a tool from the list above to begin testing.
+                          </p>
+                        </div>
                         <SystemMetricsWidget />
                       </div>
                     </div>

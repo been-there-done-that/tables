@@ -1,6 +1,24 @@
 @import "tailwindcss";
 
-* { box-sizing: border-box; }
+@theme {
+  --color-background: var(--theme-bg-primary);
+  --color-foreground: var(--theme-fg-primary);
+  --color-muted: var(--theme-bg-secondary);
+  --color-muted-foreground: var(--theme-fg-secondary);
+  --color-accent: var(--theme-accent-primary);
+  --color-accent-foreground: var(--theme-fg-primary);
+  --color-border: var(--theme-border-default);
+  --color-primary: var(--theme-accent-primary);
+  --color-primary-foreground: var(--theme-fg-primary);
+
+  --radius-lg: 0.5rem;
+  --radius-md: calc(0.5rem - 2px);
+  --radius-sm: calc(0.5rem - 4px);
+}
+
+* {
+  box-sizing: border-box;
+}
 
 :root {
   /* Defaults overridden by theme application (maps to theme JSON) */
@@ -53,6 +71,44 @@
     user-select: text;
     -webkit-user-select: text;
   }
+
+  a {
+    color: var(--theme-accent-primary);
+    text-decoration: none;
+    transition: color 0.1s ease;
+  }
+
+  a:hover {
+    color: var(--theme-accent-hover);
+    text-decoration: underline;
+  }
+
+  /* Custom scrollbar matching theme */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--theme-border-default);
+    border: 2px solid transparent;
+    background-clip: content-box;
+    border-radius: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--theme-fg-tertiary);
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
 }
 
 /* View Transition Animations for Theme Switching */
@@ -94,6 +150,7 @@
 .anim-overlay {
   animation: overlayFadeIn var(--anim-overlay-in);
 }
+
 .anim-overlay[data-state="closed"] {
   animation: overlayFadeOut var(--anim-overlay-out) forwards;
 }
@@ -102,11 +159,13 @@
   animation: fadeScaleIn var(--anim-pop-in);
   transform-origin: center;
 }
+
 .anim-pop[data-state="closed"] {
   animation: fadeScaleOut var(--anim-pop-out) forwards;
 }
 
 @media (prefers-reduced-motion: reduce) {
+
   .anim-overlay,
   .anim-pop {
     animation: none !important;
@@ -118,6 +177,7 @@
     opacity: 0;
     transform: translateY(10px) scale(0.96);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -129,6 +189,7 @@
     opacity: 1;
     transform: translateY(0) scale(1);
   }
+
   to {
     opacity: 0;
     transform: translateY(6px) scale(0.98);
@@ -139,6 +200,7 @@
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }
@@ -148,6 +210,7 @@
   from {
     opacity: 1;
   }
+
   to {
     opacity: 0;
   }

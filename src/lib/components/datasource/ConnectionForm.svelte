@@ -74,16 +74,14 @@
                     onChange={handleChange}
                 />
             {:else}
-                <div class="text-center text-[--theme-fg-tertiary] mt-10">
+                <div class="text-center text-muted-foreground mt-10">
                     Configuration for {driver.name} is not yet implemented.
                 </div>
             {/if}
         </div>
     </div>
 {:else}
-    <div
-        class="flex items-center justify-center h-full text-[--theme-fg-tertiary]"
-    >
+    <div class="flex items-center justify-center h-full text-muted-foreground">
         Select a driver to configure
     </div>
 {/if}

@@ -1,12 +1,9 @@
 <script lang="ts">
-    import { onMount } from "svelte";
-    import type { EditorHandle } from "$lib/monaco/editor-types";
     import MonacoHealthPanel from "$lib/monaco/MonacoHealthPanel.svelte";
-    import TestEditorInstance from "./TestEditorInstance.svelte";
-    import LruSlot from "./LruSlot.svelte";
+    import DebugSlot from "./DebugSlot.svelte";
 
-    // Lifecycle State
-    let isMounted = $state(true);
+    // Harbor (Lifecycle) State
+    let harborSlots = $state([true, false, false, false, false]);
     let stressRunning = $state(false);
 
     // LRU State
@@ -23,40 +20,22 @@
         console.log(`[DEBUG-PAGE] ${msg}`);
     }
 
-    const initialJson = JSON.stringify(
-        { hello: "world", debug: true, timestamp: Date.now() },
-        null,
-        2,
-    );
-
-    let lifeHandle: EditorHandle | null = null;
-
-    function handleLifeAcquired(h: EditorHandle) {
-        lifeHandle = h;
-        if (h.editor.getValue() === "") {
-            h.editor.setValue(initialJson);
-            log("Harbor: Initial value set");
-        }
-    }
-
-    function toggleMount() {
-        isMounted = !isMounted;
-        log(`Harbor: Mounted = ${isMounted}`);
-        if (!isMounted) lifeHandle = null;
-    }
-
     async function runStressTest() {
         if (stressRunning) return;
         stressRunning = true;
         log("Harbor: Starting lifecycle stress...");
-        for (let i = 0; i < 15; i++) {
-            isMounted = false;
-            await new Promise((r) => setTimeout(r, 50));
-            isMounted = true;
-            await new Promise((r) => setTimeout(r, 150));
+        for (let i = 0; i < 20; i++) {
+            const idx = Math.floor(Math.random() * 5);
+            harborSlots[idx] = !harborSlots[idx];
+            await new Promise((r) => setTimeout(r, 100));
         }
         log("Harbor: Lifecycle stress complete.");
         stressRunning = false;
+    }
+
+    function resetHarbor() {
+        harborSlots = [true, false, false, false, false];
+        log("Harbor: All slots reset to default");
     }
 
     async function runLruTest() {
@@ -87,189 +66,202 @@
 </script>
 
 <div
-    class="p-6 space-y-6 bg-slate-900 text-slate-200 min-h-screen font-mono relative overflow-hidden"
+    class="p-6 space-y-6 bg-background text-foreground min-h-screen font-mono relative overflow-hidden"
 >
-    <div
-        class="flex justify-between items-center border-b border-slate-800 pb-4"
-    >
+    <!-- Header -->
+    <div class="flex justify-between items-center border-b border-border pb-4">
         <div>
-            <h1 class="text-2xl font-bold text-white tracking-tight">
+            <h1 class="text-2xl font-bold text-foreground tracking-tight">
                 Monaco Debug Harness
             </h1>
             <p
-                class="text-[10px] text-slate-500 mt-1 uppercase tracking-widest"
+                class="text-[10px] text-muted-foreground mt-1 uppercase tracking-widest"
             >
                 Advanced Pool Visualization & Stress Testing
             </p>
         </div>
         <div class="flex gap-2">
             <span
-                class="px-2 py-1 bg-indigo-500/10 border border-indigo-500/20 rounded text-[10px] text-indigo-400 font-bold tracking-tighter"
+                class="px-2 py-1 bg-accent/10 border border-accent/20 rounded text-[10px] text-accent font-bold tracking-tighter"
                 >POOL_SIZE=3</span
             >
             <span
-                class="px-2 py-1 bg-slate-800 rounded text-[10px] text-slate-400"
+                class="px-2 py-1 bg-muted rounded text-[10px] text-muted-foreground"
                 >DEV MODE</span
             >
         </div>
     </div>
 
-    <div class="grid grid-cols-12 gap-6">
-        <!-- Column 1: Lifecycle Harbor -->
-        <div class="col-span-5 flex flex-col space-y-4">
-            <div
-                class="bg-slate-800/30 border border-slate-800 p-4 rounded-xl space-y-4"
-            >
-                <div class="flex justify-between items-center">
+    <!-- Main Laboratory Area -->
+    <div class="grid grid-cols-2 gap-6">
+        <!-- Section 1: Lifecycle Harbor -->
+        <div
+            class="bg-accent/5 border border-accent/10 p-5 rounded-2xl flex flex-col space-y-4"
+        >
+            <div class="flex justify-between items-center">
+                <div>
                     <h2
-                        class="text-xs font-bold uppercase text-slate-400 tracking-wider"
+                        class="text-sm font-bold uppercase text-accent tracking-wider flex items-center gap-2"
                     >
-                        ⚓ Lifecycle Harbor
+                        <span>⚓</span> Lifecycle Harbor
                     </h2>
-                    <div class="flex gap-2">
-                        <button
-                            class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 rounded text-[10px] font-bold transition-all shadow-lg shadow-indigo-500/20"
-                            onclick={toggleMount}
-                        >
-                            {isMounted ? "UNMOUNT" : "MOUNT"}
-                        </button>
-                        <button
-                            class="px-3 py-1.5 border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded text-[10px] font-bold transition-all disabled:opacity-50"
-                            onclick={runStressTest}
-                            disabled={stressRunning}
-                        >
-                            {stressRunning ? "RUNNING..." : "STRESS TEST"}
-                        </button>
-                    </div>
-                </div>
-
-                <div
-                    class="relative aspect-video bg-slate-950 rounded-lg border border-slate-800 overflow-hidden shadow-2xl"
-                >
-                    {#if isMounted}
-                        <TestEditorInstance
-                            onAcquired={handleLifeAcquired}
-                            onLog={log}
-                        />
-                    {:else}
-                        <div
-                            class="absolute inset-0 flex items-center justify-center text-slate-700 italic text-xs bg-[radial-gradient(circle_at_center,_#0f172a_0%,_#020617_100%)]"
-                        >
-                            SLOT_VACANT
-                        </div>
-                    {/if}
-                    <div
-                        class="absolute bottom-2 right-2 px-1.5 py-0.5 bg-black/50 text-[8px] text-slate-500 rounded border border-white/5 uppercase"
-                    >
-                        Harbor_Viewport
-                    </div>
-                </div>
-            </div>
-
-            <!-- Event Logs -->
-            <section
-                class="bg-slate-950 p-3 rounded-xl border border-slate-800 h-[300px] flex flex-col shadow-inner"
-            >
-                <h2
-                    class="text-[9px] font-bold uppercase text-slate-600 tracking-widest mb-2 border-b border-slate-900 pb-1"
-                >
-                    Telemetry Logs
-                </h2>
-                <div
-                    class="flex-1 overflow-auto space-y-1 pr-2 scrollbar-thin scrollbar-thumb-slate-800"
-                >
-                    {#each logs as l}
-                        <div
-                            class="pl-2 py-0.5 text-slate-500 font-mono text-[9px] hover:text-slate-300 transition-colors"
-                        >
-                            {l}
-                        </div>
-                    {:else}
-                        <div class="text-slate-800 italic text-[9px]">
-                            Initializing system telemetry...
-                        </div>
-                    {/each}
-                </div>
-            </section>
-        </div>
-
-        <!-- Column 2: LRU Lab -->
-        <div class="col-span-7 flex flex-col space-y-4">
-            <div
-                class="bg-indigo-500/5 border border-indigo-500/10 p-4 rounded-xl space-y-4"
-            >
-                <div class="flex justify-between items-center">
-                    <div>
-                        <h2
-                            class="text-xs font-bold uppercase text-indigo-400 tracking-wider"
-                        >
-                            🧪 LRU Laboratory
-                        </h2>
-                        <p class="text-[9px] text-indigo-500/60 mt-0.5">
-                            Visually demonstrates editor theft when pool
-                            capacity is exceeded.
-                        </p>
-                    </div>
-                    <div class="flex gap-2">
-                        <button
-                            class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 rounded text-[10px] font-bold transition-all shadow-lg shadow-emerald-500/20"
-                            onclick={runLruTest}
-                            disabled={lruRunning}
-                        >
-                            {lruRunning ? "RUNNING..." : "START LRU TEST"}
-                        </button>
-                        <button
-                            class="px-3 py-1.5 border border-slate-700 hover:bg-slate-800 rounded text-[10px] font-bold transition-all"
-                            onclick={resetLru}
-                        >
-                            RESET
-                        </button>
-                    </div>
-                </div>
-
-                <!-- LRU Grid -->
-                <div class="grid grid-cols-5 gap-3 h-[280px]">
-                    {#each lruSlots as active, i}
-                        <LruSlot id={i + 1} {active} onLog={log} />
-                    {/each}
-                </div>
-
-                <div
-                    class="p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-lg"
-                >
-                    <h3
-                        class="text-[10px] font-bold text-indigo-300 uppercase mb-1"
-                    >
-                        Experiment Guide:
-                    </h3>
-                    <p class="text-[9px] text-indigo-400/80 leading-relaxed">
-                        The pool is capped at <span
-                            class="text-white font-bold underline"
-                            >3 editors</span
-                        >. As you activate slots 4 and 5, the system will
-                        "steal" the editors from slots 1 and 2 (LRU policy).
-                        Watch them turn back to
-                        <span class="italic text-slate-500">Standby</span> mode as
-                        their DOM nodes are yanked away!
+                    <p class="text-[10px] text-accent/60 mt-1">
+                        Monitors editor acquisition, release, and rapid
+                        mount/unmount cycles.
                     </p>
                 </div>
+                <div class="flex gap-2">
+                    <button
+                        class="px-3 py-1.5 bg-accent hover:bg-accent/80 text-white rounded-md text-[10px] font-bold transition-all shadow-lg shadow-accent/20 disabled:opacity-50"
+                        onclick={runStressTest}
+                        disabled={stressRunning}
+                    >
+                        {stressRunning ? "RUNNING..." : "STRESS TEST"}
+                    </button>
+                    <button
+                        class="px-3 py-1.5 border border-border hover:bg-muted rounded-md text-[10px] font-bold transition-all"
+                        onclick={resetHarbor}
+                    >
+                        RESET
+                    </button>
+                </div>
             </div>
 
-            <div
-                class="flex-1 bg-slate-800/10 border border-slate-800 rounded-xl p-4 flex flex-col justify-center items-center text-center space-y-2"
-            >
-                <div
-                    class="text-[10px] text-slate-500 font-bold uppercase tracking-widest"
-                >
-                    System Instruction
-                </div>
-                <p
-                    class="text-xs text-slate-400 max-w-sm leading-relaxed italic"
-                >
-                    "Use Arrow Keys and shortcuts in any active slot to verify
-                    the keyboard delegation remains intact after editor
-                    movement."
+            <!-- Harbor Grid -->
+            <div class="grid grid-cols-5 gap-3 h-[240px]">
+                {#each harborSlots as active, i}
+                    <DebugSlot
+                        id={i + 1}
+                        name={`SHIP ${String.fromCharCode(65 + i)}`}
+                        {active}
+                        contextPrefix="harbor"
+                        modelUriPrefix="json"
+                        onLog={log}
+                    />
+                {/each}
+            </div>
+
+            <div class="p-3 bg-accent/10 border border-accent/20 rounded-lg">
+                <h3 class="text-[10px] font-bold text-accent uppercase mb-1">
+                    System Notes:
+                </h3>
+                <p class="text-[9px] text-accent/80 leading-relaxed">
+                    Toggling "ships" forces the pool to move the DOM anchor. Use
+                    the <strong>STRESS TEST</strong> to verify that rapid re-attachment
+                    doesn't cause flickering or zombie editors.
                 </p>
+            </div>
+        </div>
+
+        <!-- Section 2: LRU Laboratory -->
+        <div
+            class="bg-accent/5 border border-accent/10 p-5 rounded-2xl flex flex-col space-y-4"
+        >
+            <div class="flex justify-between items-center">
+                <div>
+                    <h2
+                        class="text-sm font-bold uppercase text-accent tracking-wider flex items-center gap-2"
+                    >
+                        <span>🧪</span> LRU Laboratory
+                    </h2>
+                    <p class="text-[10px] text-accent/60 mt-1">
+                        Visually demonstrates editor theft when pool capacity is
+                        exceeded.
+                    </p>
+                </div>
+                <div class="flex gap-2">
+                    <button
+                        class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-[10px] font-bold transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-50"
+                        onclick={runLruTest}
+                        disabled={lruRunning}
+                    >
+                        {lruRunning ? "RUNNING..." : "START LRU TEST"}
+                    </button>
+                    <button
+                        class="px-3 py-1.5 border border-border hover:bg-muted rounded-md text-[10px] font-bold transition-all"
+                        onclick={resetLru}
+                    >
+                        RESET
+                    </button>
+                </div>
+            </div>
+
+            <!-- LRU Grid -->
+            <div class="grid grid-cols-5 gap-3 h-[240px]">
+                {#each lruSlots as active, i}
+                    <DebugSlot
+                        id={i + 1}
+                        {active}
+                        contextPrefix="lru"
+                        modelUriPrefix="json"
+                        onLog={log}
+                    />
+                {/each}
+            </div>
+
+            <div class="p-3 bg-accent/10 border border-accent/20 rounded-lg">
+                <h3 class="text-[10px] font-bold text-accent uppercase mb-1">
+                    Experiment Guide:
+                </h3>
+                <p class="text-[9px] text-accent/80 leading-relaxed">
+                    The pool is capped at <span
+                        class="text-foreground font-bold underline"
+                        >3 editors</span
+                    >. As you activate slots 4 and 5, the system will "steal"
+                    the editors from slots 1 and 2 (LRU policy).
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Diagnostics -->
+    <div class="grid grid-cols-12 gap-6">
+        <!-- Event Logs -->
+        <section
+            class="col-span-8 bg-muted/10 p-4 rounded-2xl border border-border h-[260px] flex flex-col"
+        >
+            <h2
+                class="text-[10px] font-bold uppercase text-muted-foreground tracking-widest mb-3 border-b border-border pb-2 flex justify-between"
+            >
+                <span>Telemetry Logs</span>
+                <span class="text-[8px] opacity-50">REAL-TIME FEED</span>
+            </h2>
+            <div
+                class="flex-1 overflow-auto space-y-1 pr-2 scrollbar-thin scrollbar-thumb-border"
+            >
+                {#each logs as l}
+                    <div
+                        class="pl-2 py-0.5 text-muted-foreground font-mono text-[10px] hover:text-foreground transition-colors border-l border-transparent hover:border-accent"
+                    >
+                        {l}
+                    </div>
+                {:else}
+                    <div class="text-muted-foreground/30 italic text-[10px]">
+                        Initializing system telemetry...
+                    </div>
+                {/each}
+            </div>
+        </section>
+
+        <!-- System Instruction -->
+        <div
+            class="col-span-4 bg-muted/10 border border-border rounded-2xl p-6 flex flex-col justify-center items-center text-center space-y-4 shadow-inner"
+        >
+            <div
+                class="text-[10px] text-muted-foreground font-bold uppercase tracking-widest px-3 py-1 bg-muted rounded-full"
+            >
+                System Instruction
+            </div>
+            <p
+                class="text-xs text-muted-foreground max-w-xs leading-relaxed italic"
+            >
+                "Use Arrow Keys and shortcuts in any active slot to verify the
+                keyboard delegation remains intact after editor movement."
+            </p>
+            <div class="flex gap-1.5">
+                <div class="w-1 h-1 rounded-full bg-accent/50"></div>
+                <div class="w-1 h-1 rounded-full bg-accent/30"></div>
+                <div class="w-1 h-1 rounded-full bg-accent/10"></div>
             </div>
         </div>
     </div>
@@ -279,11 +271,6 @@
 </div>
 
 <style>
-    :global(body) {
-        background: #0f172a;
-        overflow-x: hidden;
-    }
-
     /* Scrollbar styling */
     .scrollbar-thin::-webkit-scrollbar {
         width: 3px;
@@ -292,7 +279,7 @@
         background: transparent;
     }
     .scrollbar-thin::-webkit-scrollbar-thumb {
-        background: #1e293b;
+        background: var(--theme-border-default);
         border-radius: 10px;
     }
 </style>
