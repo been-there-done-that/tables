@@ -10,6 +10,7 @@ mod plugins;
 mod configs;
 mod metrics;
 mod introspection;
+mod db_test;
 
 use tauri::{Manager, PhysicalPosition, PhysicalSize, Size, Emitter, Listener};
 use std::{path::PathBuf, sync::{Arc, Mutex}, time::SystemTime};
@@ -25,6 +26,7 @@ use commands::redis_commands::*;
 use commands::athena_commands::*;
 use commands::window_commands::*;
 use commands::introspection_commands::*;
+use commands::test_commands::*;
 use plugins::{PluginDiscovery, get_available_plugins, enable_plugin, disable_plugin, get_plugin_info, initialize_all_plugins};
 use credential_manager::CredentialManager;
 use metrics::{MetricsRegistry, SystemMonitor, start_metrics_emitter};
