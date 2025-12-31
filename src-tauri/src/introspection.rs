@@ -63,11 +63,11 @@ impl Introspector {
     pub fn introspect_sqlite(&self, connection_id: &str, sqlite_path: &str) -> Result<(), String> {
         info!("Starting SQLite introspection for connection {} at {}", connection_id, sqlite_path);
         
-        let conn = SqliteConnection::open(sqlite_path)
+        // 1. Discovery (on target DB)
+        let target_conn = SqliteConnection::open(sqlite_path)
             .map_err(|e| format!("Failed to open target SQLite database: {}", e))?;
 
-        // 1. Discovery
-        let mut stmt = conn.prepare("SELECT name, type FROM sqlite_master WHERE type IN ('table', 'view')")
+        let mut stmt = target_conn.prepare("SELECT name, type FROM sqlite_master WHERE type IN ('table', 'view')")
             .map_err(|e| e.to_string())?;
         
         let tables_and_views: Vec<(String, String)> = stmt.query_map([], |row| {
@@ -80,14 +80,17 @@ impl Introspector {
             .unwrap_or_default()
             .as_secs() as i64;
 
+        // 2. Transactional Write to App DB
+        let mut app_db_lock = self.app_db.lock().map_err(|e| e.to_string())?;
+        let tx = app_db_lock.transaction().map_err(|e| e.to_string())?;
+
         // Clear existing cache for this connection
-        self.clear_cache(connection_id)?;
+        self.clear_cache(&tx, connection_id)?;
 
         for (name, ttype) in tables_and_views {
             let classification = if name.starts_with("sqlite_") {
                 "system"
             } else if name.contains("_fts_") || name.ends_with("_content") || name.ends_with("_segments") {
-                // Heuristic for FTS auxiliary tables if needed, though sqlite_master usually marks them.
                 "fts"
             } else {
                 "user"
@@ -96,7 +99,7 @@ impl Introspector {
             info!("Introspecting {} '{}'", ttype, name);
 
             // Save Table
-            self.save_table(MetaTable {
+            self.save_table(&tx, MetaTable {
                 connection_id: connection_id.to_string(),
                 table_name: name.clone(),
                 table_type: ttype,
@@ -105,21 +108,23 @@ impl Introspector {
             })?;
 
             // 2. Columns
-            self.introspect_columns(&conn, connection_id, &name)?;
+            self.introspect_columns(&target_conn, &tx, connection_id, &name)?;
 
             // 3. Foreign Keys
-            self.introspect_foreign_keys(&conn, connection_id, &name)?;
+            self.introspect_foreign_keys(&target_conn, &tx, connection_id, &name)?;
 
             // 4. Indexes
-            self.introspect_indexes(&conn, connection_id, &name)?;
+            self.introspect_indexes(&target_conn, &tx, connection_id, &name)?;
         }
+
+        tx.commit().map_err(|e| e.to_string())?;
 
         info!("Introspection complete for connection {}", connection_id);
         Ok(())
     }
 
-    fn introspect_columns(&self, conn: &SqliteConnection, connection_id: &str, table_name: &str) -> Result<(), String> {
-        let mut stmt = conn.prepare(&format!("SELECT cid, name, type, \"notnull\", dflt_value, pk FROM pragma_table_xinfo('{}')", table_name))
+    fn introspect_columns(&self, target_conn: &SqliteConnection, app_conn: &SqliteConnection, connection_id: &str, table_name: &str) -> Result<(), String> {
+        let mut stmt = target_conn.prepare(&format!("SELECT cid, \"name\", \"type\", \"notnull\", dflt_value, pk FROM pragma_table_xinfo('{}')", table_name))
             .map_err(|e| e.to_string())?;
 
         let rows = stmt.query_map([], |row| {
@@ -147,7 +152,7 @@ impl Introspector {
 
         for col in rows {
             let col = col.map_err(|e| e.to_string())?;
-            self.save_column(col)?;
+            self.save_column(app_conn, col)?;
         }
 
         Ok(())
@@ -174,8 +179,8 @@ impl Introspector {
         }
     }
 
-    fn introspect_foreign_keys(&self, conn: &SqliteConnection, connection_id: &str, table_name: &str) -> Result<(), String> {
-        let mut stmt = conn.prepare(&format!("SELECT \"from\", \"table\", \"to\" FROM pragma_foreign_key_list('{}')", table_name))
+    fn introspect_foreign_keys(&self, target_conn: &SqliteConnection, app_conn: &SqliteConnection, connection_id: &str, table_name: &str) -> Result<(), String> {
+        let mut stmt = target_conn.prepare(&format!("SELECT \"from\", \"table\", \"to\" FROM pragma_foreign_key_list('{}')", table_name))
             .map_err(|e| e.to_string())?;
 
         let rows = stmt.query_map([], |row| {
@@ -190,14 +195,14 @@ impl Introspector {
 
         for fk in rows {
             let fk = fk.map_err(|e| e.to_string())?;
-            self.save_foreign_key(fk)?;
+            self.save_foreign_key(app_conn, fk)?;
         }
 
         Ok(())
     }
 
-    fn introspect_indexes(&self, conn: &SqliteConnection, connection_id: &str, table_name: &str) -> Result<(), String> {
-        let mut stmt = conn.prepare(&format!("SELECT name, \"unique\" FROM pragma_index_list('{}')", table_name))
+    fn introspect_indexes(&self, target_conn: &SqliteConnection, app_conn: &SqliteConnection, connection_id: &str, table_name: &str) -> Result<(), String> {
+        let mut stmt = target_conn.prepare(&format!("SELECT \"name\", \"unique\" FROM pragma_index_list('{}')", table_name))
             .map_err(|e| e.to_string())?;
 
         let rows = stmt.query_map([], |row| {
@@ -209,7 +214,7 @@ impl Introspector {
         for res in rows {
             let (index_name, is_unique) = res.map_err(|e| e.to_string())?;
             
-            self.save_index(MetaIndex {
+            self.save_index(app_conn, MetaIndex {
                 connection_id: connection_id.to_string(),
                 table_name: table_name.to_string(),
                 index_name: index_name.clone(),
@@ -217,7 +222,7 @@ impl Introspector {
             })?;
 
             // Index Columns
-            let mut col_stmt = conn.prepare(&format!("SELECT \"name\", \"seqno\" FROM pragma_index_info('{}')", index_name))
+            let mut col_stmt = target_conn.prepare(&format!("SELECT \"name\", \"seqno\" FROM pragma_index_info('{}')", index_name))
                 .map_err(|e| e.to_string())?;
             
             let col_rows = col_stmt.query_map([], |row| {
@@ -232,7 +237,7 @@ impl Introspector {
 
             for col in col_rows {
                 let col = col.map_err(|e| e.to_string())?;
-                self.save_index_column(col)?;
+                self.save_index_column(app_conn, col)?;
             }
         }
 
@@ -240,15 +245,13 @@ impl Introspector {
     }
 
     // Persistence Helpers
-    fn clear_cache(&self, connection_id: &str) -> Result<(), String> {
-        let conn = self.app_db.lock().unwrap();
+    fn clear_cache(&self, conn: &SqliteConnection, connection_id: &str) -> Result<(), String> {
         conn.execute("DELETE FROM meta_tables WHERE connection_id = ?1", params![connection_id])
             .map_err(|e| e.to_string())?;
         Ok(())
     }
 
-    fn save_table(&self, table: MetaTable) -> Result<(), String> {
-        let conn = self.app_db.lock().unwrap();
+    fn save_table(&self, conn: &SqliteConnection, table: MetaTable) -> Result<(), String> {
         conn.execute(
             "INSERT INTO meta_tables (connection_id, table_name, type, classification, last_introspected_at) VALUES (?1, ?2, ?3, ?4, ?5)",
             params![table.connection_id, table.table_name, table.table_type, table.classification, table.last_introspected_at]
@@ -256,8 +259,7 @@ impl Introspector {
         Ok(())
     }
 
-    fn save_column(&self, col: MetaColumn) -> Result<(), String> {
-        let conn = self.app_db.lock().unwrap();
+    fn save_column(&self, conn: &SqliteConnection, col: MetaColumn) -> Result<(), String> {
         conn.execute(
             "INSERT INTO meta_columns (connection_id, table_name, ordinal_position, column_name, raw_type, logical_type, nullable, default_value, is_primary_key) 
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
@@ -266,8 +268,7 @@ impl Introspector {
         Ok(())
     }
 
-    fn save_foreign_key(&self, fk: MetaForeignKey) -> Result<(), String> {
-        let conn = self.app_db.lock().unwrap();
+    fn save_foreign_key(&self, conn: &SqliteConnection, fk: MetaForeignKey) -> Result<(), String> {
         conn.execute(
             "INSERT INTO meta_foreign_keys (connection_id, table_name, column_name, ref_table, ref_column) VALUES (?1, ?2, ?3, ?4, ?5)",
             params![fk.connection_id, fk.table_name, fk.column_name, fk.ref_table, fk.ref_column]
@@ -275,8 +276,7 @@ impl Introspector {
         Ok(())
     }
 
-    fn save_index(&self, idx: MetaIndex) -> Result<(), String> {
-        let conn = self.app_db.lock().unwrap();
+    fn save_index(&self, conn: &SqliteConnection, idx: MetaIndex) -> Result<(), String> {
         conn.execute(
             "INSERT INTO meta_indexes (connection_id, table_name, index_name, is_unique) VALUES (?1, ?2, ?3, ?4)",
             params![idx.connection_id, idx.table_name, idx.index_name, idx.is_unique as i32]
@@ -284,8 +284,7 @@ impl Introspector {
         Ok(())
     }
 
-    fn save_index_column(&self, col: MetaIndexColumn) -> Result<(), String> {
-        let conn = self.app_db.lock().unwrap();
+    fn save_index_column(&self, conn: &SqliteConnection, col: MetaIndexColumn) -> Result<(), String> {
         conn.execute(
             "INSERT INTO meta_index_columns (connection_id, table_name, index_name, column_name, seq_no) VALUES (?1, ?2, ?3, ?4, ?5)",
             params![col.connection_id, col.table_name, col.index_name, col.column_name, col.seq_no]
