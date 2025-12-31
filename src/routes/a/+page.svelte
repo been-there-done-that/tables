@@ -1,9 +1,3 @@
-<script>
-  // Configurable props
-  export let color = "#3b82f6"; // A nice database blue
-</script>
-
-
 <div>
   <div class="loader-container">
   <svg width="120" height="120" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">

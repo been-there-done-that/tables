@@ -142,7 +142,7 @@
     tabindex="-1"
     onkeydown={handleKeydown}
     class={cn(
-        "fixed bg-[var(--theme-bg-secondary)] border border-[var(--theme-border-focus)] rounded-lg shadow-2xl flex flex-col p-3 gap-3",
+        "fixed bg-surface border border-border-focus rounded-lg shadow-2xl flex flex-col p-3 gap-3",
         isVisible ? "anim-pop opacity-100" : "opacity-0 pointer-events-none",
     )}
     style={`top:${position.top}px;left:${position.left}px;min-width:${position.width}px;max-width:400px;transform-origin:center;z-index:1000`}
@@ -150,16 +150,16 @@
 >
     <div class="flex flex-col gap-2">
         <textarea
-            class="w-full rounded-md border border-[var(--theme-border-default)] text-sm bg-[var(--theme-bg-primary)] text-[var(--theme-fg-primary)] min-h-[160px] resize-y px-3 py-2 focus:outline-none focus:ring-1 focus:ring-[var(--theme-border-focus)] font-mono"
+            class="w-full rounded-md border border-border text-sm bg-background text-foreground min-h-[160px] resize-y px-3 py-2 focus:outline-none focus:ring-1 focus:ring-border-focus font-mono"
             bind:value={inputValue}
             rows={6}
             placeholder="Type long text here..."
         ></textarea>
         <div
-            class="flex items-center justify-between text-[10px] text-[var(--theme-fg-secondary)] uppercase tracking-widest px-1 font-medium"
+            class="flex items-center justify-between text-[10px] text-foreground-muted uppercase tracking-widest px-1 font-medium"
         >
             <span>Cmd+Enter to save • Esc to cancel</span>
-            <span class="bg-[var(--theme-bg-tertiary)] px-1.5 py-0.5 rounded"
+            <span class="bg-tertiary px-1.5 py-0.5 rounded"
                 >Long Text</span
             >
         </div>
@@ -167,7 +167,7 @@
     <div class="flex items-center justify-end gap-2 pt-1">
         <button
             type="button"
-            class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-[var(--theme-bg-tertiary)] text-[var(--theme-fg-primary)] hover:bg-[var(--theme-bg-hover)] transition-all active:scale-95 border border-[var(--theme-border-default)]"
+            class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-tertiary text-foreground hover:bg-muted transition-all active:scale-95 border border-border"
             onclick={onCancel}
         >
             <IconX class="size-3.5" />
@@ -175,7 +175,7 @@
         </button>
         <button
             type="button"
-            class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-[var(--theme-accent-primary)] text-white hover:bg-[var(--theme-accent-hover)] transition-all active:scale-95 shadow-sm"
+            class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-accent text-accent-foreground hover:bg-accent-hover transition-all active:scale-95 shadow-sm"
             onclick={commit}
         >
             <IconCheck class="size-3.5" />

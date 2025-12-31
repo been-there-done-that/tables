@@ -5,6 +5,7 @@
 
     let snapshot = $state<any>(null);
     let interval: any;
+    let copied = $state(false);
 
     onMount(() => {
         const update = () => {
@@ -28,12 +29,10 @@
     function copyToClipboard() {
         if (!snapshot) return;
         navigator.clipboard.writeText(JSON.stringify(snapshot, null, 2));
-        // Simple visual feedback
-        const el = document.querySelector(".monaco-health");
-        if (el) {
-            el.classList.add("copied");
-            setTimeout(() => el.classList.remove("copied"), 1000);
-        }
+        copied = true;
+        setTimeout(() => {
+            copied = false;
+        }, 1000);
     }
 </script>
 
@@ -42,6 +41,7 @@
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
         class="monaco-health"
+        class:copied={copied}
         onclick={copyToClipboard}
         title="Click to copy state"
     >

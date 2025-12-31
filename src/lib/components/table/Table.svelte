@@ -776,7 +776,7 @@
             });
 
             if (state.columnOrder) {
-                const orderMap = new Map(
+                const orderMap = new Map<string, number>(
                     state.columnOrder.map((id: string, i: number) => [id, i]),
                 );
                 tableColumns = [...tableColumns].sort((a, b) => {
@@ -1742,7 +1742,7 @@
     bind:this={tableContainer}
     tabindex="-1"
     class={cn(
-        "flex flex-col flex-1 min-h-0 h-full w-full border border-[var(--theme-border-default)] overflow-hidden bg-[var(--theme-bg-primary)]",
+        "flex flex-col flex-1 min-h-0 h-full w-full border border-border overflow-hidden bg-background",
         className,
     )}
     role="grid"
@@ -1766,10 +1766,7 @@
 >
     <!-- Header -->
     <div bind:this={headerContainer} class="flex-none overflow-hidden">
-        <div
-            class="border-b border-[var(--theme-border-default)] bg-[var(--theme-bg-secondary)]"
-            style="width: {totalWidth + 60}px;"
-        >
+        <div class="border-b border-border bg-surface" style="width: {totalWidth + 60}px;">
             <TableHeader
                 columns={visibleColumns}
                 {sortState}
@@ -1834,39 +1831,39 @@
             }}
         ></div>
         <div
-            class="fixed z-1501 bg-[var(--theme-bg-secondary)] border border-[var(--theme-border-default)] rounded-md shadow-md text-sm min-w-[180px] py-1 text-[var(--theme-fg-secondary)]"
+            class="fixed z-1501 bg-surface border border-border rounded-md shadow-md text-sm min-w-[180px] py-1 text-foreground-muted"
             style={`top:${contextMenuState.y}px;left:${contextMenuState.x}px`}
             oncontextmenu={(e) => e.preventDefault()}
             role="menu"
             tabindex="-1"
         >
             <button
-                class="w-full text-left px-3 py-1.5 hover:bg-[var(--theme-bg-hover)] hover:text-[var(--theme-fg-primary)] transition-colors"
+                class="w-full text-left px-3 py-1.5 hover:bg-muted hover:text-foreground transition-colors"
                 onclick={contextEdit}
             >
                 Edit
             </button>
             <button
-                class="w-full text-left px-3 py-1.5 hover:bg-[var(--theme-bg-hover)] hover:text-[var(--theme-fg-primary)] transition-colors"
+                class="w-full text-left px-3 py-1.5 hover:bg-muted hover:text-foreground transition-colors"
                 onclick={contextCopy}
             >
                 Copy
             </button>
             <button
-                class="w-full text-left px-3 py-1.5 hover:bg-[var(--theme-bg-hover)] hover:text-[var(--theme-fg-primary)] transition-colors"
+                class="w-full text-left px-3 py-1.5 hover:bg-muted hover:text-foreground transition-colors"
                 onclick={contextPaste}
             >
                 Paste
             </button>
             <div class="my-1 border-t"></div>
             <button
-                class="w-full text-left px-3 py-1.5 hover:bg-[var(--theme-bg-hover)] hover:text-[var(--theme-fg-primary)] transition-colors"
+                class="w-full text-left px-3 py-1.5 hover:bg-muted hover:text-foreground transition-colors"
                 onclick={contextSetNull}
             >
                 Set NULL
             </button>
             <button
-                class="w-full text-left px-3 py-1.5 hover:bg-[var(--theme-bg-hover)] hover:text-[var(--theme-fg-primary)] transition-colors"
+                class="w-full text-left px-3 py-1.5 hover:bg-muted hover:text-foreground transition-colors"
                 onclick={contextSetDefault}
             >
                 Set DEFAULT

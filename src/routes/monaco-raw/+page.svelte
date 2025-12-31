@@ -67,30 +67,32 @@
     });
 </script>
 
-<div class="p-8 space-y-4 bg-background text-foreground min-h-screen font-mono">
-    <h1 class="text-2xl font-bold">Raw Monaco Test (No Pool)</h1>
-    <p class="text-sm text-muted-foreground">
-        This bypasses our EditorPool entirely to test if Monaco works at all.
-    </p>
+<div class="p-8 space-y-6 bg-background text-foreground min-h-screen font-mono">
+    <div class="space-y-4">
+        <h1 class="text-2xl font-bold">Raw Monaco Test (No Pool)</h1>
+        <p class="text-sm text-muted-foreground">
+            This bypasses our EditorPool entirely to test if Monaco works at all.
+        </p>
 
-    <div class="flex gap-4">
-        <div class="w-1/2 border border-primary h-[500px] relative">
+        <div class="flex gap-4">
+            <div class="w-1/2 border border-primary h-[500px] relative">
+                <div
+                    bind:this={container}
+                    class="absolute inset-0 w-full h-full"
+                ></div>
+            </div>
+
             <div
-                bind:this={container}
-                class="absolute inset-0 w-full h-full"
-            ></div>
-        </div>
-
-        <div
-            class="w-1/2 border border-border h-[500px] overflow-auto p-2 bg-muted text-xs"
-        >
-            <h2 class="font-bold mb-2">Logs:</h2>
-            {#each logs as l}
-                <div class="border-b border-border py-1">{l}</div>
-            {/each}
+                class="w-1/2 border border-border h-[500px] overflow-auto p-2 bg-muted text-xs"
+            >
+                <h2 class="font-bold mb-2">Logs:</h2>
+                {#each logs as l}
+                    <div class="border-b border-border py-1">{l}</div>
+                {/each}
+            </div>
         </div>
     </div>
-</div>
+
     <div class="flex gap-4">
         <div class="w-1/2 border border-blue-500 h-[500px] relative">
             <div
