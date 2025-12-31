@@ -15,6 +15,7 @@
 
     export type NodeType =
         | "folder"
+        | "group"
         | "file"
         | "database"
         | "key"
@@ -23,7 +24,8 @@
         | "table"
         | "column"
         | "index"
-        | "trigger";
+        | "trigger"
+        | "foreign_key";
 
     export type TreeNode = {
         name: string;
@@ -56,6 +58,7 @@
 
     const typeIcon: Partial<Record<NodeType, any>> = {
         folder: Folder,
+        group: Folder,
         file: FileText,
         database: Database,
         key: Key,
@@ -65,6 +68,7 @@
         primary_key: PrimaryKeyIcon,
         index: ListSearch,
         trigger: Bolt,
+        foreign_key: Key,
     };
 
     function toggle(key: string) {
@@ -130,15 +134,24 @@
     depth: number;
 })}
     {@const key = getKey(node, index)}
-    {@const isFolder = !!node.children?.length || node.type === "folder"}
+    {@const isFolder =
+        !!node.children?.length ||
+        node.type === "folder" ||
+        node.type === "group"}
     {@const isOpen = expanded.has(key)}
+    {@const isGroup = node.type === "group"}
+    {@const isCompact =
+        node.type === "column" ||
+        node.type === "primary_key" ||
+        node.type === "index" ||
+        node.type === "foreign_key"}
 
     <li class="relative">
         <div
             class={cn(
-                "group flex items-center gap-2 rounded-md cursor-pointer transition-colors border border-transparent",
-                node.type === "column" || node.type === "primary_key"
-                    ? "py-0.5 text-xs"
+                "group flex items-center gap-2 rounded-md cursor-default transition-colors border border-transparent",
+                isCompact
+                    ? "py-0 text-xs h-5 hover:bg-accent/50 text-foreground/80 hover:text-foreground" // Compact with hover
                     : "py-1 text-sm hover:bg-accent/50 text-foreground/80 hover:text-foreground",
             )}
             style="padding-left: calc({indent}px * {depth} + 4px);"
@@ -172,7 +185,7 @@
             <span
                 class="flex items-center justify-center size-4 shrink-0 text-muted-foreground"
             >
-                {#if node.type === "folder"}
+                {#if node.type === "folder" || node.type === "group"}
                     {#if isOpen}
                         <FolderOpen class="size-4" />
                     {:else}
@@ -197,20 +210,14 @@
 
         <!-- Children -->
         {#if isFolder && isOpen && node.children}
-            <div class="relative" transition:slide={{ duration: 500 }}>
+            <div class="relative" transition:slide={{ duration: 200 }}>
                 <!-- Vertical Line -->
-                <!-- 
-                   The line needs to align with the arrow center.
-                   Arrow center x = (depth * indent) + padding-left (4px) + arrow width/2 (8px) = depth * indent + 12px.
-                   We render children with depth + 1. 
-                   The line should effectively sit at `left: (depth * indent) + 12px`.
-                -->
                 <div
                     class="absolute top-0 bottom-0 w-px bg-border/60"
                     style="left: calc({indent}px * {depth} + 12px);"
                 ></div>
 
-                <ul class="flex flex-col gap-0.5">
+                <ul class={cn("flex flex-col", isGroup ? "gap-0" : "gap-0.5")}>
                     {#each node.children as child, childIndex (getKey(child, childIndex))}
                         {@render TreeItem({
                             node: child,
