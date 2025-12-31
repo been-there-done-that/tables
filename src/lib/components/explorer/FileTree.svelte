@@ -10,12 +10,15 @@
     import Bolt from "@tabler/icons-svelte/icons/bolt";
     import ListSearch from "@tabler/icons-svelte/icons/list-search";
     import Cube from "@tabler/icons-svelte/icons/cube"; // For Schema
+    import ColumnIcon from "$lib/components/icons/ColumnIcon.svelte";
+    import PrimaryKeyIcon from "$lib/components/icons/PrimaryKeyIcon.svelte";
 
     export type NodeType =
         | "folder"
         | "file"
         | "database"
         | "key"
+        | "primary_key"
         | "schema"
         | "table"
         | "column"
@@ -58,7 +61,8 @@
         key: Key,
         schema: Cube,
         table: Table,
-        column: Columns,
+        column: ColumnIcon,
+        primary_key: PrimaryKeyIcon,
         index: ListSearch,
         trigger: Bolt,
     };
@@ -132,8 +136,10 @@
     <li class="relative">
         <div
             class={cn(
-                "group flex items-center gap-2 py-1 px-1 rounded-md cursor-pointer transition-colors border border-transparent",
-                "hover:bg-accent/50 text-foreground/80 hover:text-foreground",
+                "group flex items-center gap-2 rounded-md cursor-pointer transition-colors border border-transparent",
+                node.type === "column" || node.type === "primary_key"
+                    ? "py-0.5 text-xs"
+                    : "py-1 text-sm hover:bg-accent/50 text-foreground/80 hover:text-foreground",
             )}
             style="padding-left: calc({indent}px * {depth} + 4px);"
             onclick={(e) => {
