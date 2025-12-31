@@ -1,6 +1,6 @@
 use crate::plugins::core::{PluginManager, PluginMetadata, PluginInitResult};
 use crate::plugins::builtin::*;
-use tauri::{AppHandle, State};
+use tauri::AppHandle;
 use serde::{Serialize, Deserialize};
 
 /// Plugin discovery and registration system

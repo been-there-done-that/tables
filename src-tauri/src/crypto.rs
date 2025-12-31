@@ -3,8 +3,8 @@ use std::fs;
 use std::io::Write;
 use rand::{RngCore, rngs::OsRng};
 use aes_gcm::{
-    aead::{Aead, KeyInit, OsRng as AeadOsRng, AeadCore},
-    Aes256Gcm, Nonce, Key // Or GenericArray
+    aead::{Aead, KeyInit, AeadCore},
+    Aes256Gcm, Nonce // Or GenericArray
 };
 use aes_gcm::aead::generic_array::GenericArray;
 use zeroize::{Zeroize, ZeroizeOnDrop};

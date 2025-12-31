@@ -13,9 +13,9 @@ pub mod builtin;
 pub mod discovery;
 
 // Re-export main plugin interfaces
-pub use core::{Plugin, PluginMetadata, PluginManager, get_plugin_registry};
+pub use core::PluginMetadata;
 pub use discovery::{PluginDiscovery, get_available_plugins, enable_plugin, disable_plugin, get_plugin_info, initialize_all_plugins};
-pub use builtin::*;
+
 
 // Legacy compatibility
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]

@@ -1,5 +1,5 @@
 use tauri::{Manager, WebviewWindowBuilder, TitleBarStyle, Emitter};
-use log::{info, debug, warn, error, trace};
+use log::{info, debug, error, trace};
 
 #[tauri::command]
 pub async fn open_datasource_window(app: tauri::AppHandle) -> Result<(), String> {
