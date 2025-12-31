@@ -207,35 +207,30 @@ pub fn apply(conn: &Connection, now_fn: impl Fn() -> i64) -> Result<(), String> 
             format!("Failed to create meta tables: {e}")
         })?;
 
-    // Migration: Add schema column if missing in other tables (force recreate)
-    let has_schema_col_in_cols: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM pragma_table_info('meta_columns') WHERE name='schema'",
-        [],
-        |row| row.get(0)
-    ).unwrap_or(0);
+    // Safe Migration: Ensure 'schema' column exists in all meta tables
+    // We use ALTER TABLE instead of dropping logic to preserve data
+    let tables_to_check = vec![
+        "meta_tables",
+        "meta_columns",
+        "meta_indexes",
+        "meta_index_columns",
+        "meta_foreign_keys",
+    ];
 
-    // Also check meta_tables schema column just in case
-    let has_schema_col_in_tables: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM pragma_table_info('meta_tables') WHERE name='schema'",
-        [],
-        |row| row.get(0)
-    ).unwrap_or(0);
+    for table in tables_to_check {
+        let has_schema_col: i64 = conn.query_row(
+            &format!("SELECT COUNT(*) FROM pragma_table_info('{}') WHERE name='schema'", table),
+            [],
+            |row| row.get(0)
+        ).unwrap_or(0);
 
-    if has_schema_col_in_cols == 0 || has_schema_col_in_tables == 0 {
-        debug!("Migrating meta tables: schema column missing. Recreating ALL meta tables.");
-        
-        // Drop in reverse dependency order
-        conn.execute_batch("
-            DROP TABLE IF EXISTS meta_foreign_keys;
-            DROP TABLE IF EXISTS meta_index_columns;
-            DROP TABLE IF EXISTS meta_indexes;
-            DROP TABLE IF EXISTS meta_columns;
-            DROP TABLE IF EXISTS meta_tables;
-        ").map_err(|e| format!("Failed to drop meta tables for migration: {e}"))?;
-        
-        // Re-run creation with new schema definitions
-        conn.execute_batch(CREATE_META_TABLES)
-             .map_err(|e| format!("Failed to recreate meta_tables: {e}"))?;
+        if has_schema_col == 0 {
+             debug!("Migrating {} schema column via ALTER TABLE", table);
+             // Note: This adds the column but DOES NOT update the Primary Key constraint.
+             // This is acceptable as a non-destructive fix for existing data.
+             conn.execute(&format!("ALTER TABLE {} ADD COLUMN schema TEXT NOT NULL DEFAULT 'main'", table), [])
+                .map_err(|e| format!("Failed to alter table {}: {e}", table))?;
+        }
     }
 
     let ts = now_fn();
