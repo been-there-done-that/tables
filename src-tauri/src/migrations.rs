@@ -65,6 +65,61 @@ CREATE TABLE IF NOT EXISTS credentials (
 );
 "#;
 
+const CREATE_META_TABLES: &str = r#"
+CREATE TABLE IF NOT EXISTS meta_tables (
+    connection_id TEXT NOT NULL,
+    table_name TEXT NOT NULL,
+    type TEXT NOT NULL, -- 'table' or 'view'
+    classification TEXT NOT NULL, -- 'user', 'system', 'fts', 'virtual'
+    last_introspected_at INTEGER NOT NULL,
+    PRIMARY KEY (connection_id, table_name),
+    FOREIGN KEY (connection_id) REFERENCES connections(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS meta_columns (
+    connection_id TEXT NOT NULL,
+    table_name TEXT NOT NULL,
+    ordinal_position INTEGER NOT NULL,
+    column_name TEXT NOT NULL,
+    raw_type TEXT NOT NULL,
+    logical_type TEXT NOT NULL,
+    nullable INTEGER DEFAULT 1,
+    default_value TEXT,
+    is_primary_key INTEGER DEFAULT 0,
+    PRIMARY KEY (connection_id, table_name, column_name),
+    FOREIGN KEY (connection_id, table_name) REFERENCES meta_tables(connection_id, table_name) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS meta_indexes (
+    connection_id TEXT NOT NULL,
+    table_name TEXT NOT NULL,
+    index_name TEXT NOT NULL,
+    is_unique INTEGER DEFAULT 0,
+    PRIMARY KEY (connection_id, table_name, index_name),
+    FOREIGN KEY (connection_id, table_name) REFERENCES meta_tables(connection_id, table_name) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS meta_index_columns (
+    connection_id TEXT NOT NULL,
+    table_name TEXT NOT NULL,
+    index_name TEXT NOT NULL,
+    column_name TEXT NOT NULL,
+    seq_no INTEGER NOT NULL,
+    PRIMARY KEY (connection_id, table_name, index_name, column_name),
+    FOREIGN KEY (connection_id, table_name, index_name) REFERENCES meta_indexes(connection_id, table_name, index_name) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS meta_foreign_keys (
+    connection_id TEXT NOT NULL,
+    table_name TEXT NOT NULL,
+    column_name TEXT NOT NULL,
+    ref_table TEXT NOT NULL,
+    ref_column TEXT NOT NULL,
+    PRIMARY KEY (connection_id, table_name, column_name, ref_table, ref_column),
+    FOREIGN KEY (connection_id, table_name) REFERENCES meta_tables(connection_id, table_name) ON DELETE CASCADE
+);
+"#;
+
 #[derive(Debug, Deserialize)]
 struct ThemeSeed {
     id: String,
@@ -138,6 +193,13 @@ pub fn apply(conn: &Connection, now_fn: impl Fn() -> i64) -> Result<(), String> 
         .map_err(|e| {
             error!("Failed to create credentials table: {}", e);
             format!("Failed to create credentials table: {e}")
+        })?;
+
+    debug!("Creating meta cache tables");
+    conn.execute_batch(CREATE_META_TABLES)
+        .map_err(|e| {
+            error!("Failed to create meta tables: {}", e);
+            format!("Failed to create meta tables: {e}")
         })?;
 
     let ts = now_fn();
