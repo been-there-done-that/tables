@@ -1,22 +1,21 @@
 use tauri::{State, Emitter};
 use tauri::AppHandle;
 use crate::DatabaseState;
-use crate::introspection::{Introspector, MetaTable};
+use crate::introspection::{Introspector, MetaTable, MetaSchema};
 use crate::connection_manager::{ConnectionManager, ConnectionManagerState};
 use log::{debug, info};
 
 #[tauri::command]
-pub async fn introspect_connection(
-    id: String,
-    app: AppHandle,
+pub async fn refresh_schema(
+    connection_id: String,
     db_state: State<'_, DatabaseState>,
     conn_state: State<'_, ConnectionManagerState>,
 ) -> Result<(), String> {
-    debug!("Starting introspection for connection {}", id);
+    debug!("Refreshing schema for connection {}", connection_id);
     let manager = ConnectionManager::from_state(&db_state, &conn_state);
     
     // 1. Get connection info
-    let (connection, _credentials) = manager.get_connection(&id)?;
+    let (connection, _credentials) = manager.get_connection(&connection_id)?;
     
     if connection.engine != "sqlite" {
         return Err("Only SQLite is supported for introspection currently".to_string());
@@ -30,14 +29,22 @@ pub async fn introspect_connection(
         .and_then(|v| v.as_str())
         .ok_or("Missing SQLite file path in config")?;
 
-    // 3. Run introspection
+    // 3. Run introspection (Hard Refresh)
     let introspector = Introspector::new(db_state.conn.clone());
-    introspector.introspect_sqlite(&id, sqlite_path, |table| {
-        let _ = app.emit("introspection://table-found", table);
-    })?;
+    introspector.introspect_sqlite(&connection_id, sqlite_path)?;
 
-    info!("Introspection finished for connection {}", id);
+    info!("Schema refresh finished for connection {}", connection_id);
     Ok(())
+}
+
+#[tauri::command]
+pub async fn get_schema(
+    connection_id: String,
+    db_state: State<'_, DatabaseState>,
+) -> Result<Vec<MetaSchema>, String> {
+    debug!("Fetching cached schema for connection {}", connection_id);
+    let introspector = Introspector::new(db_state.conn.clone());
+    introspector.get_schema(&connection_id)
 }
 
 #[tauri::command]

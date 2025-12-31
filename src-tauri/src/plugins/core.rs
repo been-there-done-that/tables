@@ -227,7 +227,8 @@ macro_rules! aggregate_plugin_commands {
             create_new_window,
             
             // Introspection commands
-            introspect_connection,
+            refresh_schema,
+            get_schema,
             get_schema_tables,
             get_schema_table_details,
             run_db_contention_test
