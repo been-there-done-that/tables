@@ -224,7 +224,12 @@ macro_rules! aggregate_plugin_commands {
             // Window commands
             open_datasource_window,
             open_appearance_window,
-            create_new_window
+            create_new_window,
+            
+            // Introspection commands
+            introspect_connection,
+            get_schema_tables,
+            get_schema_table_details
             
             // System commands
             // get_system_metrics (Removed in favor of push-only)
