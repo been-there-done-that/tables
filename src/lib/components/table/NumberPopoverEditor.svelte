@@ -142,7 +142,7 @@
     tabindex="-1"
     onkeydown={handleKeydown}
     class={cn(
-        "fixed bg-[var(--theme-bg-secondary)] border border-[var(--theme-border-focus)] rounded-md flex flex-col p-1",
+        "fixed bg-surface border border-border-focus rounded-md flex flex-col p-1",
         isVisible ? "anim-pop opacity-100" : "opacity-0 pointer-events-none",
     )}
     style={`top:${position.top}px;left:${position.left}px;min-width:${position.width}px;max-width:280px;transform-origin:center;z-index:1000`}
@@ -152,29 +152,29 @@
         <input
             type="number"
             inputmode="decimal"
-            class="w-full rounded border border-[var(--theme-border-default)] px-2 py-1 text-sm bg-[var(--theme-bg-primary)] text-[var(--theme-fg-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-border-focus)]"
+            class="w-full rounded border border-border px-2 py-1 text-sm bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-border-focus"
             bind:value={inputValue}
         />
         <div
-            class="flex items-center justify-between text-xs text-[var(--theme-fg-secondary)]"
+            class="flex items-center justify-between text-xs text-foreground-muted"
         >
             <span>Enter or Cmd/Ctrl+Enter to save · Esc to cancel</span>
             <span class="text-[10px] uppercase tracking-wide">{kind}</span>
         </div>
     </div>
     <div
-        class="flex items-center justify-end border-t border-[var(--theme-border-default)] px-2 py-1 gap-2 bg-[var(--theme-bg-secondary)]"
+        class="flex items-center justify-end border-t border-border px-2 py-1 gap-2 bg-surface"
     >
         <button
             type="button"
-            class="px-2 py-1 text-sm rounded bg-[var(--theme-bg-tertiary)] text-[var(--theme-fg-primary)] hover:bg-[var(--theme-bg-hover)] transition"
+            class="px-2 py-1 text-sm rounded bg-tertiary text-foreground hover:bg-muted transition"
             onclick={onCancel}
         >
             Cancel
         </button>
         <button
             type="button"
-            class="px-2 py-1 text-sm rounded bg-[var(--theme-accent-primary)] text-white hover:bg-[var(--theme-accent-hover)] transition"
+            class="px-2 py-1 text-sm rounded bg-accent text-accent-foreground hover:bg-accent-hover transition"
             onclick={commit}
         >
             Save

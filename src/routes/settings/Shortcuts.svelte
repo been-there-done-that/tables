@@ -10,44 +10,35 @@
 
 <div class="p-6 w-full max-w-2xl mx-auto">
     <div class="mb-6">
-        <h2
-            class="text-lg font-medium text-[--theme-fg-primary]"
-            style="color: var(--theme-fg-primary);"
-        >
+        <h2 class="text-lg font-medium text-foreground">
             Keyboard Shortcuts
         </h2>
-        <p class="text-sm text-[--theme-fg-secondary] mt-1">
+        <p class="text-sm text-foreground-muted mt-1">
             View and manage keyboard shortcuts for this window.
         </p>
     </div>
 
-    <div
-        class="rounded-md border border-[--theme-border-subtle] overflow-hidden"
-        style="border-color: var(--theme-border-subtle);"
-    >
+    <div class="rounded-md border border-border overflow-hidden">
         <table class="w-full text-sm text-left">
             <thead
-                class="bg-[--theme-bg-secondary] text-[--theme-fg-secondary]"
-                style="background: var(--theme-bg-secondary); color: var(--theme-fg-secondary);"
+                class="bg-surface text-foreground-muted"
             >
                 <tr>
                     <th class="px-4 py-3 font-medium">Command</th>
                     <th class="px-4 py-3 font-medium text-right">Keybinding</th>
                 </tr>
             </thead>
-            <tbody class="divide-y divide-[--theme-border-subtle]">
+            <tbody class="divide-y divide-border">
                 {#each commands as command}
-                    <tr class="group hover:bg-[--theme-bg-hover]">
+                    <tr class="group hover:bg-muted">
                         <td
-                            class="px-4 py-3 font-medium text-[--theme-fg-primary]"
-                            style="color: var(--theme-fg-primary);"
+                            class="px-4 py-3 font-medium text-foreground"
                         >
                             {command.label}
                         </td>
                         <td class="px-4 py-3 text-right">
                             <span
-                                class="inline-flex items-center px-2 py-1 rounded border border-[--theme-border-default] bg-[--theme-bg-tertiary] font-mono text-xs text-[--theme-fg-secondary]"
-                                style="background: var(--theme-bg-tertiary); border-color: var(--theme-border-default); color: var(--theme-fg-secondary);"
+                                class="inline-flex items-center px-2 py-1 rounded border border-border bg-muted font-mono text-xs text-foreground-muted"
                             >
                                 {getKeybinding(command.id)}
                             </span>
