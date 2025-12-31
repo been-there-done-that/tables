@@ -73,6 +73,11 @@
                             class="inline-flex items-center px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-accent hover:text-accent-foreground transition-colors w-fit"
                             >Raw Monaco</a
                           >
+                          <a
+                            href="/debug-schema"
+                            class="inline-flex items-center px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-accent hover:text-accent-foreground transition-colors w-fit"
+                            >Debug Schema</a
+                          >
                         </div>
                         <div
                           class="rounded-lg border border-border bg-muted/30 p-4"
