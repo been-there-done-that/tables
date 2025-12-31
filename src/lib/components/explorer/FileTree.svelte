@@ -158,7 +158,7 @@
             <span
                 class="flex items-center justify-center size-4 shrink-0 text-muted-foreground/50"
             >
-                {#if isFolder}
+                {#if isFolder && node.children && node.children.length > 0}
                     <ChevronRight
                         class={cn(
                             "size-3.5 transition-transform duration-200",
