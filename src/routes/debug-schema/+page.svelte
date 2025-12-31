@@ -1,6 +1,9 @@
 <script lang="ts">
     import { invoke } from "@tauri-apps/api/core";
     import { onMount } from "svelte";
+    import FileTree, {
+        type TreeNode,
+    } from "$lib/components/explorer/FileTree.svelte";
 
     interface Connection {
         id: string;
@@ -68,6 +71,100 @@
             console.error("Failed to load table details:", e);
         }
     }
+
+    // Transform flat tables list into tree structure
+    let treeData = $derived.by(() => {
+        if (!selectedId || tables.length === 0) return [];
+
+        const conn = connections.find((c) => c.id === selectedId);
+        const connectionName = conn?.name || "Database";
+
+        // Group by schema if applicable (defaulting to 'main' or 'public')
+        // For now, we put everything under a "Tables" folder inside a default schema
+        const tableNodes: TreeNode[] = tables.map((t) => {
+            const isSelected =
+                selectedTableDetails?.table_name === t.table_name;
+            const children: TreeNode[] = [];
+
+            if (isSelected && selectedTableDetails) {
+                // Add Columns
+                if (selectedTableDetails.columns?.length) {
+                    children.push({
+                        name: "columns",
+                        type: "folder",
+                        children: selectedTableDetails.columns.map(
+                            (c: any) => ({
+                                name: c.column_name,
+                                type: "column",
+                                detail: `${c.logical_type}${c.is_primary_key ? " PK" : ""}`,
+                            }),
+                        ),
+                    });
+                }
+                // Add Indexes
+                if (selectedTableDetails.indexes?.length) {
+                    children.push({
+                        name: "indexes",
+                        type: "folder",
+                        children: selectedTableDetails.indexes.map(
+                            (idx: any) => ({
+                                name: idx.name,
+                                type: "index",
+                                detail: idx.is_unique ? "UNIQUE" : "",
+                            }),
+                        ),
+                    });
+                }
+                // Add Foreign Keys
+                if (selectedTableDetails.foreign_keys?.length) {
+                    children.push({
+                        name: "foreign keys",
+                        type: "folder",
+                        children: selectedTableDetails.foreign_keys.map(
+                            (fk: any) => ({
+                                name: fk.column_name,
+                                type: "key",
+                                detail: `-> ${fk.ref_table}`,
+                            }),
+                        ),
+                    });
+                }
+            }
+
+            return {
+                name: t.table_name,
+                type: "table",
+                detail: t.table_type,
+                children: children.length ? children : undefined, // Leaf if no details loaded
+            };
+        });
+
+        return [
+            {
+                name: connectionName,
+                type: "database",
+                children: [
+                    {
+                        name: "main", // TODO: Support multiple schemas
+                        type: "schema",
+                        children: [
+                            {
+                                name: "tables",
+                                type: "folder",
+                                children: tableNodes,
+                            },
+                        ],
+                    },
+                ],
+            },
+        ] as TreeNode[];
+    });
+
+    const handleNodeClick = (node: TreeNode) => {
+        if (node.type === "table") {
+            viewTableDetails(node.name);
+        }
+    };
 </script>
 
 <div class="h-screen flex flex-col bg-background overflow-hidden">
@@ -154,61 +251,29 @@
             {/if}
 
             {#if tables.length > 0}
-                <div class="space-y-4">
-                    <div class="flex justify-between items-end">
+                <div class="space-y-4 h-full flex flex-col">
+                    <div class="flex justify-between items-end shrink-0">
                         <h2
                             class="text-sm font-semibold uppercase tracking-wider text-muted-foreground"
                         >
-                            Cached Tables
+                            Schema Explorer
                         </h2>
                         <span
                             class="text-[10px] text-muted-foreground px-2 py-0.5 bg-muted rounded-full"
                         >
                             {tables.length}
-                            {tables.length === 1 ? "Table" : "Tables"} FOUND
+                            {tables.length === 1 ? "Object" : "Objects"} FOUND
                         </span>
                     </div>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {#each tables as table}
-                            <button
-                                class="p-3 border rounded-lg bg-card text-left hover:border-accent group transition-all {selectedTableDetails?.table_name ===
-                                table.table_name
-                                    ? 'border-accent ring-1 ring-accent'
-                                    : 'border-border'}"
-                                onclick={() =>
-                                    viewTableDetails(table.table_name)}
-                            >
-                                <div class="flex justify-between items-start">
-                                    <div
-                                        class="font-medium text-foreground group-hover:text-accent font-mono truncate"
-                                    >
-                                        {table.table_name}
-                                    </div>
-                                    <span
-                                        class="text-[9px] px-1.5 py-0.5 rounded {table.classification ===
-                                        'system'
-                                            ? 'bg-orange-500/10 text-orange-500'
-                                            : 'bg-blue-500/10 text-blue-500'} uppercase font-bold leading-none"
-                                    >
-                                        {table.classification}
-                                    </span>
-                                </div>
-                                <div
-                                    class="text-[10px] text-muted-foreground mt-1 flex items-center space-x-2"
-                                >
-                                    <span class="opacity-70 italic"
-                                        >{table.table_type}</span
-                                    >
-                                    <span class="w-1 h-1 rounded-full bg-border"
-                                    ></span>
-                                    <span
-                                        >{new Date(
-                                            table.last_introspected_at * 1000,
-                                        ).toLocaleTimeString()}</span
-                                    >
-                                </div>
-                            </button>
-                        {/each}
+
+                    <div
+                        class="border rounded-xl bg-card/30 flex-1 overflow-hidden p-2"
+                    >
+                        <FileTree
+                            items={treeData}
+                            onNodeClick={handleNodeClick}
+                            indent={16}
+                        />
                     </div>
                 </div>
             {:else if status === "success" && selectedId}
