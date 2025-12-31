@@ -7,8 +7,6 @@ pub mod window_commands;
 pub mod introspection_commands;
 pub mod test_commands;
 
-
-// Re-export all commands for easy access
 pub use theme_commands::*;
 pub use connection_commands::*;
 pub use aws_commands::*;

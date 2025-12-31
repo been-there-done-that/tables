@@ -1,9 +1,7 @@
-use crate::connection::{Connection as DatabaseConnection, SecureCredentials, ConnectionInfo};
-use crate::connection_manager::{ConnectionManager, ConnectionManagerState};
+use crate::connection::{Connection as DatabaseConnection, SecureCredentials};
+use crate::connection_manager::ConnectionManagerState;
 use crate::DatabaseState;
 use tauri::State;
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use log::{info, debug, warn, error, trace};
 
 /// Execute Athena query
