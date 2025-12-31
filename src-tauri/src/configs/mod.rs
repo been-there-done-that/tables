@@ -87,7 +87,7 @@ pub enum RuntimeConnection {
 impl RuntimeConnection {
     pub fn engine(&self) -> &'static str {
         match self {
-            RuntimeConnection::Postgres(_) => "postgresql",
+            RuntimeConnection::Postgres(_) => "postgres",
             RuntimeConnection::Sqlite(_) => "sqlite",
             RuntimeConnection::MongoDb(_) => "mongodb",
             RuntimeConnection::Redis(_) => "redis",
