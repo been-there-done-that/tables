@@ -4,10 +4,12 @@
 
     // Harbor (Lifecycle) State
     let harborSlots = $state([true, false, false, false, false]);
+    let harborRealized = $state(new Set<number | string>());
     let stressRunning = $state(false);
 
     // LRU State
     let lruSlots = $state([false, false, false, false, false]);
+    let lruRealized = $state(new Set<number | string>());
     let lruRunning = $state(false);
 
     let logs = $state<string[]>([]);
@@ -18,6 +20,18 @@
             ...logs.slice(0, 99),
         ];
         console.log(`[DEBUG-PAGE] ${msg}`);
+    }
+
+    function updateHarborRealized(id: number | string, hasEditor: boolean) {
+        if (hasEditor) harborRealized.add(id);
+        else harborRealized.delete(id);
+        harborRealized = new Set(harborRealized); // Trigger reactivity
+    }
+
+    function updateLruRealized(id: number | string, hasEditor: boolean) {
+        if (hasEditor) lruRealized.add(id);
+        else lruRealized.delete(id);
+        lruRealized = new Set(lruRealized); // Trigger reactivity
     }
 
     async function runStressTest() {
@@ -110,7 +124,16 @@
                         mount/unmount cycles.
                     </p>
                 </div>
-                <div class="flex gap-2">
+                <div class="flex gap-2 items-center">
+                    <span
+                        class="px-2 py-0.5 rounded-full text-[9px] font-bold {harborRealized.size <
+                        harborSlots.filter((s) => s).length
+                            ? 'bg-yellow-500/20 text-yellow-500 border border-yellow-500/30'
+                            : 'bg-accent/20 text-accent border border-accent/30'}"
+                    >
+                        {harborRealized.size} OF {harborSlots.filter((s) => s)
+                            .length} SHIPS LOADED
+                    </span>
                     <button
                         class="px-3 py-1.5 bg-accent hover:bg-accent/80 text-white rounded-md text-[10px] font-bold transition-all shadow-lg shadow-accent/20 disabled:opacity-50"
                         onclick={runStressTest}
@@ -137,6 +160,7 @@
                         contextPrefix="harbor"
                         modelUriPrefix="json"
                         onLog={log}
+                        onStateChange={updateHarborRealized}
                     />
                 {/each}
             </div>
@@ -169,7 +193,16 @@
                         exceeded.
                     </p>
                 </div>
-                <div class="flex gap-2">
+                <div class="flex gap-2 items-center">
+                    <span
+                        class="px-2 py-0.5 rounded-full text-[9px] font-bold {lruRealized.size <
+                        lruSlots.filter((s) => s).length
+                            ? 'bg-yellow-500/20 text-yellow-500 border border-yellow-500/30'
+                            : 'bg-accent/20 text-accent border border-accent/30'}"
+                    >
+                        {lruRealized.size} OF {lruSlots.filter((s) => s).length}
+                        SLOTS ONLINE
+                    </span>
                     <button
                         class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-[10px] font-bold transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-50"
                         onclick={runLruTest}
@@ -195,6 +228,7 @@
                         contextPrefix="lru"
                         modelUriPrefix="json"
                         onLog={log}
+                        onStateChange={updateLruRealized}
                     />
                 {/each}
             </div>
