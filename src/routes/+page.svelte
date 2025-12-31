@@ -1,6 +1,7 @@
 <script>
   import ResizableSplitPane from "$lib/components/ResizableSplitPane.svelte";
   import SystemMetricsWidget from "$lib/components/SystemMetricsWidget.svelte";
+  import FileTree from "$lib/components/explorer/FileTree.svelte";
   import { windowState } from "$lib/stores/window.svelte";
 </script>
 
@@ -21,8 +22,41 @@
           >
             <h2 class="text-sm font-semibold">Explorer</h2>
           </div>
-          <div class="flex-1 overflow-auto p-4">
-            <p class="text-xs text-muted-foreground">List items...</p>
+          <div class="flex-1 overflow-auto p-2">
+            <FileTree
+              items={[
+                {
+                  name: "src",
+                  type: "folder",
+                  children: [
+                    {
+                      name: "routes",
+                      type: "folder",
+                      children: [{ name: "demo/+page.svelte", type: "file" }],
+                    },
+                    {
+                      name: "lib",
+                      type: "folder",
+                      children: [
+                        { name: "components", type: "folder", children: [] },
+                      ],
+                    },
+                  ],
+                },
+                {
+                  name: "database",
+                  type: "folder",
+                  children: [
+                    { name: "themes.db", type: "database" },
+                    {
+                      name: "keys",
+                      type: "folder",
+                      children: [{ name: "api.key", type: "key" }],
+                    },
+                  ],
+                },
+              ]}
+            />
           </div>
         </div>
       {/snippet}
@@ -58,6 +92,16 @@
                       </div>
                       <div class="flex-1 overflow-auto p-4 space-y-4">
                         <div class="flex flex-col gap-2">
+                          <a
+                            href="/demo"
+                            class="inline-flex items-center px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-accent hover:text-accent-foreground transition-colors w-fit"
+                            >Demo</a
+                          >
+                          <a
+                            href="/tree-test"
+                            class="inline-flex items-center px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-accent hover:text-accent-foreground transition-colors w-fit"
+                            >Tree Test</a
+                          >
                           <a
                             href="/table-test"
                             class="inline-flex items-center px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-accent hover:text-accent-foreground transition-colors w-fit"
