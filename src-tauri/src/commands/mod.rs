@@ -5,6 +5,7 @@ pub mod redis_commands;
 pub mod athena_commands;
 pub mod window_commands;
 pub mod introspection_commands;
+pub mod test_commands;
 
 
 // Re-export all commands for easy access
@@ -15,3 +16,4 @@ pub use redis_commands::*;
 pub use athena_commands::*;
 pub use window_commands::*;
 pub use introspection_commands::*;
+pub use test_commands::*;
