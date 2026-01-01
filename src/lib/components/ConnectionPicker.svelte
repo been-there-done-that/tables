@@ -16,7 +16,6 @@
 
     let connections = $state<Connection[]>([]);
     let isOpen = $state(false);
-    let selectedConnection = $state<Connection | null>(null);
 
     // Load connections
     const loadConnectionsData = async () => {
@@ -39,10 +38,8 @@
     });
 
     const selectConnection = async (conn: Connection) => {
-        selectedConnection = conn;
-        schemaStore.activeSchema = selectConnection.name;
         isOpen = false;
-        await schemaStore.connect(conn.id);
+        await schemaStore.connect(conn);
     };
 
     const openNewConnection = async () => {
@@ -68,18 +65,18 @@
                 aria-expanded={isOpen}
             >
                 <div class="flex items-center gap-2 px-2">
-                    {#if selectedConnection}
+                    {#if schemaStore.activeConnection}
                         <div class="flex items-center gap-2">
                             <div
                                 class={cn(
                                     "w-2 h-2 rounded-full shadow-sm",
-                                    selectedConnection.color_tag
-                                        ? `bg-[${selectedConnection.color_tag}]`
+                                    schemaStore.activeConnection.color_tag
+                                        ? `bg-[${schemaStore.activeConnection.color_tag}]`
                                         : "bg-emerald-500",
                                 )}
                             ></div>
                             <span class="font-medium text-(--theme-fg-primary)"
-                                >{selectedConnection.name}</span
+                                >{schemaStore.activeConnection.name}</span
                             >
                         </div>
                     {:else}
@@ -126,7 +123,7 @@
                         <Menu.Item
                             class={cn(
                                 "w-full flex items-center gap-3 px-3 py-1.5 text-left transition-colors",
-                                selectedConnection?.id === conn.id &&
+                                schemaStore.activeConnection?.id === conn.id &&
                                     "bg-(--theme-bg-tertiary)",
                             )}
                             onclick={() => selectConnection(conn)}
@@ -134,7 +131,7 @@
                             <DriverIcon
                                 class={cn(
                                     "size-4 shrink-0 transition-opacity",
-                                    selectedConnection?.id === conn.id
+                                    schemaStore.activeConnection?.id === conn.id
                                         ? "opacity-100 text-(--theme-accent-primary)"
                                         : "opacity-60 grayscale-[0.5]",
                                 )}
@@ -153,7 +150,7 @@
                                 </span>
                             </div>
 
-                            {#if selectedConnection?.id === conn.id}
+                            {#if schemaStore.activeConnection?.id === conn.id}
                                 <div
                                     class="ml-auto w-1.5 h-1.5 rounded-full bg-(--theme-accent-primary)"
                                 ></div>
