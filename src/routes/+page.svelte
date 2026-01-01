@@ -8,6 +8,11 @@
   import { schemaStore } from "$lib/stores/schema.svelte";
   import IconLoader2 from "@tabler/icons-svelte/icons/loader-2";
   import { cn } from "$lib/utils";
+  import IconRefresh from "@tabler/icons-svelte/icons/refresh";
+  import Compact from "$lib/svg/Compact.svelte";
+  import Expand from "$lib/svg/Expand.svelte";
+
+  let fileTree: any;
 
   const treeData = $derived.by(() => {
     return schemaStore.schemas.map((schema) => {
@@ -117,7 +122,36 @@
             class="flex h-8 flex-none items-center border-b border-border bg-background/50 px-4"
           >
             <h2 class="text-sm font-semibold">Explorer</h2>
-            <div></div>
+            <div class="ml-auto flex items-center gap-1">
+              <button
+                class="p-1 hover:bg-accent rounded-sm text-muted-foreground hover:text-foreground transition-colors"
+                title="Collapse All"
+                onclick={() => fileTree?.collapseAll()}
+              >
+                <Compact />
+              </button>
+              <button
+                class="p-1 hover:bg-accent rounded-sm text-muted-foreground hover:text-foreground transition-colors"
+                title="Expand All"
+                onclick={() => fileTree?.expandAll()}
+              >
+                <Expand />
+              </button>
+              <button
+                class="p-1 hover:bg-accent rounded-sm text-muted-foreground hover:text-foreground transition-colors"
+                title={schemaStore.lastRefreshed
+                  ? `Last refreshed: ${schemaStore.lastRefreshed.toLocaleTimeString()}`
+                  : "Refresh Schema"}
+                onclick={() => schemaStore.refresh()}
+              >
+                <IconRefresh
+                  class={cn(
+                    "size-4",
+                    schemaStore.status === "refreshing" && "animate-spin",
+                  )}
+                />
+              </button>
+            </div>
           </div>
           {#if schemaStore.status === "refreshing"}
             <div
@@ -146,7 +180,7 @@
                 {/if}
               </div>
             {:else}
-              <FileTree items={treeData} />
+              <FileTree items={treeData} bind:this={fileTree} />
             {/if}
           </div>
         </div>
