@@ -28,6 +28,7 @@ use commands::athena_commands::*;
 use commands::window_commands::*;
 use commands::introspection_commands::*;
 use commands::test_commands::*;
+use commands::completion_commands::*;
 use plugins::{PluginDiscovery, get_available_plugins, enable_plugin, disable_plugin, get_plugin_info, initialize_all_plugins};
 use credential_manager::CredentialManager;
 use metrics::{MetricsRegistry, SystemMonitor, start_metrics_emitter};
@@ -182,6 +183,10 @@ pub fn run() {
                 credential_manager: credential_manager.clone(),
                 active_connections: Arc::new(Mutex::new(std::collections::HashSet::new())),
             });
+
+            debug!("Initializing completion engine");
+            // Initialize completion state for SQL auto-completion
+            app.manage(CompletionState::default());
 
             debug!("Initializing plugin system");
             // Initialize plugin system and discover all plugins
