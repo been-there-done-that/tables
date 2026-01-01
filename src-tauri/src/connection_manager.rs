@@ -11,12 +11,14 @@ use super::DatabaseState;
 
 pub struct ConnectionManagerState {
     pub credential_manager: Arc<CredentialManager>,
+    pub active_connections: Arc<Mutex<std::collections::HashSet<String>>>,
 }
 
 impl ConnectionManagerState {
     pub fn new(credential_manager: Arc<CredentialManager>) -> Self {
         Self {
             credential_manager,
+            active_connections: Arc::new(Mutex::new(std::collections::HashSet::new())),
         }
     }
 }
@@ -24,13 +26,15 @@ impl ConnectionManagerState {
 pub struct ConnectionManager {
     db: Arc<Mutex<SqliteConnection>>,
     credential_manager: Arc<CredentialManager>,
+    active_connections: Arc<Mutex<std::collections::HashSet<String>>>,
 }
 
 impl ConnectionManager {
-    pub fn new(db: Arc<Mutex<SqliteConnection>>, credential_manager: Arc<CredentialManager>) -> Self {
+    pub fn new(db: Arc<Mutex<SqliteConnection>>, credential_manager: Arc<CredentialManager>, active_connections: Arc<Mutex<std::collections::HashSet<String>>>) -> Self {
         Self {
             db,
             credential_manager,
+            active_connections,
         }
     }
 
@@ -38,6 +42,7 @@ impl ConnectionManager {
         Self::new(
             Arc::clone(&db_state.conn),
             Arc::clone(&conn_state.credential_manager),
+            Arc::clone(&conn_state.active_connections),
         )
     }
 
@@ -641,6 +646,20 @@ impl ConnectionManager {
         debug!("Search for '{}' returned {} connections", query, connections.len());
         Ok(connections)
     }
+    // Active Connection Management
+    pub fn get_active_connection_ids(&self) -> Vec<String> {
+        let active = self.active_connections.lock().unwrap();
+        active.iter().cloned().collect()
+    }
+
+    pub fn set_connection_active(&self, id: &str, active: bool) {
+        let mut set = self.active_connections.lock().unwrap();
+        if active {
+            set.insert(id.to_string());
+        } else {
+            set.remove(id);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -715,7 +734,8 @@ mod tests {
         let key_manager = MasterKeyManager::new(&temp_dir);
         let _master_key = key_manager.load_or_generate().unwrap();
         let credential_manager = Arc::new(CredentialManager::new(&temp_dir, Arc::clone(&db)).unwrap());
-        let manager = ConnectionManager::new(db, credential_manager);
+        let active_connections = Arc::new(Mutex::new(std::collections::HashSet::new()));
+        let manager = ConnectionManager::new(db, credential_manager, active_connections);
         (manager, Arc::new(Mutex::new(SqliteConnection::open_in_memory().unwrap()))) // dummy db for manager
     }
 
