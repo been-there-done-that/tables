@@ -462,6 +462,72 @@ fn t16_aliased_join_condition() {
 }
 
 // =============================================================================
+// ROBUSTNESS & KEYWORD PLACEMENT
+// =============================================================================
+
+/// T17. Keywords in SELECT list
+/// 
+/// `SELECT | FROM users`
+/// Expected: `*`, `DISTINCT`, `COUNT`, columns
+#[test]
+fn t17_select_list_keywords() {
+    let suggestions = complete("SELECT | FROM users u");
+    
+    assert!(suggestions.contains(&"*".to_string()), "Should suggest wildcard *");
+    assert!(suggestions.contains(&"DISTINCT".to_string()), "Should suggest DISTINCT");
+    assert!(suggestions.contains(&"COUNT".to_string()), "Should suggest COUNT function");
+    assert!(suggestions.contains(&"FROM".to_string()), "Should suggest FROM keyword"); // Added this check
+    assert!(suggestions.contains(&"id".to_string()), "Should suggest columns");
+}
+
+/// T18. Join condition RHS (Partial completion)
+/// 
+/// `... ON u.id = |`
+/// Expected: `o.user_id` (column only), NOT full condition `u.id = o.user_id`
+#[test]
+fn t18_join_condition_rhs() {
+    let items = complete_with_details("SELECT * FROM users u JOIN orders o ON u.id = |");
+    
+    // Should suggest columns from orders
+    let has_order_col = items.iter().any(|i| i.label == "user_id" || i.label == "o.user_id");
+    assert!(has_order_col, "Should suggest RHS column 'user_id', got: {:?}", items);
+    
+    // Should NOT suggest the full join condition again (redundant)
+    let has_full_condition = items.iter().any(|i| i.label.contains("="));
+    assert!(!has_full_condition, 
+        "Should NOT suggest full condition e.g. 'u.id = ...' when user already typed '='. Got: {:?}", items);
+}
+
+/// T19. Qualified name matching (Bug reproduction)
+/// 
+/// `SELECT * FROM users u WHERE u.em|`
+/// Suggestion: `u.email`
+/// Current behavior suspect: Prefix is `em`, suggestion is `u.email`. mismatch?
+#[test]
+fn t19_qualified_prefix_filtering() {
+    // Note: spaces required for parser to be happy usually, but simple tokenizer might suffice
+    let items = complete("SELECT * FROM users u WHERE u.em|");
+    
+    // We expect `u.email` to be suggested and MATCH the prefix `em` (or `u.em`)
+    let has_email = items.iter().any(|s| s == "u.email");
+    assert!(has_email, "Should suggest 'u.email' when typing 'u.em'. Got: {:?}", items);
+}
+
+/// T20. Join condition completion on LHS
+/// 
+/// `SELECT * FROM users u JOIN orders o ON u.i|`
+/// Should suggest `u.id = o.user_id` (100%)
+#[test]
+fn t20_join_condition_lhs_match() {
+    let items = complete_with_details("SELECT * FROM users u JOIN orders o ON u.i|");
+    
+    // We expect the full join condition here because we are in JoinCondition context
+    // and the user is typing the LHS.
+    let has_condition = items.iter().any(|i| i.label.contains("u.id = o.user_id"));
+    assert!(has_condition, "Should suggest full join condition when typing LHS 'u.i'. Got: {:?}", items);
+}
+
+// =============================================================================
 // SUMMARY TEST: MVP BAR
 // =============================================================================
 
