@@ -75,12 +75,13 @@ class WindowStateStore {
     }
 
     startSession(connection: Connection) {
-        // Check if session for this connection already exists? 
-        // Plan says "window... owns UI... can have multiple sessions attached". 
-        // "Sessions Bound to one connection".
-        // If we want multiple tabs for same connection, we just create new session.
-        // If we want to reuse, we check.
-        // Let's create new session for now to allow multiple workspaces for same DB.
+        // Check if a session for this connection already exists
+        const existingSession = this.sessions.find(s => s.connectionId === connection.id);
+        if (existingSession) {
+            // Reuse existing session instead of creating duplicate
+            this.activateSession(existingSession.id);
+            return;
+        }
 
         const newSession = new Session(crypto.randomUUID(), connection);
         this.sessions.push(newSession);
