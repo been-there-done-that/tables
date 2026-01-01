@@ -35,9 +35,11 @@ function configureWorkers(m: typeof monaco) {
     }
 }
 
+import { registerSqlCompletion } from './sql-completion';
+
 function registerLanguages(m: typeof monaco) {
     // Register custom languages or extend existing ones here
-    // e.g. m.languages.registerCompletionItemProvider('sql', ...)
+    registerSqlCompletion(m);
 }
 
 function registerThemes(m: typeof monaco) {
