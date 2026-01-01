@@ -131,16 +131,35 @@ impl SchemaGraph {
     /// 1. Check FK graph (Gold Standard - Score 100)
     /// 2. Check naming heuristics (Silver Standard - Score 70)
     /// 3. Check common column names (Bronze Standard - Score 30)
-    pub fn infer_join_condition(&self, left_table: &str, right_table: &str) -> Option<(String, u32)> {
+    pub fn infer_join_condition(
+        &self, 
+        left_table: &str, 
+        right_table: &str,
+        left_alias: Option<&str>,
+        right_alias: Option<&str>
+    ) -> Option<(String, u32)> {
         let left = left_table.to_lowercase();
         let right = right_table.to_lowercase();
         
+        let l_name = left_alias.unwrap_or(&left);
+        let r_name = right_alias.unwrap_or(&right);
+        
         // Check 1: FK relationship (Gold Standard)
         if let Some(fk) = self.find_fk_path(&left, &right) {
+            // Determine which side of the FK corresponds to which alias
+            // FK: from_table -> to_table
+            // If from_table == left, then left alias uses from_column
+            
+            let (l_col, r_col) = if fk.from_table.to_lowercase() == left {
+                (&fk.from_column, &fk.to_column)
+            } else {
+                (&fk.to_column, &fk.from_column)
+            };
+
             let condition = format!(
                 "{}.{} = {}.{}",
-                fk.from_table, fk.from_column,
-                fk.to_table, fk.to_column
+                l_name, l_col,
+                r_name, r_col
             );
             return Some((condition, 100));
         }
@@ -167,8 +186,8 @@ impl SchemaGraph {
                         if let Some(pk) = left_info.columns.iter().find(|c| c.is_primary_key) {
                             let condition = format!(
                                 "{}.{} = {}.{}",
-                                left, pk.name,
-                                right, col.name
+                                l_name, pk.name,
+                                r_name, col.name
                             );
                             return Some((condition, 70));
                         }
@@ -191,8 +210,8 @@ impl SchemaGraph {
                         if let Some(pk) = right_info.columns.iter().find(|c| c.is_primary_key) {
                             let condition = format!(
                                 "{}.{} = {}.{}",
-                                left, col.name,
-                                right, pk.name
+                                l_name, col.name,
+                                r_name, pk.name
                             );
                             return Some((condition, 70));
                         }
@@ -211,8 +230,8 @@ impl SchemaGraph {
                     {
                         let condition = format!(
                             "{}.{} = {}.{}",
-                            left, left_col.name,
-                            right, right_col.name
+                            l_name, left_col.name,
+                            r_name, right_col.name
                         );
                         return Some((condition, 30));
                     }
@@ -312,7 +331,7 @@ mod tests {
         let schema = create_test_schema();
         
         // FK exists: should get Gold Standard (100)
-        let result = schema.infer_join_condition("users", "orders");
+        let result = schema.infer_join_condition("users", "orders", None, None);
         assert!(result.is_some());
         let (condition, score) = result.unwrap();
         assert_eq!(score, 100);
@@ -334,7 +353,7 @@ mod tests {
         ]));
         // No FK added!
         
-        let result = schema.infer_join_condition("users", "orders");
+        let result = schema.infer_join_condition("users", "orders", None, None);
         assert!(result.is_some());
         let (condition, score) = result.unwrap();
         assert_eq!(score, 70); // Silver Standard
