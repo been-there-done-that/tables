@@ -42,6 +42,15 @@ fn complete_with_details(sql: &str) -> Vec<CompletionItem> {
     
     let context = Context::analyze(&source, tree.as_ref(), cursor);
     
+    // Debug output
+    eprintln!("\n=== DEBUG ===");
+    eprintln!("Source: {:?}, Cursor: {}", source, cursor);
+    eprintln!("Context: {:?}", context.context_type);
+    for (i, scope) in semantic.scopes.iter().enumerate() {
+        eprintln!("Scope {}: {:?} -> {:?}", i, scope.range, 
+            scope.symbols.iter().map(|s| (&s.name, s.resolve_table_name())).collect::<Vec<_>>());
+    }
+    
     CompletionEngine::complete(&semantic, &context, &schema)
 }
 
