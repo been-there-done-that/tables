@@ -35,6 +35,14 @@ export class SchemaStore {
             // 4. Fetch Schema (Cached)
             const result = await invoke<MetaSchema[]>("get_schema", { connectionId: conn.id });
 
+            // 5. Update Completion Engine Cache
+            // We run this async without blocking the UI, but it's fast enough we might as well await
+            // to ensure completion works immediately after "Connected" toast.
+            await invoke("update_completion_schema", {
+                connectionId: conn.id,
+                schemas: result
+            });
+
             this.schemas = result;
             this.status = "idle";
             this.lastRefreshed = new Date();
@@ -65,6 +73,13 @@ export class SchemaStore {
         try {
             await invoke("refresh_schema", { connectionId: this.activeConnection.id });
             const result = await invoke<MetaSchema[]>("get_schema", { connectionId: this.activeConnection.id });
+
+            // Sync completion cache
+            await invoke("update_completion_schema", {
+                connectionId: this.activeConnection.id,
+                schemas: result
+            });
+
             this.schemas = result;
             this.status = "idle";
             this.lastRefreshed = new Date();
