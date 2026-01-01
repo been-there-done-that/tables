@@ -7,6 +7,7 @@ export class SchemaStore {
     status = $state<"idle" | "connecting" | "refreshing" | "error">("idle");
     schemas = $state<MetaSchema[]>([]);
     error = $state<string | null>(null);
+    lastRefreshed = $state<Date | null>(null);
 
     async connect(conn: Connection) {
         const previousId = this.activeConnection?.id;
@@ -15,6 +16,7 @@ export class SchemaStore {
         this.error = null;
         this.activeConnection = conn;
         this.schemas = []; // Clear previous schemas immediately
+        this.lastRefreshed = null;
 
         try {
             // 1. Validate connection
@@ -35,6 +37,7 @@ export class SchemaStore {
 
             this.schemas = result;
             this.status = "idle";
+            this.lastRefreshed = new Date();
 
             if (result.length === 0) {
                 toast.success("Connected", { description: "No schema found. Try refreshing." });
@@ -64,6 +67,7 @@ export class SchemaStore {
             const result = await invoke<MetaSchema[]>("get_schema", { connectionId: this.activeConnection.id });
             this.schemas = result;
             this.status = "idle";
+            this.lastRefreshed = new Date();
             toast.success("Schema Refreshed");
         } catch (e) {
             this.status = "idle"; // Go back to idle/error
