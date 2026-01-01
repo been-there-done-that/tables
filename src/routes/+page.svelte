@@ -117,6 +117,7 @@
             class="flex h-8 flex-none items-center border-b border-border bg-background/50 px-4"
           >
             <h2 class="text-sm font-semibold">Explorer</h2>
+            <div></div>
           </div>
           {#if schemaStore.status === "refreshing"}
             <div
