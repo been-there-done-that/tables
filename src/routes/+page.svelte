@@ -9,12 +9,17 @@
   import IconLoader2 from "@tabler/icons-svelte/icons/loader-2";
   import { cn } from "$lib/utils";
   import IconRefresh from "@tabler/icons-svelte/icons/refresh";
+  import IconDatabase from "@tabler/icons-svelte/icons/database";
   import Compact from "$lib/svg/Compact.svelte";
   import Expand from "$lib/svg/Expand.svelte";
 
+  import SqlTestingEditor from "$lib/components/SqlTestingEditor.svelte";
+
   let fileTree: any;
+  let showSqlEditor = $state(false);
 
   const treeData = $derived.by(() => {
+    // ... (existing treeData logic) ...
     return schemaStore.schemas.map((schema) => {
       const isSqlite = schemaStore.activeConnection?.engine === "sqlite";
 
@@ -139,6 +144,15 @@
               </button>
               <button
                 class="p-1 hover:bg-accent rounded-sm text-muted-foreground hover:text-foreground transition-colors"
+                class:text-primary={showSqlEditor}
+                class:bg-accent={showSqlEditor}
+                title="Toggle SQL Playground"
+                onclick={() => (showSqlEditor = !showSqlEditor)}
+              >
+                <IconDatabase class="size-4" />
+              </button>
+              <button
+                class="p-1 hover:bg-accent rounded-sm text-muted-foreground hover:text-foreground transition-colors"
                 title={schemaStore.lastRefreshed
                   ? `Last refreshed: ${schemaStore.lastRefreshed.toLocaleTimeString()}`
                   : "Refresh Schema"}
@@ -213,53 +227,63 @@
                       <div
                         class="flex h-8 flex-none items-center border-b border-border px-4"
                       >
-                        <h2 class="text-sm font-semibold">Main Editor</h2>
+                        <h2 class="text-sm font-semibold">
+                          {showSqlEditor ? "SQL Playground" : "Main Editor"}
+                        </h2>
                       </div>
-                      <div class="flex-1 overflow-auto p-4 space-y-4">
-                        <div class="flex flex-col gap-2">
-                          <a
-                            href="/demo"
-                            class="inline-flex items-center px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-accent hover:text-accent-foreground transition-colors w-fit"
-                            >Demo</a
-                          >
-                          <a
-                            href="/tree-test"
-                            class="inline-flex items-center px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-accent hover:text-accent-foreground transition-colors w-fit"
-                            >Tree Test</a
-                          >
-                          <a
-                            href="/table-test"
-                            class="inline-flex items-center px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-accent hover:text-accent-foreground transition-colors w-fit"
-                            >Table Test</a
-                          >
-                          <a
-                            href="/debug-monaco"
-                            class="inline-flex items-center px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-accent hover:text-accent-foreground transition-colors w-fit"
-                            >Debug Monaco</a
-                          >
-                          <a
-                            href="/monaco-raw"
-                            class="inline-flex items-center px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-accent hover:text-accent-foreground transition-colors w-fit"
-                            >Raw Monaco</a
-                          >
-                          <a
-                            href="/debug-schema"
-                            class="inline-flex items-center px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-accent hover:text-accent-foreground transition-colors w-fit"
-                            >Debug Schema</a
-                          >
+
+                      {#if showSqlEditor}
+                        <div class="flex-1 relative overflow-hidden">
+                          <SqlTestingEditor />
                         </div>
-                        <div
-                          class="rounded-lg border border-border bg-muted/30 p-4"
-                        >
-                          <h3 class="mb-2 text-sm font-medium">
-                            Editor Content
-                          </h3>
-                          <p class="text-xs text-muted-foreground">
-                            Select a tool from the list above to begin testing.
-                          </p>
+                      {:else}
+                        <div class="flex-1 overflow-auto p-4 space-y-4">
+                          <div class="flex flex-col gap-2">
+                            <a
+                              href="/demo"
+                              class="inline-flex items-center px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-accent hover:text-accent-foreground transition-colors w-fit"
+                              >Demo</a
+                            >
+                            <a
+                              href="/tree-test"
+                              class="inline-flex items-center px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-accent hover:text-accent-foreground transition-colors w-fit"
+                              >Tree Test</a
+                            >
+                            <a
+                              href="/table-test"
+                              class="inline-flex items-center px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-accent hover:text-accent-foreground transition-colors w-fit"
+                              >Table Test</a
+                            >
+                            <a
+                              href="/debug-monaco"
+                              class="inline-flex items-center px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-accent hover:text-accent-foreground transition-colors w-fit"
+                              >Debug Monaco</a
+                            >
+                            <a
+                              href="/monaco-raw"
+                              class="inline-flex items-center px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-accent hover:text-accent-foreground transition-colors w-fit"
+                              >Raw Monaco</a
+                            >
+                            <a
+                              href="/debug-schema"
+                              class="inline-flex items-center px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-accent hover:text-accent-foreground transition-colors w-fit"
+                              >Debug Schema</a
+                            >
+                          </div>
+                          <div
+                            class="rounded-lg border border-border bg-muted/30 p-4"
+                          >
+                            <h3 class="mb-2 text-sm font-medium">
+                              Editor Content
+                            </h3>
+                            <p class="text-xs text-muted-foreground">
+                              Select a tool from the list above to begin
+                              testing.
+                            </p>
+                          </div>
+                          <SystemMetricsWidget />
                         </div>
-                        <SystemMetricsWidget />
-                      </div>
+                      {/if}
                     </div>
                   {/snippet}
 
