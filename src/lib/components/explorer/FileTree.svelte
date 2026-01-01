@@ -34,6 +34,7 @@
         id?: string;
         detail?: string; // For type info like "VARCHAR(45)"
         icon?: any; // Allow overriding icon
+        count?: number; // Added for displaying item counts
     };
 </script>
 
@@ -198,7 +199,16 @@
             </span>
 
             <!-- Label -->
-            <span class="truncate leading-none opacity-90">{node.name}</span>
+            <span class="truncate leading-none opacity-90">
+                {node.name}
+            </span>
+
+            <!-- Count (New) -->
+            {#if node.count !== undefined}
+                <span class="ml-1 text-[10px] text-muted-foreground/70"
+                    >({node.count})</span
+                >
+            {/if}
 
             <!-- Detail (Type info, etc) -->
             {#if node.detail}
