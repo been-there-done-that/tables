@@ -1,0 +1,310 @@
+//! Cursor context analysis.
+//!
+//! Determines what kind of completion is appropriate based on:
+//! - Cursor position in the AST
+//! - Preceding tokens (dot, space, keyword)
+//! - Enclosing clause (SELECT, FROM, WHERE, JOIN ON, etc.)
+
+use tree_sitter::{Node, Tree, Point};
+
+/// The type of completion context at the cursor.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CursorContext {
+    /// After a dot: `u.|` → expect columns of alias `u`
+    AfterDot { alias: String },
+    
+    /// In SELECT clause: `SELECT |` → expect columns, functions, aliases
+    SelectClause,
+    
+    /// In FROM clause: `FROM |` → expect table names
+    FromClause,
+    
+    /// After JOIN keyword: `JOIN |` → expect table names
+    JoinTable,
+    
+    /// After ON keyword: `ON |` → expect join conditions
+    JoinCondition { 
+        left_table: Option<String>,
+        right_table: Option<String>,
+    },
+    
+    /// In WHERE clause: `WHERE |` → expect columns, operators
+    WhereClause,
+    
+    /// Inside function call: `SUM(|)` → expect columns of numeric type
+    FunctionArgument { function_name: String },
+    
+    /// Generic/unknown context
+    Unknown,
+}
+
+/// Full context for completion at a cursor position.
+#[derive(Debug)]
+pub struct Context {
+    /// Byte offset of cursor in source
+    pub cursor_offset: usize,
+    /// The semantic context type
+    pub context_type: CursorContext,
+    /// The partial word being typed (for filtering)
+    pub prefix: String,
+    /// Enclosing scope depth (for subquery handling)
+    pub scope_depth: usize,
+}
+
+impl Context {
+    /// Analyze cursor position and determine completion context.
+    pub fn analyze(source: &str, tree: Option<&Tree>, cursor_offset: usize) -> Self {
+        let default = Context {
+            cursor_offset,
+            context_type: CursorContext::Unknown,
+            prefix: String::new(),
+            scope_depth: 0,
+        };
+
+        let tree = match tree {
+            Some(t) => t,
+            None => return default,
+        };
+
+        let root = tree.root_node();
+        
+        // Find the deepest node at cursor
+        let cursor_point = offset_to_point(source, cursor_offset);
+        let node = find_deepest_node_at(root, cursor_point, cursor_offset);
+        
+        // Extract prefix (the partial word being typed)
+        let prefix = extract_prefix(source, cursor_offset);
+        
+        // Determine context type
+        let context_type = determine_context(source, &node, cursor_offset);
+        
+        // Calculate scope depth
+        let scope_depth = calculate_scope_depth(&node);
+
+        Context {
+            cursor_offset,
+            context_type,
+            prefix,
+            scope_depth,
+        }
+    }
+}
+
+/// Convert byte offset to tree-sitter Point.
+fn offset_to_point(source: &str, offset: usize) -> Point {
+    let mut row = 0;
+    let mut col = 0;
+    
+    for (i, ch) in source.char_indices() {
+        if i >= offset {
+            break;
+        }
+        if ch == '\n' {
+            row += 1;
+            col = 0;
+        } else {
+            col += 1;
+        }
+    }
+    
+    Point { row, column: col }
+}
+
+/// Find the deepest AST node containing the cursor.
+fn find_deepest_node_at<'a>(node: Node<'a>, point: Point, byte_offset: usize) -> Node<'a> {
+    for child in node.children(&mut node.walk()) {
+        if child.start_byte() <= byte_offset && child.end_byte() >= byte_offset {
+            return find_deepest_node_at(child, point, byte_offset);
+        }
+    }
+    node
+}
+
+/// Extract the prefix being typed (for filtering completions).
+fn extract_prefix(source: &str, cursor_offset: usize) -> String {
+    let before_cursor = &source[..cursor_offset];
+    
+    // Walk backwards to find word start
+    let word_start = before_cursor
+        .rfind(|c: char| !c.is_alphanumeric() && c != '_')
+        .map(|i| i + 1)
+        .unwrap_or(0);
+    
+    before_cursor[word_start..].to_string()
+}
+
+/// Determine the completion context from cursor position.
+fn determine_context(source: &str, node: &Node, cursor_offset: usize) -> CursorContext {
+    let before_cursor = &source[..cursor_offset];
+    let trimmed = before_cursor.trim_end();
+    
+    // Check for dot context: `alias.|`
+    if trimmed.ends_with('.') {
+        let alias = extract_alias_before_dot(trimmed);
+        return CursorContext::AfterDot { alias };
+    }
+    
+    // Walk up to find enclosing clause
+    let mut current = Some(*node);
+    while let Some(n) = current {
+        let kind = n.kind();
+        
+        match kind {
+            "select_clause" | "select" => return CursorContext::SelectClause,
+            "from_clause" | "from" => return CursorContext::FromClause,
+            "where_clause" | "where" => return CursorContext::WhereClause,
+            "join_clause" | "join" => {
+                // Check if we're after ON
+                if before_cursor.to_uppercase().contains(" ON ") 
+                   && !before_cursor.to_uppercase().ends_with(" JOIN ") {
+                    let (left, right) = extract_join_tables(before_cursor);
+                    return CursorContext::JoinCondition {
+                        left_table: left,
+                        right_table: right,
+                    };
+                }
+                return CursorContext::JoinTable;
+            }
+            "function_call" => {
+                let fn_name = extract_function_name(&n, source);
+                return CursorContext::FunctionArgument { function_name: fn_name };
+            }
+            _ => {}
+        }
+        
+        current = n.parent();
+    }
+    
+    // Fallback: check keywords in source
+    let upper = before_cursor.to_uppercase();
+    if upper.trim_end().ends_with("SELECT") || upper.contains("SELECT ") && !upper.contains(" FROM ") {
+        return CursorContext::SelectClause;
+    }
+    if upper.trim_end().ends_with("FROM") || upper.trim_end().ends_with("JOIN") {
+        return CursorContext::FromClause;
+    }
+    if upper.contains(" WHERE ") {
+        return CursorContext::WhereClause;
+    }
+    if upper.contains(" ON ") {
+        let (left, right) = extract_join_tables(before_cursor);
+        return CursorContext::JoinCondition {
+            left_table: left,
+            right_table: right,
+        };
+    }
+    
+    CursorContext::Unknown
+}
+
+/// Extract alias before the dot: "u." → "u"
+fn extract_alias_before_dot(trimmed: &str) -> String {
+    let without_dot = trimmed.trim_end_matches('.');
+    without_dot
+        .rfind(|c: char| !c.is_alphanumeric() && c != '_')
+        .map(|i| &without_dot[i + 1..])
+        .unwrap_or(without_dot)
+        .to_string()
+}
+
+/// Extract tables involved in a JOIN clause.
+fn extract_join_tables(before_cursor: &str) -> (Option<String>, Option<String>) {
+    let upper = before_cursor.to_uppercase();
+    
+    // Very simplified extraction - real impl would parse properly
+    let parts: Vec<&str> = upper.split_whitespace().collect();
+    
+    let mut from_table = None;
+    let mut join_table = None;
+    
+    for (i, part) in parts.iter().enumerate() {
+        if *part == "FROM" && i + 1 < parts.len() {
+            from_table = Some(parts[i + 1].to_lowercase());
+        }
+        if *part == "JOIN" && i + 1 < parts.len() {
+            join_table = Some(parts[i + 1].to_lowercase());
+        }
+    }
+    
+    (from_table, join_table)
+}
+
+/// Extract function name from a function_call node.
+fn extract_function_name(node: &Node, source: &str) -> String {
+    for child in node.children(&mut node.walk()) {
+        if child.kind() == "identifier" {
+            let start = child.start_byte();
+            let end = child.end_byte();
+            if end <= source.len() {
+                return source[start..end].to_uppercase();
+            }
+        }
+    }
+    "UNKNOWN".to_string()
+}
+
+/// Calculate nesting depth (for subquery scope handling).
+fn calculate_scope_depth(node: &Node) -> usize {
+    let mut depth: usize = 0;
+    let mut current = Some(*node);
+    
+    while let Some(n) = current {
+        if n.kind() == "subquery" || n.kind() == "select_statement" {
+            depth += 1;
+        }
+        current = n.parent();
+    }
+    
+    depth.saturating_sub(1) // Don't count the outermost query
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::completion::parsing::parse_sql;
+
+    #[test]
+    fn test_after_dot_context() {
+        let source = "SELECT u. FROM users u";
+        let tree = parse_sql(source, None);
+        let ctx = Context::analyze(source, tree.as_ref(), 9); // After "u."
+        
+        assert!(matches!(ctx.context_type, CursorContext::AfterDot { ref alias } if alias == "u"));
+    }
+
+    #[test]
+    fn test_select_clause_context() {
+        let source = "SELECT  FROM users";
+        let tree = parse_sql(source, None);
+        let ctx = Context::analyze(source, tree.as_ref(), 7); // After "SELECT "
+        
+        assert!(matches!(ctx.context_type, CursorContext::SelectClause));
+    }
+
+    #[test]
+    fn test_from_clause_context() {
+        let source = "SELECT * FROM ";
+        let tree = parse_sql(source, None);
+        let ctx = Context::analyze(source, tree.as_ref(), 14); // After "FROM "
+        
+        assert!(matches!(ctx.context_type, CursorContext::FromClause));
+    }
+
+    #[test]
+    fn test_join_condition_context() {
+        let source = "SELECT * FROM users u JOIN orders o ON ";
+        let tree = parse_sql(source, None);
+        let ctx = Context::analyze(source, tree.as_ref(), 39); // After "ON "
+        
+        assert!(matches!(ctx.context_type, CursorContext::JoinCondition { .. }));
+    }
+
+    #[test]
+    fn test_prefix_extraction() {
+        let prefix = extract_prefix("SELECT us", 9);
+        assert_eq!(prefix, "us");
+        
+        let prefix = extract_prefix("SELECT user_na", 14);
+        assert_eq!(prefix, "user_na");
+    }
+}
