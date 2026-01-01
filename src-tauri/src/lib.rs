@@ -179,6 +179,7 @@ pub fn run() {
             // Initialize connection manager state
             app.manage(ConnectionManagerState {
                 credential_manager: credential_manager.clone(),
+                active_connections: Arc::new(Mutex::new(std::collections::HashSet::new())),
             });
 
             debug!("Initializing plugin system");

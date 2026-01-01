@@ -192,6 +192,9 @@ macro_rules! aggregate_plugin_commands {
             update_connection_stats,
             check_keyring_available,
             test_connection_params,
+            get_active_connections,
+            mark_connection_active,
+            mark_connection_inactive,
             
             // AWS plugin commands
             get_available_aws_profiles,

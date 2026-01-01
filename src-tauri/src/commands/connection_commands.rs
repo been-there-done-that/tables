@@ -187,3 +187,40 @@ pub async fn check_keyring_available(
     trace!("Checking keyring availability");
     Ok(conn_state.credential_manager.is_available())
 }
+
+/// Get active connection IDs
+#[tauri::command]
+pub async fn get_active_connections(
+    db_state: State<'_, DatabaseState>,
+    conn_state: State<'_, ConnectionManagerState>,
+) -> Result<Vec<String>, String> {
+    debug!("Getting active connection IDs");
+    let manager = ConnectionManager::from_state(&db_state, &conn_state);
+    Ok(manager.get_active_connection_ids())
+}
+
+/// Mark a connection as active
+#[tauri::command]
+pub async fn mark_connection_active(
+    id: String,
+    db_state: State<'_, DatabaseState>,
+    conn_state: State<'_, ConnectionManagerState>,
+) -> Result<(), String> {
+    debug!("Marking connection '{}' as active", id);
+    let manager = ConnectionManager::from_state(&db_state, &conn_state);
+    manager.set_connection_active(&id, true);
+    Ok(())
+}
+
+/// Mark a connection as inactive
+#[tauri::command]
+pub async fn mark_connection_inactive(
+    id: String,
+    db_state: State<'_, DatabaseState>,
+    conn_state: State<'_, ConnectionManagerState>,
+) -> Result<(), String> {
+    debug!("Marking connection '{}' as inactive", id);
+    let manager = ConnectionManager::from_state(&db_state, &conn_state);
+    manager.set_connection_active(&id, false);
+    Ok(())
+}
