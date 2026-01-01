@@ -207,22 +207,49 @@ fn extract_alias_before_dot(trimmed: &str) -> String {
         .to_string()
 }
 
-/// Extract tables involved in a JOIN clause.
+/// Extract tables (or aliases) involved in a JOIN clause.
 fn extract_join_tables(before_cursor: &str) -> (Option<String>, Option<String>) {
-    let upper = before_cursor.to_uppercase();
-    
-    // Very simplified extraction - real impl would parse properly
-    let parts: Vec<&str> = upper.split_whitespace().collect();
+    let parts: Vec<&str> = before_cursor.split_whitespace().collect();
     
     let mut from_table = None;
     let mut join_table = None;
     
+    let keywords = [
+        "INNER", "LEFT", "RIGHT", "OUTER", "CROSS", 
+        "JOIN", "ON", "WHERE", "GROUP", "ORDER", "LIMIT", "HAVING"
+    ];
+
     for (i, part) in parts.iter().enumerate() {
-        if *part == "FROM" && i + 1 < parts.len() {
-            from_table = Some(parts[i + 1].to_lowercase());
+        let upper = part.to_uppercase();
+        
+        if upper == "FROM" && i + 1 < parts.len() {
+            // Check for alias: FROM table alias
+            let table_or_alias = if i + 2 < parts.len() {
+                let next = parts[i + 2].to_uppercase();
+                if !keywords.contains(&next.as_str()) {
+                    parts[i + 2] // Return alias
+                } else {
+                    parts[i + 1] // Return table
+                }
+            } else {
+                parts[i + 1]
+            };
+            from_table = Some(table_or_alias.to_string());
         }
-        if *part == "JOIN" && i + 1 < parts.len() {
-            join_table = Some(parts[i + 1].to_lowercase());
+        
+        if upper == "JOIN" && i + 1 < parts.len() {
+            // Check for alias: JOIN table alias
+            let table_or_alias = if i + 2 < parts.len() {
+                let next = parts[i + 2].to_uppercase();
+                if !keywords.contains(&next.as_str()) {
+                    parts[i + 2] // Return alias
+                } else {
+                    parts[i + 1] // Return table
+                }
+            } else {
+                parts[i + 1]
+            };
+            join_table = Some(table_or_alias.to_string());
         }
     }
     
