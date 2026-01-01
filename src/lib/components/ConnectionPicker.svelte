@@ -40,6 +40,7 @@
 
     const selectConnection = async (conn: Connection) => {
         selectedConnection = conn;
+        schemaStore.activeSchema = selectConnection.name;
         isOpen = false;
         await schemaStore.connect(conn.id);
     };

@@ -7,6 +7,7 @@ export class SchemaStore {
     status = $state<"idle" | "connecting" | "refreshing" | "error">("idle");
     schemas = $state<MetaSchema[]>([]);
     error = $state<string | null>(null);
+    activeSchema = $state<String | null>(null)
 
     async connect(id: string) {
         this.status = "connecting";
