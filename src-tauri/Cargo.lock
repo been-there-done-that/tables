@@ -5158,6 +5158,7 @@ dependencies = [
  "tauri-plugin-opener",
  "tokio",
  "tokio-postgres",
+ "tokio-util",
  "tracing",
  "tracing-log 0.1.4",
  "tracing-subscriber",
@@ -5753,6 +5754,7 @@ dependencies = [
  "futures-core",
  "futures-io",
  "futures-sink",
+ "futures-util",
  "pin-project-lite",
  "tokio",
 ]
