@@ -9,54 +9,96 @@
   import IconLoader2 from "@tabler/icons-svelte/icons/loader-2";
   import { cn } from "$lib/utils";
 
-  const treeData = $derived(
-    schemaStore.schemas.map((schema) => ({
-      id: `schema:${schema.name}`,
-      name: schema.name,
-      type: "schema" as NodeType,
-      children: schema.tables.map((table) => ({
-        id: `table:${schema.name}.${table.table_name}`,
-        name: table.table_name,
-        type: "table" as NodeType,
-        detail: table.table_type === "table" ? undefined : table.table_type,
-        children: [
+  const treeData = $derived.by(() => {
+    return schemaStore.schemas.map((schema) => {
+      const isSqlite = schemaStore.activeConnection?.engine === "sqlite";
+
+      let children: any[] = [];
+
+      if (isSqlite) {
+        const tables = schema.tables.filter((t) => t.table_type === "table");
+        const views = schema.tables.filter((t) => t.table_type === "view");
+
+        children = [
           {
-            id: `cols:${schema.name}.${table.table_name}`,
-            name: `Columns (${table.columns.length})`,
-            type: "group" as NodeType,
-            children: table.columns.map((col) => ({
-              id: `col:${schema.name}.${table.table_name}.${col.column_name}`,
-              name: col.column_name,
-              type: (col.is_primary_key ? "primary_key" : "column") as NodeType,
-              detail: col.logical_type,
-            })),
+            id: `folder:tables:${schema.name}`,
+            name: "tables",
+            type: "folder" as NodeType,
+            count: tables.length,
+            children: tables.map((table) => mapTableToNode(table, schema.name)),
           },
           {
-            id: `idxs:${schema.name}.${table.table_name}`,
-            name: `Indexes (${table.indexes.length})`,
-            type: "group" as NodeType,
-            children: table.indexes.map((idx) => ({
-              id: `idx:${schema.name}.${table.table_name}.${idx.index_name}`,
-              name: idx.index_name,
-              type: "index" as NodeType,
-              detail: idx.is_unique ? "Unique" : "",
+            id: `folder:views:${schema.name}`,
+            name: "views",
+            type: "folder" as NodeType,
+            count: views.length,
+            children: views.map((table) => ({
+              ...mapTableToNode(table, schema.name),
+              detail: undefined,
             })),
           },
-          {
-            id: `fks:${schema.name}.${table.table_name}`,
-            name: `Foreign Keys (${table.foreign_keys.length})`,
-            type: "group" as NodeType,
-            children: table.foreign_keys.map((fk) => ({
-              id: `fk:${schema.name}.${table.table_name}.${fk.column_name}`,
-              name: fk.column_name,
-              type: "foreign_key" as NodeType,
-              detail: `-> ${fk.ref_table}.${fk.ref_column}`,
-            })),
-          },
-        ],
-      })),
-    })),
-  );
+        ];
+      } else {
+        children = schema.tables.map((table) =>
+          mapTableToNode(table, schema.name),
+        );
+      }
+
+      return {
+        id: `schema:${schema.name}`,
+        name: schema.name,
+        type: "schema" as NodeType,
+        children,
+      };
+    });
+  });
+
+  function mapTableToNode(table: any, schemaName: string) {
+    return {
+      id: `table:${schemaName}.${table.table_name}`,
+      name: table.table_name,
+      type: "table" as NodeType,
+      detail: table.table_type === "table" ? undefined : table.table_type,
+      children: [
+        {
+          id: `cols:${schemaName}.${table.table_name}`,
+          name: "Columns",
+          type: "group" as NodeType,
+          count: table.columns.length,
+          children: table.columns.map((col: any) => ({
+            id: `col:${schemaName}.${table.table_name}.${col.column_name}`,
+            name: col.column_name,
+            type: (col.is_primary_key ? "primary_key" : "column") as NodeType,
+            detail: col.logical_type,
+          })),
+        },
+        {
+          id: `idxs:${schemaName}.${table.table_name}`,
+          name: "Indexes",
+          type: "group" as NodeType,
+          count: table.indexes.length,
+          children: table.indexes.map((idx: any) => ({
+            id: `idx:${schemaName}.${table.table_name}.${idx.index_name}`,
+            name: idx.index_name,
+            type: "index" as NodeType,
+            detail: idx.is_unique ? "Unique" : "",
+          })),
+        },
+        {
+          id: `fks:${schemaName}.${table.table_name}`,
+          name: "Foreign Keys",
+          type: "group" as NodeType,
+          count: table.foreign_keys.length,
+          children: table.foreign_keys.map((fk: any) => ({
+            id: `fk:${schemaName}.${table.table_name}.${fk.column_name}`,
+            name: fk.column_name,
+            type: "foreign_key" as NodeType,
+            detail: `-> ${fk.ref_table}.${fk.ref_column}`,
+          })),
+        },
+      ],
+    };
+  }
 </script>
 
 <div class="flex h-full w-full flex-col bg-background text-foreground">
