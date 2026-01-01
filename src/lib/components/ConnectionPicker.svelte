@@ -12,6 +12,7 @@
     import * as Menu from "$lib/components/ui/context-menu";
 
     import { schemaStore } from "$lib/stores/schema.svelte";
+    import { windowState } from "$lib/stores/window.svelte";
     import IconLoader2 from "@tabler/icons-svelte/icons/loader-2";
 
     let connections = $state<Connection[]>([]);
@@ -39,6 +40,8 @@
 
     const selectConnection = async (conn: Connection) => {
         isOpen = false;
+        // Start a new session for this connection
+        windowState.startSession(conn);
         await schemaStore.connect(conn);
     };
 

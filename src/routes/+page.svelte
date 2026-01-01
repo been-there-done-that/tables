@@ -4,6 +4,7 @@
   import FileTree, {
     type NodeType,
   } from "$lib/components/explorer/FileTree.svelte";
+  import SessionTabs from "$lib/components/SessionTabs.svelte";
   import { windowState } from "$lib/stores/window.svelte";
   import { schemaStore } from "$lib/stores/schema.svelte";
   import IconLoader2 from "@tabler/icons-svelte/icons/loader-2";
@@ -14,9 +15,17 @@
 
   let fileTree: any;
 
+  // Reactive access to active session
+  const activeSession = $derived(windowState.activeSession);
+
+  // For now, use schemaStore.schemas since that's where data is loaded
+  // Session.schemas will be used in future when we move schema loading into Session
+  const schemas = $derived(schemaStore.schemas);
+  const activeConnection = $derived(schemaStore.activeConnection);
+
   const treeData = $derived.by(() => {
-    return schemaStore.schemas.map((schema) => {
-      const isSqlite = schemaStore.activeConnection?.engine === "sqlite";
+    return schemas.map((schema) => {
+      const isSqlite = activeConnection?.engine === "sqlite";
 
       let children: any[] = [];
 
@@ -167,9 +176,9 @@
                 "opacity-50 pointer-events-none",
             )}
           >
-            {#if schemaStore.schemas.length === 0 && schemaStore.status !== "connecting" && schemaStore.status !== "refreshing"}
+            {#if schemas.length === 0 && schemaStore.status !== "connecting" && schemaStore.status !== "refreshing"}
               <div class="p-4 text-center text-xs text-muted-foreground">
-                {#if schemaStore.activeConnection}
+                {#if activeConnection}
                   <p>No schema found.</p>
                   <button
                     class="mt-2 text-primary hover:underline"
@@ -179,6 +188,12 @@
                   <p>Select a connection to view schema.</p>
                 {/if}
               </div>
+            {:else if activeSession}
+              <FileTree
+                items={treeData}
+                bind:this={fileTree}
+                bind:expanded={activeSession.explorerState.expanded}
+              />
             {:else}
               <FileTree items={treeData} bind:this={fileTree} />
             {/if}
@@ -210,11 +225,8 @@
                   <!-- Editor -->
                   {#snippet left()}
                     <div class="flex h-full flex-col bg-background">
-                      <div
-                        class="flex h-8 flex-none items-center border-b border-border px-4"
-                      >
-                        <h2 class="text-sm font-semibold">Main Editor</h2>
-                      </div>
+                      <!-- Session Tabs -->
+                      <SessionTabs />
                       <div class="flex-1 overflow-auto p-4 space-y-4">
                         <div class="flex flex-col gap-2">
                           <a

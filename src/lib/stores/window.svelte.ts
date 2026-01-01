@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { METRICS } from "$lib/constants";
 import { listConnections } from "$lib/commands/client";
 import type { Connection } from "$lib/commands/types";
+import { Session } from "./session.svelte";
 
 export interface CommandConfig {
     id: string;
@@ -64,6 +65,46 @@ class WindowStateStore {
     // Global Connections (shared across components in this window)
     connections = $state<Connection[]>([]);
     loadingConnections = $state(false);
+
+    // Session Management
+    sessions = $state<Session[]>([]);
+    activeSessionId = $state<string | null>(null);
+
+    get activeSession() {
+        return this.sessions.find(s => s.id === this.activeSessionId) || null;
+    }
+
+    startSession(connection: Connection) {
+        // Check if session for this connection already exists? 
+        // Plan says "window... owns UI... can have multiple sessions attached". 
+        // "Sessions Bound to one connection".
+        // If we want multiple tabs for same connection, we just create new session.
+        // If we want to reuse, we check.
+        // Let's create new session for now to allow multiple workspaces for same DB.
+
+        const newSession = new Session(crypto.randomUUID(), connection);
+        this.sessions.push(newSession);
+        this.activateSession(newSession.id);
+    }
+
+    activateSession(sessionId: string) {
+        if (this.sessions.find(s => s.id === sessionId)) {
+            this.activeSessionId = sessionId;
+        }
+    }
+
+    closeSession(sessionId: string) {
+        const index = this.sessions.findIndex(s => s.id === sessionId);
+        if (index === -1) return;
+
+        this.sessions.splice(index, 1);
+
+        if (this.activeSessionId === sessionId) {
+            // Activate the neighbor or null
+            const newActive = this.sessions[index] || this.sessions[index - 1];
+            this.activeSessionId = newActive ? newActive.id : null;
+        }
+    }
 
     private unlistenFunctions: (() => void)[] = [];
 
