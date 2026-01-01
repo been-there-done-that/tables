@@ -435,6 +435,32 @@ fn t15_dot_vs_space_behavior() {
         "After space should include aliases/functions, got: {:?}", space_suggestions);
 }
 
+/// T16. Aliased join condition (Strict)
+/// 
+/// Input: `FROM users u JOIN orders o ON |`
+/// Expected: `u.id = o.user_id`
+/// INVALID: `users.id = orders.user_id` (must respect aliases)
+#[test]
+fn t16_aliased_join_condition() {
+    let items = complete_with_details("SELECT * FROM users u JOIN orders o ON |");
+    
+    assert!(!items.is_empty(), "Should have suggestions");
+    let top = &items[0];
+    
+    // Assert strict alias usage
+    assert!(
+        top.insert_text.starts_with("u.") || top.insert_text.starts_with("o."),
+        "Join condition MUST use defined aliases 'u' or 'o'. Got: '{}'",
+        top.insert_text
+    );
+    
+    assert!(
+        !top.insert_text.contains("users."),
+        "Join condition must NOT use full table name 'users'. Got: '{}'",
+        top.insert_text
+    );
+}
+
 // =============================================================================
 // SUMMARY TEST: MVP BAR
 // =============================================================================
