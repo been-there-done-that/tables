@@ -234,10 +234,16 @@ macro_rules! aggregate_plugin_commands {
             get_schema,
             get_schema_tables,
             get_schema_table_details,
-            run_db_contention_test
+            run_db_contention_test,
+            
+            // Completion commands
+            request_completions,
+            update_completion_schema,
+            clear_completion_schema
         ]
     };
 }
+
 
 /// Macro to register all built-in plugins
 #[macro_export]
