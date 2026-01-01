@@ -277,7 +277,7 @@ impl Introspector {
 
     fn save_column(&self, conn: &SqliteConnection, col: MetaColumn) -> Result<(), String> {
         conn.execute(
-            "INSERT INTO meta_columns (connection_id, schema, table_name, ordinal_position, column_name, raw_type, logical_type, nullable, default_value, is_primary_key) 
+            "INSERT OR REPLACE INTO meta_columns (connection_id, schema, table_name, ordinal_position, column_name, raw_type, logical_type, nullable, default_value, is_primary_key) 
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
             params![col.connection_id, col.schema, col.table_name, col.ordinal_position, col.column_name, col.raw_type, col.logical_type, col.nullable as i32, col.default_value, col.is_primary_key as i32]
         ).map_err(|e| e.to_string())?;
@@ -286,7 +286,7 @@ impl Introspector {
 
     fn save_foreign_key(&self, conn: &SqliteConnection, fk: MetaForeignKey) -> Result<(), String> {
         conn.execute(
-            "INSERT INTO meta_foreign_keys (connection_id, schema, table_name, column_name, ref_table, ref_column) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            "INSERT OR REPLACE INTO meta_foreign_keys (connection_id, schema, table_name, column_name, ref_table, ref_column) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![fk.connection_id, fk.schema, fk.table_name, fk.column_name, fk.ref_table, fk.ref_column]
         ).map_err(|e| e.to_string())?;
         Ok(())
@@ -294,7 +294,7 @@ impl Introspector {
 
     fn save_index(&self, conn: &SqliteConnection, idx: MetaIndex) -> Result<(), String> {
         conn.execute(
-            "INSERT INTO meta_indexes (connection_id, schema, table_name, index_name, is_unique) VALUES (?1, ?2, ?3, ?4, ?5)",
+            "INSERT OR REPLACE INTO meta_indexes (connection_id, schema, table_name, index_name, is_unique) VALUES (?1, ?2, ?3, ?4, ?5)",
             params![idx.connection_id, idx.schema, idx.table_name, idx.index_name, idx.is_unique as i32]
         ).map_err(|e| e.to_string())?;
         Ok(())
@@ -302,7 +302,7 @@ impl Introspector {
 
     fn save_index_column(&self, conn: &SqliteConnection, col: MetaIndexColumn) -> Result<(), String> {
         conn.execute(
-            "INSERT INTO meta_index_columns (connection_id, schema, table_name, index_name, column_name, seq_no) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            "INSERT OR REPLACE INTO meta_index_columns (connection_id, schema, table_name, index_name, column_name, seq_no) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![col.connection_id, col.schema, col.table_name, col.index_name, col.column_name, col.seq_no]
         ).map_err(|e| e.to_string())?;
         Ok(())

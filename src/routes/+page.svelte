@@ -92,7 +92,7 @@
           >
             {#if schemaStore.schemas.length === 0 && schemaStore.status !== "connecting" && schemaStore.status !== "refreshing"}
               <div class="p-4 text-center text-xs text-muted-foreground">
-                {#if schemaStore.activeConnectionId}
+                {#if schemaStore.activeConnection}
                   <p>No schema found.</p>
                   <button
                     class="mt-2 text-primary hover:underline"
