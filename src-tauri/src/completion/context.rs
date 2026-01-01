@@ -27,6 +27,12 @@ pub enum CursorContext {
         left_table: Option<String>,
         right_table: Option<String>,
     },
+
+    /// Right-hand side of join condition: `ON u.id = |`
+    JoinConditionRhs {
+        left_table: Option<String>,
+        right_table: Option<String>,
+    },
     
     /// In WHERE clause: `WHERE |` → expect columns, operators
     WhereClause,
@@ -73,10 +79,16 @@ impl Context {
         let node = find_deepest_node_at(root, cursor_point, cursor_offset);
         
         // Extract prefix (the partial word being typed)
-        let prefix = extract_prefix(source, cursor_offset);
+        let mut prefix = extract_prefix(source, cursor_offset);
         
         // Determine context type
         let context_type = determine_context(source, &node, cursor_offset);
+        
+        // Special case: If we are strictly after a dot, the prefix for member completion
+        // should be empty (or whatever is after the dot, but typically empty if triggered immediately).
+        if let CursorContext::AfterDot { .. } = context_type {
+            prefix = String::new();
+        }
         
         // Calculate scope depth
         let scope_depth = calculate_scope_depth(&node);
@@ -125,8 +137,9 @@ fn extract_prefix(source: &str, cursor_offset: usize) -> String {
     let before_cursor = &source[..cursor_offset];
     
     // Walk backwards to find word start
+    // Allow '.' to be part of the prefix for qualified matching (e.g. "u.em")
     let word_start = before_cursor
-        .rfind(|c: char| !c.is_alphanumeric() && c != '_')
+        .rfind(|c: char| !c.is_alphanumeric() && c != '_' && c != '.')
         .map(|i| i + 1)
         .unwrap_or(0);
     
@@ -188,6 +201,15 @@ fn determine_context(source: &str, node: &Node, cursor_offset: usize) -> CursorC
     }
     if upper.contains(" ON ") {
         let (left, right) = extract_join_tables(before_cursor);
+        
+        // Check if we are after an "=" sign
+        if before_cursor.contains('=') {
+            return CursorContext::JoinConditionRhs {
+                left_table: left,
+                right_table: right,
+            };
+        }
+
         return CursorContext::JoinCondition {
             left_table: left,
             right_table: right,
