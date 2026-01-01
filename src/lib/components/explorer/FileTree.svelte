@@ -79,7 +79,7 @@
         expanded = next;
     }
 
-    function expandAll() {
+    export function expandAll() {
         const all = new Set<string>();
         const traverse = (nodes: TreeNode[], iPrefix = "") => {
             nodes.forEach((node, index) => {
@@ -94,7 +94,7 @@
         expanded = all;
     }
 
-    function collapseAll() {
+    export function collapseAll() {
         expanded = new Set();
     }
 </script>
@@ -102,21 +102,6 @@
 <div
     class={cn("font-mono text-sm select-none flex flex-col h-full", className)}
 >
-    <!-- Toolbar -->
-    <div
-        class="flex items-center gap-2 mb-2 px-1 text-xs text-muted-foreground/60"
-    >
-        <button
-            onclick={expandAll}
-            class="hover:text-foreground transition-colors">Expand All</button
-        >
-        <span>/</span>
-        <button
-            onclick={collapseAll}
-            class="hover:text-foreground transition-colors">Collapse All</button
-        >
-    </div>
-
     <!-- Tree -->
     <ul class="flex flex-col gap-0.5 overflow-auto flex-1">
         {#each items as item, i (getKey(item, i))}
