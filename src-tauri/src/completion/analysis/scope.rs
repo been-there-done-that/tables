@@ -122,9 +122,10 @@ impl SemanticModel {
     /// Find the deepest scope containing the given byte offset.
     pub fn find_scope_at(&self, offset: usize) -> Option<&Scope> {
         // Find deepest (most nested) scope containing offset
+        // Use offset <= range.end to include cursor at boundary
         self.scopes
             .iter()
-            .filter(|s| s.range.contains(&offset))
+            .filter(|s| offset >= s.range.start && offset <= s.range.end)
             .max_by_key(|s| s.range.start) // Deeper scopes start later
     }
 
