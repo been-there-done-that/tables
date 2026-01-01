@@ -193,7 +193,12 @@ impl CompletionEngine {
             let right_resolved = resolve_table_name_from_alias(right, semantic)
                 .unwrap_or_else(|| right.clone());
             
-            if let Some((condition, score)) = schema.infer_join_condition(&left_resolved, &right_resolved) {
+            if let Some((condition, score)) = schema.infer_join_condition(
+                &left_resolved, 
+                &right_resolved,
+                Some(left),
+                Some(right)
+            ) {
                 items.push(CompletionItem {
                     label: condition.clone(),
                     kind: CompletionKind::JoinCondition,
