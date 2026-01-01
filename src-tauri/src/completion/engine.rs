@@ -60,6 +60,11 @@ impl CompletionEngine {
             CursorContext::JoinCondition { left_table, right_table } => {
                 Self::complete_join_condition(left_table, right_table, semantic, schema)
             }
+            CursorContext::JoinConditionRhs { .. } => {
+                // For RHS, just suggest columns from visible tables
+                // Similar to WHERE clause
+                Self::complete_where_clause(semantic, context, schema)
+            }
             CursorContext::WhereClause => {
                 Self::complete_where_clause(semantic, context, schema)
             }
@@ -121,8 +126,9 @@ impl CompletionEngine {
     ) -> Vec<CompletionItem> {
         let mut items = Vec::new();
         
-        // Add visible aliases
+        // Add visible aliases and their columns
         for sym in semantic.visible_symbols_at(context.cursor_offset) {
+            // Suggest the alias itself
             items.push(CompletionItem {
                 label: sym.name.clone(),
                 kind: CompletionKind::Alias,
@@ -130,8 +136,30 @@ impl CompletionEngine {
                 insert_text: format!("{}.", sym.name),
                 score: 80,
             });
+
+            // Also suggest columns for this alias
+            if let Some(table_name) = sym.resolve_table_name() {
+                for col in schema.get_columns(table_name) {
+                    items.push(CompletionItem {
+                        label: col.name.clone(),
+                        kind: CompletionKind::Column,
+                        detail: Some(format!("{} ({})", col.data_type, sym.name)),
+                        insert_text: col.name.clone(),
+                        score: 70, // Slightly lower than alias
+                    });
+                }
+            }
         }
         
+        // Add wildcard
+        items.push(CompletionItem {
+            label: "*".to_string(),
+            kind: CompletionKind::Keyword,
+            detail: Some("All columns".to_string()),
+            insert_text: "*".to_string(),
+            score: 90,
+        });
+
         // Add common functions
         for func in &["COUNT", "SUM", "AVG", "MAX", "MIN", "COALESCE", "CASE"] {
             items.push(CompletionItem {
@@ -148,7 +176,16 @@ impl CompletionEngine {
             label: "DISTINCT".to_string(),
             kind: CompletionKind::Keyword,
             detail: None,
-            insert_text: "DISTINCT ".to_string(),
+            insert_text: "DISTINCT".to_string(),
+            score: 50,
+        });
+
+        // Add FROM keyword which is valid after SELECT list
+        items.push(CompletionItem {
+            label: "FROM".to_string(),
+            kind: CompletionKind::Keyword,
+            detail: None,
+            insert_text: "FROM".to_string(),
             score: 50,
         });
         
@@ -318,7 +355,7 @@ impl CompletionEngine {
                 label: kw.to_string(),
                 kind: CompletionKind::Keyword,
                 detail: None,
-                insert_text: format!("{} ", kw),
+                insert_text: kw.to_string(), // Removed trailing space
                 score: 50,
             });
         }
