@@ -12,7 +12,84 @@ pub fn build_semantic_model(source: &str, tree: &Tree) -> SemanticModel {
     let mut model = SemanticModel::new();
     let mut builder = ModelBuilder::new(source, &mut model);
     builder.visit(tree.root_node());
+    
+    // Fallback: if AST parsing didn't find any symbols, try text-based extraction
+    // This handles cases where tree-sitter's error recovery confuses the AST structure
+    if model.scopes.iter().all(|s| s.symbols.is_empty()) {
+        extract_tables_from_text(source, &mut model);
+    }
+    
     model
+}
+
+/// Fallback text-based extraction for broken SQL.
+/// Scans for FROM/JOIN patterns and extracts table aliases.
+fn extract_tables_from_text(source: &str, model: &mut SemanticModel) {
+    // Ensure we have at least one scope
+    if model.scopes.is_empty() {
+        model.scopes.push(Scope::new(0, None, 0..source.len()));
+    }
+    
+    let source_upper = source.to_uppercase();
+    
+    // Find FROM clause: FROM table [alias]
+    if let Some(from_pos) = source_upper.find(" FROM ") {
+        let after_from = &source[from_pos + 6..];
+        if let Some((table, alias)) = extract_table_alias(after_from) {
+            let range = from_pos..(from_pos + 6 + table.len());
+            model.scopes[0].symbols.push(
+                if let Some(a) = alias {
+                    Symbol::table_alias(&a, &table, range)
+                } else {
+                    Symbol::table(&table, range)
+                }
+            );
+        }
+    }
+    
+    // Find JOIN clauses: JOIN table [alias] ON
+    let mut search_start = 0;
+    while let Some(join_pos) = source_upper[search_start..].find(" JOIN ") {
+        let abs_join_pos = search_start + join_pos;
+        let after_join = &source[abs_join_pos + 6..];
+        if let Some((table, alias)) = extract_table_alias(after_join) {
+            let range = abs_join_pos..(abs_join_pos + 6 + table.len());
+            model.scopes[0].symbols.push(
+                if let Some(a) = alias {
+                    Symbol::table_alias(&a, &table, range)
+                } else {
+                    Symbol::table(&table, range)
+                }
+            );
+        }
+        search_start = abs_join_pos + 6;
+    }
+}
+
+/// Extract table name and optional alias from text after FROM/JOIN.
+/// Handles: "table", "table alias", "table AS alias"
+fn extract_table_alias(text: &str) -> Option<(String, Option<String>)> {
+    let words: Vec<&str> = text.split_whitespace()
+        .take_while(|w| !w.eq_ignore_ascii_case("ON") 
+                       && !w.eq_ignore_ascii_case("JOIN")
+                       && !w.eq_ignore_ascii_case("WHERE")
+                       && !w.eq_ignore_ascii_case("LEFT")
+                       && !w.eq_ignore_ascii_case("RIGHT")
+                       && !w.eq_ignore_ascii_case("INNER")
+                       && !w.eq_ignore_ascii_case("OUTER")
+                       && !w.eq_ignore_ascii_case("CROSS"))
+        .collect();
+    
+    match words.as_slice() {
+        [table] => Some((table.to_string(), None)),
+        [table, alias] if !alias.eq_ignore_ascii_case("AS") => {
+            Some((table.to_string(), Some(alias.to_string())))
+        }
+        [table, _, alias] => {
+            Some((table.to_string(), Some(alias.to_string())))
+        }
+        _ => None,
+    }
 }
 
 struct ModelBuilder<'a> {
@@ -31,50 +108,83 @@ impl<'a> ModelBuilder<'a> {
     }
 
     fn visit(&mut self, node: Node) {
-        match node.kind() {
-            // Top-level statement or subquery creates a scope
-            "statement" | "select_statement" => {
-                self.enter_scope(node);
-                self.visit_children(node);
-                self.exit_scope();
+        let kind = node.kind();
+        
+        // Handle scopes first
+        match kind {
+            // Top-level or query scope - many possible names
+            "program" | "source_file" | "statement" | "select_statement" | 
+            "select" | "query" | "sql_stmt" | "sql_stmt_list" => {
+                if self.current_scope_id.is_none() || kind == "subquery" {
+                    self.enter_scope(node);
+                    self.visit_children(node);
+                    self.exit_scope();
+                    return;
+                }
             }
             
             // Subqueries create nested scopes
-            "subquery" => {
-                self.enter_scope(node);
-                self.visit_children(node);
-                self.exit_scope();
+            "subquery" | "scalar_subquery" | "parenthesized_expression" => {
+                // Only create scope if this contains a SELECT
+                let has_select = node.children(&mut node.walk())
+                    .any(|c| c.kind().contains("select"));
+                if has_select {
+                    self.enter_scope(node);
+                    self.visit_children(node);
+                    self.exit_scope();
+                    return;
+                }
             }
-
-            // CTE definitions
-            "common_table_expression" | "cte" => {
-                self.handle_cte(node);
-            }
-
-            // FROM clause table references
-            "from_clause" | "from" => {
-                self.visit_from_clause(node);
-            }
-
-            // JOIN clause table references  
-            "join_clause" | "join" => {
-                self.visit_join_clause(node);
-            }
-
-            // Table reference with optional alias
-            "table_reference" | "relation" | "table_or_subquery" => {
-                self.handle_table_reference(node);
-            }
-
-            // Aliased table: table_name alias
-            "aliased_relation" | "table_alias" => {
-                self.handle_aliased_table(node);
-            }
-
-            _ => {
-                self.visit_children(node);
-            }
+            _ => {}
         }
+        
+        // Handle table references - try many variations
+        match kind {
+            // FROM/JOIN table references
+            "from_clause" | "from" | "FROM" | 
+            "from_item" | "from_items" => {
+                self.visit_from_clause(node);
+                return;
+            }
+            
+            "join_clause" | "join" | "JOIN" | 
+            "join_item" | "joined_table" => {
+                self.visit_join_clause(node);
+                return;
+            }
+            
+            // Table references with aliases - common patterns
+            "table_reference" | "relation" | "table_or_subquery" |
+            "relation_expr" | "relation_primary" | 
+            "table_ref" | "table_factor" | "simple_table" => {
+                self.handle_table_reference(node);
+                return;
+            }
+            
+            // Aliased tables
+            "aliased_relation" | "table_alias" | "alias" | 
+            "as_alias" | "opt_alias" => {
+                self.handle_aliased_table(node);
+                return;
+            }
+            
+            // CTEs
+            "common_table_expression" | "cte" | "cte_definition" |
+            "with_clause" => {
+                self.handle_cte(node);
+                return;
+            }
+            _ => {}
+        }
+        
+        // Always traverse ERROR nodes to find valid children inside
+        if kind == "ERROR" {
+            self.visit_children(node);
+            return;
+        }
+        
+        // Default: recurse into children
+        self.visit_children(node);
     }
 
     fn visit_children(&mut self, node: Node) {
@@ -139,7 +249,16 @@ impl<'a> ModelBuilder<'a> {
             return;
         };
 
-        // Check for aliased form: "table_name alias" or "table_name AS alias"
+        // tree-sitter-sequel structure for "users u":
+        // [relation] "users u"
+        //   [object_reference] "users"
+        //     [identifier] "users"
+        //   [identifier] "u"
+        //
+        // We need to:
+        // 1. Find object_reference → get the table name from its identifier child
+        // 2. Find direct identifier child → that's the alias
+
         let mut table_name = None;
         let mut alias_name = None;
         
@@ -148,19 +267,38 @@ impl<'a> ModelBuilder<'a> {
         
         for (i, child) in children.iter().enumerate() {
             match child.kind() {
-                "identifier" | "table_name" | "object_reference" => {
+                "object_reference" => {
+                    // Descend into object_reference to get the actual table name
+                    let mut inner_cursor = child.walk();
+                    for inner in child.children(&mut inner_cursor) {
+                        if inner.kind() == "identifier" {
+                            table_name = Some(self.node_text(&inner));
+                            break;
+                        }
+                    }
+                    // Fallback: use the whole text if no identifier found
+                    if table_name.is_none() {
+                        table_name = Some(self.node_text(child));
+                    }
+                }
+                "identifier" => {
+                    // Direct identifier child - this is the alias
                     let text = self.node_text(child);
                     if table_name.is_none() {
+                        // No object_reference yet, this might be the table name
                         table_name = Some(text);
                     } else if alias_name.is_none() {
                         alias_name = Some(text);
                     }
                 }
-                "AS" | "as" => {
+                "table_name" => {
+                    table_name = Some(self.node_text(child));
+                }
+                "AS" | "as" | "keyword_as" => {
                     // Next identifier is the alias
                     if i + 1 < children.len() {
                         let next = &children[i + 1];
-                        if next.kind() == "identifier" || next.kind() == "alias" {
+                        if next.kind() == "identifier" {
                             alias_name = Some(self.node_text(next));
                         }
                     }
@@ -172,7 +310,7 @@ impl<'a> ModelBuilder<'a> {
             }
         }
 
-        // Create symbol
+        // Create symbol if we found a table
         if let Some(table) = table_name {
             let range = node.start_byte()..node.end_byte();
             let symbol = if let Some(alias) = alias_name {
@@ -183,7 +321,7 @@ impl<'a> ModelBuilder<'a> {
             self.model.scopes[scope_id].symbols.push(symbol);
         }
 
-        self.visit_children(node);
+        // Don't visit children - we've handled this node completely
     }
 
     fn handle_aliased_table(&mut self, node: Node) {
@@ -279,5 +417,56 @@ mod tests {
         
         // Should see both tables/aliases
         println!("Visible symbols: {:?}", visible.iter().map(|s| &s.name).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn test_debug_ast_structure() {
+        let source = "SELECT u.id FROM users u";
+        let tree = parse_sql(source, None).unwrap();
+        
+        fn print_tree(node: tree_sitter::Node, source: &str, indent: usize) {
+            let text = &source[node.start_byte()..node.end_byte().min(source.len())];
+            let text_short = if text.len() > 20 { &text[..20] } else { text };
+            println!("{:indent$}[{}] {:?}", "", node.kind(), text_short, indent=indent);
+            for child in node.children(&mut node.walk()) {
+                print_tree(child, source, indent + 2);
+            }
+        }
+        
+        println!("\n=== AST Debug for 'SELECT u.id FROM users u' ===");
+        print_tree(tree.root_node(), source, 0);
+        
+        let model = build_semantic_model(source, &tree);
+        println!("\n=== Scopes: {} ===", model.scopes.len());
+        for (i, scope) in model.scopes.iter().enumerate() {
+            println!("  Scope {}: range {:?}, symbols: {:?}", 
+                i, scope.range, scope.symbols.iter().map(|s| &s.name).collect::<Vec<_>>());
+        }
+    }
+
+    #[test]
+    fn test_debug_broken_sql() {
+        // This is what the tests see - incomplete SQL after removing cursor marker
+        let source = "SELECT u. FROM users u";
+        let tree = parse_sql(source, None).unwrap();
+        
+        fn print_tree(node: tree_sitter::Node, source: &str, indent: usize) {
+            let text = &source[node.start_byte()..node.end_byte().min(source.len())];
+            let text_short = if text.len() > 20 { &text[..20] } else { text };
+            println!("{:indent$}[{}] {:?}", "", node.kind(), text_short, indent=indent);
+            for child in node.children(&mut node.walk()) {
+                print_tree(child, source, indent + 2);
+            }
+        }
+        
+        println!("\n=== AST Debug for BROKEN 'SELECT u. FROM users u' ===");
+        print_tree(tree.root_node(), source, 0);
+        
+        let model = build_semantic_model(source, &tree);
+        println!("\n=== Scopes: {} ===", model.scopes.len());
+        for (i, scope) in model.scopes.iter().enumerate() {
+            println!("  Scope {}: range {:?}, symbols: {:?}", 
+                i, scope.range, scope.symbols.iter().map(|s| &s.name).collect::<Vec<_>>());
+        }
     }
 }
