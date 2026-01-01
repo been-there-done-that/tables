@@ -46,3 +46,8 @@ zeroize = "1.7"
 hex = "0.4"
 sysinfo = "0.30"
 
+# SQL Completion Engine
+tree-sitter = "0.26"
+dashmap = "6"
+petgraph = "0.8"
+tree-sitter-sequel = "0.3.11"

@@ -11,6 +11,7 @@ mod configs;
 mod metrics;
 mod introspection;
 mod db_test;
+mod completion;
 
 use tauri::{Manager, PhysicalPosition, PhysicalSize, Size, Emitter, Listener};
 use std::{path::PathBuf, sync::{Arc, Mutex}, time::SystemTime};
