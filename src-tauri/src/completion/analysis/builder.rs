@@ -225,22 +225,182 @@ impl<'a> ModelBuilder<'a> {
     }
 
     fn handle_cte(&mut self, node: Node) {
-        // Find CTE name
+        let mut name = String::new();
+        let mut columns = Vec::new();
+
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
             if child.kind() == "identifier" || child.kind() == "cte_name" {
-                let name = self.node_text(&child);
-                // Mark the scope as a CTE if we're in a scope
-                if let Some(scope_id) = self.current_scope_id {
-                    let range = child.start_byte()..child.end_byte();
-                    self.model.scopes[scope_id].symbols.push(Symbol::cte(&name, range));
-                    self.model.ctes.insert(name.to_lowercase(), Vec::new());
+                name = self.node_text(&child);
+            } else if child.kind() == "select_statement" || child.kind() == "subquery" {
+                columns = self.extract_query_columns(child);
+            } else if child.kind() == "statement" {
+                // statement -> select_statement
+                let mut inner = child.walk();
+                for inner_child in child.children(&mut inner) {
+                    if inner_child.kind().contains("select") {
+                         columns = self.extract_query_columns(inner_child);
+                         break;
+                    }
                 }
-                break;
+            }
+        }
+        
+        // Sometimes the query is inside a parenthesized expression or deeper
+        if columns.is_empty() {
+            // Try to find any nested select statement
+            let mut cursor = node.walk();
+            for child in node.children(&mut cursor) {
+                if child.kind().contains("select") {
+                     columns = self.extract_query_columns(child);
+                     break;
+                }
+                // Check inside parenthesis
+                if child.kind() == "(" || child.kind() == "parenthesized_expression" {
+                     // Recurse a bit? Or just linear scan children
+                     let mut inner = child.walk();
+                     for inner_child in child.children(&mut inner) {
+                         if inner_child.kind().contains("select") {
+                             columns = self.extract_query_columns(inner_child);
+                             break;
+                         }
+                     }
+                }
+            }
+        }
+
+        if !name.is_empty() {
+            // Mark the scope as a CTE if we're in a scope (which creates a new scope for the CTE body)
+            // But wait, handle_cte is called on the definition. The body of the CTE is a content.
+            // Scopes are entered/exited in `visit`.
+            
+            // We just need to register the CTE globally (or scope-locally)
+            if let Some(scope_id) = self.current_scope_id {
+                let range = node.start_byte()..node.end_byte();
+                self.model.scopes[scope_id].symbols.push(Symbol::cte(&name, range));
+                self.model.ctes.insert(name.to_lowercase(), columns);
             }
         }
         
         self.visit_children(node);
+    }
+    
+    /// Extract projected columns from a SELECT statement/subquery
+    fn extract_query_columns(&self, node: Node) -> Vec<String> {
+        let mut columns = Vec::new();
+        let mut cursor = node.walk();
+        
+        // Find the select list/result columns
+        // [select_statement] -> [result_column]*
+        // tree-sitter-sql varies. often has "select_list" or direct children
+        
+        // Simple heuristic: traverse all children, look for "result_column" or "aliased_expression"
+        // Stop if we hit "FROM"
+        
+        for child in node.children(&mut cursor) {
+            if child.kind().to_uppercase() == "FROM" {
+                break;
+            }
+            
+            // Handle select_expression which might be a list or a single item
+            if child.kind() == "select_expression" {
+                let mut has_comma = false;
+                let mut inner = child.walk();
+                for sub in child.children(&mut inner) {
+                    if sub.kind() == "," {
+                        has_comma = true; 
+                        break; 
+                    }
+                }
+                
+                if has_comma {
+                    // Treat as list
+                    let mut inner = child.walk();
+                    for item in child.children(&mut inner) {
+                        if item.kind() == "," { continue; }
+                        // Recursive extraction for list items
+                         if let Some(col_name) = self.extract_column_alias(item) {
+                            columns.push(col_name);
+                        }
+                    }
+                    continue;
+                }
+            }
+
+            if child.kind() == "result_column" || child.kind() == "select_expression" || child.kind() == "aliased_expression" {
+                if let Some(col_name) = self.extract_column_alias(child) {
+                    columns.push(col_name);
+                }
+            }
+            // Sometimes result columns are inside a "select_list" node
+            if child.kind() == "select_list" {
+                let mut list_cursor = child.walk();
+                for item in child.children(&mut list_cursor) {
+                     if let Some(col_name) = self.extract_column_alias(item) {
+                        columns.push(col_name);
+                    }
+                }
+            }
+        }
+        columns
+    }
+    
+    fn extract_column_alias(&self, node: Node) -> Option<String> {
+        let mut cursor = node.walk();
+        let children: Vec<Node> = node.children(&mut cursor).collect();
+
+        // Case 1: Explicit AS alias ("col AS alias")
+        // Look for "AS" (or keyword_as) and take the next identifier
+        for (i, child) in children.iter().enumerate() {
+            let kind = child.kind();
+             if kind.eq_ignore_ascii_case("AS") || kind == "keyword_as" {
+                 if i + 1 < children.len() {
+                     return Some(self.node_text(&children[i+1]));
+                 }
+             }
+        }
+        
+        // Case 2: Implicit alias ("col alias")
+        // Usually the last identifier is the alias if there are multiple children and no AS
+        if children.len() >= 2 {
+            let last = &children[children.len() - 1];
+            if last.kind() == "identifier" || last.kind() == "alias" {
+                 // Make sure the previous one isn't "AS" (handled above)
+                 let prev = &children[children.len() - 2];
+                 let prev_kind = prev.kind();
+                 if prev_kind != "AS" && prev_kind != "keyword_as" && prev_kind != "." {
+                      return Some(self.node_text(last));
+                 }
+            }
+        }
+        
+        // Case 3: "alias" node direct child
+        for child in children.iter() {
+             if child.kind() == "alias" {
+                 return Some(self.node_text(child));
+             }
+        }
+        
+        // Case 4: Simple identifier "col"
+        if children.len() == 1 && children[0].kind() == "identifier" {
+             return Some(self.node_text(&children[0]));
+        }
+        
+        // Case 5: The node itself is an identifier (if unwrapped)
+        if node.kind() == "identifier" {
+            return Some(self.node_text(&node));
+        }
+        
+        // Case 6: field_access "table.col" -> extract "col"
+        if node.kind() == "field_access" || node.kind() == "object_reference" {
+             if let Some(last) = children.last() {
+                 if last.kind() == "identifier" {
+                     return Some(self.node_text(last));
+                 }
+             }
+        }
+
+        None
     }
 
     fn handle_table_reference(&mut self, node: Node) {

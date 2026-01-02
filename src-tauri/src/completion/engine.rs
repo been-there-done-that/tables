@@ -55,7 +55,7 @@ impl CompletionEngine {
                 Self::complete_select_clause(semantic, context, schema)
             }
             CursorContext::FromClause | CursorContext::JoinTable => {
-                Self::complete_table_names(schema, &context.prefix)
+                Self::complete_table_names(schema, semantic, context)
             }
             CursorContext::JoinCondition { left_table, right_table } => {
                 Self::complete_join_condition(left_table, right_table, semantic, schema)
@@ -98,15 +98,31 @@ impl CompletionEngine {
         // Get columns from schema
         let columns = schema.get_columns(table_name);
         
-        for col in columns {
-            let score = Self::column_score(col.is_primary_key, col.is_indexed);
-            items.push(CompletionItem {
-                label: col.name.clone(),
-                kind: CompletionKind::Column,
-                detail: Some(format!("{} ({})", col.data_type, table_name)),
-                insert_text: col.name.clone(),
-                score,
-            });
+        if !columns.is_empty() {
+            // Schema table match
+            for col in columns {
+                let score = Self::column_score(col.is_primary_key, col.is_indexed);
+                items.push(CompletionItem {
+                    label: col.name.clone(),
+                    kind: CompletionKind::Column,
+                    detail: Some(format!("{} ({})", col.data_type, table_name)),
+                    insert_text: col.name.clone(),
+                    score,
+                });
+            }
+        } else {
+            // CTE match
+             if let Some(cte_cols) = semantic.ctes.get(&table_name.to_lowercase()) {
+                for col_name in cte_cols {
+                    items.push(CompletionItem {
+                        label: col_name.clone(),
+                        kind: CompletionKind::Column,
+                        detail: Some(format!("CTE Column ({})", table_name)),
+                        insert_text: col_name.clone(),
+                        score: 90, // High score for CTE columns
+                    });
+                }
+            }
         }
         
         // Filter by prefix
@@ -125,28 +141,49 @@ impl CompletionEngine {
         schema: &SchemaGraph,
     ) -> Vec<CompletionItem> {
         let mut items = Vec::new();
+        let mut seen_labels = std::collections::HashSet::new();
         
         // Add visible aliases and their columns
         for sym in semantic.visible_symbols_at(context.cursor_offset) {
             // Suggest the alias itself
-            items.push(CompletionItem {
-                label: sym.name.clone(),
-                kind: CompletionKind::Alias,
-                detail: sym.resolve_table_name().map(|t| format!("alias for {}", t)),
-                insert_text: format!("{}.", sym.name),
-                score: 80,
-            });
+            if seen_labels.insert(sym.name.clone()) {
+                items.push(CompletionItem {
+                    label: sym.name.clone(),
+                    kind: CompletionKind::Alias,
+                    detail: sym.resolve_table_name().map(|t| format!("alias for {}", t)),
+                    insert_text: format!("{}.", sym.name),
+                    score: 80,
+                });
+            }
 
             // Also suggest columns for this alias
             if let Some(table_name) = sym.resolve_table_name() {
+                // Check schema tables
                 for col in schema.get_columns(table_name) {
-                    items.push(CompletionItem {
-                        label: col.name.clone(),
-                        kind: CompletionKind::Column,
-                        detail: Some(format!("{} ({})", col.data_type, sym.name)),
-                        insert_text: col.name.clone(),
-                        score: 70, // Slightly lower than alias
-                    });
+                    if seen_labels.insert(col.name.clone()) {
+                        items.push(CompletionItem {
+                            label: col.name.clone(),
+                            kind: CompletionKind::Column,
+                            detail: Some(format!("{} ({})", col.data_type, sym.name)),
+                            insert_text: col.name.clone(),
+                            score: 70, // Slightly lower than alias
+                        });
+                    }
+                }
+                
+                // Check CTE columns if not in schema
+                if let Some(cte_cols) = semantic.ctes.get(&table_name.to_lowercase()) {
+                     for col_name in cte_cols {
+                         if seen_labels.insert(col_name.clone()) {
+                             items.push(CompletionItem {
+                                 label: col_name.clone(),
+                                 kind: CompletionKind::Column,
+                                 detail: Some(format!("CTE Column ({})", table_name)),
+                                 insert_text: col_name.clone(),
+                                 score: 70,
+                             });
+                         }
+                     }
                 }
             }
         }
@@ -195,9 +232,14 @@ impl CompletionEngine {
     }
 
     /// Complete table names for FROM/JOIN clauses.
-    fn complete_table_names(schema: &SchemaGraph, prefix: &str) -> Vec<CompletionItem> {
+    fn complete_table_names(
+        schema: &SchemaGraph, 
+        semantic: &SemanticModel,
+        context: &Context
+    ) -> Vec<CompletionItem> {
         let mut items = Vec::new();
         
+        // 1. Schema tables
         for table_name in schema.table_names() {
             items.push(CompletionItem {
                 label: table_name.to_string(),
@@ -207,9 +249,22 @@ impl CompletionEngine {
                 score: 100,
             });
         }
+
+        // 2. CTEs from current scope
+        for sym in semantic.visible_symbols_at(context.cursor_offset) {
+            if let SymbolKind::CTE { cte_name } = &sym.kind {
+                items.push(CompletionItem {
+                    label: cte_name.clone(),
+                    kind: CompletionKind::Table, // Treat CTE as a table
+                    detail: Some("CTE".to_string()),
+                    insert_text: cte_name.clone(),
+                    score: 110, // Higher priority than schema tables (local definition)
+                });
+            }
+        }
         
-        Self::filter_by_prefix(&mut items, prefix);
-        items.sort_by(|a, b| a.label.cmp(&b.label));
+        Self::filter_by_prefix(&mut items, &context.prefix);
+        items.sort_by(|a, b| b.score.cmp(&a.score)); // Sort by score DESC
         items
     }
 
@@ -451,7 +506,15 @@ mod tests {
     #[test]
     fn test_complete_table_names() {
         let schema = MockSchemaLoader::create_test_schema();
-        let items = CompletionEngine::complete_table_names(&schema, "");
+        let semantic = SemanticModel::new(); // Empty semantic model
+        let context = Context {
+            cursor_offset: 0,
+            context_type: CursorContext::FromClause,
+            prefix: "".to_string(),
+            scope_depth: 0,
+        };
+        
+        let items = CompletionEngine::complete_table_names(&schema, &semantic, &context);
         
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(labels.contains(&"users"));
