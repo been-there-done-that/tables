@@ -15,8 +15,8 @@ interface CompletionItemDto {
 
 export function registerSqlCompletion(monacoInstance: typeof monaco) {
     monacoInstance.languages.registerCompletionItemProvider('sql', {
-        // Trigger on space, dot, new line, etc.
-        triggerCharacters: [' ', '.', '(', '\n', ','],
+        // Trigger on space, dot, etc.
+        triggerCharacters: [' ', '.', '(', ','],
 
         provideCompletionItems: async (model, position) => {
             // Only proceed if we have an active connection
