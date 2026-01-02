@@ -29,7 +29,7 @@
 <button
 	type="button"
 	class={cn(
-		"flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors",
+		"flex w-full items-center gap-2 rounded-sm px-2 py-0.5 text-sm outline-none transition-colors",
 		"hover:bg-(--theme-bg-hover) active:bg-(--theme-bg-active) focus:bg-(--theme-bg-active) focus:ring-1 focus:ring-(--theme-accent-primary)",
 		variant === "danger"
 			? "text-red-500 hover:text-red-600"

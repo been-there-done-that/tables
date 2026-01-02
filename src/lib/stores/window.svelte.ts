@@ -69,8 +69,8 @@ class WindowStateStore {
     // Layout State
     layout = $state({
         left: true,
-        right: true,
-        bottom: true
+        right: false,
+        bottom: false
     });
 
     // Session Management
