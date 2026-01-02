@@ -16,6 +16,9 @@ pub enum CursorContext {
     /// In SELECT clause: `SELECT |` → expect columns, functions, aliases
     SelectClause,
     
+    /// After complete SELECT list: `SELECT * |` or `SELECT a, b |` → expect FROM
+    AfterSelectList,
+    
     /// In FROM clause: `FROM |` → expect table names
     FromClause,
     
@@ -39,6 +42,9 @@ pub enum CursorContext {
     
     /// Inside function call: `SUM(|)` → expect columns of numeric type
     FunctionArgument { function_name: String },
+    
+    /// Start of statement or empty editor: `|` → expect SELECT, WITH, INSERT
+    RootContext,
     
     /// Generic/unknown context
     Unknown,
@@ -190,10 +196,39 @@ fn determine_context(source: &str, node: &Node, cursor_offset: usize) -> CursorC
     
     // Fallback: check keywords in source
     let upper = before_cursor.to_uppercase();
-    if upper.trim_end().ends_with("SELECT") || upper.contains("SELECT ") && !upper.contains(" FROM ") {
+    let trimmed_upper = upper.trim();
+    
+    // Root context: empty or just whitespace
+    if trimmed_upper.is_empty() {
+        return CursorContext::RootContext;
+    }
+    
+    // After SELECT list: SELECT ... * | or SELECT ... col |  (before FROM)
+    // Detect: has SELECT, has content after SELECT, no FROM yet, ends with expression
+    if upper.contains("SELECT ") && !upper.contains(" FROM ") {
+        // Check if we're after a complete expression (*, identifier, or closing paren)
+        let after_select = upper.split("SELECT ").last().unwrap_or("").trim();
+        
+        // Ends with *, identifier, or ) means complete expression → suggest FROM
+        if after_select.ends_with('*') 
+            || after_select.ends_with(')') 
+            || (after_select.len() > 0 && after_select.chars().last().map(|c| c.is_alphanumeric() || c == '_').unwrap_or(false))
+        {
+            // But not if we're mid-word (check if space before cursor)
+            let before_trimmed = before_cursor.trim_end();
+            if before_trimmed.len() < before_cursor.len() || before_cursor.ends_with(' ') {
+                return CursorContext::AfterSelectList;
+            }
+        }
+        
+        // Otherwise still building SELECT list
         return CursorContext::SelectClause;
     }
-    if upper.trim_end().ends_with("FROM") || upper.trim_end().ends_with("JOIN") {
+    
+    if trimmed_upper.ends_with("SELECT") {
+        return CursorContext::SelectClause;
+    }
+    if trimmed_upper.ends_with("FROM") || trimmed_upper.ends_with("JOIN") {
         return CursorContext::FromClause;
     }
     if upper.contains(" WHERE ") {
