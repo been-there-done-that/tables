@@ -133,7 +133,31 @@
   }
 
   function handleContextMenuAction(action: string, node: TreeNode) {
-    if (!activeSession) return;
+    console.log("[handleContextMenuAction] Triggered", {
+      action,
+      nodeName: node.name,
+      nodeType: node.type,
+      hasSession: !!activeSession,
+    });
+
+    if (!activeSession) {
+      if (schemaStore.activeConnection) {
+        console.log(
+          "[handleContextMenuAction] No session, starting one for",
+          schemaStore.activeConnection.name,
+        );
+        windowState.startSession(schemaStore.activeConnection);
+      } else {
+        console.error(
+          "[handleContextMenuAction] No active session or connection found!",
+        );
+        return;
+      }
+    }
+
+    // Re-evaluate session after potentially starting it
+    const session = windowState.activeSession;
+    if (!session) return;
 
     switch (action) {
       case "query_console":
@@ -141,13 +165,17 @@
           node.type === "schema"
             ? `Console: ${node.name}`
             : `Query: ${node.name}`;
-        activeSession.openView("editor", title, {
-          // We can pass context here if needed
+        console.log("[handleContextMenuAction] Opening View", {
+          type: "editor",
+          title,
         });
+        session.openView("editor", title);
         break;
       // Stubs for other actions
       default:
-        console.log(`Action ${action} not implemented for node ${node.name}`);
+        console.log(
+          `[handleContextMenuAction] Action "${action}" not implemented for node ${node.name}`,
+        );
     }
   }
 </script>
@@ -281,7 +309,12 @@
               </div>
             {:else}
               <div class="animate-in fade-in slide-in-from-left-2 duration-300">
-                <FileTree items={treeData} bind:this={fileTree} />
+                <FileTree
+                  items={treeData}
+                  bind:this={fileTree}
+                  onAction={handleExplorerAction}
+                  onContextMenuAction={handleContextMenuAction}
+                />
               </div>
             {/if}
           </div>

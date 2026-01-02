@@ -33,7 +33,7 @@
 						newX = window.innerWidth - rect.width - 10;
 					}
 					if (newY + rect.height > window.innerHeight) {
-						newY = window.innerHeight - rect.height - 10;
+						newY = window.innerHeight - rect.height - 2;
 					}
 					adjustedCoords = { x: newX, y: newY };
 				}
