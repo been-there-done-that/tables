@@ -3,8 +3,10 @@
   import SystemMetricsWidget from "$lib/components/SystemMetricsWidget.svelte";
   import FileTree, {
     type NodeType,
+    type TreeNode,
   } from "$lib/components/explorer/FileTree.svelte";
-  import SessionTabs from "$lib/components/SessionTabs.svelte";
+  import EditorTabs from "$lib/components/EditorTabs.svelte";
+  import EditorHome from "$lib/components/EditorHome.svelte";
   import { windowState } from "$lib/stores/window.svelte";
   import { schemaStore } from "$lib/stores/schema.svelte";
   import IconLoader2 from "@tabler/icons-svelte/icons/loader-2";
@@ -112,6 +114,22 @@
         },
       ],
     };
+  }
+
+  function handleExplorerAction(node: TreeNode) {
+    if (!activeSession) return;
+
+    if (node.type === "table") {
+      activeSession.openView("table", node.name, { tableName: node.name });
+    } else if (
+      node.type === "column" ||
+      node.type === "primary_key" ||
+      node.type === "foreign_key"
+    ) {
+      activeSession.openView("editor", `Query: ${node.name}`, {
+        initialValue: `SELECT * FROM ${node.id?.split(".")[0].split(":")[1]}.${node.id?.split(".")[1]} WHERE ${node.name} = ...`,
+      });
+    }
   }
 </script>
 
@@ -238,6 +256,7 @@
                   items={treeData}
                   bind:this={fileTree}
                   bind:expanded={activeSession.explorerState.expanded}
+                  onAction={handleExplorerAction}
                 />
               </div>
             {:else}
@@ -273,66 +292,35 @@
                   <!-- Editor -->
                   {#snippet left()}
                     <div class="flex h-full flex-col bg-background">
-                      <div
-                        class="flex h-8 flex-none items-center border-b border-border px-4"
-                      >
-                        <h2 class="text-sm font-semibold">
-                          {showSqlEditor ? "SQL Playground" : "Main Editor"}
-                        </h2>
-                      </div>
+                      <EditorTabs />
 
-                      <SessionTabs />
-
-                      {#if showSqlEditor}
+                      {#if !activeSession || activeSession.views.length === 0}
+                        <EditorHome />
+                      {:else if showSqlEditor}
                         <div class="flex-1 relative overflow-hidden">
                           <SqlTestingEditor />
                         </div>
                       {:else}
-                        <div class="flex-1 overflow-auto p-4 space-y-4">
-                          <div class="flex flex-col gap-2">
-                            <a
-                              href="/demo"
-                              class="inline-flex items-center px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-accent hover:text-accent-foreground transition-colors w-fit"
-                              >Demo</a
+                        {@const activeView = activeSession.views.find(
+                          (v) => v.id === activeSession.activeViewId,
+                        )}
+                        <div class="flex-1 overflow-hidden relative">
+                          {#if activeView?.type === "editor"}
+                            <SqlTestingEditor />
+                          {:else if activeView?.type === "table"}
+                            <div
+                              class="flex items-center justify-center h-full text-muted-foreground italic text-sm"
                             >
-                            <a
-                              href="/tree-test"
-                              class="inline-flex items-center px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-accent hover:text-accent-foreground transition-colors w-fit"
-                              >Tree Test</a
-                            >
-                            <a
-                              href="/table-test"
-                              class="inline-flex items-center px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-accent hover:text-accent-foreground transition-colors w-fit"
-                              >Table Test</a
-                            >
-                            <a
-                              href="/debug-monaco"
-                              class="inline-flex items-center px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-accent hover:text-accent-foreground transition-colors w-fit"
-                              >Debug Monaco</a
-                            >
-                            <a
-                              href="/monaco-raw"
-                              class="inline-flex items-center px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-accent hover:text-accent-foreground transition-colors w-fit"
-                              >Raw Monaco</a
-                            >
-                            <a
-                              href="/debug-schema"
-                              class="inline-flex items-center px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-accent hover:text-accent-foreground transition-colors w-fit"
-                              >Debug Schema</a
-                            >
-                          </div>
-                          <div
-                            class="rounded-lg border border-border bg-muted/30 p-4"
-                          >
-                            <h3 class="mb-2 text-sm font-medium">
-                              Editor Content
-                            </h3>
-                            <p class="text-xs text-muted-foreground">
-                              Select a tool from the list above to begin
-                              testing.
-                            </p>
-                          </div>
-                          <SystemMetricsWidget />
+                              Table Browser: {activeView.title} (Coming Soon)
+                            </div>
+                          {:else}
+                            <!-- Default Fallback -->
+                            <div class="flex-1 overflow-auto p-4 space-y-4">
+                              <!-- ... (previous demo content) ... -->
+                              <pre
+                                class="p-4 bg-muted/30 rounded border border-border text-xs">View ID: {activeSession.activeViewId}</pre>
+                            </div>
+                          {/if}
                         </div>
                       {/if}
                     </div>
