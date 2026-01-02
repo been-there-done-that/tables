@@ -229,3 +229,9 @@
 .monaco-editor .margin {
   border-right: 1px solid var(--theme-border-subtle);
 }
+
+/* The border on the left side (like DataGrip) */
+.current-query-border {
+  border-left: 3px solid var(--theme-accent-primary);
+  background: color-mix(in srgb, var(--theme-accent-primary) 5%, transparent);
+}

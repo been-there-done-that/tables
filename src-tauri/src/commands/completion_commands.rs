@@ -19,6 +19,7 @@ use crate::completion::parsing::parse_sql;
 use crate::completion::context::Context;
 use crate::completion::analysis::build_semantic_model;
 use crate::completion::engine::{CompletionEngine, CompletionItem, CompletionKind};
+use crate::completion::ranges::{find_current_statement_range, StatementRange};
 
 /// Shared state for completion.
 pub struct CompletionState {
@@ -215,5 +216,19 @@ pub async fn request_completions(
     .await
     .map_err(|e| e.to_string())?;
     
+    Ok(result)
+}
+
+/// Find the range of the current SQL statement at the cursor.
+#[tauri::command]
+pub async fn get_current_statement(
+    text: String,
+    cursor_offset: usize
+) -> Result<Option<StatementRange>, String> {
+    let result = tokio::task::spawn_blocking(move || {
+        let tree = parse_sql(&text, None);
+        tree.as_ref().and_then(|t| find_current_statement_range(t, cursor_offset))
+    }).await.map_err(|e| e.to_string())?;
+
     Ok(result)
 }
