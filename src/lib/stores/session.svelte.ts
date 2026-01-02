@@ -39,7 +39,19 @@ export class Session {
         this.activeViewId = view.id;
     }
 
+    openView(type: ViewType, title: string, data?: any) {
+        // Find existing view if it matches type/title/data to avoid duplicates?
+        // For now, just create a new one
+        const id = crypto.randomUUID();
+        const newView: ViewState = { id, type, title, data };
+        this.addView(newView);
+        return id;
+    }
+
     closeView(viewId: string) {
+        const index = this.views.findIndex(v => v.id === viewId);
+        if (index === -1) return;
+
         this.views = this.views.filter(v => v.id !== viewId);
         if (this.activeViewId === viewId) {
             this.activeViewId = this.views.length > 0 ? this.views[this.views.length - 1].id : null;
