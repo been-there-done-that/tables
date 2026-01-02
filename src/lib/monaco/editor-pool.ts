@@ -2,6 +2,7 @@ import type * as monaco from 'monaco-editor';
 import { ModelRegistry } from './model-registry';
 import type { EditorContext, EditorHandle, EditorViewSnapshot } from './editor-types';
 import { MONACO_THEME_NAME } from './monaco-theme';
+import { enableQueryHighlighting } from './statement-highlighter';
 
 interface PooledEditor {
     editor: monaco.editor.IStandaloneCodeEditor;
@@ -154,6 +155,8 @@ export class EditorPool {
                 lineDecorationsWidth: 8,      // Narrow decoration area (acts as border spacing)
                 glyphMargin: false,           // Remove extra glyph margin
             });
+
+            enableQueryHighlighting(editor);
 
             const pooled: PooledEditor = {
                 editor,
