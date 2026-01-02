@@ -81,9 +81,36 @@ export function updateMonacoTheme(m: typeof monaco, data: ThemeData) {
     }
 
     // Heuristic for base theme (dark vs light)
-    // We could do a lumen check, but usually apps are dark-first.
-    // Let's check if the background is light.
-    const base: monaco.editor.BuiltinTheme = 'vs-dark';
+    const isLightBackground = (hex: string) => {
+        const r = parseInt(hex.slice(1, 3), 16);
+        const g = parseInt(hex.slice(3, 5), 16);
+        const b = parseInt(hex.slice(5, 7), 16);
+        // Standard luminance calculation
+        const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+        return luminance > 0.5;
+    };
+
+    const base: monaco.editor.BuiltinTheme = isLightBackground(bg.primary) ? 'vs' : 'vs-dark';
+
+    // Add punctuation/delimiter rules specifically for contrast
+    if (data.syntax) {
+        if (data.syntax.keyword) rules.push({ token: 'keyword', foreground: data.syntax.keyword });
+        if (data.syntax.string) rules.push({ token: 'string', foreground: data.syntax.string });
+        if (data.syntax.number) rules.push({ token: 'number', foreground: data.syntax.number });
+        if (data.syntax.comment) rules.push({ token: 'comment', foreground: data.syntax.comment });
+        if (data.syntax.function) rules.push({ token: 'function', foreground: data.syntax.function });
+        if (data.syntax.variable) rules.push({ token: 'variable', foreground: data.syntax.variable });
+        if (data.syntax.operator) rules.push({ token: 'operator', foreground: data.syntax.operator });
+        if (data.syntax.type) rules.push({ token: 'type', foreground: data.syntax.type });
+
+        // Explicitly handle delimiters (dots, semicolons, brackets)
+        // If the theme defines an operator color, use it for delimiters too for consistency,
+        // otherwise fallback to the primary foreground which always has high contrast.
+        const delimiterColor = data.syntax.operator || fg.primary;
+        rules.push({ token: 'delimiter', foreground: delimiterColor });
+        rules.push({ token: 'delimiter.sql', foreground: delimiterColor });
+        rules.push({ token: 'punctuation', foreground: delimiterColor });
+    }
 
     m.editor.defineTheme(MONACO_THEME_NAME, {
         base,
