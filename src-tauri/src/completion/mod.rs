@@ -13,6 +13,7 @@ pub mod engine;
 pub mod analysis;
 pub mod schema;
 pub mod ranges;
+pub mod diagnostics;
 
 #[cfg(test)]
 pub mod tests;
