@@ -14,7 +14,7 @@ mod db_test;
 mod completion;
 
 use tauri::{Manager, PhysicalPosition, PhysicalSize, Size, Emitter, Listener};
-use std::{path::PathBuf, sync::{Arc, Mutex}, time::SystemTime};
+use std::{path::PathBuf, sync::{Arc, Mutex}, time::SystemTime, collections::{HashMap, HashSet}};
 use rusqlite::{Connection, OptionalExtension};
 use serde::Serialize;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
@@ -34,7 +34,7 @@ use credential_manager::CredentialManager;
 use metrics::{MetricsRegistry, SystemMonitor, start_metrics_emitter};
 
 // Re-export for command modules
-pub use connection_manager::ConnectionManagerState;
+pub use connection_manager::{ConnectionManager, ConnectionManagerState};
 pub use metrics::MetricsRegistry as SharedMetricsRegistry; // Optional if commands need it
 
 #[derive(Clone, Debug, Serialize)]
@@ -181,7 +181,7 @@ pub fn run() {
             // Initialize connection manager state
             app.manage(ConnectionManagerState {
                 credential_manager: credential_manager.clone(),
-                active_connections: Arc::new(Mutex::new(std::collections::HashSet::new())),
+                active_connections: Arc::new(Mutex::new(HashMap::new())),
             });
 
             debug!("Initializing completion engine");
@@ -268,8 +268,17 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::Destroyed = event {
-                debug!("Window destroyed event for {}", window.label());
-                let _ = window.app_handle().emit("window-destroyed", window.label());
+                let label = window.label().to_string();
+                debug!("Window destroyed event for {}", label);
+                
+                // Cleanup active connection tracking for this window
+                let app = window.app_handle();
+                if let (Some(db_state), Some(conn_state)) = (app.try_state::<DatabaseState>(), app.try_state::<ConnectionManagerState>()) {
+                    let manager = ConnectionManager::from_state(&db_state, &conn_state);
+                    manager.remove_window_from_active(&label);
+                }
+
+                let _ = app.emit("window-destroyed", label);
             }
         })
         .invoke_handler(aggregate_plugin_commands!())
