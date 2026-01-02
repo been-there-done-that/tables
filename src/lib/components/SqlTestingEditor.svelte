@@ -24,22 +24,38 @@
         const model = editor.getModel();
         if (!model) return;
 
-        // In a real app, we'd get the range from the decoration collection
-        // But here we can just reuse the same logic or let the user click
-        // For demonstration, we'll log what would be executed
-        const decorations = editor.getDecorationsInRange(
-            new monaco.Range(1, 1, model.getLineCount(), 1),
-        );
-        const highlight = decorations.find(
-            (d) => d.options.className === "current-query-border",
-        );
+        let query = "";
+        let source = "";
 
-        if (highlight) {
-            const query = model.getValueInRange(highlight.range);
-            log(`Executing isolated query:\n${query}`);
+        // 1. Check for manual selection first
+        const selection = editor.getSelection();
+        if (selection && !selection.isEmpty()) {
+            query = model.getValueInRange(selection);
+            source = "manual selection";
         } else {
-            const query = editor.getValue();
-            log(`No statement isolation found. Executing full text:\n${query}`);
+            // 2. Fallback to auto-highlighted statement
+            const decorations = editor.getDecorationsInRange(
+                new monaco.Range(1, 1, model.getLineCount(), 1),
+            );
+            const highlight = decorations?.find(
+                (d) => d.options.className === "current-query-border",
+            );
+
+            if (highlight) {
+                query = model.getValueInRange(highlight.range);
+                source = "auto-highlighted statement";
+            } else {
+                // 3. Fallback to full text
+                query = editor.getValue();
+                source = "full text";
+            }
+        }
+
+        if (query.trim()) {
+            console.log(`[Execute] Running query from ${source}:`, query);
+            log(`Executing (${source}):\n${query}`);
+        } else {
+            log("No query to execute");
         }
     }
 
@@ -62,7 +78,15 @@
             editorHandle = handle;
             log("Editor initialized");
 
-            // Only set value if empty to preserve content if component stays alive (though it likely won't)
+            // Add Command+Enter / Ctrl+Enter shortcut
+            handle.editor.addCommand(
+                monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
+                () => {
+                    executeCurrent();
+                },
+            );
+
+            // Only set value if empty
             if (!handle.editor.getValue()) {
                 handle.editor.setValue(
                     "-- SQL Auto-Completion Playground\n-- Type 'SELECT' or table names from your active connection\n\nSELECT * FROM ",
