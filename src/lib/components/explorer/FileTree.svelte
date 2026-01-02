@@ -12,6 +12,7 @@
     import Cube from "@tabler/icons-svelte/icons/cube"; // For Schema
     import ColumnIcon from "$lib/components/icons/ColumnIcon.svelte";
     import PrimaryKeyIcon from "$lib/components/icons/PrimaryKeyIcon.svelte";
+    import IconSql from "@tabler/icons-svelte/icons/file-database"; // Closest to requested "paper + database"
 
     export type NodeType =
         | "folder"
@@ -47,6 +48,7 @@
         class: className = "",
         indent = 24,
         onNodeClick = (node: TreeNode) => {},
+        onAction = (node: TreeNode) => {},
         expanded = $bindable(new Set()),
     } = $props();
 
@@ -199,6 +201,20 @@
                 <span class="ml-2 text-xs text-muted-foreground truncate"
                     >{node.detail}</span
                 >
+            {/if}
+
+            <!-- Action Icon (Visible on Hover) -->
+            {#if node.type === "table" || node.type === "column" || node.type === "primary_key" || node.type === "foreign_key"}
+                <button
+                    class="ml-auto p-1 rounded-sm opacity-0 group-hover:opacity-100 hover:bg-accent text-muted-foreground hover:text-foreground transition-all duration-200"
+                    onclick={(e) => {
+                        e.stopPropagation();
+                        onAction(node);
+                    }}
+                    title="Open in new tab"
+                >
+                    <IconSql class="size-3.5" />
+                </button>
             {/if}
         </div>
 
