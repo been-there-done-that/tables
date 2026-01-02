@@ -8,6 +8,27 @@ export class SchemaStore {
     schemas = $state<MetaSchema[]>([]);
     error = $state<string | null>(null);
     lastRefreshed = $state<Date | null>(null);
+    windowLabel = $state<string | null>(null);
+
+    async initialize(label: string) {
+        this.windowLabel = label;
+        console.log(`[SchemaStore] Initializing for window: ${label}`);
+
+        try {
+            // Check if there's a persisted session for this window
+            const persistedId = await invoke<string | null>("get_window_session", { windowLabel: label });
+            if (persistedId) {
+                console.log(`[SchemaStore] Found persisted session: ${persistedId}`);
+                // Load connection metadata
+                const conn = await invoke<Connection>("get_connection_metadata", { id: persistedId });
+                if (conn) {
+                    await this.connect(conn);
+                }
+            }
+        } catch (e) {
+            console.error("[SchemaStore] Failed to restore session:", e);
+        }
+    }
 
     async connect(conn: Connection) {
         const previousId = this.activeConnection?.id;
@@ -20,24 +41,26 @@ export class SchemaStore {
 
         try {
             // 1. Validate connection
-            await invoke("test_connection_by_id", { id: conn.id }); // Using the ID version
+            await invoke("test_connection_by_id", { id: conn.id });
 
-            // 2. Mark as active in backend
-            await invoke("mark_connection_active", { id: conn.id });
+            // 2. Mark as active in backend (with persistence)
+            await invoke("mark_connection_active", {
+                id: conn.id,
+                windowLabel: this.windowLabel
+            });
 
             // 3. Mark previous as inactive if it's different
             if (previousId && previousId !== conn.id) {
-                // We don't await this to avoid blocking UI, or maybe we should? 
-                // It's safer to just fire and forget or await if quick.
-                invoke("mark_connection_inactive", { id: previousId }).catch(console.error);
+                invoke("mark_connection_inactive", {
+                    id: previousId,
+                    windowLabel: this.windowLabel
+                }).catch(console.error);
             }
 
             // 4. Fetch Schema (Cached)
             const result = await invoke<MetaSchema[]>("get_schema", { connectionId: conn.id });
 
             // 5. Update Completion Engine Cache
-            // We run this async without blocking the UI, but it's fast enough we might as well await
-            // to ensure completion works immediately after "Connected" toast.
             await invoke("update_completion_schema", {
                 connectionId: conn.id,
                 schemas: result
@@ -58,9 +81,29 @@ export class SchemaStore {
             this.error = String(e);
             toast.error("Connection Failed", { description: String(e) });
 
-            // Revert active status if failed?
-            // Maybe not necessary if UI shows error, but let's be clean.
-            invoke("mark_connection_inactive", { id: conn.id }).catch(console.error);
+            invoke("mark_connection_inactive", {
+                id: conn.id,
+                windowLabel: this.windowLabel
+            }).catch(console.error);
+        }
+    }
+
+    async disconnect() {
+        if (!this.activeConnection) return;
+
+        const id = this.activeConnection.id;
+        this.activeConnection = null;
+        this.schemas = [];
+        this.status = "idle";
+
+        try {
+            await invoke("mark_connection_inactive", {
+                id,
+                windowLabel: this.windowLabel
+            });
+            toast.success("Disconnected");
+        } catch (e) {
+            console.error("Disconnect failed:", e);
         }
     }
 
@@ -85,7 +128,7 @@ export class SchemaStore {
             this.lastRefreshed = new Date();
             toast.success("Schema Refreshed");
         } catch (e) {
-            this.status = "idle"; // Go back to idle/error
+            this.status = "idle";
             toast.error("Refresh Failed", { description: String(e) });
         }
     }
