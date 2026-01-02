@@ -27,35 +27,60 @@ pub struct CompletionItem {
 }
 
 /// Kind of completion item.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[repr(u8)]
 pub enum CompletionKind {
-    Table,
-    Column,
-    Alias,
-    Keyword,
-    Function,
-    JoinCondition,
+    Table = 0,
+    Column = 1,
+    Alias = 2,
+    Keyword = 3,
+    Function = 4,
+    JoinCondition = 5,
 }
 
 /// The completion engine.
 pub struct CompletionEngine;
 
-/// Standard SQL keywords to suggest in generic contexts.
-const STANDARD_KEYWORDS: &[&str] = &[
-    "SELECT", "FROM", "WHERE", "GROUP BY", "ORDER BY", "HAVING", "LIMIT", "OFFSET",
-    "AS", "ON", "JOIN", "INNER JOIN", "LEFT JOIN", "RIGHT JOIN", "FULL JOIN",
-    "CROSS JOIN", "UNION", "UNION ALL", "DISTINCT", "CASE", "WHEN", "THEN", "ELSE", "END",
-    "AND", "OR", "NOT", "IN", "IS", "NULL", "LIKE", "BETWEEN", "EXISTS", "ANY", "ALL",
-    "WITH", "RECURSIVE", "VALUES", "INSERT", "UPDATE", "DELETE", "CREATE", "DROP", "ALTER"
+// ============================================================================
+// Context-Specific Keyword/Function Subsets
+// ============================================================================
+
+/// Keywords valid in SELECT clause (after SELECT, before FROM)
+const SELECT_KEYWORDS: &[&str] = &[
+    "DISTINCT", "AS", "CASE", "WHEN", "THEN", "ELSE", "END", "FROM",
 ];
 
-/// Standard SQL functions to suggest.
-const STANDARD_FUNCTIONS: &[&str] = &[
+/// Functions valid in SELECT clause
+const SELECT_FUNCTIONS: &[&str] = &[
     "COUNT", "SUM", "AVG", "MAX", "MIN", "ABS", "ROUND", "CEIL", "FLOOR", "POWER", "SQRT",
     "UPPER", "LOWER", "LENGTH", "TRIM", "SUBSTRING", "REPLACE", "CONCAT",
     "COALESCE", "NULLIF", "CAST", "CONVERT",
     "CURRENT_TIME", "CURRENT_DATE", "NOW", "DATE", "TIME", "TIMESTAMP",
-    "EXTRACT", "DATE_PART", "TO_CHAR", "TO_DATE", "TO_TIMESTAMP"
+    "EXTRACT", "DATE_PART", "TO_CHAR", "TO_DATE", "TO_TIMESTAMP",
+];
+
+/// Keywords valid in FROM clause (after FROM, for JOINs)
+const FROM_KEYWORDS: &[&str] = &[
+    "JOIN", "INNER JOIN", "LEFT JOIN", "RIGHT JOIN", "FULL JOIN", "CROSS JOIN",
+    "ON", "WHERE", "GROUP BY", "ORDER BY", "HAVING", "LIMIT", "OFFSET",
+];
+
+/// Keywords valid in WHERE clause (logical operators, comparisons)
+const WHERE_KEYWORDS: &[&str] = &[
+    "AND", "OR", "NOT", "IN", "IS", "NULL", "LIKE", "BETWEEN", "EXISTS", "ANY", "ALL",
+    "ORDER BY", "GROUP BY", "HAVING", "LIMIT",
+];
+
+/// Functions valid in WHERE clause
+const WHERE_FUNCTIONS: &[&str] = &[
+    "COALESCE", "NULLIF", "CAST", "UPPER", "LOWER", "LENGTH", "TRIM",
+    "CURRENT_TIME", "CURRENT_DATE", "NOW",
+];
+
+/// Keywords for generic/unknown context (broad fallback)
+const GENERIC_KEYWORDS: &[&str] = &[
+    "SELECT", "FROM", "WHERE", "JOIN", "ON", "AND", "OR", "ORDER BY", "GROUP BY",
+    "WITH", "INSERT", "UPDATE", "DELETE", "CREATE", "DROP", "ALTER",
 ];
 
 impl CompletionEngine {
@@ -215,8 +240,8 @@ impl CompletionEngine {
             score: 90,
         });
 
-        // Add standard functions
-        for func in STANDARD_FUNCTIONS {
+        // Add SELECT-context functions (aggregates, etc.)
+        for func in SELECT_FUNCTIONS {
             if seen_labels.insert(func.to_string()) {
                 items.push(CompletionItem {
                     label: func.to_string(),
@@ -228,8 +253,8 @@ impl CompletionEngine {
             }
         }
         
-        // Add standard keywords
-        for kw in STANDARD_KEYWORDS {
+        // Add SELECT-context keywords only (DISTINCT, AS, CASE, FROM)
+        for kw in SELECT_KEYWORDS {
             if seen_labels.insert(kw.to_string()) {
                 items.push(CompletionItem {
                     label: kw.to_string(),
@@ -276,6 +301,17 @@ impl CompletionEngine {
                     score: 110, // Higher priority than schema tables (local definition)
                 });
             }
+        }
+        
+        // 3. FROM-context keywords (JOIN, WHERE, etc.) - NO functions
+        for kw in FROM_KEYWORDS {
+            items.push(CompletionItem {
+                label: kw.to_string(),
+                kind: CompletionKind::Keyword,
+                detail: None,
+                insert_text: kw.to_string(),
+                score: 40, // Lower than tables
+            });
         }
         
         Self::filter_by_prefix(&mut items, &context.prefix);
@@ -358,8 +394,8 @@ impl CompletionEngine {
             }
         }
 
-        // Add standard functions
-        for func in STANDARD_FUNCTIONS {
+        // Add WHERE-context functions only
+        for func in WHERE_FUNCTIONS {
             items.push(CompletionItem {
                 label: func.to_string(),
                 kind: CompletionKind::Function,
@@ -369,8 +405,8 @@ impl CompletionEngine {
             });
         }
 
-        // Add standard keywords
-        for kw in STANDARD_KEYWORDS {
+        // Add WHERE-context keywords only (AND, OR, NOT, etc.)
+        for kw in WHERE_KEYWORDS {
             items.push(CompletionItem {
                 label: kw.to_string(),
                 kind: CompletionKind::Keyword,
@@ -440,26 +476,14 @@ impl CompletionEngine {
         schema: &SchemaGraph,
     ) -> Vec<CompletionItem> {
         let mut items = Vec::new();
-        
-        // Standard Keywords
-        for kw in STANDARD_KEYWORDS {
+        // Generic Keywords (broad fallback, no functions - too noisy)
+        for kw in GENERIC_KEYWORDS {
             items.push(CompletionItem {
                 label: kw.to_string(),
                 kind: CompletionKind::Keyword,
                 detail: None,
                 insert_text: kw.to_string(),
                 score: 50,
-            });
-        }
-        
-        // Standard Functions
-        for func in STANDARD_FUNCTIONS {
-            items.push(CompletionItem {
-                label: func.to_string(),
-                kind: CompletionKind::Function,
-                detail: Some("function".to_string()),
-                insert_text: format!("{}()", func),
-                score: 60,
             });
         }
         
