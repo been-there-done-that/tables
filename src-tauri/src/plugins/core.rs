@@ -240,7 +240,8 @@ macro_rules! aggregate_plugin_commands {
             request_completions,
             update_completion_schema,
             clear_completion_schema,
-            get_current_statement
+            get_current_statement,
+            request_diagnostics
         ]
     };
 }
