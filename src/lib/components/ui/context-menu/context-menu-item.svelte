@@ -7,6 +7,7 @@
 		class?: string;
 		children?: import("svelte").Snippet;
 		variant?: "default" | "danger";
+		disabled?: boolean;
 	}
 
 	let {
@@ -14,6 +15,7 @@
 		class: className,
 		children,
 		variant = "default",
+		disabled = false,
 	}: Props = $props();
 
 	const ctx = getContext<{ setOpen: (val: boolean) => void }>("context-menu");
@@ -32,9 +34,11 @@
 		variant === "danger"
 			? "text-red-500 hover:text-red-600"
 			: "text-(--theme-fg-default)",
+		disabled && "opacity-50 pointer-events-none",
 		className,
 	)}
 	onclick={handleClick}
+	{disabled}
 >
 	{@render children?.()}
 </button>
