@@ -8,7 +8,10 @@ export function enableQueryHighlighting(editor: monaco.editor.IStandaloneCodeEdi
 
     const updateHighlight = async () => {
         const model = editor.getModel();
-        if (!model) return;
+        if (!model || model.getLanguageId() !== 'sql') {
+            decorationCollection.clear();
+            return;
+        }
 
         const position = editor.getPosition();
         if (!position) return;
