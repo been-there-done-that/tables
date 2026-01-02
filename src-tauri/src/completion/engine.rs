@@ -40,6 +40,24 @@ pub enum CompletionKind {
 /// The completion engine.
 pub struct CompletionEngine;
 
+/// Standard SQL keywords to suggest in generic contexts.
+const STANDARD_KEYWORDS: &[&str] = &[
+    "SELECT", "FROM", "WHERE", "GROUP BY", "ORDER BY", "HAVING", "LIMIT", "OFFSET",
+    "AS", "ON", "JOIN", "INNER JOIN", "LEFT JOIN", "RIGHT JOIN", "FULL JOIN",
+    "CROSS JOIN", "UNION", "UNION ALL", "DISTINCT", "CASE", "WHEN", "THEN", "ELSE", "END",
+    "AND", "OR", "NOT", "IN", "IS", "NULL", "LIKE", "BETWEEN", "EXISTS", "ANY", "ALL",
+    "WITH", "RECURSIVE", "VALUES", "INSERT", "UPDATE", "DELETE", "CREATE", "DROP", "ALTER"
+];
+
+/// Standard SQL functions to suggest.
+const STANDARD_FUNCTIONS: &[&str] = &[
+    "COUNT", "SUM", "AVG", "MAX", "MIN", "ABS", "ROUND", "CEIL", "FLOOR", "POWER", "SQRT",
+    "UPPER", "LOWER", "LENGTH", "TRIM", "SUBSTRING", "REPLACE", "CONCAT",
+    "COALESCE", "NULLIF", "CAST", "CONVERT",
+    "CURRENT_TIME", "CURRENT_DATE", "NOW", "DATE", "TIME", "TIMESTAMP",
+    "EXTRACT", "DATE_PART", "TO_CHAR", "TO_DATE", "TO_TIMESTAMP"
+];
+
 impl CompletionEngine {
     /// Generate completions for the given context.
     pub fn complete(
@@ -197,34 +215,31 @@ impl CompletionEngine {
             score: 90,
         });
 
-        // Add common functions
-        for func in &["COUNT", "SUM", "AVG", "MAX", "MIN", "COALESCE", "CASE"] {
-            items.push(CompletionItem {
-                label: func.to_string(),
-                kind: CompletionKind::Function,
-                detail: Some("function".to_string()),
-                insert_text: format!("{}()", func),
-                score: 60,
-            });
+        // Add standard functions
+        for func in STANDARD_FUNCTIONS {
+            if seen_labels.insert(func.to_string()) {
+                items.push(CompletionItem {
+                    label: func.to_string(),
+                    kind: CompletionKind::Function,
+                    detail: Some("function".to_string()),
+                    insert_text: format!("{}()", func),
+                    score: 60,
+                });
+            }
         }
         
-        // Add keywords
-        items.push(CompletionItem {
-            label: "DISTINCT".to_string(),
-            kind: CompletionKind::Keyword,
-            detail: None,
-            insert_text: "DISTINCT".to_string(),
-            score: 50,
-        });
-
-        // Add FROM keyword which is valid after SELECT list
-        items.push(CompletionItem {
-            label: "FROM".to_string(),
-            kind: CompletionKind::Keyword,
-            detail: None,
-            insert_text: "FROM".to_string(),
-            score: 50,
-        });
+        // Add standard keywords
+        for kw in STANDARD_KEYWORDS {
+            if seen_labels.insert(kw.to_string()) {
+                items.push(CompletionItem {
+                    label: kw.to_string(),
+                    kind: CompletionKind::Keyword,
+                    detail: None,
+                    insert_text: kw.to_string(),
+                    score: 50,
+                });
+            }
+        }
         
         Self::filter_by_prefix(&mut items, &context.prefix);
         items.sort_by(|a, b| b.score.cmp(&a.score));
@@ -342,6 +357,28 @@ impl CompletionEngine {
                 }
             }
         }
+
+        // Add standard functions
+        for func in STANDARD_FUNCTIONS {
+            items.push(CompletionItem {
+                label: func.to_string(),
+                kind: CompletionKind::Function,
+                detail: Some("function".to_string()),
+                insert_text: format!("{}()", func),
+                score: 60,
+            });
+        }
+
+        // Add standard keywords
+        for kw in STANDARD_KEYWORDS {
+            items.push(CompletionItem {
+                label: kw.to_string(),
+                kind: CompletionKind::Keyword,
+                detail: None,
+                insert_text: kw.to_string(),
+                score: 50,
+            });
+        }
         
         Self::filter_by_prefix(&mut items, &context.prefix);
         items.sort_by(|a, b| b.score.cmp(&a.score));
@@ -404,14 +441,25 @@ impl CompletionEngine {
     ) -> Vec<CompletionItem> {
         let mut items = Vec::new();
         
-        // Keywords
-        for kw in &["SELECT", "FROM", "WHERE", "JOIN", "ON", "AND", "OR", "ORDER BY", "GROUP BY"] {
+        // Standard Keywords
+        for kw in STANDARD_KEYWORDS {
             items.push(CompletionItem {
                 label: kw.to_string(),
                 kind: CompletionKind::Keyword,
                 detail: None,
-                insert_text: kw.to_string(), // Removed trailing space
+                insert_text: kw.to_string(),
                 score: 50,
+            });
+        }
+        
+        // Standard Functions
+        for func in STANDARD_FUNCTIONS {
+            items.push(CompletionItem {
+                label: func.to_string(),
+                kind: CompletionKind::Function,
+                detail: Some("function".to_string()),
+                insert_text: format!("{}()", func),
+                score: 60,
             });
         }
         

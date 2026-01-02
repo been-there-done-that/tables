@@ -25,7 +25,7 @@
             container: () => editorContainer,
             options: {
                 theme: MONACO_THEME_NAME,
-                minimap: { enabled: true },
+                minimap: { enabled: false },
                 automaticLayout: true,
                 fontSize: 14,
                 fontFamily: "Fira Code, monospace",

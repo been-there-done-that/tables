@@ -613,3 +613,25 @@ SELECT * FROM employee_hierarchy
     let count = items.iter().filter(|s| *s == "FirstName").count();
     assert_eq!(count, 1, "Should suggest 'FirstName' exactly once. Got {} times.", count);
 }
+
+/// T26. Arithmetic and Built-in Function Suggestions
+/// 
+/// User reported missing keywords (like AS) after arithmetic, 
+/// and missing functions (CURRENT_TIME).
+#[test]
+fn t26_arithmetic_keywords_and_functions() {
+    // Case 1: After arithmetic operation (expecting AS, FROM, or another operator/column)
+    // "SELECT val + 1 |"
+    let sql1 = "SELECT 1 + 1 |"; 
+    let items1 = complete(sql1);
+    assert!(items1.contains(&"AS".to_string()), "Should suggest 'AS' after arithmetic");
+    assert!(items1.contains(&"FROM".to_string()), "Should suggest 'FROM' after arithmetic");
+
+    // Case 2: Function suggestions in Select
+    // "SELECT |"
+    let sql2 = "SELECT |";
+    let items2 = complete(sql2);
+    assert!(items2.contains(&"CURRENT_TIME".to_string()), "Should suggest 'CURRENT_TIME'");
+    assert!(items2.contains(&"NOW".to_string()), "Should suggest 'NOW'");
+    assert!(items2.contains(&"CAST".to_string()), "Should suggest 'CAST'");
+}
