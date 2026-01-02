@@ -1,7 +1,7 @@
 use crate::connection::{Connection, SecureCredentials, ConnectionInfo, load_connection_from_row};
 use crate::configs::RuntimeConnection;
 use crate::credential_manager::CredentialManager;
-use rusqlite::{params, Connection as SqliteConnection};
+use rusqlite::{params, Connection as SqliteConnection, OptionalExtension};
 use std::sync::{Arc, Mutex};
 use tauri::State;
 use log::{info, debug, warn, error, trace};
@@ -659,6 +659,63 @@ impl ConnectionManager {
         } else {
             set.remove(id);
         }
+    }
+
+    // Window Session Persistence
+    pub fn save_window_session(&self, window_label: &str, connection_id: &str) -> Result<(), String> {
+        debug!("Saving window session: {} -> {}", window_label, connection_id);
+        let conn = self.db.lock()
+            .map_err(|e| format!("Failed to lock database: {}", e))?;
+
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64;
+
+        conn.execute(
+            "INSERT INTO window_sessions (window_label, connection_id, updated_at)
+             VALUES (?1, ?2, ?3)
+             ON CONFLICT(window_label) DO UPDATE SET
+                connection_id = excluded.connection_id,
+                updated_at = excluded.updated_at",
+            params![window_label, connection_id, now],
+        ).map_err(|e| {
+            error!("Failed to save window session for {}: {}", window_label, e);
+            format!("Failed to save window session: {}", e)
+        })?;
+
+        Ok(())
+    }
+
+    pub fn get_window_session(&self, window_label: &str) -> Result<Option<String>, String> {
+        debug!("Getting window session for label '{}'", window_label);
+        let conn = self.db.lock()
+            .map_err(|e| format!("Failed to lock database: {}", e))?;
+
+        let mut stmt = conn.prepare("SELECT connection_id FROM window_sessions WHERE window_label = ?1")
+            .map_err(|e| format!("Failed to prepare query: {}", e))?;
+        
+        let result = stmt.query_row(params![window_label], |row| row.get::<_, String>(0)).optional()
+            .map_err(|e| {
+                error!("Failed to get window session for {}: {}", window_label, e);
+                format!("Failed to get window session: {}", e)
+            })?;
+
+        Ok(result)
+    }
+
+    pub fn delete_window_session(&self, window_label: &str) -> Result<(), String> {
+        debug!("Deleting window session for label '{}'", window_label);
+        let conn = self.db.lock()
+            .map_err(|e| format!("Failed to lock database: {}", e))?;
+
+        conn.execute("DELETE FROM window_sessions WHERE window_label = ?1", params![window_label])
+            .map_err(|e| {
+                error!("Failed to delete window session for {}: {}", window_label, e);
+                format!("Failed to delete window session: {}", e)
+            })?;
+
+        Ok(())
     }
 }
 

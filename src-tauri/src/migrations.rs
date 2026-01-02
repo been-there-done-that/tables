@@ -125,6 +125,15 @@ CREATE TABLE IF NOT EXISTS meta_foreign_keys (
 );
 "#;
 
+const CREATE_WINDOW_SESSIONS_TABLE: &str = r#"
+CREATE TABLE IF NOT EXISTS window_sessions (
+    window_label TEXT PRIMARY KEY,
+    connection_id TEXT NOT NULL,
+    updated_at INTEGER NOT NULL,
+    FOREIGN KEY (connection_id) REFERENCES connections(id) ON DELETE CASCADE
+);
+"#;
+
 #[derive(Debug, Deserialize)]
 struct ThemeSeed {
     id: String,
@@ -205,6 +214,13 @@ pub fn apply(conn: &Connection, now_fn: impl Fn() -> i64) -> Result<(), String> 
         .map_err(|e| {
             error!("Failed to create meta tables: {}", e);
             format!("Failed to create meta tables: {e}")
+        })?;
+
+    debug!("Creating window sessions table");
+    conn.execute_batch(CREATE_WINDOW_SESSIONS_TABLE)
+        .map_err(|e| {
+            error!("Failed to create window sessions table: {}", e);
+            format!("Failed to create window sessions table: {e}")
         })?;
 
     // Safe Migration: Ensure 'schema' column exists in all meta tables
