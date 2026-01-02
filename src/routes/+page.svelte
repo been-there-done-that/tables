@@ -4,6 +4,7 @@
   import FileTree, {
     type NodeType,
   } from "$lib/components/explorer/FileTree.svelte";
+  import SessionTabs from "$lib/components/SessionTabs.svelte";
   import { windowState } from "$lib/stores/window.svelte";
   import { schemaStore } from "$lib/stores/schema.svelte";
   import IconLoader2 from "@tabler/icons-svelte/icons/loader-2";
@@ -18,6 +19,8 @@
 
   let fileTree: any;
   let showSqlEditor = $state(false);
+
+  const activeSession = $derived(windowState.activeSession);
 
   const treeData = $derived.by(() => {
     // ... (existing treeData logic) ...
@@ -229,6 +232,14 @@
                   </div>
                 {/if}
               </div>
+            {:else if activeSession}
+              <div class="animate-in fade-in slide-in-from-left-2 duration-300">
+                <FileTree
+                  items={treeData}
+                  bind:this={fileTree}
+                  bind:expanded={activeSession.explorerState.expanded}
+                />
+              </div>
             {:else}
               <div class="animate-in fade-in slide-in-from-left-2 duration-300">
                 <FileTree items={treeData} bind:this={fileTree} />
@@ -269,6 +280,8 @@
                           {showSqlEditor ? "SQL Playground" : "Main Editor"}
                         </h2>
                       </div>
+
+                      <SessionTabs />
 
                       {#if showSqlEditor}
                         <div class="flex-1 relative overflow-hidden">
