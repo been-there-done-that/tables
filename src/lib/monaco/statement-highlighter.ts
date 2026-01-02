@@ -1,9 +1,12 @@
 import * as monaco from 'monaco-editor';
 import { invoke } from '@tauri-apps/api/core';
 
-let debounceTimer: any;
-
+/**
+ * Enables current statement isolation highlighting for a Monaco editor.
+ * Uses local state to avoid conflicts in a pooled environment.
+ */
 export function enableQueryHighlighting(editor: monaco.editor.IStandaloneCodeEditor) {
+    let debounceTimer: any;
     const decorationCollection = editor.createDecorationsCollection([]);
 
     const updateHighlight = async () => {
@@ -38,22 +41,26 @@ export function enableQueryHighlighting(editor: monaco.editor.IStandaloneCodeEdi
                 decorationCollection.clear();
             }
         } catch (e) {
-            console.error('Failed to get current statement range:', e);
+            console.error('[Highlighting] Failed to get current statement range:', e);
         }
     };
 
     const debouncedUpdate = () => {
         clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(updateHighlight, 50); // Faster feedback than 100ms
+        debounceTimer = setTimeout(updateHighlight, 50);
     };
 
-    editor.onDidChangeCursorPosition(debouncedUpdate);
-    editor.onDidChangeModelContent(debouncedUpdate);
+    const listeners = [
+        editor.onDidChangeCursorPosition(debouncedUpdate),
+        editor.onDidChangeModelContent(debouncedUpdate),
+        editor.onDidChangeModel(debouncedUpdate) // Also update on model swap
+    ];
 
     // Initial highlight
     updateHighlight();
 
     return () => {
+        listeners.forEach(l => l.dispose());
         decorationCollection.clear();
         clearTimeout(debounceTimer);
     };

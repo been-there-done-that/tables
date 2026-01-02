@@ -20,6 +20,7 @@ use crate::completion::context::Context;
 use crate::completion::analysis::build_semantic_model;
 use crate::completion::engine::{CompletionEngine, CompletionItem, CompletionKind};
 use crate::completion::ranges::{find_current_statement_range, StatementRange};
+use crate::completion::diagnostics::{Diagnostic, DiagnosticEngine};
 
 /// Shared state for completion.
 pub struct CompletionState {
@@ -228,6 +229,39 @@ pub async fn get_current_statement(
     let result = tokio::task::spawn_blocking(move || {
         let tree = parse_sql(&text, None);
         tree.as_ref().and_then(|t| find_current_statement_range(t, cursor_offset))
+    }).await.map_err(|e| e.to_string())?;
+
+    Ok(result)
+}
+
+/// Request SQL diagnostics (syntax and semantic errors).
+#[tauri::command]
+pub async fn request_diagnostics(
+    state: tauri::State<'_, CompletionState>,
+    connection_id: String,
+    text: String,
+) -> Result<Vec<Diagnostic>, String> {
+    // 1. Get schema from cache
+    let schema_opt = {
+        let cache = state.schema_cache.lock().await;
+        cache.get(&connection_id).cloned()
+    };
+    
+    let schema = match schema_opt {
+        Some(s) => s,
+        None => {
+            // No schema cached - we can still do syntax checks
+            std::sync::Arc::new(crate::completion::schema::graph::SchemaGraph::new())
+        }
+    };
+
+    // 2. Offload to thread
+    let result = tokio::task::spawn_blocking(move || {
+        let tree = crate::completion::parsing::parse_sql(&text, None);
+        match tree {
+            Some(t) => DiagnosticEngine::check(&t, &text, &schema),
+            None => vec![],
+        }
     }).await.map_err(|e| e.to_string())?;
 
     Ok(result)
