@@ -131,17 +131,17 @@
             <div class="ml-auto flex items-center gap-1">
               <button
                 class="p-1 hover:bg-accent rounded-sm text-muted-foreground hover:text-foreground transition-colors"
-                title="Collapse All"
-                onclick={() => fileTree?.collapseAll()}
-              >
-                <Compact />
-              </button>
-              <button
-                class="p-1 hover:bg-accent rounded-sm text-muted-foreground hover:text-foreground transition-colors"
                 title="Expand All"
                 onclick={() => fileTree?.expandAll()}
               >
                 <Expand />
+              </button>
+              <button
+                class="p-1 hover:bg-accent rounded-sm text-muted-foreground hover:text-foreground transition-colors"
+                title="Collapse All"
+                onclick={() => fileTree?.collapseAll()}
+              >
+                <Compact />
               </button>
               <button
                 class="p-1 hover:bg-accent rounded-sm text-muted-foreground hover:text-foreground transition-colors"
