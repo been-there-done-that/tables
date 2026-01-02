@@ -72,15 +72,17 @@ export function registerSqlCompletion(monacoInstance: typeof monaco) {
 }
 
 // Map internal kind ID back to Monaco enum
+// Rust CompletionKind: Table=0, Column=1, Alias=2, Keyword=3, Function=4, JoinCondition=5
 function mapKind(m: typeof monaco, kind: number): monaco.languages.CompletionItemKind {
-    // Rust mapping:
-    // Table => 7       -> Class
-    // Column => 5      -> Field
-    // Alias => 6       -> Variable
-    // Keyword => 14    -> Keyword
-    // Function => 3    -> Function
-    // JoinCondition => 15 -> Snippet
-    return kind as monaco.languages.CompletionItemKind;
+    switch (kind) {
+        case 0: return m.languages.CompletionItemKind.Class;     // Table
+        case 1: return m.languages.CompletionItemKind.Field;     // Column
+        case 2: return m.languages.CompletionItemKind.Variable;  // Alias
+        case 3: return m.languages.CompletionItemKind.Keyword;   // Keyword
+        case 4: return m.languages.CompletionItemKind.Function;  // Function
+        case 5: return m.languages.CompletionItemKind.Snippet;   // JoinCondition
+        default: return m.languages.CompletionItemKind.Text;
+    }
 }
 
 // Monaco sorts alphabetically by default. 
