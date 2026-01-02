@@ -3,6 +3,7 @@ import { ModelRegistry } from './model-registry';
 import type { EditorContext, EditorHandle, EditorViewSnapshot } from './editor-types';
 import { MONACO_THEME_NAME } from './monaco-theme';
 import { enableQueryHighlighting } from './statement-highlighter';
+import { enableDiagnostics } from './sql-diagnostics';
 
 interface PooledEditor {
     editor: monaco.editor.IStandaloneCodeEditor;
@@ -157,6 +158,7 @@ export class EditorPool {
             });
 
             enableQueryHighlighting(editor);
+            enableDiagnostics(editor);
 
             const pooled: PooledEditor = {
                 editor,
