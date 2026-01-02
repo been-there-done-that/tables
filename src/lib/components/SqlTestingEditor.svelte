@@ -4,6 +4,8 @@
     import type { EditorHandle } from "$lib/monaco/editor-types";
     import { MONACO_THEME_NAME } from "$lib/monaco/monaco-theme";
     import { cn } from "$lib/utils";
+    import IconPlayerPlay from "@tabler/icons-svelte/icons/player-play";
+    import * as monaco from "monaco-editor";
 
     let editorContainer: HTMLElement;
     let editorHandle: EditorHandle | null = null;
@@ -14,6 +16,31 @@
             `${new Date().toISOString().split("T")[1].substring(0, 12)} - ${msg}`,
             ...logs,
         ];
+    }
+
+    async function executeCurrent() {
+        if (!editorHandle) return;
+        const editor = editorHandle.editor;
+        const model = editor.getModel();
+        if (!model) return;
+
+        // In a real app, we'd get the range from the decoration collection
+        // But here we can just reuse the same logic or let the user click
+        // For demonstration, we'll log what would be executed
+        const decorations = editor.getDecorationsInRange(
+            new monaco.Range(1, 1, model.getLineCount(), 1),
+        );
+        const highlight = decorations.find(
+            (d) => d.options.className === "current-query-border",
+        );
+
+        if (highlight) {
+            const query = model.getValueInRange(highlight.range);
+            log(`Executing isolated query:\n${query}`);
+        } else {
+            const query = editor.getValue();
+            log(`No statement isolation found. Executing full text:\n${query}`);
+        }
     }
 
     useMonacoEditor(
@@ -74,6 +101,22 @@
                     <div class="text-muted-foreground italic">Ready...</div>
                 {/if}
             </div>
+        </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div
+        class="flex-none h-10 border-t border-border bg-muted/30 px-4 flex items-center"
+    >
+        <button
+            class="flex items-center gap-2 px-3 py-1 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors text-xs font-medium"
+            onclick={executeCurrent}
+        >
+            <IconPlayerPlay class="size-3" />
+            Execute Current
+        </button>
+        <div class="ml-4 text-[10px] text-muted-foreground italic">
+            Tip: Move cursor between statements to see isolation highlight
         </div>
     </div>
 </div>
