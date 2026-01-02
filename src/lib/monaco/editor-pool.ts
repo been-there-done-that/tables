@@ -149,7 +149,10 @@ export class EditorPool {
             const editor = this.monacoInstance.editor.create(containerDiv, {
                 theme: MONACO_THEME_NAME,
                 automaticLayout: false,
-                minimap: { enabled: false }
+                minimap: { enabled: false },
+                lineNumbersMinChars: 3,       // Reduce gutter width
+                lineDecorationsWidth: 8,      // Narrow decoration area (acts as border spacing)
+                glyphMargin: false,           // Remove extra glyph margin
             });
 
             const pooled: PooledEditor = {
