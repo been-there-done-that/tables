@@ -64,6 +64,14 @@ impl MockSchemaLoader {
             ColumnInfo::new("token", "varchar"),
         ]));
         
+        // ===== EMPLOYEES TABLE (for recursive CTE tests) =====
+        schema.add_table(TableInfo::new("employees", "public", vec![
+            ColumnInfo::new("EmployeeId", "integer").primary_key(),
+            ColumnInfo::new("FirstName", "varchar"),
+            ColumnInfo::new("LastName", "varchar"),
+            ColumnInfo::new("ReportsTo", "integer").indexed(),
+        ]));
+        
         // ===== FOREIGN KEYS =====
         
         // orders.user_id → users.id
