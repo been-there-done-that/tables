@@ -224,3 +224,8 @@
     opacity: 0;
   }
 }
+
+/* Monaco Editor Gutter Border */
+.monaco-editor .margin {
+  border-right: 1px solid var(--theme-border-subtle);
+}
