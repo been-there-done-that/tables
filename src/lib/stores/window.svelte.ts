@@ -4,6 +4,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { METRICS } from "$lib/constants";
 import { listConnections } from "$lib/commands/client";
 import type { Connection } from "$lib/commands/types";
+import { schemaStore } from "./schema.svelte";
+import { Session } from "./session.svelte";
 
 export interface CommandConfig {
     id: string;
@@ -70,6 +72,57 @@ class WindowStateStore {
         right: true,
         bottom: true
     });
+
+    // Session Management
+    sessions = $state<Session[]>([]);
+    activeSessionId = $state<string | null>(null);
+
+    get activeSession() {
+        return this.sessions.find(s => s.id === this.activeSessionId) || null;
+    }
+
+    startSession(connection: Connection) {
+        // Check if a session for this connection already exists
+        const existingSession = this.sessions.find(s => s.connectionId === connection.id);
+        if (existingSession) {
+            // Reuse existing session instead of creating duplicate
+            this.activateSession(existingSession.id);
+            return;
+        }
+
+        const newSession = new Session(crypto.randomUUID(), connection);
+        this.sessions.push(newSession);
+        this.activateSession(newSession.id);
+    }
+
+    activateSession(sessionId: string) {
+        const session = this.sessions.find(s => s.id === sessionId);
+        if (session) {
+            this.activeSessionId = sessionId;
+            // Sync with schemaStore if needed
+            if (session.connection && schemaStore.activeConnection?.id !== session.connection.id) {
+                schemaStore.connect(session.connection);
+            }
+        }
+    }
+
+    closeSession(sessionId: string) {
+        const index = this.sessions.findIndex(s => s.id === sessionId);
+        if (index === -1) return;
+
+        this.sessions.splice(index, 1);
+
+        if (this.activeSessionId === sessionId) {
+            // Activate the neighbor or null
+            const newActive = this.sessions[index] || this.sessions[index - 1];
+            if (newActive) {
+                this.activateSession(newActive.id);
+            } else {
+                this.activeSessionId = null;
+                schemaStore.disconnect();
+            }
+        }
+    }
 
     // Metrics (Moved to metrics.svelte.ts)
 

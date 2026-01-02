@@ -47,9 +47,8 @@
         class: className = "",
         indent = 24,
         onNodeClick = (node: TreeNode) => {},
+        expanded = $bindable(new Set()),
     } = $props();
-
-    let expanded = $state<Set<string>>(new Set());
 
     // Helper to generate a unique key if id is missing
     // NOTE: For streaming data, ensure each node has a stable unique 'id'.
