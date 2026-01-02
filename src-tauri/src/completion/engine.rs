@@ -94,8 +94,11 @@ impl CompletionEngine {
             CursorContext::AfterDot { alias } => {
                 Self::complete_after_dot(alias, semantic, context, schema)
             }
-            CursorContext::SelectClause => {
+            CursorContext::SelectClause | CursorContext::AfterSelectList => {
                 Self::complete_select_clause(semantic, context, schema)
+            }
+            CursorContext::RootContext => {
+                Self::complete_root_context(context)
             }
             CursorContext::FromClause | CursorContext::JoinTable => {
                 Self::complete_table_names(schema, semantic, context)
@@ -256,12 +259,23 @@ impl CompletionEngine {
         // Add SELECT-context keywords only (DISTINCT, AS, CASE, FROM)
         for kw in SELECT_KEYWORDS {
             if seen_labels.insert(kw.to_string()) {
+                let mut score = 50;
+                
+                // Boost FROM and AS if we are after a complete expression
+                if matches!(context.context_type, CursorContext::AfterSelectList) {
+                    if *kw == "FROM" {
+                        score = 200; // Prioritize FROM after SELECT list
+                    } else if *kw == "AS" {
+                        score = 150; // Prioritize AS for aliasing
+                    }
+                }
+
                 items.push(CompletionItem {
                     label: kw.to_string(),
                     kind: CompletionKind::Keyword,
                     detail: None,
                     insert_text: kw.to_string(),
-                    score: 50,
+                    score,
                 });
             }
         }
@@ -462,6 +476,38 @@ impl CompletionEngine {
                     });
                 }
             }
+        }
+        
+        Self::filter_by_prefix(&mut items, &context.prefix);
+        items.sort_by(|a, b| b.score.cmp(&a.score));
+        items
+    }
+
+    
+    /// Complete at root/empty context: `|` → suggest statement starters
+    fn complete_root_context(context: &Context) -> Vec<CompletionItem> {
+        let mut items = Vec::new();
+        
+        // Statement starters with high priority
+        let statement_starters = [
+            ("SELECT", "Query data", 100),
+            ("WITH", "Common Table Expression", 90),
+            ("INSERT", "Insert data", 80),
+            ("UPDATE", "Update data", 80),
+            ("DELETE", "Delete data", 80),
+            ("CREATE", "Create object", 70),
+            ("ALTER", "Alter object", 60),
+            ("DROP", "Drop object", 60),
+        ];
+        
+        for (kw, detail, score) in statement_starters {
+            items.push(CompletionItem {
+                label: kw.to_string(),
+                kind: CompletionKind::Keyword,
+                detail: Some(detail.to_string()),
+                insert_text: kw.to_string(),
+                score,
+            });
         }
         
         Self::filter_by_prefix(&mut items, &context.prefix);
