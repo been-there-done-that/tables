@@ -527,9 +527,27 @@ fn t20_join_condition_lhs_match() {
     assert!(has_condition, "Should suggest full join condition when typing LHS 'u.i'. Got: {:?}", items);
 }
 
-// =============================================================================
-// SUMMARY TEST: MVP BAR
-// =============================================================================
+/// T21. CTE visibility in main query
+/// 
+/// `WITH sales AS (...) SELECT * FROM sa|`
+/// Should suggest `sales`
+#[test]
+fn t21_cte_name_suggestion() {
+    let items = complete("WITH sales AS (SELECT * FROM invoices) SELECT * FROM sa|");
+    assert!(items.contains(&"sales".to_string()), "Should suggest CTE name 'sales'. Got: {:?}", items);
+}
+
+/// T22. Recursive CTE visibility
+/// 
+/// `WITH RECURSIVE org AS (... UNION ALL SELECT * FROM or|) ...`
+/// Should suggest `org`
+#[test]
+fn t22_recursive_cte_suggestion() {
+    // Note: Simplistic query for parsing
+    let items = complete("WITH RECURSIVE org AS (SELECT 1 UNION ALL SELECT * FROM or|) SELECT * FROM org");
+    assert!(items.contains(&"org".to_string()), "Should suggest recursive CTE name 'org'. Got: {:?}", items);
+}
+
 
 /// Meta-test: verify MVP bar tests exist and have assertions.
 #[test]
@@ -544,4 +562,54 @@ fn mvp_bar_tests_exist() {
     
     // If these pass, architecture is proven.
     // Everything else is incremental improvement.
+}
+
+/// T24. CTE column suggestions
+/// 
+/// `WITH cte AS (SELECT id AS my_id FROM users) SELECT c.| FROM cte c`
+/// Should suggest `my_id`
+#[test]
+fn t24_cte_alias_columns() {
+     let query = "
+     WITH GenreSales AS (
+       SELECT 
+           g.Name as Genre, 
+           SUM(ii.UnitPrice * ii.Quantity) as TotalRevenue
+       FROM genres g
+    )
+    SELECT * from GenreSales ga where ga.|
+    ";
+    
+    let items = complete(query);
+    assert!(items.contains(&"Genre".to_string()), "Should suggest 'Genre'. Got: {:?}", items);
+    assert!(items.contains(&"TotalRevenue".to_string()), "Should suggest 'TotalRevenue'. Got: {:?}", items);
+}
+
+/// T25. Recursive CTE Anchor Member suggestions
+/// 
+/// In the anchor member `SELECT`, we should see columns from `employees`.
+/// We check for duplicates.
+#[test]
+fn t25_recursive_cte_anchor_select() {
+    let query = "
+WITH RECURSIVE employee_hierarchy AS (
+   SELECT EmployeeId, FirstName, LastName, ReportsTo, 0 AS Level |
+   FROM employees
+   WHERE ReportsTo IS NULL
+   UNION ALL
+   SELECT e.EmployeeId, e.FirstName, e.LastName, e.ReportsTo, eh.Level + 1
+   FROM employees e
+   JOIN employee_hierarchy eh ON e.ReportsTo = eh.EmployeeId
+)
+SELECT * FROM employee_hierarchy
+    ";
+    
+    let items = complete(query);
+    
+    // Check for "FirstName"
+    assert!(items.contains(&"FirstName".to_string()), "Expected 'FirstName'. Got: {:?}", items);
+    
+    // Count occurrences logic valid only for dedup check - can be simplified
+    let count = items.iter().filter(|s| *s == "FirstName").count();
+    assert_eq!(count, 1, "Should suggest 'FirstName' exactly once. Got {} times.", count);
 }
