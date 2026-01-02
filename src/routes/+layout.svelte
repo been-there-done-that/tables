@@ -5,6 +5,7 @@
 	import ThemeProvider from "$lib/providers/ThemeProvider.svelte";
 	import Titlebar from "$lib/Titlebar.svelte";
 	import { windowState } from "$lib/stores/window.svelte";
+	import { schemaStore } from "$lib/stores/schema.svelte";
 	import { onMount } from "svelte";
 	import LoadingOverlay from "$lib/LoadingOverlay.svelte";
 	import { Toaster } from "svelte-sonner";
@@ -28,6 +29,8 @@
 			await checkFullScreen();
 			unlisten = await appWindow.onResized(checkFullScreen);
 			await windowState.init();
+			// Initialize schema store with the window label to restore sessions
+			await schemaStore.initialize(windowState.label);
 		};
 
 		setup();
