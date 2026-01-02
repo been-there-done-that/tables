@@ -209,7 +209,9 @@ pub async fn mark_connection_active(
 ) -> Result<(), String> {
     debug!("Marking connection '{}' as active", id);
     let manager = ConnectionManager::from_state(&db_state, &conn_state);
-    manager.set_connection_active(&id, true);
+    
+    let label = window_label.clone().unwrap_or_else(|| "main".to_string());
+    manager.set_window_connection_active(&label, &id, true);
     
     // Also save window session if label is provided
     if let Some(label) = window_label {
@@ -229,7 +231,9 @@ pub async fn mark_connection_inactive(
 ) -> Result<(), String> {
     debug!("Marking connection '{}' as inactive", id);
     let manager = ConnectionManager::from_state(&db_state, &conn_state);
-    manager.set_connection_active(&id, false);
+    
+    let label = window_label.clone().unwrap_or_else(|| "main".to_string());
+    manager.set_window_connection_active(&label, &id, false);
     
     // Also clear window session if label matches
     if let Some(label) = window_label {

@@ -3,6 +3,7 @@ use crate::configs::RuntimeConnection;
 use crate::credential_manager::CredentialManager;
 use rusqlite::{params, Connection as SqliteConnection, OptionalExtension};
 use std::sync::{Arc, Mutex};
+use std::collections::{HashMap, HashSet};
 use tauri::State;
 use log::{info, debug, warn, error, trace};
 
@@ -11,14 +12,14 @@ use super::DatabaseState;
 
 pub struct ConnectionManagerState {
     pub credential_manager: Arc<CredentialManager>,
-    pub active_connections: Arc<Mutex<std::collections::HashSet<String>>>,
+    pub active_connections: Arc<Mutex<HashMap<String, String>>>,
 }
 
 impl ConnectionManagerState {
     pub fn new(credential_manager: Arc<CredentialManager>) -> Self {
         Self {
             credential_manager,
-            active_connections: Arc::new(Mutex::new(std::collections::HashSet::new())),
+            active_connections: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 }
@@ -26,11 +27,11 @@ impl ConnectionManagerState {
 pub struct ConnectionManager {
     db: Arc<Mutex<SqliteConnection>>,
     credential_manager: Arc<CredentialManager>,
-    active_connections: Arc<Mutex<std::collections::HashSet<String>>>,
+    active_connections: Arc<Mutex<HashMap<String, String>>>,
 }
 
 impl ConnectionManager {
-    pub fn new(db: Arc<Mutex<SqliteConnection>>, credential_manager: Arc<CredentialManager>, active_connections: Arc<Mutex<std::collections::HashSet<String>>>) -> Self {
+    pub fn new(db: Arc<Mutex<SqliteConnection>>, credential_manager: Arc<CredentialManager>, active_connections: Arc<Mutex<HashMap<String, String>>>) -> Self {
         Self {
             db,
             credential_manager,
@@ -649,16 +650,28 @@ impl ConnectionManager {
     // Active Connection Management
     pub fn get_active_connection_ids(&self) -> Vec<String> {
         let active = self.active_connections.lock().unwrap();
-        active.iter().cloned().collect()
+        let mut ids: Vec<String> = active.values().cloned().collect();
+        ids.sort();
+        ids.dedup();
+        ids
     }
 
-    pub fn set_connection_active(&self, id: &str, active: bool) {
-        let mut set = self.active_connections.lock().unwrap();
+    pub fn set_window_connection_active(&self, window_label: &str, connection_id: &str, active: bool) {
+        let mut map = self.active_connections.lock().unwrap();
         if active {
-            set.insert(id.to_string());
+            map.insert(window_label.to_string(), connection_id.to_string());
         } else {
-            set.remove(id);
+            if let Some(current_id) = map.get(window_label) {
+                if current_id == connection_id {
+                    map.remove(window_label);
+                }
+            }
         }
+    }
+
+    pub fn remove_window_from_active(&self, window_label: &str) {
+        let mut map = self.active_connections.lock().unwrap();
+        map.remove(window_label);
     }
 
     // Window Session Persistence
