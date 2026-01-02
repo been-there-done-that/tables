@@ -13,6 +13,7 @@
 
     import { schemaStore } from "$lib/stores/schema.svelte";
     import IconLoader2 from "@tabler/icons-svelte/icons/loader-2";
+    import IconLogout from "@tabler/icons-svelte/icons/logout";
 
     let connections = $state<Connection[]>([]);
     let isOpen = $state(false);
@@ -40,6 +41,11 @@
     const selectConnection = async (conn: Connection) => {
         isOpen = false;
         await schemaStore.connect(conn);
+    };
+
+    const disconnectConnection = async () => {
+        isOpen = false;
+        await schemaStore.disconnect();
     };
 
     const openNewConnection = async () => {
@@ -160,17 +166,27 @@
                 {/if}
             </div>
 
-            <!-- Footer Action -->
+            <!-- Footer Actions -->
             <div
-                class="p-1 border-t border-(--theme-border-default) bg-(--theme-bg-primary)"
+                class="p-1 border-t border-(--theme-border-default) bg-(--theme-bg-primary) flex flex-col gap-0.5"
             >
                 <Menu.Item
-                    class="flex items-center justify-center gap-2 w-full px-3 py-1.5 text-xs font-medium text-(--theme-fg-secondary) hover:text-(--theme-fg-primary) rounded-md transition-colors"
+                    class="flex items-center gap-2 w-full px-3 py-1.5 text-xs font-medium text-(--theme-fg-secondary) hover:text-(--theme-fg-primary) rounded-md transition-colors"
                     onclick={openNewConnection}
                 >
                     <IconPlus class="size-3.5 opacity-60" />
                     New Connection
                 </Menu.Item>
+
+                {#if schemaStore.activeConnection}
+                    <Menu.Item
+                        class="flex items-center gap-2 w-full px-3 py-1.5 text-xs font-medium text-red-500/80 hover:text-red-500 hover:bg-red-500/5 rounded-md transition-colors"
+                        onclick={disconnectConnection}
+                    >
+                        <IconLogout class="size-3.5 opacity-80" />
+                        Disconnect
+                    </Menu.Item>
+                {/if}
             </div>
         </Menu.Content>
     </Menu.Root>
