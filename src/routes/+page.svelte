@@ -12,6 +12,7 @@
   import IconDatabase from "@tabler/icons-svelte/icons/database";
   import Compact from "$lib/svg/Compact.svelte";
   import Expand from "$lib/svg/Expand.svelte";
+  import PlaylistAdd from "@tabler/icons-svelte/icons/playlist-add";
 
   import SqlTestingEditor from "$lib/components/SqlTestingEditor.svelte";
 
@@ -176,25 +177,62 @@
           {/if}
           <div
             class={cn(
-              "flex-1 overflow-auto p-2 transition-opacity duration-200",
+              "flex-1 overflow-auto p-2 transition-all duration-300",
               schemaStore.status === "refreshing" &&
-                "opacity-50 pointer-events-none",
+                "opacity-50 pointer-events-none grayscale-[0.5]",
             )}
           >
-            {#if schemaStore.schemas.length === 0 && schemaStore.status !== "connecting" && schemaStore.status !== "refreshing"}
-              <div class="p-4 text-center text-xs text-muted-foreground">
+            {#if schemaStore.status === "connecting"}
+              <div class="flex flex-col items-center justify-center h-40 gap-3">
+                <IconLoader2
+                  class="size-6 animate-spin text-(--theme-accent-primary)"
+                />
+                <p
+                  class="text-[10px] text-muted-foreground animate-pulse font-medium"
+                >
+                  Connecting...
+                </p>
+              </div>
+            {:else if schemaStore.schemas.length === 0 && schemaStore.status !== "refreshing"}
+              <div
+                class="flex flex-col items-center justify-center p-8 text-center h-full max-h-[400px]"
+              >
+                <div class="mb-4 rounded-full bg-muted/30 p-4">
+                  <IconDatabase
+                    class="size-8 text-muted-foreground opacity-20"
+                  />
+                </div>
                 {#if schemaStore.activeConnection}
-                  <p>No schema found.</p>
+                  <h3 class="text-sm font-medium mb-1">No Schemas Found</h3>
+                  <p class="text-xs text-muted-foreground mb-4 max-w-[180px]">
+                    Successfully connected to <b
+                      >{schemaStore.activeConnection.name}</b
+                    >, but no schemas were detected.
+                  </p>
                   <button
-                    class="mt-2 text-primary hover:underline"
-                    onclick={() => schemaStore.refresh()}>Refresh Schema</button
+                    class="px-4 py-1.5 rounded-md bg-(--theme-bg-active) border border-(--theme-border-subtle) text-xs font-medium hover:bg-(--theme-bg-hover) transition-colors"
+                    onclick={() => schemaStore.refresh()}
                   >
+                    Refresh Schema
+                  </button>
                 {:else}
-                  <p>Select a connection to view schema.</p>
+                  <h3 class="text-sm font-medium mb-1">Explorer</h3>
+                  <p class="text-xs text-muted-foreground mb-4 max-w-[180px]">
+                    Select a database connection from the titlebar to browse
+                    your data.
+                  </p>
+                  <div
+                    class="flex items-center gap-2 text-[10px] text-primary bg-primary/5 px-2 py-1 rounded-full border border-primary/10"
+                  >
+                    <PlaylistAdd class="size-3" />
+                    <span>Quick Select (Meta+P)</span>
+                  </div>
                 {/if}
               </div>
             {:else}
-              <FileTree items={treeData} bind:this={fileTree} />
+              <div class="animate-in fade-in slide-in-from-left-2 duration-300">
+                <FileTree items={treeData} bind:this={fileTree} />
+              </div>
             {/if}
           </div>
         </div>
