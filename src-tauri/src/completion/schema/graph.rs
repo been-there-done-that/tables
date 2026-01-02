@@ -93,6 +93,11 @@ impl SchemaGraph {
         self.tables.get(&name.to_lowercase())
     }
 
+    /// Check if a table exists.
+    pub fn has_table(&self, name: &str) -> bool {
+        self.tables.contains_key(&name.to_lowercase())
+    }
+
     /// Get columns for a table.
     pub fn get_columns(&self, table_name: &str) -> Vec<&ColumnInfo> {
         self.tables
