@@ -131,6 +131,25 @@
       });
     }
   }
+
+  function handleContextMenuAction(action: string, node: TreeNode) {
+    if (!activeSession) return;
+
+    switch (action) {
+      case "query_console":
+        const title =
+          node.type === "schema"
+            ? `Console: ${node.name}`
+            : `Query: ${node.name}`;
+        activeSession.openView("editor", title, {
+          // We can pass context here if needed
+        });
+        break;
+      // Stubs for other actions
+      default:
+        console.log(`Action ${action} not implemented for node ${node.name}`);
+    }
+  }
 </script>
 
 <div class="flex h-full w-full flex-col bg-background text-foreground">
@@ -257,6 +276,7 @@
                   bind:this={fileTree}
                   bind:expanded={activeSession.explorerState.expanded}
                   onAction={handleExplorerAction}
+                  onContextMenuAction={handleContextMenuAction}
                 />
               </div>
             {:else}

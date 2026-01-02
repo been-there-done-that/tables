@@ -41,16 +41,31 @@
 
 <script lang="ts">
     import { slide } from "svelte/transition";
+    import * as ContextMenu from "$lib/components/ui/context-menu";
+    import ExplorerContextMenu from "./ExplorerContextMenu.svelte";
     import { cn } from "$lib/utils";
+
+    interface Props {
+        items?: TreeNode[];
+        class?: string;
+        isCompact?: boolean;
+        indent?: number;
+        onNodeClick?: (node: TreeNode) => void;
+        onAction?: (node: TreeNode) => void;
+        onContextMenuAction?: (action: string, node: TreeNode) => void;
+        expanded?: Set<string>;
+    }
 
     let {
         items = [] as TreeNode[],
         class: className = "",
+        isCompact = false,
         indent = 24,
         onNodeClick = (node: TreeNode) => {},
         onAction = (node: TreeNode) => {},
+        onContextMenuAction = (action: string, node: TreeNode) => {},
         expanded = $bindable(new Set()),
-    } = $props();
+    }: Props = $props();
 
     // Helper to generate a unique key if id is missing
     // NOTE: For streaming data, ensure each node has a stable unique 'id'.
@@ -134,89 +149,98 @@
         node.type === "foreign_key"}
 
     <li class="relative">
-        <div
-            class={cn(
-                "group flex items-center gap-2 rounded-md cursor-default transition-colors border border-transparent",
-                isCompact
-                    ? "py-0 text-xs h-5 hover:bg-accent/50 text-foreground/80 hover:text-foreground" // Compact with hover
-                    : "py-1 text-sm hover:bg-accent/50 text-foreground/80 hover:text-foreground",
-            )}
-            style="padding-left: calc({indent}px * {depth} + 4px);"
-            onclick={(e) => {
-                e.stopPropagation();
-                if (isFolder) {
-                    toggle(key);
-                }
-                onNodeClick(node);
-            }}
-            onkeydown={(e) =>
-                (e.key === "Enter" || e.key === " ") && isFolder && toggle(key)}
-            role="button"
-            tabindex="0"
-        >
-            <!-- Arrow -->
-            <span
-                class="flex items-center justify-center size-4 shrink-0 text-muted-foreground/50"
-            >
-                {#if isFolder && node.children && node.children.length > 0}
-                    <ChevronRight
-                        class={cn(
-                            "size-3.5 transition-transform duration-200",
-                            isOpen && "rotate-90",
-                        )}
-                    />
-                {/if}
-            </span>
-
-            <!-- Icon -->
-            <span
-                class="flex items-center justify-center size-4 shrink-0 text-muted-foreground"
-            >
-                {#if node.type === "folder" || node.type === "group"}
-                    {#if isOpen}
-                        <FolderOpen class="size-4" />
-                    {:else}
-                        <Folder class="size-4" />
-                    {/if}
-                {:else}
-                    {@const Icon = typeIcon[node.type || "file"] || FileText}
-                    <Icon class="size-4" />
-                {/if}
-            </span>
-
-            <!-- Label -->
-            <span class="truncate leading-none opacity-90">
-                {node.name}
-            </span>
-
-            <!-- Count (New) -->
-            {#if node.count !== undefined}
-                <span class="ml-1 text-[10px] text-muted-foreground/70"
-                    >({node.count})</span
-                >
-            {/if}
-
-            <!-- Detail (Type info, etc) -->
-            {#if node.detail}
-                <span class="ml-2 text-xs text-muted-foreground truncate"
-                    >{node.detail}</span
-                >
-            {/if}
-
-            <!-- Action Icon (Visible on Hover) -->
-            {#if node.type === "table" || node.type === "column" || node.type === "primary_key" || node.type === "foreign_key"}
-                <button
-                    class="ml-auto p-1 rounded-sm opacity-0 group-hover:opacity-100 hover:bg-accent text-muted-foreground hover:text-foreground transition-all duration-200"
+        <ContextMenu.Root>
+            <ContextMenu.Trigger>
+                <div
+                    class={cn(
+                        "group flex items-center gap-2 rounded-md cursor-default transition-colors border border-transparent",
+                        isCompact
+                            ? "py-0 text-xs h-5 hover:bg-accent/50 text-foreground/80 hover:text-foreground" // Compact with hover
+                            : "py-1 text-sm hover:bg-accent/50 text-foreground/80 hover:text-foreground",
+                    )}
+                    style="padding-left: calc({indent}px * {depth} + 4px);"
                     onclick={(e) => {
                         e.stopPropagation();
-                        onAction(node);
+                        if (isFolder) {
+                            toggle(key);
+                        }
+                        onNodeClick(node);
                     }}
-                    title="Open in new tab"
+                    onkeydown={(e) =>
+                        (e.key === "Enter" || e.key === " ") &&
+                        isFolder &&
+                        toggle(key)}
+                    role="button"
+                    tabindex="0"
                 >
-                    <IconSql class="size-3.5" />
-                </button>
-            {/if}
-        </div>
+                    <!-- Arrow -->
+                    <span
+                        class="flex items-center justify-center size-4 shrink-0 text-muted-foreground/50"
+                    >
+                        {#if isFolder && node.children && node.children.length > 0}
+                            <ChevronRight
+                                class={cn(
+                                    "size-3.5 transition-transform duration-200",
+                                    isOpen && "rotate-90",
+                                )}
+                            />
+                        {/if}
+                    </span>
+
+                    <!-- Icon -->
+                    <span
+                        class="flex items-center justify-center size-4 shrink-0 text-muted-foreground"
+                    >
+                        {#if node.type === "folder" || node.type === "group"}
+                            {#if isOpen}
+                                <FolderOpen class="size-4" />
+                            {:else}
+                                <Folder class="size-4" />
+                            {/if}
+                        {:else}
+                            {@const Icon =
+                                typeIcon[node.type || "file"] || FileText}
+                            <Icon class="size-4" />
+                        {/if}
+                    </span>
+
+                    <!-- Label -->
+                    <span class="truncate leading-none opacity-90">
+                        {node.name}
+                    </span>
+
+                    <!-- Count (New) -->
+                    {#if node.count !== undefined}
+                        <span class="ml-1 text-[10px] text-muted-foreground/70"
+                            >({node.count})</span
+                        >
+                    {/if}
+
+                    <!-- Detail (Type info, etc) -->
+                    {#if node.detail}
+                        <span
+                            class="ml-2 text-xs text-muted-foreground truncate"
+                            >{node.detail}</span
+                        >
+                    {/if}
+
+                    <!-- Action Icon (Visible on Hover) -->
+                    {#if node.type === "table" || node.type === "column" || node.type === "primary_key" || node.type === "foreign_key"}
+                        <button
+                            class="ml-auto p-1 rounded-sm opacity-0 group-hover:opacity-100 hover:bg-accent text-muted-foreground hover:text-foreground transition-all duration-200"
+                            onclick={(e) => {
+                                e.stopPropagation();
+                                onAction(node);
+                            }}
+                            title="Open in new tab"
+                        >
+                            <IconSql class="size-3.5" />
+                        </button>
+                    {/if}
+                </div>
+            </ContextMenu.Trigger>
+            <ExplorerContextMenu {node} onAction={onContextMenuAction} />
+        </ContextMenu.Root>
 
         <!-- Children -->
         {#if isFolder && isOpen && node.children}
