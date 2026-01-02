@@ -45,6 +45,18 @@ const COMMANDS: CommandConfig[] = [
                 console.error("Failed to create new window:", e);
             }
         }
+    },
+    {
+        id: "workbench.action.openDatasource",
+        label: "Open Data Sources",
+        defaultKeybinding: { mac: "Meta+Shift+d", win: "Control+Shift+d" },
+        execute: async () => {
+            try {
+                await invoke("open_datasource_window");
+            } catch (e) {
+                console.error("Failed to open datasource window:", e);
+            }
+        }
     }
 ];
 

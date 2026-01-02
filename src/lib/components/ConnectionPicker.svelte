@@ -63,7 +63,7 @@
         <Menu.DropdownTrigger>
             <button
                 class={cn(
-                    "flex items-center gap-2 p-1 text-sm rounded-md transition-all duration-200",
+                    "group flex items-center gap-2 p-1 text-sm rounded-md transition-all duration-200",
                     "hover:bg-(--theme-bg-hover) active:bg-(--theme-bg-active)",
                     "border border-transparent focus:outline-none focus:ring-1 focus:ring-(--theme-border-active)",
                     isOpen ? "bg-(--theme-bg-active)" : "",
