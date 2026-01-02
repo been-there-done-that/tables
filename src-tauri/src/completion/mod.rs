@@ -12,6 +12,7 @@ pub mod context;
 pub mod engine;
 pub mod analysis;
 pub mod schema;
+pub mod ranges;
 
 #[cfg(test)]
 pub mod tests;
