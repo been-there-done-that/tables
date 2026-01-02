@@ -195,6 +195,9 @@ macro_rules! aggregate_plugin_commands {
             get_active_connections,
             mark_connection_active,
             mark_connection_inactive,
+            save_window_session,
+            get_window_session,
+            delete_window_session,
             
             // AWS plugin commands
             get_available_aws_profiles,
