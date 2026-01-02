@@ -203,12 +203,19 @@ pub async fn get_active_connections(
 #[tauri::command]
 pub async fn mark_connection_active(
     id: String,
+    window_label: Option<String>,
     db_state: State<'_, DatabaseState>,
     conn_state: State<'_, ConnectionManagerState>,
 ) -> Result<(), String> {
     debug!("Marking connection '{}' as active", id);
     let manager = ConnectionManager::from_state(&db_state, &conn_state);
     manager.set_connection_active(&id, true);
+    
+    // Also save window session if label is provided
+    if let Some(label) = window_label {
+        manager.save_window_session(&label, &id)?;
+    }
+    
     Ok(())
 }
 
@@ -216,11 +223,56 @@ pub async fn mark_connection_active(
 #[tauri::command]
 pub async fn mark_connection_inactive(
     id: String,
+    window_label: Option<String>,
     db_state: State<'_, DatabaseState>,
     conn_state: State<'_, ConnectionManagerState>,
 ) -> Result<(), String> {
     debug!("Marking connection '{}' as inactive", id);
     let manager = ConnectionManager::from_state(&db_state, &conn_state);
     manager.set_connection_active(&id, false);
+    
+    // Also clear window session if label matches
+    if let Some(label) = window_label {
+        if let Ok(Some(current_id)) = manager.get_window_session(&label) {
+            if current_id == id {
+                manager.delete_window_session(&label)?;
+            }
+        }
+    }
+    
     Ok(())
+}
+
+/// Save a window session manually
+#[tauri::command]
+pub async fn save_window_session(
+    window_label: String,
+    connection_id: String,
+    db_state: State<'_, DatabaseState>,
+    conn_state: State<'_, ConnectionManagerState>,
+) -> Result<(), String> {
+    let manager = ConnectionManager::from_state(&db_state, &conn_state);
+    manager.save_window_session(&window_label, &connection_id)
+}
+
+/// Get a persisted window session
+#[tauri::command]
+pub async fn get_window_session(
+    window_label: String,
+    db_state: State<'_, DatabaseState>,
+    conn_state: State<'_, ConnectionManagerState>,
+) -> Result<Option<String>, String> {
+    let manager = ConnectionManager::from_state(&db_state, &conn_state);
+    manager.get_window_session(&window_label)
+}
+
+/// Delete a window session
+#[tauri::command]
+pub async fn delete_window_session(
+    window_label: String,
+    db_state: State<'_, DatabaseState>,
+    conn_state: State<'_, ConnectionManagerState>,
+) -> Result<(), String> {
+    let manager = ConnectionManager::from_state(&db_state, &conn_state);
+    manager.delete_window_session(&window_label)
 }
