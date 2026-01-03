@@ -390,36 +390,43 @@ impl ConnectionManager {
 
         // Connect with or without TLS
         if tls_enabled {
+            debug!("Connecting to Postgres with TLS enabled");
             let tls_connector = native_tls::TlsConnector::builder()
                 .danger_accept_invalid_certs(true) // For self-signed certs; configure properly for production
                 .build()
-                .map_err(|e| format!("Failed to build TLS connector: {}", e))?;
+                .map_err(|e| {
+                    error!("Failed to build TLS connector: {}", e);
+                    format!("Failed to build TLS connector: {}", e)
+                })?;
             
             let connector = postgres_native_tls::MakeTlsConnector::new(tls_connector);
             
             let (client, connection) = tokio_postgres::connect(&conn_str, connector).await
                 .map_err(|e| {
+                    error!("Postgres TLS connection failed: {:?}", e);
                     if let Some(db_error) = e.as_db_error() {
-                        return db_error.message().to_string();
+                        return format!("Database error: {} (code: {:?})", db_error.message(), db_error.code());
                     }
-                    e.to_string()
+                    format!("Connection error: {}", e)
                 })?;
 
             tokio::spawn(async move {
                 if let Err(e) = connection.await {
-                    eprintln!("connection error: {}", e);
+                    error!("Postgres connection task error: {}", e);
                 }
             });
 
             let row = client.query_one("SELECT version()", &[]).await
                 .map_err(|e| {
+                    error!("Postgres version query failed: {:?}", e);
                     if let Some(db_error) = e.as_db_error() {
-                        return db_error.message().to_string();
+                        return format!("Database error: {} (code: {:?})", db_error.message(), db_error.code());
                     }
-                    e.to_string()
+                    format!("Query error: {}", e)
                 })?;
             
             let version: String = row.get(0);
+            debug!("Postgres TLS connection successful, version: {}", version);
             Ok((version, database.to_string()))
         } else {
             let (client, connection) = tokio_postgres::connect(&conn_str, tokio_postgres::NoTls).await

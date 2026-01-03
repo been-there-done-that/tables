@@ -41,6 +41,7 @@
         count?: number; // Added for displaying item counts
         isConnected?: boolean; // For database connection status
         isLoading?: boolean; // For on-demand loading state
+        metadata?: Record<string, any>; // For lazy loading metadata
     };
 </script>
 

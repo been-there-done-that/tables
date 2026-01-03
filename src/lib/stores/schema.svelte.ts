@@ -61,7 +61,10 @@ export class SchemaStore {
             }
 
             // 4. Fetch Schema (Cached)
+            console.time("[SchemaStore] get_schema");
             let data = await invoke<MetaDatabase[]>("get_schema", { connectionId: conn.id });
+            console.timeEnd("[SchemaStore] get_schema");
+            console.log(`[SchemaStore] get_schema returned ${data.length} databases`);
 
             // 4.1 If cache is empty (first-time connection), trigger introspection
             if (data.length === 0) {
@@ -70,8 +73,15 @@ export class SchemaStore {
                 });
 
                 try {
+                    console.time("[SchemaStore] refresh_schema");
                     await invoke("refresh_schema", { connectionId: conn.id });
+                    console.timeEnd("[SchemaStore] refresh_schema");
+
+                    console.time("[SchemaStore] get_schema (after refresh)");
                     data = await invoke<MetaDatabase[]>("get_schema", { connectionId: conn.id });
+                    console.timeEnd("[SchemaStore] get_schema (after refresh)");
+                    console.log(`[SchemaStore] After refresh: ${data.length} databases`);
+
                     toast.success("Schema Loaded", {
                         id: loadingToastId,
                         description: `Discovered ${data.length} databases.`
@@ -85,14 +95,19 @@ export class SchemaStore {
             }
 
             // 5. Update Completion Engine Cache
+            console.time("[SchemaStore] update_completion_schema");
             await invoke("update_completion_schema", {
                 connectionId: conn.id,
                 databases: data
             });
+            console.timeEnd("[SchemaStore] update_completion_schema");
 
+            console.time("[SchemaStore] state update");
             this.databases = data;
             this.status = "idle";
             this.lastRefreshed = new Date();
+            console.timeEnd("[SchemaStore] state update");
+            console.log(`[SchemaStore] Status changed to: ${this.status}, databases count: ${this.databases.length}`);
 
             if (data.length === 0) {
                 toast.success("Connected", { description: "No schema found. Try refreshing." });
