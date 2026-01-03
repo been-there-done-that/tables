@@ -235,11 +235,11 @@ pub fn apply(conn: &Connection, now_fn: impl Fn() -> i64) -> Result<(), String> 
             format!("Failed to create window sessions table: {e}")
         })?;
 
-    // Safe Migration: Ensure 'database' column exists in all meta tables
-    // Since we changed the Primary Key, we should drop and recreate these tables if 'database' is missing.
-    // This ensures a clean new hierarchy cache.
+    // Safe Migration: Ensure 'database' column exists in tables that need it.
+    // Note: meta_databases doesn't have a 'database' column (it uses 'name' instead)
+    // Only check tables that should have the 'database' column for the hierarchy cache.
     let tables_to_check = vec![
-        "meta_databases",
+        // "meta_databases" - excluded: uses 'name' column, not 'database'
         "meta_tables",
         "meta_columns",
         "meta_indexes",
