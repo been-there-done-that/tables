@@ -29,12 +29,25 @@
 					let newX = ctx.coords.x;
 					let newY = ctx.coords.y;
 
-					if (newX + rect.width > window.innerWidth) {
-						newX = window.innerWidth - rect.width - 10;
-					}
+					// Standard behavior via flipping
+					// 1. Vertical: Default to opening downwards. If overflow bottom, flip to open upwards.
 					if (newY + rect.height > window.innerHeight) {
-						newY = window.innerHeight - rect.height - 2;
+						newY -= rect.height;
 					}
+
+					// 2. Horizontal: Default to opening rightwards. If overflow right, flip to open leftwards.
+					if (newX + rect.width > window.innerWidth) {
+						newX -= rect.width;
+					}
+
+					// Final safety clamp to viewport edges (handle cases where menu is larger than viewport)
+					if (newX < 0) newX = 0;
+					if (newY < 0) newY = 0;
+					if (newX + rect.width > window.innerWidth)
+						newX = window.innerWidth - rect.width;
+					if (newY + rect.height > window.innerHeight)
+						newY = window.innerHeight - rect.height;
+
 					adjustedCoords = { x: newX, y: newY };
 				}
 			}, 0);
@@ -116,15 +129,25 @@
 			window.removeEventListener("mousedown", handleClickOutside);
 		};
 	});
+	function portal(node: HTMLElement) {
+		document.body.appendChild(node);
+		return {
+			destroy() {
+				if (node.parentNode) {
+					node.parentNode.removeChild(node);
+				}
+			},
+		};
+	}
 </script>
 
 {#if ctx?.open}
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div
+		use:portal
 		bind:this={menuElement}
-		transition:scale={{ duration: 100, start: 0.95 }}
 		class={cn(
-			"fixed z-50 min-w-[160px] overflow-hidden rounded-md border border-(--theme-border-default) bg-(--theme-bg-secondary) p-1 shadow-lg",
+			"fixed z-50 min-w-[160px] overflow-hidden rounded-md border border-(--theme-border-default) bg-(--theme-bg-secondary) p-1 shadow-lg m-0",
 			className,
 		)}
 		style="left: {adjustedCoords.x}px; top: {adjustedCoords.y}px;"
