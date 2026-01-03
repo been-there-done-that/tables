@@ -29,6 +29,17 @@
   let tableDetailsCache = $state<Map<string, any>>(new Map());
   let loadingTables = $state<Set<string>>(new Set());
 
+  // Ensure a session exists when schemaStore has an active connection
+  $effect(() => {
+    const conn = schemaStore.activeConnection;
+    const hasSession = !!windowState.activeSession;
+
+    if (conn && !hasSession && schemaStore.status === "idle") {
+      console.log(`[AutoSession] Creating session for connection ${conn.id}`);
+      windowState.startSession(conn);
+    }
+  });
+
   const treeData = $derived.by(() => {
     const databases = schemaStore.databases;
     const activeConn = schemaStore.activeConnection;
@@ -116,8 +127,8 @@
           type: "group" as NodeType,
           count: cachedDetails.indexes?.length || 0,
           children: (cachedDetails.indexes || []).map((idx: any) => ({
-            id: `idx:${tableId}.${idx.index_name}`,
-            name: idx.index_name,
+            id: `idx:${tableId}.${idx.name}`,
+            name: idx.name,
             type: "index" as NodeType,
             detail: idx.is_unique ? "Unique" : "",
           })),
@@ -155,6 +166,74 @@
       // Store metadata for lazy loading
       metadata: { dbName, schemaName, tableName: table.table_name },
     };
+  }
+
+  // Effect to load details for pre-expanded tables
+  $effect(() => {
+    const session = activeSession;
+    const expanded = session?.explorerState?.expanded;
+    const hasConnection = !!schemaStore.activeConnection;
+
+    console.log(
+      `[Effect] Checking pre-expanded tables: session=${!!session}, expanded=${expanded?.size || "null"}, hasConnection=${hasConnection}`,
+    );
+
+    if (!expanded || !schemaStore.activeConnection) return;
+
+    console.log(`[Effect] Expanded keys:`, [...expanded]);
+
+    // Find expanded table nodes and load their details
+    for (const key of expanded) {
+      // Check if this is a table key (format: table:db:schema.tableName or table:db:schema.tableName-index)
+      if (key.startsWith("table:")) {
+        console.log(`[Effect] Found table key: ${key}`);
+        const match = key.match(/^table:([^:]+):([^.]+)\.([^-]+)/);
+        if (match) {
+          const [, dbName, schemaName, tableName] = match;
+          const cacheKey = `${dbName}:${schemaName}:${tableName}`;
+
+          // Load if not already cached or loading
+          if (
+            !tableDetailsCache.has(cacheKey) &&
+            !loadingTables.has(cacheKey)
+          ) {
+            console.log(`[LazyLoad] Pre-expanded table detected: ${tableName}`);
+            loadTableDetails(dbName, schemaName, tableName);
+          }
+        } else {
+          console.log(`[Effect] Key didn't match regex: ${key}`);
+        }
+      }
+    }
+  });
+
+  async function loadTableDetails(
+    dbName: string,
+    schemaName: string,
+    tableName: string,
+  ) {
+    const cacheKey = `${dbName}:${schemaName}:${tableName}`;
+
+    if (tableDetailsCache.has(cacheKey) || loadingTables.has(cacheKey)) return;
+
+    loadingTables = new Set([...loadingTables, cacheKey]);
+
+    try {
+      console.time(`[LazyLoad] ${tableName}`);
+      const details = await invoke<any>("get_schema_table_details", {
+        connectionId: schemaStore.activeConnection?.id,
+        database: dbName,
+        schema: schemaName,
+        tableName: tableName,
+      });
+      console.timeEnd(`[LazyLoad] ${tableName}`);
+
+      tableDetailsCache = new Map(tableDetailsCache).set(cacheKey, details);
+    } catch (e) {
+      console.error(`Failed to load details for ${tableName}:`, e);
+    } finally {
+      loadingTables = new Set([...loadingTables].filter((k) => k !== cacheKey));
+    }
   }
 
   function handleExplorerAction(node: TreeNode) {
@@ -226,6 +305,11 @@
   }
 
   async function handleNodeExpand(node: TreeNode, isOpen: boolean) {
+    console.log(
+      `[handleNodeExpand] type=${node.type}, name=${node.name}, isOpen=${isOpen}, metadata=`,
+      node.metadata,
+    );
+
     if (isOpen && node.type === "database") {
       schemaStore.loadDatabase(node.name);
     }
@@ -237,36 +321,7 @@
         schemaName: string;
         tableName: string;
       };
-      const cacheKey = `${dbName}:${schemaName}:${tableName}`;
-
-      // Skip if already loaded or loading
-      if (tableDetailsCache.has(cacheKey) || loadingTables.has(cacheKey)) {
-        return;
-      }
-
-      // Mark as loading
-      loadingTables = new Set([...loadingTables, cacheKey]);
-
-      try {
-        console.time(`[LazyLoad] ${tableName}`);
-        const details = await invoke<any>("get_schema_table_details", {
-          connectionId: schemaStore.activeConnection?.id,
-          database: dbName,
-          schema: schemaName,
-          tableName: tableName,
-        });
-        console.timeEnd(`[LazyLoad] ${tableName}`);
-
-        // Update cache (creates a new Map to trigger reactivity)
-        tableDetailsCache = new Map(tableDetailsCache).set(cacheKey, details);
-      } catch (e) {
-        console.error(`Failed to load details for ${tableName}:`, e);
-      } finally {
-        // Remove from loading set
-        loadingTables = new Set(
-          [...loadingTables].filter((k) => k !== cacheKey),
-        );
-      }
+      loadTableDetails(dbName, schemaName, tableName);
     }
   }
 </script>
