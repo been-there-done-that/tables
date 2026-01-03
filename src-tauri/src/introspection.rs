@@ -8,7 +8,8 @@ use tokio_postgres;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MetaDatabase {
     pub name: String,
-    pub is_connected: bool, // New!
+    pub is_connected: bool,
+    pub is_introspected: bool, // New!
     pub schemas: Vec<MetaSchema>,
 }
 
@@ -155,6 +156,7 @@ impl Introspector {
         Ok(vec![MetaDatabase {
             name: "main".to_string(),
             is_connected: true,
+            is_introspected: true,
             schemas: vec![MetaSchema {
                 name: "main".to_string(),
                 schema_type: "user".to_string(),
@@ -245,7 +247,8 @@ impl Introspector {
 
         Ok(MetaDatabase {
             name: database_name.to_string(),
-            is_connected: true, // It succeeded, so consider it "connected" for UI
+            is_connected: true,
+            is_introspected: true,
             schemas,
         })
     }
@@ -467,6 +470,7 @@ impl Introspector {
                 db_list.push(MetaDatabase {
                     name: name,
                     is_connected: false,
+                    is_introspected: false,
                     schemas: Vec::new(),
                 });
             }
@@ -543,6 +547,7 @@ impl Introspector {
         // 6. Final merging (ensure all initialized DBs find their tables)
         for mut db in &mut db_list {
             if let Some(schema_map) = db_map.remove(&db.name) {
+                db.is_introspected = true;
                 for (s_name, s_tables) in schema_map {
                     let schema_type = if matches!(s_name.as_str(), "information_schema" | "pg_catalog" | "pg_toast") {
                         "system"
@@ -737,6 +742,7 @@ impl Introspector {
             db_list.push(MetaDatabase { 
                 name: db_name.clone(), 
                 is_connected: db_name == current_database,
+                is_introspected: db_name == current_database,
                 schemas 
             });
         }

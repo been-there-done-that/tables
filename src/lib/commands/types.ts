@@ -255,6 +255,7 @@ export interface ConnectionChangeEvent {
 export interface MetaDatabase {
   name: string;
   is_connected: boolean;
+  is_introspected: boolean;
   is_loading?: boolean; // UI only
   schemas: MetaSchema[];
 }
