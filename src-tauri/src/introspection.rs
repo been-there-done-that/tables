@@ -8,12 +8,14 @@ use tokio_postgres;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MetaDatabase {
     pub name: String,
+    pub is_connected: bool, // New!
     pub schemas: Vec<MetaSchema>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MetaSchema {
     pub name: String,
+    pub schema_type: String, // "user" or "system"
     pub tables: Vec<MetaTable>,
 }
 
@@ -142,6 +144,7 @@ impl Introspector {
             };
 
             // Save everything to DB (Cache)
+            self.save_database(&tx, connection_id, "main")?;
             self.save_table_full(&tx, &meta_table)?;
             
             tables.push(meta_table);
@@ -151,11 +154,100 @@ impl Introspector {
 
         Ok(vec![MetaDatabase {
             name: "main".to_string(),
+            is_connected: true,
             schemas: vec![MetaSchema {
                 name: "main".to_string(),
+                schema_type: "user".to_string(),
                 tables,
             }],
         }])
+    }
+
+    pub async fn introspect_database(&self, connection_id: &str, config: serde_json::Value, database_name: &str) -> Result<MetaDatabase, String> {
+        info!("On-demand introspection for database {} on connection {}", database_name, connection_id);
+        
+        let db = config.get("db").ok_or("Missing 'db' config")?;
+        let host = db.get("host").and_then(|v| v.as_str()).ok_or("Missing host")?;
+        let port = db.get("port").and_then(|v| v.as_u64()).unwrap_or(5432) as u16;
+        let user = db.get("username").and_then(|v| v.as_str()).ok_or("Missing username")?;
+        let password = db.get("password").and_then(|v| v.as_str()).unwrap_or("");
+
+        // Connect specifically to the requested database
+        let conn_str = format!("postgres://{}:{}@{}:{}/{}", user, password, host, port, database_name);
+        let (client, connection) = tokio_postgres::connect(&conn_str, tokio_postgres::NoTls).await
+            .map_err(|e| e.to_string())?;
+
+        tokio::spawn(async move {
+            if let Err(e) = connection.await {
+                eprintln!("Postgres on-demand connection error: {}", e);
+            }
+        });
+
+        let table_rows = client.query(
+            "SELECT table_schema, table_name, table_type 
+             FROM information_schema.tables 
+             WHERE table_type IN ('BASE TABLE', 'VIEW')", 
+            &[]
+        ).await.map_err(|e| e.to_string())?;
+
+        let mut tables = Vec::new();
+        let now = chrono::Utc::now().timestamp_millis();
+
+        for row in table_rows {
+            let schema: String = row.get(0);
+            let name: String = row.get(1);
+            let type_str: String = row.get(2);
+            let table_type = if type_str == "BASE TABLE" { "table" } else { "view" };
+
+            let columns = self.introspect_postgres_columns(&client, connection_id, database_name, &schema, &name).await?;
+            let foreign_keys = self.introspect_postgres_foreign_keys(&client, connection_id, database_name, &schema, &name).await?;
+            let indexes = self.introspect_postgres_indexes(&client, connection_id, database_name, &schema, &name).await?;
+
+            tables.push(MetaTable {
+                connection_id: connection_id.to_string(),
+                database: database_name.to_string(),
+                schema,
+                table_name: name,
+                table_type: table_type.to_string(),
+                classification: "user".to_string(),
+                last_introspected_at: now,
+                columns,
+                foreign_keys,
+                indexes,
+            });
+        }
+
+        // Save to cache
+        {
+            let app_db = self.app_db.lock().unwrap();
+            let tx = app_db.unchecked_transaction().map_err(|e| e.to_string())?;
+            for t in &tables {
+                self.save_table_full(&tx, t)?;
+            }
+            tx.commit().map_err(|e| e.to_string())?;
+        }
+
+        // Group into schemas
+        let mut schemas = Vec::new();
+        let mut schema_map: std::collections::HashMap<String, Vec<MetaTable>> = std::collections::HashMap::new();
+        for t in tables {
+            schema_map.entry(t.schema.clone()).or_default().push(t);
+        }
+        for (s_name, s_tables) in schema_map {
+            let schema_type = if matches!(s_name.as_str(), "information_schema" | "pg_catalog" | "pg_toast") {
+                "system"
+            } else {
+                "user"
+            };
+            schemas.push(MetaSchema { name: s_name, schema_type: schema_type.to_string(), tables: s_tables });
+        }
+        schemas.sort_by(|a, b| a.name.cmp(&b.name));
+
+        Ok(MetaDatabase {
+            name: database_name.to_string(),
+            is_connected: true, // It succeeded, so consider it "connected" for UI
+            schemas,
+        })
     }
 
     // Internal introspection methods that return data instead of just saving
@@ -283,6 +375,14 @@ impl Introspector {
         Ok(())
     }
 
+    fn save_database(&self, conn: &SqliteConnection, connection_id: &str, name: &str) -> Result<(), String> {
+        conn.execute(
+            "INSERT OR REPLACE INTO meta_databases (connection_id, name) VALUES (?1, ?2)",
+            params![connection_id, name]
+        ).map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
     fn save_table(&self, conn: &SqliteConnection, table: MetaTable) -> Result<(), String> {
         conn.execute(
             "INSERT INTO meta_tables (connection_id, database, schema, table_name, type, classification, last_introspected_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
@@ -353,6 +453,25 @@ impl Introspector {
     }
 
     pub fn get_schema(&self, connection_id: &str) -> Result<Vec<MetaDatabase>, String> {
+        // 1. Fetch all known databases
+        let mut db_list = Vec::new();
+        {
+            let conn = self.app_db.lock().unwrap();
+            let mut stmt = conn.prepare("SELECT name FROM meta_databases WHERE connection_id = ?1 ORDER BY name")
+                .map_err(|e| e.to_string())?;
+            let db_names = stmt.query_map(params![connection_id], |row| row.get::<_, String>(0))
+                .map_err(|e| e.to_string())?;
+            
+            for name in db_names {
+                let name = name.map_err(|e| e.to_string())?;
+                db_list.push(MetaDatabase {
+                    name: name,
+                    is_connected: false,
+                    schemas: Vec::new(),
+                });
+            }
+        }
+
         let tables_basic = self.get_tables(connection_id)?;
         
         // Group into Vec<MetaDatabase>
@@ -421,22 +540,26 @@ impl Introspector {
                   .push(table);
         }
 
-        let mut result = Vec::new();
-        for (db_name, schema_map) in db_map {
-            let mut schemas = Vec::new();
-            for (schema_name, schema_tables) in schema_map {
-                schemas.push(MetaSchema {
-                    name: schema_name,
-                    tables: schema_tables,
-                });
+        // 6. Final merging (ensure all initialized DBs find their tables)
+        for mut db in &mut db_list {
+            if let Some(schema_map) = db_map.remove(&db.name) {
+                for (s_name, s_tables) in schema_map {
+                    let schema_type = if matches!(s_name.as_str(), "information_schema" | "pg_catalog" | "pg_toast") {
+                        "system"
+                    } else {
+                        "user"
+                    };
+                    db.schemas.push(MetaSchema {
+                        name: s_name,
+                        schema_type: schema_type.to_string(),
+                        tables: s_tables,
+                    });
+                }
+                db.schemas.sort_by(|a, b| a.name.cmp(&b.name));
             }
-            result.push(MetaDatabase {
-                name: db_name,
-                schemas,
-            });
         }
 
-        Ok(result)
+        Ok(db_list)
     }
 
     pub fn get_table_details(&self, connection_id: &str, database: &str, schema: &str, table_name: &str) -> Result<serde_json::Value, String> {
@@ -542,8 +665,7 @@ impl Introspector {
         let table_rows = client.query(
             "SELECT table_schema, table_name, table_type 
              FROM information_schema.tables 
-             WHERE table_schema NOT IN ('information_schema', 'pg_catalog') 
-             AND table_type IN ('BASE TABLE', 'VIEW')", 
+             WHERE table_type IN ('BASE TABLE', 'VIEW')", 
             &[]
         ).await.map_err(|e| e.to_string())?;
 
@@ -577,10 +699,16 @@ impl Introspector {
             });
         }
 
-        // 3. Save current DB cache
+        // 3. Save cache
         {
             let app_db = self.app_db.lock().unwrap();
             let tx = app_db.unchecked_transaction().map_err(|e| e.to_string())?;
+            
+            // Save ALL discovery databases
+            for db_name in &all_databases {
+                self.save_database(&tx, connection_id, db_name)?;
+            }
+            
             for t in &tables {
                 self.save_table_full(&tx, t)?;
             }
@@ -598,10 +726,19 @@ impl Introspector {
                     schema_map.entry(t.schema.clone()).or_default().push(t);
                 }
                 for (s_name, s_tables) in schema_map {
-                    schemas.push(MetaSchema { name: s_name, tables: s_tables });
+                    let schema_type = if matches!(s_name.as_str(), "information_schema" | "pg_catalog" | "pg_toast") {
+                        "system"
+                    } else {
+                        "user"
+                    };
+                    schemas.push(MetaSchema { name: s_name, schema_type: schema_type.to_string(), tables: s_tables });
                 }
             }
-            db_list.push(MetaDatabase { name: db_name, schemas });
+            db_list.push(MetaDatabase { 
+                name: db_name.clone(), 
+                is_connected: db_name == current_database,
+                schemas 
+            });
         }
 
         Ok(db_list)
