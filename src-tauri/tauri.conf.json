@@ -13,13 +13,26 @@
     "macOSPrivateApi": true,
     "windows": [
       {
+        "label": "main",
         "title": "Tables",
         "decorations": true,
         "transparent": true,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
-        "width": 0,
-        "height": 0
+        "width": 1200,
+        "height": 800,
+        "visible": false
+      },
+      {
+        "label": "splash",
+        "title": "Splash",
+        "url": "/splash",
+        "decorations": false,
+        "center": true,
+        "width": 600,
+        "height": 350,
+        "alwaysOnTop": true,
+        "transparent": true
       }
     ],
     "security": {

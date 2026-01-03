@@ -237,7 +237,23 @@ pub fn run() {
                         let _ = window.set_decorations(false);
                     }
                 }
+
+                // Show main window and close splash
+                debug!("Showing main window and closing splash");
+                let _ = window.show();
+                let _ = window.set_focus();
             }
+
+            // Close splash window from backend after a delay
+            let app_handle = app.handle().clone();
+            std::thread::spawn(move || {
+                // Wait 2 seconds so splash screen is visible
+                std::thread::sleep(std::time::Duration::from_secs(2));
+                if let Some(splash) = app_handle.get_webview_window("splash") {
+                    debug!("Closing splash window from backend");
+                    let _ = splash.close();
+                }
+            });
 
             
             // --- Metrics System Setup ---

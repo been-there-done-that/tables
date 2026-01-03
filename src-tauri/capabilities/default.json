@@ -6,7 +6,8 @@
     "main",
     "window-*",
     "appearance-window",
-    "datasource-window"
+    "datasource-window",
+    "splash"
   ],
   "permissions": [
     "core:default",

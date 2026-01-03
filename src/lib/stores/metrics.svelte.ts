@@ -12,7 +12,7 @@ class MetricsStore {
     snapshot = $state<MetricsSnapshot | null>(null);
 
     constructor() {
-        this.init();
+        // Init manually to avoid side effects on import
     }
 
     async init() {
