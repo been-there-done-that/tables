@@ -3,16 +3,17 @@
     import Folder from "@tabler/icons-svelte/icons/folder";
     import FolderOpen from "@tabler/icons-svelte/icons/folder-open";
     import FileText from "@tabler/icons-svelte/icons/file-text";
-    import Database from "@tabler/icons-svelte/icons/database";
+    import Database from "@tabler/icons-svelte/icons/server"; // Creative change
     import Key from "@tabler/icons-svelte/icons/key";
-    import Table from "@tabler/icons-svelte/icons/table";
+    import Table from "@tabler/icons-svelte/icons/layout-grid"; // Creative change
     import Columns from "@tabler/icons-svelte/icons/columns";
     import Bolt from "@tabler/icons-svelte/icons/bolt";
     import ListSearch from "@tabler/icons-svelte/icons/list-search";
-    import Cube from "@tabler/icons-svelte/icons/cube"; // For Schema
+    import Cube from "@tabler/icons-svelte/icons/cube"; // Revert to Cube, or use Box
+    import ViewIcon from "@tabler/icons-svelte/icons/eye"; // For Views
+    import SqlIcon from "@tabler/icons-svelte/icons/file-database"; // Action icon
     import ColumnIcon from "$lib/components/icons/ColumnIcon.svelte";
     import PrimaryKeyIcon from "$lib/components/icons/PrimaryKeyIcon.svelte";
-    import IconSql from "@tabler/icons-svelte/icons/file-database"; // Closest to requested "paper + database"
 
     export type NodeType =
         | "folder"
@@ -23,6 +24,7 @@
         | "primary_key"
         | "schema"
         | "table"
+        | "view"
         | "column"
         | "index"
         | "trigger"
@@ -77,10 +79,11 @@
         folder: Folder,
         group: Folder,
         file: FileText,
-        database: Database,
+        database: Database, // uses Server now
         key: Key,
-        schema: Cube,
-        table: Table,
+        schema: Cube, // uses BoxSeam now
+        table: Table, // uses LayoutGrid now
+        view: ViewIcon, // New!
         column: ColumnIcon,
         primary_key: PrimaryKeyIcon,
         index: ListSearch,
@@ -153,10 +156,10 @@
             <ContextMenu.Trigger>
                 <div
                     class={cn(
-                        "group flex items-center gap-2 rounded-md cursor-default transition-colors border border-transparent",
+                        "group flex items-center gap-1.5 rounded-sm cursor-default transition-colors border border-transparent",
                         isCompact
-                            ? "py-0 text-xs h-5 hover:bg-accent/50 text-foreground/80 hover:text-foreground" // Compact with hover
-                            : "py-1 text-sm hover:bg-accent/50 text-foreground/80 hover:text-foreground",
+                            ? "py-0 text-[11px] h-4.5 hover:bg-accent/40 text-foreground/70 hover:text-foreground"
+                            : "py-0.5 text-xs hover:bg-accent/40 text-foreground/80 hover:text-foreground",
                     )}
                     style="padding-left: calc({indent}px * {depth} + 4px);"
                     onclick={(e) => {
@@ -234,7 +237,7 @@
                             }}
                             title="Open in new tab"
                         >
-                            <IconSql class="size-3.5" />
+                            <SqlIcon class="size-3.5" />
                         </button>
                     {/if}
                 </div>

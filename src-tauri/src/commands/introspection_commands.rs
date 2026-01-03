@@ -63,7 +63,7 @@ pub async fn refresh_schema(
 pub async fn get_schema(
     connection_id: String,
     db_state: State<'_, DatabaseState>,
-) -> Result<Vec<MetaSchema>, String> {
+) -> Result<Vec<MetaDatabase>, String> {
     debug!("Fetching cached schema for connection {}", connection_id);
     let introspector = Introspector::new(db_state.conn.clone());
     introspector.get_schema(&connection_id)
@@ -82,12 +82,14 @@ pub async fn get_schema_tables(
 #[tauri::command]
 pub async fn get_schema_table_details(
     connection_id: String,
+    database: Option<String>,
     schema: Option<String>,
     table_name: String,
     db_state: State<'_, DatabaseState>,
 ) -> Result<serde_json::Value, String> {
+    let database = database.unwrap_or_else(|| "main".to_string());
     let schema = schema.unwrap_or_else(|| "main".to_string());
-    debug!("Fetching cached details for table {}.{} in connection {}", schema, table_name, connection_id);
+    debug!("Fetching cached details for table {}.{}.{} in connection {}", database, schema, table_name, connection_id);
     let introspector = Introspector::new(db_state.conn.clone());
-    introspector.get_table_details(&connection_id, &schema, &table_name)
+    introspector.get_table_details(&connection_id, &database, &schema, &table_name)
 }
