@@ -61,7 +61,28 @@ export class SchemaStore {
             }
 
             // 4. Fetch Schema (Cached)
-            const data = await invoke<MetaDatabase[]>("get_schema", { connectionId: conn.id });
+            let data = await invoke<MetaDatabase[]>("get_schema", { connectionId: conn.id });
+
+            // 4.1 If cache is empty (first-time connection), trigger introspection
+            if (data.length === 0) {
+                const loadingToastId = toast.loading("Introspecting schema...", {
+                    description: "First-time connection, discovering database structure."
+                });
+
+                try {
+                    await invoke("refresh_schema", { connectionId: conn.id });
+                    data = await invoke<MetaDatabase[]>("get_schema", { connectionId: conn.id });
+                    toast.success("Schema Loaded", {
+                        id: loadingToastId,
+                        description: `Discovered ${data.length} databases.`
+                    });
+                } catch (introError) {
+                    toast.error("Introspection Failed", {
+                        id: loadingToastId,
+                        description: String(introError)
+                    });
+                }
+            }
 
             // 5. Update Completion Engine Cache
             await invoke("update_completion_schema", {
@@ -76,7 +97,7 @@ export class SchemaStore {
             if (data.length === 0) {
                 toast.success("Connected", { description: "No schema found. Try refreshing." });
             } else {
-                toast.success("Connected", { description: `Loaded ${data.length} schemas.` });
+                toast.success("Connected", { description: `Loaded ${data.length} databases.` });
             }
 
         } catch (e) {
