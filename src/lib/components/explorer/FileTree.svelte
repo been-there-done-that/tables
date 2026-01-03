@@ -5,7 +5,6 @@
     import FileText from "@tabler/icons-svelte/icons/file-text";
     import Database from "@tabler/icons-svelte/icons/server"; // Creative change
     import Key from "@tabler/icons-svelte/icons/key";
-    import Table from "@tabler/icons-svelte/icons/layout-grid"; // Creative change
     import Columns from "@tabler/icons-svelte/icons/columns";
     import Bolt from "@tabler/icons-svelte/icons/bolt";
     import ListSearch from "@tabler/icons-svelte/icons/list-search";
@@ -13,6 +12,7 @@
     import ViewIcon from "@tabler/icons-svelte/icons/eye"; // For Views
     import SqlIcon from "@tabler/icons-svelte/icons/file-database"; // Action icon
     import ColumnIcon from "$lib/components/icons/ColumnIcon.svelte";
+    import TableIcon from "$lib/components/icons/TableIcon.svelte";
     import PrimaryKeyIcon from "$lib/components/icons/PrimaryKeyIcon.svelte";
 
     export type NodeType =
@@ -82,7 +82,7 @@
         database: Database, // uses Server now
         key: Key,
         schema: Cube, // uses BoxSeam now
-        table: Table, // uses LayoutGrid now
+        table: TableIcon, // Custom SVG!
         view: ViewIcon, // New!
         column: ColumnIcon,
         primary_key: PrimaryKeyIcon,
