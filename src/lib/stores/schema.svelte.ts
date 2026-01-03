@@ -1,24 +1,24 @@
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "svelte-sonner";
-import type { Connection, MetaSchema } from "$lib/commands/types";
+import type { Connection, MetaDatabase } from "$lib/commands/types";
 
 export class SchemaStore {
     activeConnection = $state<Connection | null>(null);
     status = $state<"idle" | "connecting" | "refreshing" | "error">("idle");
-    schemas = $state<MetaSchema[]>([]);
+    databases = $state<MetaDatabase[]>([]);
     error = $state<string | null>(null);
     lastRefreshed = $state<Date | null>(null);
     windowLabel = $state<string | null>(null);
 
     async initialize(label: string) {
         this.windowLabel = label;
-        console.log(`[SchemaStore] Initializing for window: ${label}`);
+        console.log(`[SchemaStore] Initializing for window: ${label} `);
 
         try {
             // Check if there's a persisted session for this window
             const persistedId = await invoke<string | null>("get_window_session", { windowLabel: label });
             if (persistedId) {
-                console.log(`[SchemaStore] Found persisted session: ${persistedId}`);
+                console.log(`[SchemaStore] Found persisted session: ${persistedId} `);
                 // Load connection metadata
                 const conn = await invoke<Connection>("get_connection_metadata", { id: persistedId });
                 if (conn) {
@@ -36,7 +36,7 @@ export class SchemaStore {
         this.status = "connecting";
         this.error = null;
         this.activeConnection = conn;
-        this.schemas = []; // Clear previous schemas immediately
+        this.databases = []; // Clear previous schemas immediately
         this.lastRefreshed = null;
 
         try {
@@ -58,22 +58,22 @@ export class SchemaStore {
             }
 
             // 4. Fetch Schema (Cached)
-            const result = await invoke<MetaSchema[]>("get_schema", { connectionId: conn.id });
+            const data = await invoke<MetaDatabase[]>("get_schema", { connectionId: conn.id });
 
             // 5. Update Completion Engine Cache
             await invoke("update_completion_schema", {
                 connectionId: conn.id,
-                schemas: result
+                schemas: data
             });
 
-            this.schemas = result;
+            this.databases = data;
             this.status = "idle";
             this.lastRefreshed = new Date();
 
-            if (result.length === 0) {
+            if (data.length === 0) {
                 toast.success("Connected", { description: "No schema found. Try refreshing." });
             } else {
-                toast.success("Connected", { description: `Loaded ${result.length} schemas.` });
+                toast.success("Connected", { description: `Loaded ${data.length} schemas.` });
             }
 
         } catch (e) {
@@ -93,7 +93,7 @@ export class SchemaStore {
 
         const id = this.activeConnection.id;
         this.activeConnection = null;
-        this.schemas = [];
+        this.databases = [];
         this.status = "idle";
 
         try {
@@ -115,15 +115,15 @@ export class SchemaStore {
 
         try {
             await invoke("refresh_schema", { connectionId: this.activeConnection.id });
-            const result = await invoke<MetaSchema[]>("get_schema", { connectionId: this.activeConnection.id });
+            const data = await invoke<MetaDatabase[]>("get_schema", { connectionId: this.activeConnection.id });
 
             // Sync completion cache
             await invoke("update_completion_schema", {
                 connectionId: this.activeConnection.id,
-                schemas: result
+                schemas: data
             });
 
-            this.schemas = result;
+            this.databases = data;
             this.status = "idle";
             this.lastRefreshed = new Date();
             toast.success("Schema Refreshed");

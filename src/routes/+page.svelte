@@ -25,111 +25,99 @@
   const activeSession = $derived(windowState.activeSession);
 
   const treeData = $derived.by(() => {
-    // ... (existing treeData logic) ...
-    const schemas = schemaStore.schemas;
+    const databases = schemaStore.databases;
     const activeConn = schemaStore.activeConnection;
 
     if (!activeConn) return [];
 
-    const isSqlite = activeConn.engine === "sqlite";
-
-    // Map schemas to nodes
-    const schemaNodes = schemas.map((schema) => {
-      let children: any[] = [];
-
-      if (isSqlite) {
-        // SQLite Logic (unchanged)
+    return databases.map((db) => {
+      const schemaNodes = db.schemas.map((schema) => {
         const tables = schema.tables.filter((t) => t.table_type === "table");
         const views = schema.tables.filter((t) => t.table_type === "view");
 
-        children = [
-          {
-            id: `folder:tables:${schema.name}`,
+        const children: TreeNode[] = [];
+
+        if (tables.length > 0) {
+          children.push({
+            id: `folder:tables:${db.name}:${schema.name}`,
             name: "tables",
             type: "folder" as NodeType,
             count: tables.length,
-            children: tables.map((table) => mapTableToNode(table, schema.name)),
-          },
-          {
-            id: `folder:views:${schema.name}`,
+            children: tables.map((table) =>
+              mapTableToNode(table, db.name, schema.name),
+            ),
+          });
+        }
+
+        if (views.length > 0) {
+          children.push({
+            id: `folder:views:${db.name}:${schema.name}`,
             name: "views",
             type: "folder" as NodeType,
             count: views.length,
             children: views.map((table) => ({
-              ...mapTableToNode(table, schema.name),
+              ...mapTableToNode(table, db.name, schema.name),
               detail: undefined,
             })),
-          },
-        ];
-      } else {
-        // Postgres/Generic Logic
-        // Schemas contain tables directly
-        children = schema.tables.map((table) =>
-          mapTableToNode(table, schema.name),
-        );
-      }
+          });
+        }
+
+        return {
+          id: `schema:${db.name}:${schema.name}`,
+          name: schema.name,
+          type: "schema" as NodeType,
+          children,
+        };
+      });
 
       return {
-        id: `schema:${schema.name}`,
-        name: schema.name,
-        type: "schema" as NodeType,
-        children,
-      };
-    });
-
-    if (isSqlite) {
-      return schemaNodes;
-    }
-
-    // Logic: Wrap in Database Node for non-SQLite (e.g. Postgres)
-    return [
-      {
-        id: `db:${activeConn.id}`,
-        name: activeConn.database || activeConn.name, // Fallback to connection name if no db name
+        id: `db:${db.name}`,
+        name: db.name,
         type: "database" as NodeType,
         children: schemaNodes,
-      },
-    ];
+      };
+    });
   });
 
-  function mapTableToNode(table: any, schemaName: string) {
+  function mapTableToNode(table: any, dbName: string, schemaName: string) {
+    const tableId = `table:${dbName}:${schemaName}.${table.table_name}`;
     return {
-      id: `table:${schemaName}.${table.table_name}`,
+      id: tableId,
       name: table.table_name,
       type: "table" as NodeType,
       detail: table.table_type === "table" ? undefined : table.table_type,
       children: [
         {
-          id: `cols:${schemaName}.${table.table_name}`,
+          id: `cols:${tableId}`,
           name: "Columns",
           type: "group" as NodeType,
           count: table.columns.length,
           children: table.columns.map((col: any) => ({
-            id: `col:${schemaName}.${table.table_name}.${col.column_name}`,
+            id: `col:${tableId}.${col.column_name}`,
             name: col.column_name,
             type: (col.is_primary_key ? "primary_key" : "column") as NodeType,
             detail: col.logical_type,
           })),
         },
         {
-          id: `idxs:${schemaName}.${table.table_name}`,
+          id: `idxs:${tableId}`,
           name: "Indexes",
           type: "group" as NodeType,
           count: table.indexes.length,
           children: table.indexes.map((idx: any) => ({
-            id: `idx:${schemaName}.${table.table_name}.${idx.index_name}`,
+            id: `idx:${tableId}.${idx.index_name}`,
             name: idx.index_name,
             type: "index" as NodeType,
             detail: idx.is_unique ? "Unique" : "",
           })),
         },
         {
-          id: `fks:${schemaName}.${table.table_name}`,
+          id: `fks:${tableId}`,
           name: "Foreign Keys",
           type: "group" as NodeType,
           count: table.foreign_keys.length,
           children: table.foreign_keys.map((fk: any) => ({
-            id: `fk:${schemaName}.${table.table_name}.${fk.column_name}`,
+            id: `fk:${tableId}.${fk.column_name}`,
             name: fk.column_name,
             type: "foreign_key" as NodeType,
             detail: `-> ${fk.ref_table}.${fk.ref_column}`,
@@ -149,8 +137,13 @@
       node.type === "primary_key" ||
       node.type === "foreign_key"
     ) {
+      // id format: col:table:db:schema.table.column
+      const parts = node.id?.split(":");
+      const dbSchemaTable = parts?.[parts.length - 1] || "";
+      const tableRef = dbSchemaTable.split(".").slice(0, 2).join("."); // schema.table
+
       activeSession.openView("editor", `Query: ${node.name}`, {
-        initialValue: `SELECT * FROM ${node.id?.split(".")[0].split(":")[1]}.${node.id?.split(".")[1]} WHERE ${node.name} = ...`,
+        initialValue: `SELECT * FROM ${tableRef} WHERE ${node.name} = ...`,
       });
     }
   }
@@ -284,7 +277,7 @@
                   Connecting...
                 </p>
               </div>
-            {:else if schemaStore.schemas.length === 0 && schemaStore.status !== "refreshing"}
+            {:else if schemaStore.databases.length === 0 && schemaStore.status !== "refreshing"}
               <div
                 class="flex flex-col items-center justify-center p-8 text-center h-full max-h-[400px]"
               >

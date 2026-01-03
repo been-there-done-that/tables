@@ -252,6 +252,11 @@ export interface ConnectionChangeEvent {
   payload: Connection;
 }
 // Introspection types
+export interface MetaDatabase {
+  name: string;
+  schemas: MetaSchema[];
+}
+
 export interface MetaSchema {
   name: string;
   tables: MetaTable[];
@@ -259,6 +264,7 @@ export interface MetaSchema {
 
 export interface MetaTable {
   connection_id: string;
+  database: string;
   schema: string;
   table_name: string;
   table_type: string;
@@ -271,6 +277,7 @@ export interface MetaTable {
 
 export interface MetaColumn {
   connection_id: string;
+  database: string;
   schema: string;
   table_name: string;
   ordinal_position: number;
@@ -284,6 +291,7 @@ export interface MetaColumn {
 
 export interface MetaForeignKey {
   connection_id: string;
+  database: string;
   schema: string;
   table_name: string;
   column_name: string;
@@ -293,6 +301,7 @@ export interface MetaForeignKey {
 
 export interface MetaIndex {
   connection_id: string;
+  database: string;
   schema: string;
   table_name: string;
   index_name: string;
