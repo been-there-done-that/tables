@@ -149,7 +149,9 @@
     {@const isFolder =
         !!node.children?.length ||
         node.type === "folder" ||
-        node.type === "group"}
+        node.type === "group" ||
+        node.type === "database" ||
+        node.type === "schema"}
     {@const isOpen = expanded.has(key)}
     {@const isGroup = node.type === "group"}
     {@const isCompact =
@@ -187,7 +189,7 @@
                     <span
                         class="flex items-center justify-center size-4 shrink-0 text-muted-foreground/50"
                     >
-                        {#if isFolder && node.children && node.children.length > 0}
+                        {#if isFolder && (node.type === "database" || (node.children && node.children.length > 0))}
                             <ChevronRight
                                 class={cn(
                                     "size-3.5 transition-transform duration-200",
