@@ -380,32 +380,73 @@ impl ConnectionManager {
         let database = db.get("database").and_then(|v| v.as_str()).ok_or("Missing database")?;
         let password = db.get("password").and_then(|v| v.as_str()).unwrap_or("");
         
+        // Check TLS config
+        let tls_enabled = config.get("tls")
+            .and_then(|t| t.get("enabled"))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
         let conn_str = format!("postgres://{}:{}@{}:{}/{}", user, password, host, port, database);
 
-        let (client, connection) = tokio_postgres::connect(&conn_str, tokio_postgres::NoTls).await
-            .map_err(|e| {
-                if let Some(db_error) = e.as_db_error() {
-                    return db_error.message().to_string();
-                }
-                e.to_string()
-            })?;
+        // Connect with or without TLS
+        if tls_enabled {
+            let tls_connector = native_tls::TlsConnector::builder()
+                .danger_accept_invalid_certs(true) // For self-signed certs; configure properly for production
+                .build()
+                .map_err(|e| format!("Failed to build TLS connector: {}", e))?;
+            
+            let connector = postgres_native_tls::MakeTlsConnector::new(tls_connector);
+            
+            let (client, connection) = tokio_postgres::connect(&conn_str, connector).await
+                .map_err(|e| {
+                    if let Some(db_error) = e.as_db_error() {
+                        return db_error.message().to_string();
+                    }
+                    e.to_string()
+                })?;
 
-        tokio::spawn(async move {
-            if let Err(e) = connection.await {
-                eprintln!("connection error: {}", e);
-            }
-        });
-
-        let row = client.query_one("SELECT version()", &[]).await
-            .map_err(|e| {
-                if let Some(db_error) = e.as_db_error() {
-                    return db_error.message().to_string();
+            tokio::spawn(async move {
+                if let Err(e) = connection.await {
+                    eprintln!("connection error: {}", e);
                 }
-                e.to_string()
-            })?;
-        
-        let version: String = row.get(0);
-        Ok((version, database.to_string()))
+            });
+
+            let row = client.query_one("SELECT version()", &[]).await
+                .map_err(|e| {
+                    if let Some(db_error) = e.as_db_error() {
+                        return db_error.message().to_string();
+                    }
+                    e.to_string()
+                })?;
+            
+            let version: String = row.get(0);
+            Ok((version, database.to_string()))
+        } else {
+            let (client, connection) = tokio_postgres::connect(&conn_str, tokio_postgres::NoTls).await
+                .map_err(|e| {
+                    if let Some(db_error) = e.as_db_error() {
+                        return db_error.message().to_string();
+                    }
+                    e.to_string()
+                })?;
+
+            tokio::spawn(async move {
+                if let Err(e) = connection.await {
+                    eprintln!("connection error: {}", e);
+                }
+            });
+
+            let row = client.query_one("SELECT version()", &[]).await
+                .map_err(|e| {
+                    if let Some(db_error) = e.as_db_error() {
+                        return db_error.message().to_string();
+                    }
+                    e.to_string()
+                })?;
+            
+            let version: String = row.get(0);
+            Ok((version, database.to_string()))
+        }
     }
 
     async fn test_mysql_raw(&self, config: &serde_json::Value) -> Result<(String, String), String> {
