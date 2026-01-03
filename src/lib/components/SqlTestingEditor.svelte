@@ -104,43 +104,5 @@
             bind:this={editorContainer}
             class="absolute inset-0 w-full h-full"
         ></div>
-
-        <!-- Overlay Log Panel (Collapsible or small) -->
-        <div
-            class="absolute bottom-4 right-4 w-64 max-h-48 flex flex-col bg-muted/90 backdrop-blur border border-border rounded-lg shadow-lg text-[10px] overflow-hidden"
-        >
-            <div
-                class="px-2 py-1 bg-muted font-bold border-b border-border flex justify-between"
-            >
-                <span>Event Log</span>
-                <span class="text-muted-foreground">{logs.length} events</span>
-            </div>
-            <div class="flex-1 overflow-auto p-2 font-mono space-y-1">
-                {#each logs as l}
-                    <div class="border-b border-border/50 pb-0.5 last:border-0">
-                        {l}
-                    </div>
-                {/each}
-                {#if logs.length === 0}
-                    <div class="text-muted-foreground italic">Ready...</div>
-                {/if}
-            </div>
-        </div>
-    </div>
-
-    <!-- Toolbar -->
-    <div
-        class="flex-none h-10 border-t border-border bg-muted/30 px-4 flex items-center"
-    >
-        <button
-            class="flex items-center gap-2 px-3 py-1 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors text-xs font-medium"
-            onclick={executeCurrent}
-        >
-            <IconPlayerPlay class="size-3" />
-            Execute Current
-        </button>
-        <div class="ml-4 text-[10px] text-muted-foreground italic">
-            Tip: Move cursor between statements to see isolation highlight
-        </div>
     </div>
 </div>
