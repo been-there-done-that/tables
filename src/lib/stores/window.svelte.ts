@@ -99,8 +99,10 @@ class WindowStateStore {
         const session = this.sessions.find(s => s.id === sessionId);
         if (session) {
             this.activeSessionId = sessionId;
-            // Sync with schemaStore if needed
-            if (session.connection && schemaStore.activeConnection?.id !== session.connection.id) {
+            // Sync with schemaStore if needed (but don't interrupt active connection)
+            if (session.connection &&
+                schemaStore.activeConnection?.id !== session.connection.id &&
+                schemaStore.status !== "connecting") {
                 schemaStore.connect(session.connection);
             }
         }

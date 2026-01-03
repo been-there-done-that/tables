@@ -36,6 +36,12 @@ export class SchemaStore {
     async connect(conn: Connection) {
         const previousId = this.activeConnection?.id;
 
+        // Guard against duplicate concurrent connects to same connection
+        if (this.status === "connecting" && this.activeConnection?.id === conn.id) {
+            console.log(`[SchemaStore] Already connecting to ${conn.id}, skipping duplicate`);
+            return;
+        }
+
         this.status = "connecting";
         this.error = null;
         this.activeConnection = conn;
