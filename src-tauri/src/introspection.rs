@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use rusqlite::{params, Connection as SqliteConnection};
-use log::info;
+use log::{info, debug, error};
 use std::sync::{Arc, Mutex};
 use chrono;
 use tokio_postgres;
@@ -174,16 +174,47 @@ impl Introspector {
         let user = db.get("username").and_then(|v| v.as_str()).ok_or("Missing username")?;
         let password = db.get("password").and_then(|v| v.as_str()).unwrap_or("");
 
+        // Check TLS config
+        let tls_enabled = config.get("tls")
+            .and_then(|t| t.get("enabled"))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
         // Connect specifically to the requested database
         let conn_str = format!("postgres://{}:{}@{}:{}/{}", user, password, host, port, database_name);
-        let (client, connection) = tokio_postgres::connect(&conn_str, tokio_postgres::NoTls).await
-            .map_err(|e| e.to_string())?;
-
-        tokio::spawn(async move {
-            if let Err(e) = connection.await {
-                eprintln!("Postgres on-demand connection error: {}", e);
-            }
-        });
+        
+        let client: tokio_postgres::Client = if tls_enabled {
+            debug!("On-demand introspection with TLS enabled for database {}", database_name);
+            let tls_connector = native_tls::TlsConnector::builder()
+                .danger_accept_invalid_certs(true)
+                .build()
+                .map_err(|e| format!("Failed to build TLS connector: {}", e))?;
+            let connector = postgres_native_tls::MakeTlsConnector::new(tls_connector);
+            let (client, connection) = tokio_postgres::connect(&conn_str, connector).await
+                .map_err(|e| {
+                    error!("Postgres TLS on-demand connection failed: {:?}", e);
+                    format!("Connection error: {}", e)
+                })?;
+            tokio::spawn(async move {
+                if let Err(e) = connection.await {
+                    error!("Postgres on-demand connection error: {}", e);
+                }
+            });
+            client
+        } else {
+            debug!("On-demand introspection without TLS for database {}", database_name);
+            let (client, connection) = tokio_postgres::connect(&conn_str, tokio_postgres::NoTls).await
+                .map_err(|e| {
+                    error!("Postgres on-demand connection failed: {:?}", e);
+                    format!("Connection error: {}", e)
+                })?;
+            tokio::spawn(async move {
+                if let Err(e) = connection.await {
+                    error!("Postgres on-demand connection error: {}", e);
+                }
+            });
+            client
+        };
 
         let table_rows = client.query(
             "SELECT table_schema, table_name, table_type 
@@ -456,6 +487,9 @@ impl Introspector {
     }
 
     pub fn get_schema(&self, connection_id: &str) -> Result<Vec<MetaDatabase>, String> {
+        let start_time = std::time::Instant::now();
+        debug!("Loading schema from cache for connection {}", connection_id);
+        
         // 1. Fetch all known databases
         let mut db_list = Vec::new();
         {
@@ -481,64 +515,9 @@ impl Introspector {
         // Group into Vec<MetaDatabase>
         let mut db_map: std::collections::HashMap<String, std::collections::HashMap<String, Vec<MetaTable>>> = std::collections::HashMap::new();
 
-        for mut table in tables_basic {
-            // Fill details
-            let conn = self.app_db.lock().unwrap();
-            
-            // Columns
-            let mut col_stmt = conn.prepare("SELECT ordinal_position, column_name, raw_type, logical_type, nullable, default_value, is_primary_key FROM meta_columns WHERE connection_id = ?1 AND database = ?2 AND schema = ?3 AND table_name = ?4 ORDER BY ordinal_position")
-                .map_err(|e| e.to_string())?;
-            let columns = col_stmt.query_map(params![connection_id, table.database, table.schema, table.table_name], |row| {
-                Ok(MetaColumn {
-                    connection_id: connection_id.to_string(),
-                    database: table.database.clone(),
-                    schema: table.schema.clone(),
-                    table_name: table.table_name.clone(),
-                    ordinal_position: row.get(0)?,
-                    column_name: row.get(1)?,
-                    raw_type: row.get(2)?,
-                    logical_type: row.get(3)?,
-                    nullable: row.get::<_, i32>(4)? != 0,
-                    default_value: row.get(5)?,
-                    is_primary_key: row.get::<_, i32>(6)? != 0,
-                })
-            }).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
-            
-            table.columns = columns;
-
-            // Foreign Keys
-            let mut fk_stmt = conn.prepare("SELECT column_name, ref_table, ref_column FROM meta_foreign_keys WHERE connection_id = ?1 AND database = ?2 AND schema = ?3 AND table_name = ?4")
-                .map_err(|e| e.to_string())?;
-            let foreign_keys = fk_stmt.query_map(params![connection_id, table.database, table.schema, table.table_name], |row| {
-                Ok(MetaForeignKey {
-                    connection_id: connection_id.to_string(),
-                    database: table.database.clone(),
-                    schema: table.schema.clone(),
-                    table_name: table.table_name.clone(),
-                    column_name: row.get(0)?,
-                    ref_table: row.get(1)?,
-                    ref_column: row.get(2)?,
-                })
-            }).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
-            
-            table.foreign_keys = foreign_keys;
-
-            // Indexes
-            let mut idx_stmt = conn.prepare("SELECT index_name, is_unique FROM meta_indexes WHERE connection_id = ?1 AND database = ?2 AND schema = ?3 AND table_name = ?4")
-                .map_err(|e| e.to_string())?;
-            let indexes = idx_stmt.query_map(params![connection_id, table.database, table.schema, table.table_name], |row| {
-                Ok(MetaIndex {
-                    connection_id: connection_id.to_string(),
-                    database: table.database.clone(),
-                    schema: table.schema.clone(),
-                    table_name: table.table_name.clone(),
-                    index_name: row.get(0)?,
-                    is_unique: row.get::<_, i32>(1)? != 0,
-                })
-            }).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
-            
-            table.indexes = indexes;
-
+        for table in tables_basic {
+            // Don't load details here - fetch on-demand via get_table_details
+            // This makes get_schema much faster for large schemas
             db_map.entry(table.database.clone()).or_default()
                   .entry(table.schema.clone()).or_default()
                   .push(table);
@@ -563,6 +542,11 @@ impl Introspector {
                 db.schemas.sort_by(|a, b| a.name.cmp(&b.name));
             }
         }
+
+        let total_tables: usize = db_list.iter().flat_map(|db| &db.schemas).map(|s| s.tables.len()).sum();
+        let elapsed = start_time.elapsed();
+        info!("Cache load completed in {:.2?} ({} databases, {} tables)", 
+            elapsed, db_list.len(), total_tables);
 
         Ok(db_list)
     }
@@ -638,6 +622,7 @@ impl Introspector {
         }))
     }
     pub async fn introspect_postgres(&self, connection_id: &str, config: serde_json::Value) -> Result<Vec<MetaDatabase>, String> {
+        let start_time = std::time::Instant::now();
         info!("Starting Postgres introspection for connection {}", connection_id);
 
         let db = config.get("db").ok_or("Missing 'db' config")?;
@@ -647,17 +632,49 @@ impl Introspector {
         let current_database = db.get("database").and_then(|v| v.as_str()).ok_or("Missing database")?;
         let password = db.get("password").and_then(|v| v.as_str()).unwrap_or("");
         
+        // Check TLS config
+        let tls_enabled = config.get("tls")
+            .and_then(|t| t.get("enabled"))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        
         // 1. Fetch ALL database names first
         // We connect to 'postgres' or the current db to list all
         let conn_str = format!("postgres://{}:{}@{}:{}/{}", user, password, host, port, current_database);
-        let (client, connection) = tokio_postgres::connect(&conn_str, tokio_postgres::NoTls).await
-            .map_err(|e| e.to_string())?;
-
-        tokio::spawn(async move {
-            if let Err(e) = connection.await {
-                eprintln!("Postgres connection error: {}", e);
-            }
-        });
+        
+        // Get client with proper TLS handling
+        let client: tokio_postgres::Client = if tls_enabled {
+            debug!("Introspecting Postgres with TLS enabled");
+            let tls_connector = native_tls::TlsConnector::builder()
+                .danger_accept_invalid_certs(true)
+                .build()
+                .map_err(|e| format!("Failed to build TLS connector: {}", e))?;
+            let connector = postgres_native_tls::MakeTlsConnector::new(tls_connector);
+            let (client, connection) = tokio_postgres::connect(&conn_str, connector).await
+                .map_err(|e| {
+                    error!("Postgres TLS introspection connection failed: {:?}", e);
+                    format!("Connection error: {}", e)
+                })?;
+            tokio::spawn(async move {
+                if let Err(e) = connection.await {
+                    error!("Postgres introspection connection error: {}", e);
+                }
+            });
+            client
+        } else {
+            debug!("Introspecting Postgres without TLS");
+            let (client, connection) = tokio_postgres::connect(&conn_str, tokio_postgres::NoTls).await
+                .map_err(|e| {
+                    error!("Postgres introspection connection failed: {:?}", e);
+                    format!("Connection error: {}", e)
+                })?;
+            tokio::spawn(async move {
+                if let Err(e) = connection.await {
+                    error!("Postgres introspection connection error: {}", e);
+                }
+            });
+            client
+        };
 
         let db_rows = client.query("SELECT datname FROM pg_database WHERE datistemplate = false", &[]).await
             .map_err(|e| e.to_string())?;
@@ -746,6 +763,10 @@ impl Introspector {
                 schemas 
             });
         }
+
+        let elapsed = start_time.elapsed();
+        info!("Postgres introspection completed in {:.2?} ({} databases, {} tables)", 
+            elapsed, db_list.len(), tables.len());
 
         Ok(db_list)
     }

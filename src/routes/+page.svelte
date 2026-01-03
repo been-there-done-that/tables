@@ -9,6 +9,7 @@
   import EditorHome from "$lib/components/EditorHome.svelte";
   import { windowState } from "$lib/stores/window.svelte";
   import { schemaStore } from "$lib/stores/schema.svelte";
+  import { invoke } from "@tauri-apps/api/core";
   import IconLoader2 from "@tabler/icons-svelte/icons/loader-2";
   import { cn } from "$lib/utils";
   import IconRefresh from "@tabler/icons-svelte/icons/refresh";
@@ -23,6 +24,10 @@
   let showSqlEditor = $state(false);
 
   const activeSession = $derived(windowState.activeSession);
+
+  // Cache for lazily-loaded table details
+  let tableDetailsCache = $state<Map<string, any>>(new Map());
+  let loadingTables = $state<Set<string>>(new Set());
 
   const treeData = $derived.by(() => {
     const databases = schemaStore.databases;
@@ -83,18 +88,22 @@
 
   function mapTableToNode(table: any, dbName: string, schemaName: string) {
     const tableId = `table:${dbName}:${schemaName}.${table.table_name}`;
-    return {
-      id: tableId,
-      name: table.table_name,
-      type: "table" as NodeType,
-      detail: table.table_type === "table" ? undefined : table.table_type,
-      children: [
+    const cacheKey = `${dbName}:${schemaName}:${table.table_name}`;
+    const cachedDetails = tableDetailsCache.get(cacheKey);
+    const isLoading = loadingTables.has(cacheKey);
+
+    // If details are cached, show them; otherwise show placeholder children
+    let children: TreeNode[] = [];
+
+    if (cachedDetails) {
+      // Use cached details
+      children = [
         {
           id: `cols:${tableId}`,
           name: "Columns",
           type: "group" as NodeType,
-          count: table.columns.length,
-          children: table.columns.map((col: any) => ({
+          count: cachedDetails.columns?.length || 0,
+          children: (cachedDetails.columns || []).map((col: any) => ({
             id: `col:${tableId}.${col.column_name}`,
             name: col.column_name,
             type: (col.is_primary_key ? "primary_key" : "column") as NodeType,
@@ -105,8 +114,8 @@
           id: `idxs:${tableId}`,
           name: "Indexes",
           type: "group" as NodeType,
-          count: table.indexes.length,
-          children: table.indexes.map((idx: any) => ({
+          count: cachedDetails.indexes?.length || 0,
+          children: (cachedDetails.indexes || []).map((idx: any) => ({
             id: `idx:${tableId}.${idx.index_name}`,
             name: idx.index_name,
             type: "index" as NodeType,
@@ -117,15 +126,34 @@
           id: `fks:${tableId}`,
           name: "Foreign Keys",
           type: "group" as NodeType,
-          count: table.foreign_keys.length,
-          children: table.foreign_keys.map((fk: any) => ({
+          count: cachedDetails.foreign_keys?.length || 0,
+          children: (cachedDetails.foreign_keys || []).map((fk: any) => ({
             id: `fk:${tableId}.${fk.column_name}`,
             name: fk.column_name,
             type: "foreign_key" as NodeType,
             detail: `-> ${fk.ref_table}.${fk.ref_column}`,
           })),
         },
-      ],
+      ];
+    } else {
+      // Show placeholder - will be replaced when expanded
+      children = [
+        {
+          id: `placeholder:${tableId}`,
+          name: isLoading ? "Loading..." : "Expand to load details",
+          type: "column" as NodeType,
+        },
+      ];
+    }
+
+    return {
+      id: tableId,
+      name: table.table_name,
+      type: "table" as NodeType,
+      detail: table.table_type === "table" ? undefined : table.table_type,
+      children,
+      // Store metadata for lazy loading
+      metadata: { dbName, schemaName, tableName: table.table_name },
     };
   }
 
@@ -197,9 +225,48 @@
     }
   }
 
-  function handleNodeExpand(node: TreeNode, isOpen: boolean) {
+  async function handleNodeExpand(node: TreeNode, isOpen: boolean) {
     if (isOpen && node.type === "database") {
       schemaStore.loadDatabase(node.name);
+    }
+
+    // Lazy load table details when table is expanded
+    if (isOpen && node.type === "table" && node.metadata) {
+      const { dbName, schemaName, tableName } = node.metadata as {
+        dbName: string;
+        schemaName: string;
+        tableName: string;
+      };
+      const cacheKey = `${dbName}:${schemaName}:${tableName}`;
+
+      // Skip if already loaded or loading
+      if (tableDetailsCache.has(cacheKey) || loadingTables.has(cacheKey)) {
+        return;
+      }
+
+      // Mark as loading
+      loadingTables = new Set([...loadingTables, cacheKey]);
+
+      try {
+        console.time(`[LazyLoad] ${tableName}`);
+        const details = await invoke<any>("get_schema_table_details", {
+          connectionId: schemaStore.activeConnection?.id,
+          database: dbName,
+          schema: schemaName,
+          tableName: tableName,
+        });
+        console.timeEnd(`[LazyLoad] ${tableName}`);
+
+        // Update cache (creates a new Map to trigger reactivity)
+        tableDetailsCache = new Map(tableDetailsCache).set(cacheKey, details);
+      } catch (e) {
+        console.error(`Failed to load details for ${tableName}:`, e);
+      } finally {
+        // Remove from loading set
+        loadingTables = new Set(
+          [...loadingTables].filter((k) => k !== cacheKey),
+        );
+      }
     }
   }
 </script>
