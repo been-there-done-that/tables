@@ -1,22 +1,4 @@
     Checking tables v0.1.0 (/Users/__deesh_reddy__/projects/personal_git/rust_builds/completion_core/src-tauri)
-error[E0425]: cannot find value `connection` in this scope
-  --> src/commands/introspection_commands.rs:18:63
-   |
-18 |     let mut config: serde_json::Value = serde_json::from_str(&connection.config_json)
-   |                                                               ^^^^^^^^^^ help: a local variable with a similar name exists: `connection_id`
-
-error[E0425]: cannot find value `connection` in this scope
-  --> src/commands/introspection_commands.rs:24:11
-   |
-24 |     match connection.engine.as_str() {
-   |           ^^^^^^^^^^ help: a local variable with a similar name exists: `connection_id`
-
-error[E0425]: cannot find value `connection` in this scope
-  --> src/commands/introspection_commands.rs:51:92
-   |
-51 |             return Err(format!("Engine '{}' is not supported for introspection currently", connection.engine));
-   |                                                                                            ^^^^^^^^^^ help: a local variable with a similar name exists: `connection_id`
-
 warning: unused import: `info`
  --> src/credentials.rs:4:11
   |
@@ -263,6 +245,98 @@ warning: variable does not need to be mutable
     |
     = note: `#[warn(unused_mut)]` on by default
 
+error: future cannot be sent between threads safely
+   --> src/commands/introspection_commands.rs:8:1
+    |
+  8 | #[tauri::command]
+    | ^^^^^^^^^^^^^^^^^ future returned by `refresh_schema` is not `Send`
+    |
+   ::: src/lib.rs:284:25
+    |
+284 |         .invoke_handler(aggregate_plugin_commands!())
+    |                         ---------------------------- in this macro invocation
+    |
+    = help: within `impl std::future::Future<Output = Result<(), std::string::String>>`, the trait `Send` is not implemented for `std::sync::MutexGuard<'_, rusqlite::Connection>`
+note: future is not `Send` as this value is used across an await
+   --> src/introspection.rs:539:100
+    |
+525 |         let app_db = self.app_db.lock().unwrap();
+    |             ------ has type `std::sync::MutexGuard<'_, rusqlite::Connection>` which is not `Send`
+...
+539 |             let columns = self.introspect_postgres_columns(&client, connection_id, &schema, &name).await?;
+    |                                                                                                    ^^^^^ await occurs here, with `app_db` maybe used later
+note: required by a bound in `ResultFutureTag::future`
+   --> /Users/__deesh_reddy__/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-2.9.5/src/ipc/command.rs:314:42
+    |
+310 |     pub async fn future<T, E, F>(self, value: F) -> Result<InvokeResponseBody, InvokeError>
+    |                  ------ required by a bound in this associated function
+...
+314 |       F: Future<Output = Result<T, E>> + Send,
+    |                                          ^^^^ required by this bound in `ResultFutureTag::future`
+    = note: this error originates in the macro `__cmd__refresh_schema` which comes from the expansion of the macro `aggregate_plugin_commands` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: future cannot be sent between threads safely
+   --> src/commands/introspection_commands.rs:8:1
+    |
+  8 | #[tauri::command]
+    | ^^^^^^^^^^^^^^^^^ future returned by `refresh_schema` is not `Send`
+    |
+   ::: src/lib.rs:284:25
+    |
+284 |         .invoke_handler(aggregate_plugin_commands!())
+    |                         ---------------------------- in this macro invocation
+    |
+    = help: within `rusqlite::Connection`, the trait `Sync` is not implemented for `RefCell<rusqlite::inner_connection::InnerConnection>`
+    = note: if you want to do aliasing and mutation between multiple threads, use `std::sync::RwLock` instead
+note: future is not `Send` as this value is used across an await
+   --> src/introspection.rs:539:100
+    |
+526 |         let mut tx = app_db.unchecked_transaction().map_err(|e| e.to_string())?;
+    |             ------ has type `rusqlite::Transaction<'_>` which is not `Send`
+...
+539 |             let columns = self.introspect_postgres_columns(&client, connection_id, &schema, &name).await?;
+    |                                                                                                    ^^^^^ await occurs here, with `mut tx` maybe used later
+note: required by a bound in `ResultFutureTag::future`
+   --> /Users/__deesh_reddy__/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-2.9.5/src/ipc/command.rs:314:42
+    |
+310 |     pub async fn future<T, E, F>(self, value: F) -> Result<InvokeResponseBody, InvokeError>
+    |                  ------ required by a bound in this associated function
+...
+314 |       F: Future<Output = Result<T, E>> + Send,
+    |                                          ^^^^ required by this bound in `ResultFutureTag::future`
+    = note: this error originates in the macro `__cmd__refresh_schema` which comes from the expansion of the macro `aggregate_plugin_commands` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: future cannot be sent between threads safely
+   --> src/commands/introspection_commands.rs:8:1
+    |
+  8 | #[tauri::command]
+    | ^^^^^^^^^^^^^^^^^ future returned by `refresh_schema` is not `Send`
+    |
+   ::: src/lib.rs:284:25
+    |
+284 |         .invoke_handler(aggregate_plugin_commands!())
+    |                         ---------------------------- in this macro invocation
+    |
+    = help: within `rusqlite::Connection`, the trait `Sync` is not implemented for `RefCell<hashlink::lru_cache::LruCache<Arc<str>, rusqlite::raw_statement::RawStatement>>`
+    = note: if you want to do aliasing and mutation between multiple threads, use `std::sync::RwLock` instead
+note: future is not `Send` as this value is used across an await
+   --> src/introspection.rs:539:100
+    |
+526 |         let mut tx = app_db.unchecked_transaction().map_err(|e| e.to_string())?;
+    |             ------ has type `rusqlite::Transaction<'_>` which is not `Send`
+...
+539 |             let columns = self.introspect_postgres_columns(&client, connection_id, &schema, &name).await?;
+    |                                                                                                    ^^^^^ await occurs here, with `mut tx` maybe used later
+note: required by a bound in `ResultFutureTag::future`
+   --> /Users/__deesh_reddy__/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tauri-2.9.5/src/ipc/command.rs:314:42
+    |
+310 |     pub async fn future<T, E, F>(self, value: F) -> Result<InvokeResponseBody, InvokeError>
+    |                  ------ required by a bound in this associated function
+...
+314 |       F: Future<Output = Result<T, E>> + Send,
+    |                                          ^^^^ required by this bound in `ResultFutureTag::future`
+    = note: this error originates in the macro `__cmd__refresh_schema` which comes from the expansion of the macro `aggregate_plugin_commands` (in Nightly builds, run with -Z macro-backtrace for more info)
+
 warning: unused variable: `connection`
    --> src/connection_manager.rs:534:38
     |
@@ -323,6 +397,5 @@ warning: unused variable: `schema`
 522 |         schema: &SchemaGraph,
     |         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_schema`
 
-For more information about this error, try `rustc --explain E0425`.
 warning: `tables` (lib) generated 49 warnings
-error: could not compile `tables` (lib) due to 3 previous errors; 49 warnings emitted
+error: could not compile `tables` (lib) due to 6 previous errors; 49 warnings emitted

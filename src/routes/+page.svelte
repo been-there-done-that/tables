@@ -26,12 +26,19 @@
 
   const treeData = $derived.by(() => {
     // ... (existing treeData logic) ...
-    return schemaStore.schemas.map((schema) => {
-      const isSqlite = schemaStore.activeConnection?.engine === "sqlite";
+    const schemas = schemaStore.schemas;
+    const activeConn = schemaStore.activeConnection;
 
+    if (!activeConn) return [];
+
+    const isSqlite = activeConn.engine === "sqlite";
+
+    // Map schemas to nodes
+    const schemaNodes = schemas.map((schema) => {
       let children: any[] = [];
 
       if (isSqlite) {
+        // SQLite Logic (unchanged)
         const tables = schema.tables.filter((t) => t.table_type === "table");
         const views = schema.tables.filter((t) => t.table_type === "view");
 
@@ -55,6 +62,8 @@
           },
         ];
       } else {
+        // Postgres/Generic Logic
+        // Schemas contain tables directly
         children = schema.tables.map((table) =>
           mapTableToNode(table, schema.name),
         );
@@ -67,6 +76,20 @@
         children,
       };
     });
+
+    if (isSqlite) {
+      return schemaNodes;
+    }
+
+    // Logic: Wrap in Database Node for non-SQLite (e.g. Postgres)
+    return [
+      {
+        id: `db:${activeConn.id}`,
+        name: activeConn.database || activeConn.name, // Fallback to connection name if no db name
+        type: "database" as NodeType,
+        children: schemaNodes,
+      },
+    ];
   });
 
   function mapTableToNode(table: any, schemaName: string) {

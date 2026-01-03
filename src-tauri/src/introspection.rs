@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 use rusqlite::{params, Connection as SqliteConnection};
 use log::info;
 use std::sync::{Arc, Mutex};
+use chrono;
+use tokio_postgres;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MetaSchema {
@@ -485,5 +487,227 @@ impl Introspector {
             "foreign_keys": foreign_keys,
             "indexes": enriched_indexes
         }))
+    }
+    pub async fn introspect_postgres(&self, connection_id: &str, config: serde_json::Value) -> Result<Vec<MetaSchema>, String> {
+        info!("Starting Postgres introspection for connection {}", connection_id);
+
+        let db = config.get("db").ok_or("Missing 'db' config")?;
+        let host = db.get("host").and_then(|v| v.as_str()).ok_or("Missing host")?;
+        let port = db.get("port").and_then(|v| v.as_u64()).unwrap_or(5432) as u16;
+        let user = db.get("username").and_then(|v| v.as_str()).ok_or("Missing username")?;
+        let database = db.get("database").and_then(|v| v.as_str()).ok_or("Missing database")?;
+        let password = db.get("password").and_then(|v| v.as_str()).unwrap_or("");
+        
+        let conn_str = format!("postgres://{}:{}@{}:{}/{}", user, password, host, port, database);
+
+        let (client, connection) = tokio_postgres::connect(&conn_str, tokio_postgres::NoTls).await
+            .map_err(|e| e.to_string())?;
+
+        tokio::spawn(async move {
+            if let Err(e) = connection.await {
+                eprintln!("Postgres connection error: {}", e);
+            }
+        });
+
+        // 1. Discovery: Get all tables in user schemas
+        let table_rows = client.query(
+            "SELECT table_schema, table_name, table_type 
+             FROM information_schema.tables 
+             WHERE table_schema NOT IN ('information_schema', 'pg_catalog') 
+             AND table_type IN ('BASE TABLE', 'VIEW')", 
+            &[]
+        ).await.map_err(|e| e.to_string())?;
+
+        let mut tables = Vec::new();
+        let now = chrono::Utc::now().timestamp_millis();
+
+        // Phase 1: Async Fetching (No DB Lock here)
+        for row in table_rows {
+            let schema: String = row.get(0);
+            let name: String = row.get(1);
+            let type_str: String = row.get(2);
+            
+            let table_type = if type_str == "BASE TABLE" { "table" } else { "view" };
+            let classification = "user"; // Default to user
+
+            info!("Introspecting Postgres {}.{} ({})", schema, name, table_type);
+
+            // 2. Columns
+            let columns = self.introspect_postgres_columns(&client, connection_id, &schema, &name).await?;
+            // 3. Foreign Keys
+            let foreign_keys = self.introspect_postgres_foreign_keys(&client, connection_id, &schema, &name).await?;
+            // 4. Indexes
+            let indexes = self.introspect_postgres_indexes(&client, connection_id, &schema, &name).await?;
+
+            let meta_table = MetaTable {
+                connection_id: connection_id.to_string(),
+                schema: schema.clone(),
+                table_name: name.clone(),
+                table_type: table_type.to_string(),
+                classification: classification.to_string(),
+                last_introspected_at: now,
+                columns,
+                foreign_keys,
+                indexes,
+            };
+            
+            tables.push(meta_table);
+        }
+
+        // Phase 2: Synchronous Saving (Holding DB Lock)
+        {
+            let app_db = self.app_db.lock().unwrap();
+            let tx = app_db.unchecked_transaction().map_err(|e| e.to_string())?;
+
+            for meta_table in &tables {
+                // Save to local cache
+                self.save_table_full(&tx, meta_table)?;
+            }
+
+            tx.commit().map_err(|e| e.to_string())?;
+        }
+
+        // Group into MetaSchema
+        let mut schemas_map: std::collections::HashMap<String, Vec<MetaTable>> = std::collections::HashMap::new();
+        for t in tables {
+            schemas_map.entry(t.schema.clone()).or_default().push(t);
+        }
+        
+        // Ensure "public" exists even if empty? No, only return what we found.
+        let result = schemas_map.into_iter().map(|(name, tables)| MetaSchema {
+            name,
+            tables,
+        }).collect();
+
+        Ok(result)
+    }
+
+    async fn introspect_postgres_columns(&self, client: &tokio_postgres::Client, connection_id: &str, schema: &str, table_name: &str) -> Result<Vec<MetaColumn>, String> {
+        let rows = client.query(
+            "SELECT ordinal_position, column_name, udt_name as data_type, is_nullable, column_default 
+             FROM information_schema.columns 
+             WHERE table_schema = $1 AND table_name = $2 
+             ORDER BY ordinal_position",
+            &[&schema, &table_name]
+        ).await.map_err(|e| e.to_string())?;
+
+        // Check for PKs
+        let pk_rows = client.query(
+            "SELECT kcu.column_name
+             FROM information_schema.table_constraints tc
+             JOIN information_schema.key_column_usage kcu
+               ON tc.constraint_name = kcu.constraint_name
+               AND tc.table_schema = kcu.table_schema
+             WHERE tc.constraint_type = 'PRIMARY KEY'
+               AND tc.table_schema = $1
+               AND tc.table_name = $2",
+            &[&schema, &table_name]
+        ).await.map_err(|e| e.to_string())?;
+
+        let pks: Vec<String> = pk_rows.iter().map(|r| r.get(0)).collect();
+
+        let mut columns = Vec::new();
+        for row in rows {
+            let ordinal: i32 = row.get(0);
+            let name: String = row.get(1);
+            let raw_type: String = row.get(2);
+            let is_nullable_str: String = row.get(3);
+            let default_val: Option<String> = row.get(4);
+
+            let logical_type = self.infer_postgres_logical_type(&raw_type);
+            let is_primary_key = pks.contains(&name);
+
+            columns.push(MetaColumn {
+                connection_id: connection_id.to_string(),
+                schema: schema.to_string(),
+                table_name: table_name.to_string(),
+                ordinal_position: ordinal,
+                column_name: name,
+                raw_type,
+                logical_type,
+                nullable: is_nullable_str == "YES",
+                default_value: default_val,
+                is_primary_key,
+            });
+        }
+
+        Ok(columns)
+    }
+
+    fn infer_postgres_logical_type(&self, raw_type: &str) -> String {
+        let rt = raw_type.to_lowercase();
+        if rt.contains("int") || rt == "serial" || rt == "bigserial" {
+            "int".to_string()
+        } else if rt.contains("numeric") || rt.contains("decimal") || rt.contains("real") || rt.contains("double") {
+            "float".to_string()
+        } else if rt.contains("json") {
+            "json".to_string()
+        } else if rt.contains("bool") {
+            "boolean".to_string()
+        } else if rt.contains("timestamp") {
+            "timestamp".to_string()
+        } else if rt.contains("date") {
+            "date".to_string()
+        } else if rt.contains("char") || rt.contains("text") || rt == "uuid" {
+            "text".to_string()
+        } else {
+            "text".to_string()
+        }
+    }
+
+    async fn introspect_postgres_foreign_keys(&self, client: &tokio_postgres::Client, connection_id: &str, schema: &str, table_name: &str) -> Result<Vec<MetaForeignKey>, String> {
+        let rows = client.query(
+            "SELECT
+                kcu.column_name,
+                ccu.table_name AS foreign_table_name,
+                ccu.column_name AS foreign_column_name
+             FROM information_schema.table_constraints AS tc
+             JOIN information_schema.key_column_usage AS kcu
+               ON tc.constraint_name = kcu.constraint_name
+               AND tc.table_schema = kcu.table_schema
+             JOIN information_schema.constraint_column_usage AS ccu
+               ON ccu.constraint_name = tc.constraint_name
+               AND ccu.table_schema = tc.table_schema
+             WHERE tc.constraint_type = 'FOREIGN KEY'
+               AND tc.table_schema = $1
+               AND tc.table_name = $2",
+            &[&schema, &table_name]
+        ).await.map_err(|e| e.to_string())?;
+
+        let mut fks = Vec::new();
+        for row in rows {
+            fks.push(MetaForeignKey {
+                connection_id: connection_id.to_string(),
+                schema: schema.to_string(),
+                table_name: table_name.to_string(),
+                column_name: row.get(0),
+                ref_table: row.get(1),
+                ref_column: row.get(2),
+            });
+        }
+        Ok(fks)
+    }
+
+    async fn introspect_postgres_indexes(&self, client: &tokio_postgres::Client, connection_id: &str, schema: &str, table_name: &str) -> Result<Vec<MetaIndex>, String> {
+        let rows = client.query(
+            "SELECT indexname, indexdef FROM pg_indexes WHERE schemaname = $1 AND tablename = $2",
+            &[&schema, &table_name]
+        ).await.map_err(|e| e.to_string())?;
+
+        let mut indexes = Vec::new();
+        for row in rows {
+            let index_name: String = row.get(0);
+            let def: String = row.get(1);
+            let is_unique = def.to_uppercase().contains("UNIQUE INDEX");
+
+            indexes.push(MetaIndex {
+                connection_id: connection_id.to_string(),
+                schema: schema.to_string(),
+                table_name: table_name.to_string(),
+                index_name,
+                is_unique,
+            });
+        }
+        Ok(indexes)
     }
 }
