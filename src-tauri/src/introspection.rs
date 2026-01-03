@@ -106,7 +106,7 @@ impl Introspector {
 
         // App DB Connection
         let app_db = self.app_db.lock().unwrap();
-        let mut tx = app_db.unchecked_transaction().map_err(|e| e.to_string())?;
+        let tx = app_db.unchecked_transaction().map_err(|e| e.to_string())?;
 
         // Clear existing metadata for this connection/schema before re-inserting?
         // For "Hard Refresh", yes, or we use UPSERT. UPSERT is safer for partial failures,
@@ -353,34 +353,22 @@ impl Introspector {
     }
 
     pub fn get_schema(&self, connection_id: &str) -> Result<Vec<MetaDatabase>, String> {
-        let tables = self.get_tables(connection_id)?;
+        let tables_basic = self.get_tables(connection_id)?;
         
-        // Group by schema
-        let mut schemas: std::collections::HashMap<String, Vec<MetaTable>> = std::collections::HashMap::new();
-        
-        for mut table in tables {
+        // Group into Vec<MetaDatabase>
+        let mut db_map: std::collections::HashMap<String, std::collections::HashMap<String, Vec<MetaTable>>> = std::collections::HashMap::new();
+
+        for mut table in tables_basic {
             // Fill details
-            let details = self.get_table_details(connection_id, &table.schema, &table.table_name)?;
-            
-            // Deserialize details back to structs or just use the helper methods directly?
-            // The helper `get_table_details` returns JSON. That's inefficient if we just want structs.
-            // Let's copy the logic from `get_table_details` but return structs, or just reuse the code.
-            // Actually, I should probably split `get_table_details` into `get_table_details_structs` and have `get_table_details` wrap it.
-            // For now, to save code changes, I'll essentially re-implement "fetch details" here using the private helpers if possible?
-            // No, the private helpers `save_` are for saving.
-            // I need `load_columns`, `load_indexes` etc.
-            // But `get_table_details` does exactly that but returns JSON.
-            // Let's refactor `get_table_details` to return a struct, or add `get_table_metadata` that returns `MetaTable`.
-            
-            // Let's act pragmatic: I'll implement internal `fetch_table_details` that populates a `MetaTable`.
             let conn = self.app_db.lock().unwrap();
             
             // Columns
-            let mut col_stmt = conn.prepare("SELECT ordinal_position, column_name, raw_type, logical_type, nullable, default_value, is_primary_key FROM meta_columns WHERE connection_id = ?1 AND schema = ?2 AND table_name = ?3 ORDER BY ordinal_position")
+            let mut col_stmt = conn.prepare("SELECT ordinal_position, column_name, raw_type, logical_type, nullable, default_value, is_primary_key FROM meta_columns WHERE connection_id = ?1 AND database = ?2 AND schema = ?3 AND table_name = ?4 ORDER BY ordinal_position")
                 .map_err(|e| e.to_string())?;
-            let columns = col_stmt.query_map(params![connection_id, table.schema, table.table_name], |row| {
+            let columns = col_stmt.query_map(params![connection_id, table.database, table.schema, table.table_name], |row| {
                 Ok(MetaColumn {
                     connection_id: connection_id.to_string(),
+                    database: table.database.clone(),
                     schema: table.schema.clone(),
                     table_name: table.table_name.clone(),
                     ordinal_position: row.get(0)?,
@@ -396,11 +384,12 @@ impl Introspector {
             table.columns = columns;
 
             // Foreign Keys
-            let mut fk_stmt = conn.prepare("SELECT column_name, ref_table, ref_column FROM meta_foreign_keys WHERE connection_id = ?1 AND schema = ?2 AND table_name = ?3")
+            let mut fk_stmt = conn.prepare("SELECT column_name, ref_table, ref_column FROM meta_foreign_keys WHERE connection_id = ?1 AND database = ?2 AND schema = ?3 AND table_name = ?4")
                 .map_err(|e| e.to_string())?;
-            let foreign_keys = fk_stmt.query_map(params![connection_id, table.schema, table.table_name], |row| {
+            let foreign_keys = fk_stmt.query_map(params![connection_id, table.database, table.schema, table.table_name], |row| {
                 Ok(MetaForeignKey {
                     connection_id: connection_id.to_string(),
+                    database: table.database.clone(),
                     schema: table.schema.clone(),
                     table_name: table.table_name.clone(),
                     column_name: row.get(0)?,
@@ -412,11 +401,12 @@ impl Introspector {
             table.foreign_keys = foreign_keys;
 
             // Indexes
-            let mut idx_stmt = conn.prepare("SELECT index_name, is_unique FROM meta_indexes WHERE connection_id = ?1 AND schema = ?2 AND table_name = ?3")
+            let mut idx_stmt = conn.prepare("SELECT index_name, is_unique FROM meta_indexes WHERE connection_id = ?1 AND database = ?2 AND schema = ?3 AND table_name = ?4")
                 .map_err(|e| e.to_string())?;
-            let indexes = idx_stmt.query_map(params![connection_id, table.schema, table.table_name], |row| {
+            let indexes = idx_stmt.query_map(params![connection_id, table.database, table.schema, table.table_name], |row| {
                 Ok(MetaIndex {
                     connection_id: connection_id.to_string(),
+                    database: table.database.clone(),
                     schema: table.schema.clone(),
                     table_name: table.table_name.clone(),
                     index_name: row.get(0)?,
@@ -426,23 +416,9 @@ impl Introspector {
             
             table.indexes = indexes;
 
-            // Add to hierarchy map: Map<Database, Map<Schema, Vec<Table>>>
-            // For simplicity in grouping, let's use internal MetaDatabase/MetaSchema structs.
-            table.columns = columns;
-            table.foreign_keys = foreign_keys;
-            table.indexes = indexes;
-
-            // We will group them after fetching all.
-            tables.push(table);
-        }
-
-        // Group into Vec<MetaDatabase>
-        let mut db_map: std::collections::HashMap<String, std::collections::HashMap<String, Vec<MetaTable>>> = std::collections::HashMap::new();
-        
-        for t in tables {
-            db_map.entry(t.database.clone()).or_default()
-                  .entry(t.schema.clone()).or_default()
-                  .push(t);
+            db_map.entry(table.database.clone()).or_default()
+                  .entry(table.schema.clone()).or_default()
+                  .push(table);
         }
 
         let mut result = Vec::new();

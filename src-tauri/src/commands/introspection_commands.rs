@@ -1,7 +1,6 @@
-use tauri::{State, Emitter};
-use tauri::AppHandle;
+use tauri::State;
 use crate::DatabaseState;
-use crate::introspection::{Introspector, MetaTable, MetaSchema};
+use crate::introspection::{Introspector, MetaTable, MetaDatabase};
 use crate::connection_manager::{ConnectionManager, ConnectionManagerState};
 use log::{debug, info};
 

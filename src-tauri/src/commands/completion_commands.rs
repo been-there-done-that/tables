@@ -13,7 +13,7 @@ use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 use serde::Serialize;
 
-use crate::introspection::{MetaSchema, MetaTable, MetaColumn, MetaForeignKey, MetaIndex};
+use crate::introspection::{MetaDatabase, MetaSchema, MetaTable, MetaColumn, MetaForeignKey, MetaIndex};
 use crate::completion::schema::graph::{SchemaGraph, TableInfo, ColumnInfo, ForeignKey};
 use crate::completion::parsing::parse_sql;
 use crate::completion::context::Context;
@@ -73,15 +73,16 @@ fn map_completion_kind(kind: CompletionKind) -> u8 {
     }
 }
 
-/// Build a SchemaGraph from MetaSchema data.
-pub fn schema_graph_from_meta(schemas: &[MetaSchema]) -> SchemaGraph {
+/// Build a SchemaGraph from MetaDatabase data.
+pub fn schema_graph_from_meta(databases: &[MetaDatabase]) -> SchemaGraph {
     let mut graph = SchemaGraph::new();
     
     // Collect all indexed columns for lookup
-    let mut indexed_columns: HashMap<(String, String), bool> = HashMap::new();
+    let mut _indexed_columns: HashMap<(String, String), bool> = HashMap::new();
     
-    for schema in schemas {
-        for table in &schema.tables {
+    for db in databases {
+        for schema in &db.schemas {
+            for table in &schema.tables {
             // Collect indexed columns
             for index in &table.indexes {
                 // For each index, we need to mark columns as indexed
@@ -118,7 +119,8 @@ pub fn schema_graph_from_meta(schemas: &[MetaSchema]) -> SchemaGraph {
             }
         }
     }
-    
+}
+
     graph
 }
 
@@ -127,9 +129,9 @@ pub fn schema_graph_from_meta(schemas: &[MetaSchema]) -> SchemaGraph {
 pub async fn update_completion_schema(
     state: State<'_, CompletionState>,
     connection_id: String,
-    schemas: Vec<MetaSchema>,
+    databases: Vec<MetaDatabase>,
 ) -> Result<(), String> {
-    let schema_graph = schema_graph_from_meta(&schemas);
+    let schema_graph = schema_graph_from_meta(&databases);
     
     let mut cache = state.schema_cache.lock().await;
     cache.insert(connection_id, Arc::new(schema_graph));

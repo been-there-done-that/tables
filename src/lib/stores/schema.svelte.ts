@@ -63,7 +63,7 @@ export class SchemaStore {
             // 5. Update Completion Engine Cache
             await invoke("update_completion_schema", {
                 connectionId: conn.id,
-                schemas: data
+                databases: data
             });
 
             this.databases = data;
@@ -120,7 +120,7 @@ export class SchemaStore {
             // Sync completion cache
             await invoke("update_completion_schema", {
                 connectionId: this.activeConnection.id,
-                schemas: data
+                databases: data
             });
 
             this.databases = data;
