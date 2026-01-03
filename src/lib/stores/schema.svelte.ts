@@ -1,5 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "svelte-sonner";
+import LoaderIcon from "@tabler/icons-svelte/icons/loader-2";
+import CheckIcon from "@tabler/icons-svelte/icons/check";
+import XIcon from "@tabler/icons-svelte/icons/x";
 import type { Connection, MetaDatabase } from "$lib/commands/types";
 
 export class SchemaStore {
@@ -113,10 +116,13 @@ export class SchemaStore {
         const db = this.databases.find(d => d.name === dbName);
         if (!db) return;
 
-        // If already connected and has schemas, don't reload automatically
-        if (db.is_connected && db.schemas.length > 0) return;
+        // If already introspected, just show it (the FileTree handle the state)
+        if (db.is_introspected) return;
 
         db.is_loading = true;
+        const toastId = toast.loading(`Introspecting ${dbName}...`, {
+            description: "Fetching schemas and tables information.",
+        });
 
         try {
             console.log(`[SchemaStore] Loading database: ${dbName}`);
@@ -138,14 +144,20 @@ export class SchemaStore {
                 databases: this.databases
             });
 
-            toast.success(`Database Loaded`, { description: `Successfully loaded schemas for ${dbName}` });
+            toast.success(`Database Loaded`, {
+                id: toastId,
+                description: `Successfully introspected ${dbName}`
+            });
         } catch (e) {
             // Restore loading state
             const index = this.databases.findIndex(d => d.name === dbName);
             if (index !== -1) {
                 this.databases[index].is_loading = false;
             }
-            toast.error("Load Failed", { description: String(e) });
+            toast.error("Load Failed", {
+                id: toastId,
+                description: String(e)
+            });
         }
     }
 

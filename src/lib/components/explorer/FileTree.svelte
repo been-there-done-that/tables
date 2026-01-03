@@ -66,7 +66,7 @@
         items = [] as TreeNode[],
         class: className = "",
         isCompact = false,
-        indent = 24,
+        indent = 16,
         onNodeClick = (node: TreeNode) => {},
         onAction = (node: TreeNode) => {},
         onContextMenuAction = (action: string, node: TreeNode) => {},
@@ -126,10 +126,13 @@
 </script>
 
 <div
-    class={cn("font-mono text-sm select-none flex flex-col h-full", className)}
+    class={cn(
+        "font-mono text-[13px] select-none flex flex-col h-full",
+        className,
+    )}
 >
     <!-- Tree -->
-    <ul class="flex flex-col gap-0.5 overflow-auto flex-1">
+    <ul class="flex flex-col gap-0 overflow-auto flex-1">
         {#each items as item, i (getKey(item, i))}
             {@render TreeItem({ node: item, index: i, depth: 0 })}
         {/each}
@@ -158,7 +161,9 @@
         node.type === "column" ||
         node.type === "primary_key" ||
         node.type === "index" ||
-        node.type === "foreign_key"}
+        node.type === "foreign_key" ||
+        node.type === "table" ||
+        node.type === "view"}
 
     <li class="relative">
         <ContextMenu.Root>
@@ -167,8 +172,8 @@
                     class={cn(
                         "group flex items-center gap-1.5 rounded-sm cursor-default transition-colors border border-transparent",
                         isCompact
-                            ? "py-0 text-[11px] h-4.5 hover:bg-accent/40 text-foreground/70 hover:text-foreground"
-                            : "py-0.5 text-xs hover:bg-accent/40 text-foreground/80 hover:text-foreground",
+                            ? "h-6 hover:bg-accent/40 text-foreground/90 hover:text-foreground"
+                            : "h-6 hover:bg-accent/40 text-foreground hover:text-foreground",
                     )}
                     style="padding-left: calc({indent}px * {depth} + 4px);"
                     onclick={(e) => {
@@ -187,7 +192,7 @@
                 >
                     <!-- Arrow -->
                     <span
-                        class="flex items-center justify-center size-4 shrink-0 text-muted-foreground/50"
+                        class="flex items-center justify-center w-4 shrink-0 text-muted-foreground/60"
                     >
                         {#if isFolder && (node.type === "database" || (node.children && node.children.length > 0))}
                             <ChevronRight
@@ -205,20 +210,20 @@
                     >
                         {#if node.type === "folder" || node.type === "group"}
                             {#if isOpen}
-                                <FolderOpen class="size-4" />
+                                <FolderOpen class="size-3.5" />
                             {:else}
-                                <Folder class="size-4" />
+                                <Folder class="size-3.5" />
                             {/if}
                         {:else}
                             {@const Icon =
                                 typeIcon[node.type || "file"] || FileText}
-                            <Icon class="size-4" />
+                            <Icon class="size-3.5" />
                         {/if}
                     </span>
 
                     <!-- Label -->
                     <span
-                        class="flex items-center gap-1.5 truncate leading-none opacity-90 overflow-hidden"
+                        class="flex items-center gap-1.5 truncate leading-none overflow-hidden"
                     >
                         <span class="truncate">{node.name}</span>
                         {#if node.isConnected && node.type === "database"}
@@ -232,14 +237,14 @@
                     <!-- Loader (New) -->
                     {#if node.isLoading && node.type === "database"}
                         <LoaderIcon
-                            class="size-3 ml-1 animate-spin text-muted-foreground/70 shrink-0"
+                            class="size-2.5 ml-1 animate-spin text-muted-foreground/70 shrink-0"
                         />
                     {/if}
 
                     <!-- Count (New) -->
                     {#if node.count !== undefined}
-                        <span class="ml-1 text-[10px] text-muted-foreground/70"
-                            >({node.count})</span
+                        <span class="ml-1 text-[11px] text-muted-foreground/60"
+                            >{node.count}</span
                         >
                     {/if}
 
@@ -261,7 +266,7 @@
                             }}
                             title="Open in new tab"
                         >
-                            <SqlIcon class="size-3.5" />
+                            <SqlIcon class="size-4" />
                         </button>
                     {/if}
                 </div>
@@ -274,11 +279,11 @@
             <div class="relative" transition:slide={{ duration: 200 }}>
                 <!-- Vertical Line -->
                 <div
-                    class="absolute top-0 bottom-0 w-px bg-border/60"
-                    style="left: calc({indent}px * {depth} + 12px);"
+                    class="absolute top-0 bottom-0 w-px bg-border/40"
+                    style="left: calc({indent}px * {depth} + 10px);"
                 ></div>
 
-                <ul class={cn("flex flex-col", isGroup ? "gap-0" : "gap-0.5")}>
+                <ul class="flex flex-col gap-0">
                     {#each node.children as child, childIndex (getKey(child, childIndex))}
                         {@render TreeItem({
                             node: child,
