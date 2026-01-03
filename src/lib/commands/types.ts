@@ -254,11 +254,14 @@ export interface ConnectionChangeEvent {
 // Introspection types
 export interface MetaDatabase {
   name: string;
+  is_connected: boolean;
+  is_loading?: boolean; // UI only
   schemas: MetaSchema[];
 }
 
 export interface MetaSchema {
   name: string;
+  schema_type: "user" | "system";
   tables: MetaTable[];
 }
 

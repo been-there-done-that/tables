@@ -75,6 +75,8 @@
         name: db.name,
         type: "database" as NodeType,
         children: schemaNodes,
+        isConnected: db.is_connected,
+        isLoading: db.is_loading,
       };
     });
   });
@@ -192,6 +194,12 @@
         console.log(
           `[handleContextMenuAction] Action "${action}" not implemented for node ${node.name}`,
         );
+    }
+  }
+
+  function handleNodeExpand(node: TreeNode, isOpen: boolean) {
+    if (isOpen && node.type === "database") {
+      schemaStore.loadDatabase(node.name);
     }
   }
 </script>
@@ -321,6 +329,7 @@
                   bind:expanded={activeSession.explorerState.expanded}
                   onAction={handleExplorerAction}
                   onContextMenuAction={handleContextMenuAction}
+                  onExpand={handleNodeExpand}
                 />
               </div>
             {:else}
@@ -330,6 +339,7 @@
                   bind:this={fileTree}
                   onAction={handleExplorerAction}
                   onContextMenuAction={handleContextMenuAction}
+                  onExpand={handleNodeExpand}
                 />
               </div>
             {/if}

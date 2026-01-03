@@ -107,6 +107,48 @@ export class SchemaStore {
         }
     }
 
+    async loadDatabase(dbName: string) {
+        if (!this.activeConnection) return;
+
+        const db = this.databases.find(d => d.name === dbName);
+        if (!db) return;
+
+        // If already connected and has schemas, don't reload automatically
+        if (db.is_connected && db.schemas.length > 0) return;
+
+        db.is_loading = true;
+
+        try {
+            console.log(`[SchemaStore] Loading database: ${dbName}`);
+            const updatedDb = await invoke<MetaDatabase>("introspect_database", {
+                connectionId: this.activeConnection.id,
+                databaseName: dbName
+            });
+
+            // Update the database in the list
+            const index = this.databases.findIndex(d => d.name === dbName);
+            if (index !== -1) {
+                // Ensure we keep is_connected true if it was returned so by backend
+                this.databases[index] = { ...updatedDb, is_loading: false };
+            }
+
+            // Sync completion cache
+            await invoke("update_completion_schema", {
+                connectionId: this.activeConnection.id,
+                databases: this.databases
+            });
+
+            toast.success(`Database Loaded`, { description: `Successfully loaded schemas for ${dbName}` });
+        } catch (e) {
+            // Restore loading state
+            const index = this.databases.findIndex(d => d.name === dbName);
+            if (index !== -1) {
+                this.databases[index].is_loading = false;
+            }
+            toast.error("Load Failed", { description: String(e) });
+        }
+    }
+
     async refresh() {
         if (!this.activeConnection) return;
 
@@ -118,7 +160,7 @@ export class SchemaStore {
             const data = await invoke<MetaDatabase[]>("get_schema", { connectionId: this.activeConnection.id });
 
             // Sync completion cache
-            await invoke("update_completion_schema", {
+            await invoke<void>("update_completion_schema", {
                 connectionId: this.activeConnection.id,
                 databases: data
             });

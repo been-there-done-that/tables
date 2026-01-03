@@ -11,6 +11,7 @@
     import Cube from "@tabler/icons-svelte/icons/cube"; // Revert to Cube, or use Box
     import ViewIcon from "@tabler/icons-svelte/icons/eye"; // For Views
     import SqlIcon from "@tabler/icons-svelte/icons/file-database"; // Action icon
+    import LoaderIcon from "@tabler/icons-svelte/icons/loader-2"; // Spinner
     import ColumnIcon from "$lib/components/icons/ColumnIcon.svelte";
     import TableIcon from "$lib/components/icons/TableIcon.svelte";
     import PrimaryKeyIcon from "$lib/components/icons/PrimaryKeyIcon.svelte";
@@ -38,6 +39,8 @@
         detail?: string; // For type info like "VARCHAR(45)"
         icon?: any; // Allow overriding icon
         count?: number; // Added for displaying item counts
+        isConnected?: boolean; // For database connection status
+        isLoading?: boolean; // For on-demand loading state
     };
 </script>
 
@@ -55,6 +58,7 @@
         onNodeClick?: (node: TreeNode) => void;
         onAction?: (node: TreeNode) => void;
         onContextMenuAction?: (action: string, node: TreeNode) => void;
+        onExpand?: (node: TreeNode, isOpen: boolean) => void;
         expanded?: Set<string>;
     }
 
@@ -66,6 +70,7 @@
         onNodeClick = (node: TreeNode) => {},
         onAction = (node: TreeNode) => {},
         onContextMenuAction = (action: string, node: TreeNode) => {},
+        onExpand = (node: TreeNode, isOpen: boolean) => {},
         expanded = $bindable(new Set()),
     }: Props = $props();
 
@@ -91,11 +96,13 @@
         foreign_key: Key,
     };
 
-    function toggle(key: string) {
+    function toggle(key: string, node: TreeNode) {
         const next = new Set(expanded);
+        const willOpen = !next.has(key);
         if (next.has(key)) next.delete(key);
         else next.add(key);
         expanded = next;
+        if (onExpand) onExpand(node, willOpen);
     }
 
     export function expandAll() {
@@ -165,14 +172,14 @@
                     onclick={(e) => {
                         e.stopPropagation();
                         if (isFolder) {
-                            toggle(key);
+                            toggle(key, node);
                         }
                         onNodeClick(node);
                     }}
                     onkeydown={(e) =>
                         (e.key === "Enter" || e.key === " ") &&
                         isFolder &&
-                        toggle(key)}
+                        toggle(key, node)}
                     role="button"
                     tabindex="0"
                 >
@@ -208,9 +215,24 @@
                     </span>
 
                     <!-- Label -->
-                    <span class="truncate leading-none opacity-90">
-                        {node.name}
+                    <span
+                        class="flex items-center gap-1.5 truncate leading-none opacity-90 overflow-hidden"
+                    >
+                        <span class="truncate">{node.name}</span>
+                        {#if node.isConnected && node.type === "database"}
+                            <span
+                                class="size-1.5 rounded-full bg-primary shrink-0"
+                                title="Connected"
+                            ></span>
+                        {/if}
                     </span>
+
+                    <!-- Loader (New) -->
+                    {#if node.isLoading && node.type === "database"}
+                        <LoaderIcon
+                            class="size-3 ml-1 animate-spin text-muted-foreground/70 shrink-0"
+                        />
+                    {/if}
 
                     <!-- Count (New) -->
                     {#if node.count !== undefined}

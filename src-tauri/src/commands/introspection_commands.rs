@@ -92,3 +92,32 @@ pub async fn get_schema_table_details(
     let introspector = Introspector::new(db_state.conn.clone());
     introspector.get_table_details(&connection_id, &database, &schema, &table_name)
 }
+#[tauri::command]
+pub async fn introspect_database(
+    connection_id: String,
+    database_name: String,
+    db_state: State<'_, DatabaseState>,
+    conn_state: State<'_, ConnectionManagerState>,
+) -> Result<MetaDatabase, String> {
+    info!("Command: introspect_database for {} in connection {}", database_name, connection_id);
+    let manager = ConnectionManager::from_state(&db_state, &conn_state);
+    
+    // 1. Get connection info
+    let (connection, credentials) = manager.get_connection(&connection_id)?;
+    
+    // 2. Parse config
+    let mut config: serde_json::Value = serde_json::from_str(&connection.config_json)
+        .map_err(|e| format!("Failed to parse connection config: {}", e))?;
+
+    // 3. Inject password if available
+    if let Some(db) = config.get_mut("db") {
+        if let Some(db_obj) = db.as_object_mut() {
+            if let Some(password) = &credentials.password {
+                db_obj.insert("password".to_string(), serde_json::Value::String(password.expose().to_string()));
+            }
+        }
+    }
+
+    let introspector = Introspector::new(db_state.conn.clone());
+    introspector.introspect_database(&connection_id, config, &database_name).await
+}

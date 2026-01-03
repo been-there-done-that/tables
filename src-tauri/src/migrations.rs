@@ -66,6 +66,13 @@ CREATE TABLE IF NOT EXISTS credentials (
 "#;
 
 const CREATE_META_TABLES: &str = r#"
+CREATE TABLE IF NOT EXISTS meta_databases (
+    connection_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    PRIMARY KEY (connection_id, name),
+    FOREIGN KEY (connection_id) REFERENCES connections(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS meta_tables (
     connection_id TEXT NOT NULL,
     database TEXT NOT NULL DEFAULT 'main',
@@ -232,6 +239,7 @@ pub fn apply(conn: &Connection, now_fn: impl Fn() -> i64) -> Result<(), String> 
     // Since we changed the Primary Key, we should drop and recreate these tables if 'database' is missing.
     // This ensures a clean new hierarchy cache.
     let tables_to_check = vec![
+        "meta_databases",
         "meta_tables",
         "meta_columns",
         "meta_indexes",
