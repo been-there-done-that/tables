@@ -310,19 +310,6 @@ impl<A: DatabaseAdapter> ProgressiveIntrospector<A> {
             all_tables.extend(tables);
         }
 
-        self.emit(IntrospectionEvent::LevelComplete {
-            level: 3,
-            connection_id: connection_id.clone(),
-            database: Some(database_name.to_string()),
-            schema_count: Some(schemas.len()),
-            table_count: Some(all_tables.len()),
-        });
-
-        self.emit(IntrospectionEvent::SchemaReady {
-            connection_id: connection_id.clone(),
-            database: database_name.to_string(),
-        });
-
         // Cache results
         let mut schema_map: HashMap<String, Vec<MetaTable>> = HashMap::new();
         for table in all_tables {
@@ -343,6 +330,20 @@ impl<A: DatabaseAdapter> ProgressiveIntrospector<A> {
         };
 
         self.save_database_to_cache(&db)?;
+
+        self.emit(IntrospectionEvent::LevelComplete {
+            level: 3,
+            connection_id: connection_id.clone(),
+            database: Some(database_name.to_string()),
+            schema_count: Some(db.schemas.len()),
+            table_count: Some(db.schemas.iter().map(|s| s.tables.len()).sum()),
+        });
+
+        self.emit(IntrospectionEvent::SchemaReady {
+            connection_id: connection_id.clone(),
+            database: database_name.to_string(),
+        });
+        
         Ok(db)
     }
 

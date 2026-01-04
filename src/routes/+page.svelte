@@ -214,6 +214,7 @@
     // Find expanded table nodes and load their details
     for (const key of expanded) {
       // Check if this is a table key (format: table:db:schema.tableName or table:db:schema.tableName-index)
+      // Check if this is a table key logic...
       if (key.startsWith("table:")) {
         console.log(`[Effect] Found table key: ${key}`);
         const match = key.match(/^table:([^:]+):([^.]+)\.([^-]+)/);
@@ -229,8 +230,20 @@
             console.log(`[LazyLoad] Pre-expanded table detected: ${tableName}`);
             loadTableDetails(dbName, schemaName, tableName);
           }
-        } else {
-          console.log(`[Effect] Key didn't match regex: ${key}`);
+        }
+      }
+      // NEW: Handle pre-expanded schemas
+      else if (key.startsWith("schema:")) {
+        // Format: schema:dbName:schemaName
+        const parts = key.split(":");
+        if (parts.length >= 3) {
+          const dbName = parts[1];
+          const schemaName = parts[2];
+          console.log(
+            `[Effect] Pre-expanded schema detected: ${schemaName} in ${dbName}. Fetching tables...`,
+          );
+          // We can safely call this repeated times as the store handles dedup/caching
+          schemaStore.fetchTables(dbName, schemaName);
         }
       }
     }
@@ -379,7 +392,15 @@
     }
 
     if (isOpen && node.type === "schema" && node.metadata?.dbName) {
+      console.log(
+        `[handleNodeExpand] Fetching tables for schema: ${node.name} in db: ${node.metadata.dbName}`,
+      );
       schemaStore.fetchTables(node.metadata.dbName, node.name);
+    } else if (isOpen && node.type === "schema") {
+      console.warn(
+        `[handleNodeExpand] Schema node expanded but missing dbName metadata!`,
+        node,
+      );
     }
 
     // Lazy load table details when table is expanded

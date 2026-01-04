@@ -135,6 +135,8 @@ impl DatabaseAdapter for SqliteAdapter {
             .prepare("SELECT name, type FROM sqlite_master WHERE type IN ('table', 'view') AND name NOT LIKE 'sqlite_%'")
             .map_err(|e| AdapterError::Query(e.to_string()))?;
 
+        info!("[SQLITE_DEBUG] list_tables for {} - Query prepared", self.config.path);
+
         let now = chrono::Utc::now().timestamp_millis();
         
         let rows = stmt

@@ -389,6 +389,8 @@ export class SchemaStore {
 
         const schema = this.databases[dbIndex].schemas[schemaIndex];
 
+        console.log(`[SchemaStore] fetchTables(${dbName}, ${schemaName}) - is_introspected: ${schema.is_introspected}`);
+
         // If not cached, trigger a specific refresh
         if (!schema.is_introspected) {
             if (this.status !== "idle" || this.databases[dbIndex].is_loading) {
@@ -432,11 +434,14 @@ export class SchemaStore {
             return;
         }
 
+        console.log(`[SchemaStore] Schema cached, fetching from local cache.`);
         const tables = await invoke<any[]>("get_cached_tables", {
             connectionId: this.activeConnection.id,
             database: dbName,
             schema: schemaName
         });
+
+        console.log(`[SchemaStore] Fetched ${tables.length} tables from cache for ${schemaName}`);
 
         this.databases[dbIndex].schemas[schemaIndex].tables = tables;
         this.databases[dbIndex].schemas[schemaIndex].is_introspected = true;
