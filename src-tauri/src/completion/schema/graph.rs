@@ -61,8 +61,6 @@ impl SchemaGraph {
         let qualified_key = format!("{}.{}", table.schema.to_lowercase(), table.name.to_lowercase());
         let simple_key = table.name.to_lowercase();
         
-        log::debug!("[SchemaGraph] Adding table: {} (key: {})", table.name, qualified_key);
-        
         // Add to graph using simple name for FK lookups
         if !self.node_indices.contains_key(&simple_key) {
             let idx = self.fk_graph.add_node(simple_key.clone());

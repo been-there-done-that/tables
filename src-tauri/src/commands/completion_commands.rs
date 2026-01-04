@@ -117,9 +117,6 @@ pub fn schema_graph_from_meta(databases: &[MetaDatabase], selected_database: Opt
                 }
             }).collect();
             
-            log::debug!("[SchemaBuilder] Adding table {}.{}.{} with {} columns", 
-                db.name, schema.name, table.table_name, columns.len());
-            
             graph.add_table(TableInfo {
                 name: table.table_name.clone(),
                 schema: schema.name.clone(),
@@ -150,12 +147,7 @@ pub async fn update_completion_schema(
     databases: Vec<MetaDatabase>,
     selected_database: Option<String>,
 ) -> Result<(), String> {
-    log::debug!("[CompletionSchema] Updating schema for connection {}, selected_database: {:?}", 
-        connection_id, selected_database);
-    
     let schema_graph = schema_graph_from_meta(&databases, selected_database.as_deref());
-    
-    log::debug!("[CompletionSchema] Built graph with {} tables", schema_graph.tables.len());
     
     let mut cache = state.schema_cache.lock().await;
     cache.insert(connection_id, Arc::new(schema_graph));
@@ -211,17 +203,8 @@ pub async fn request_completions(
     let text_clone = text.clone();
     let default_schema_clone = default_schema.clone();
     let result = tokio::task::spawn_blocking(move || {
-        // Check cancellation before parsing
-        if cancel_token.is_cancelled() {
-            log::debug!("[Completion] Request cancelled before parsing");
-            return vec![];
-        }
-        
-        log::debug!("[Completion] Parsing SQL: '{}'", &text[..text.len().min(100)]);
-        
         // Parse SQL
         let tree = parse_sql(&text, None);
-        log::debug!("[Completion] Parse result: tree={}", tree.is_some());
         
         // Check cancellation before semantic analysis
         if cancel_token.is_cancelled() {
@@ -233,43 +216,16 @@ pub async fn request_completions(
             .map(|t| build_semantic_model(&text, t))
             .unwrap_or_default();
         
-        log::debug!("[Completion] Semantic model: {} scopes, {} CTEs", 
-            semantic.scopes.len(), 
-            semantic.ctes.len()
-        );
-        
-        // Log visible symbols
-        let visible = semantic.visible_symbols_at(cursor_offset);
-        log::debug!("[Completion] Visible symbols at offset {}: {:?}", 
-            cursor_offset,
-            visible.iter().map(|s| format!("{}:{:?}", s.name, s.kind)).collect::<Vec<_>>()
-        );
-        
         // Analyze cursor context
         let context = Context::analyze(&text, tree.as_ref(), cursor_offset);
-        log::debug!("[Completion] Context: {:?}, prefix='{}', scope_depth={}", 
-            context.context_type, 
-            context.prefix,
-            context.scope_depth
-        );
         
         // Check cancellation before completion
         if cancel_token.is_cancelled() {
             return vec![];
         }
         
-        log::debug!("[Completion] Schema graph has {} tables", schema.tables.len());
-        log::debug!("[Completion] Default schema: {:?}", default_schema_clone);
-        
         // Run completion engine
         let items = CompletionEngine::complete(&semantic, &context, &schema, default_schema.as_deref());
-        
-        log::debug!("[Completion] Engine returned {} items", items.len());
-        if !items.is_empty() {
-            for item in items.iter().take(5) {
-                log::debug!("[Completion] Item: {} ({:?}) score={}", item.label, item.kind, item.score);
-            }
-        }
         
         // Convert to DTOs
         items.into_iter().map(CompletionItemDto::from).collect()
@@ -277,7 +233,6 @@ pub async fn request_completions(
     .await
     .map_err(|e| e.to_string())?;
     
-    log::debug!("[Completion] Returning {} completion items to frontend", result.len());
     Ok(result)
 }
 
