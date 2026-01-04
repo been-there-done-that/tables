@@ -158,6 +158,7 @@ impl CompletionEngine {
     }
 
     /// Complete after a dot: `alias.|` → columns of the aliased table.
+    /// Also handles `schema.|` → tables in that schema.
     fn complete_after_dot(
         alias: &str,
         semantic: &SemanticModel,
@@ -166,40 +167,71 @@ impl CompletionEngine {
     ) -> Vec<CompletionItem> {
         let mut items = Vec::new();
         
-        // Resolve alias to table
-        let Some(symbol) = semantic.resolve_at_cursor(context.cursor_offset, alias) else {
-            return items;
-        };
+        log::debug!("[AfterDot] Looking up '{}' at cursor offset {}", alias, context.cursor_offset);
         
-        let Some(table_name) = symbol.resolve_table_name() else {
-            return items;
-        };
-        
-        // Get columns from schema
-        let columns = schema.get_columns(table_name);
-        
-        if !columns.is_empty() {
-            // Schema table match
-            for col in columns {
-                let score = Self::column_score(col.is_primary_key, col.is_indexed);
-                items.push(CompletionItem {
-                    label: col.name.clone(),
-                    kind: CompletionKind::Column,
-                    detail: Some(format!("{} ({})", col.data_type, table_name)),
-                    insert_text: col.name.clone(),
-                    score,
-                });
+        // First, try to resolve as a table alias (e.g., SELECT u.| FROM users u)
+        if let Some(symbol) = semantic.resolve_at_cursor(context.cursor_offset, alias) {
+            log::debug!("[AfterDot] Resolved as alias: {:?}", symbol.kind);
+            
+            if let Some(table_name) = symbol.resolve_table_name() {
+                log::debug!("[AfterDot] Table name: '{}'", table_name);
+                
+                // Get columns from schema
+                let columns = schema.get_columns(table_name);
+                log::debug!("[AfterDot] Found {} columns for table '{}'", columns.len(), table_name);
+                
+                if !columns.is_empty() {
+                    for col in &columns {
+                        log::debug!("[AfterDot] Column: {} ({})", col.name, col.data_type);
+                    }
+                    for col in columns {
+                        let score = Self::column_score(col.is_primary_key, col.is_indexed);
+                        items.push(CompletionItem {
+                            label: col.name.clone(),
+                            kind: CompletionKind::Column,
+                            detail: Some(format!("{} ({})", col.data_type, table_name)),
+                            insert_text: col.name.clone(),
+                            score,
+                        });
+                    }
+                } else {
+                    // Check CTEs
+                    if let Some(cte_cols) = semantic.ctes.get(&table_name.to_lowercase()) {
+                        log::debug!("[AfterDot] Found {} CTE columns", cte_cols.len());
+                        for col_name in cte_cols {
+                            items.push(CompletionItem {
+                                label: col_name.clone(),
+                                kind: CompletionKind::Column,
+                                detail: Some(format!("CTE Column ({})", table_name)),
+                                insert_text: col_name.clone(),
+                                score: 90,
+                            });
+                        }
+                    }
+                }
             }
-        } else {
-            // CTE match
-             if let Some(cte_cols) = semantic.ctes.get(&table_name.to_lowercase()) {
-                for col_name in cte_cols {
+        }
+        
+        // If no alias match, check if this is a schema name (e.g., SELECT * FROM public.|)
+        if items.is_empty() {
+            log::debug!("[AfterDot] No alias match, checking if '{}' is a schema name", alias);
+            
+            // Look for tables in this schema
+            let alias_lower = alias.to_lowercase();
+            let schema_tables: Vec<_> = schema.tables.values()
+                .filter(|t| t.schema.to_lowercase() == alias_lower)
+                .collect();
+            
+            log::debug!("[AfterDot] Found {} tables in schema '{}'", schema_tables.len(), alias);
+            
+            if !schema_tables.is_empty() {
+                for table in schema_tables {
                     items.push(CompletionItem {
-                        label: col_name.clone(),
-                        kind: CompletionKind::Column,
-                        detail: Some(format!("CTE Column ({})", table_name)),
-                        insert_text: col_name.clone(),
-                        score: 90, // High score for CTE columns
+                        label: table.name.clone(),
+                        kind: CompletionKind::Table,
+                        detail: Some(table.schema.clone()),
+                        insert_text: table.name.clone(), // Don't need schema prefix since user already typed it
+                        score: SCORE_CURSOR_RELEVANCE + SCORE_UI_SCHEMA_HINT,
                     });
                 }
             }
@@ -207,6 +239,8 @@ impl CompletionEngine {
         
         // Filter by prefix
         Self::filter_by_prefix(&mut items, &context.prefix);
+        
+        log::debug!("[AfterDot] Returning {} items after filtering by prefix '{}'", items.len(), context.prefix);
         
         // Sort by score descending
         items.sort_by(|a, b| b.score.cmp(&a.score));
