@@ -477,13 +477,46 @@ impl Introspector {
                 table_type: row.get(4)?,
                 classification: row.get(5)?,
                 last_introspected_at: row.get(6)?,
-                columns: vec![],
+                columns: vec![],  // Will be populated below
                 foreign_keys: vec![],
                 indexes: vec![],
             })
         }).map_err(|e| e.to_string())?;
 
-        rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+        let mut tables: Vec<MetaTable> = rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+        
+        // Load columns for each table
+        for table in &mut tables {
+            let mut col_stmt = conn.prepare(
+                "SELECT ordinal_position, column_name, raw_type, logical_type, nullable, default_value, is_primary_key 
+                 FROM meta_columns 
+                 WHERE connection_id = ?1 AND database = ?2 AND schema = ?3 AND table_name = ?4 
+                 ORDER BY ordinal_position"
+            ).map_err(|e| e.to_string())?;
+            
+            let columns = col_stmt.query_map(
+                params![&table.connection_id, &table.database, &table.schema, &table.table_name],
+                |row| {
+                    Ok(MetaColumn {
+                        connection_id: table.connection_id.clone(),
+                        database: table.database.clone(),
+                        schema: table.schema.clone(),
+                        table_name: table.table_name.clone(),
+                        ordinal_position: row.get(0)?,
+                        column_name: row.get(1)?,
+                        raw_type: row.get(2)?,
+                        logical_type: row.get(3)?,
+                        nullable: row.get::<_, i32>(4)? != 0,
+                        default_value: row.get(5)?,
+                        is_primary_key: row.get::<_, i32>(6)? != 0,
+                    })
+                }
+            ).map_err(|e| e.to_string())?;
+            
+            table.columns = columns.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+        }
+        
+        Ok(tables)
     }
 
     pub fn get_schema(&self, connection_id: &str) -> Result<Vec<MetaDatabase>, String> {

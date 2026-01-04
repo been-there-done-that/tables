@@ -75,13 +75,20 @@ fn map_completion_kind(kind: CompletionKind) -> u8 {
 }
 
 /// Build a SchemaGraph from MetaDatabase data.
-pub fn schema_graph_from_meta(databases: &[MetaDatabase]) -> SchemaGraph {
+pub fn schema_graph_from_meta(databases: &[MetaDatabase], selected_database: Option<&str>) -> SchemaGraph {
     let mut graph = SchemaGraph::new();
     
     // Collect all indexed columns for lookup
     let mut _indexed_columns: HashMap<(String, String), bool> = HashMap::new();
     
     for db in databases {
+        // Filter by selected database if specified
+        if let Some(selected) = selected_database {
+            if db.name != selected {
+                continue;
+            }
+        }
+        
         for schema in &db.schemas {
             for table in &schema.tables {
             // Collect indexed columns
@@ -102,6 +109,9 @@ pub fn schema_graph_from_meta(databases: &[MetaDatabase]) -> SchemaGraph {
                     is_indexed: false, // We'd need index_columns join for this
                 }
             }).collect();
+            
+            log::debug!("[SchemaBuilder] Adding table {}.{}.{} with {} columns", 
+                db.name, schema.name, table.table_name, columns.len());
             
             graph.add_table(TableInfo {
                 name: table.table_name.clone(),
@@ -131,8 +141,14 @@ pub async fn update_completion_schema(
     state: State<'_, CompletionState>,
     connection_id: String,
     databases: Vec<MetaDatabase>,
+    selected_database: Option<String>,
 ) -> Result<(), String> {
-    let schema_graph = schema_graph_from_meta(&databases);
+    log::debug!("[CompletionSchema] Updating schema for connection {}, selected_database: {:?}", 
+        connection_id, selected_database);
+    
+    let schema_graph = schema_graph_from_meta(&databases, selected_database.as_deref());
+    
+    log::debug!("[CompletionSchema] Built graph with {} tables", schema_graph.tables.len());
     
     let mut cache = state.schema_cache.lock().await;
     cache.insert(connection_id, Arc::new(schema_graph));
