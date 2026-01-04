@@ -74,4 +74,13 @@
         <IconListSearch class="mr-2 size-4 text-blue-400" />
         <span>View</span>
     </ContextMenu.Item>
+    <ContextMenu.Separator />
+
+    <ContextMenu.Item
+        onclick={() => onAction("refresh", node)}
+        disabled={!isSchema && node.type !== "database"}
+    >
+        <IconListSearch class="mr-2 size-4 text-green-500" />
+        <span>Refresh</span>
+    </ContextMenu.Item>
 </ContextMenu.Content>
