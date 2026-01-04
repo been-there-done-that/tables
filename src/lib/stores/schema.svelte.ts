@@ -229,18 +229,21 @@ export class SchemaStore {
             return;
         }
 
+        if (db.is_loading || this.status === "refreshing") {
+            console.log(`[SchemaStore] Database ${dbName} is already loading or store is refreshing. Skipping.`);
+            return;
+        }
+
         db.is_loading = true;
+        this.status = "refreshing";
+
         const toastId = toast.loading(`Introspecting ${dbName}...`, {
             description: "Fetching schemas and tables information.",
             duration: Infinity,
         });
 
         try {
-            console.log(`[SchemaStore] Loading database: ${dbName} (Remote Fetch) (status: ${this.status})`);
-            if (this.status === "refreshing") {
-                console.warn(`[SchemaStore] loadDatabase called while already refreshing. Skipping auto-trigger.`);
-                return;
-            }
+            console.log(`[SchemaStore] Loading database: ${dbName} (Remote Fetch)`);
             this.statusMessage = `Introspecting ${dbName}...`;
             await invoke("refresh_schema_unified", {
                 connectionId: this.activeConnection.id,
@@ -265,14 +268,16 @@ export class SchemaStore {
                 description: `Successfully introspected ${dbName}`
             });
         } catch (e) {
-            const index = this.databases.findIndex(d => d.name === dbName);
-            if (index !== -1) {
-                this.databases[index].is_loading = false;
-            }
             toast.error("Load Failed", {
                 id: toastId,
                 description: String(e)
             });
+        } finally {
+            this.status = "idle";
+            const index = this.databases.findIndex(d => d.name === dbName);
+            if (index !== -1) {
+                this.databases[index].is_loading = false;
+            }
         }
     }
 
@@ -304,8 +309,8 @@ export class SchemaStore {
 
         // If no schemas in cache, trigger a remote load if not already introspected
         if (schemas.length === 0 && !this.databases[dbIndex].is_introspected) {
-            if (this.status === "refreshing") {
-                console.log(`[SchemaStore] fetchSchemas: No schemas in cache for ${dbName}, but refresh is in progress. Skipping auto-trigger.`);
+            if (this.status !== "idle" || this.databases[dbIndex].is_loading) {
+                console.log(`[SchemaStore] fetchSchemas: No schemas in cache for ${dbName}, but store is busy (${this.status}) or db is loading. Skipping auto-trigger.`);
                 return;
             }
             console.log(`[SchemaStore] No schemas in cache for ${dbName}, triggering load.`);
@@ -343,8 +348,8 @@ export class SchemaStore {
 
         // If not cached, trigger a specific refresh
         if (!schema.is_introspected) {
-            if (this.status === "refreshing") {
-                console.log(`[SchemaStore] fetchTables: Schema ${schemaName} not cached, but refresh is in progress. Skipping auto-trigger.`);
+            if (this.status !== "idle" || this.databases[dbIndex].is_loading) {
+                console.log(`[SchemaStore] fetchTables: Schema ${schemaName} not cached, but store is busy (${this.status}) or db is loading. Skipping auto-trigger.`);
                 return;
             }
             console.log(`[SchemaStore] Schema ${schemaName} not cached, triggering remote fetch.`);

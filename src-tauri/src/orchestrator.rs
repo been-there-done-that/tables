@@ -287,6 +287,17 @@ impl<A: DatabaseAdapter> ProgressiveIntrospector<A> {
             table_count: None,
         });
 
+        // Cache foundations (Level 2)
+        if self.config.save_to_cache {
+            let partial_db = MetaDatabase {
+                name: database_name.to_string(),
+                is_connected: true,
+                is_introspected: false,
+                schemas: schemas.clone(),
+            };
+            self.save_database_to_cache(&partial_db)?;
+        }
+
         // Level 3: Tables + Columns
         let mut all_tables: Vec<MetaTable> = Vec::new();
         for schema in &schemas {
