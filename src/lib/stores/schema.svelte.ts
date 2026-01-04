@@ -281,7 +281,11 @@ export class SchemaStore {
         this.databases[dbIndex].schemas = schemas.map(s => {
             const existing = this.databases[dbIndex].schemas.find(es => es.name === s.name);
             if (existing) {
-                return { ...s, tables: existing.tables };
+                return {
+                    ...s,
+                    tables: existing.tables,
+                    is_introspected: existing.is_introspected
+                };
             }
             return { ...s, tables: [] };
         });
@@ -336,6 +340,7 @@ export class SchemaStore {
         });
 
         this.databases[dbIndex].schemas[schemaIndex].tables = tables;
+        this.databases[dbIndex].schemas[schemaIndex].is_introspected = true;
     }
 
     async syncFromCache() {

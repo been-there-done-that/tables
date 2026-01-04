@@ -83,14 +83,25 @@
           });
         }
       } else {
-        // Placeholder for lazy loading tables
-        children = [
-          {
-            id: `placeholder:tables:${db.name}:${schema.name}`,
-            name: "Loading tables...",
-            type: "column" as NodeType, // Use column as a generic leaf type for placeholder
-          },
-        ];
+        // Check if schema has been introspected (loaded) but is empty
+        if (schema.is_introspected) {
+          children = [
+            {
+              id: `empty:${db.name}:${schema.name}`,
+              name: "No tables found",
+              type: "column" as NodeType, // Generic leaf type
+            },
+          ];
+        } else {
+          // Placeholder for lazy loading tables
+          children = [
+            {
+              id: `placeholder:tables:${db.name}:${schema.name}`,
+              name: "Loading tables...",
+              type: "column" as NodeType,
+            },
+          ];
+        }
       }
 
       return {
