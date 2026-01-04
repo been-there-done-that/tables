@@ -83,6 +83,7 @@
           name: schema.name,
           type: "schema" as NodeType,
           children,
+          metadata: { dbName: db.name, schemaName: schema.name },
         };
       });
 
@@ -93,6 +94,7 @@
         children: schemaNodes,
         isConnected: db.is_connected,
         isLoading: db.is_loading,
+        metadata: { dbName: db.name },
       };
     });
   });
@@ -294,7 +296,7 @@
           type: "editor",
           title,
         });
-        session.openView("editor", title);
+        session.openView("editor", title, node.metadata);
         break;
       // Stubs for other actions
       default:
@@ -499,7 +501,11 @@
                         <EditorHome />
                       {:else if showSqlEditor}
                         <div class="flex-1 relative overflow-hidden">
-                          <SqlTestingEditor />
+                          <SqlTestingEditor
+                            context={activeSession.views.find(
+                              (v) => v.id === activeSession.activeViewId,
+                            )?.data}
+                          />
                         </div>
                       {:else}
                         {@const activeView = activeSession.views.find(
@@ -507,7 +513,7 @@
                         )}
                         <div class="flex-1 overflow-hidden relative">
                           {#if activeView?.type === "editor"}
-                            <SqlTestingEditor />
+                            <SqlTestingEditor context={activeView.data} />
                           {:else if activeView?.type === "table"}
                             <div
                               class="flex items-center justify-center h-full text-muted-foreground italic text-sm"

@@ -6,10 +6,41 @@
     import { cn } from "$lib/utils";
     import IconPlayerPlay from "@tabler/icons-svelte/icons/player-play";
     import * as monaco from "monaco-editor";
+    import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
+    import { schemaStore } from "$lib/stores/schema.svelte";
+    import IconDatabase from "@tabler/icons-svelte/icons/database";
+    import IconSchema from "@tabler/icons-svelte/icons/table";
+    import IconChevronDown from "@tabler/icons-svelte/icons/chevron-down";
+
+    let { context = {} } = $props<{ context?: any }>();
 
     let editorContainer: HTMLElement;
     let editorHandle: EditorHandle | null = null;
     let logs: string[] = $state([]);
+
+    // Toolbar state
+    let selectedDatabase = $state(context?.dbName || "");
+    let selectedSchema = $state(context?.schemaName || "public");
+
+    // Sync state with context if it changes
+    $effect(() => {
+        if (context?.dbName) selectedDatabase = context.dbName;
+        if (context?.schemaName) selectedSchema = context.schemaName;
+    });
+
+    // Default to first available database if none selected
+    $effect(() => {
+        if (!selectedDatabase && schemaStore.databases.length > 0) {
+            selectedDatabase = schemaStore.databases[0].name;
+        }
+    });
+
+    const currentSchemas = $derived.by(() => {
+        const db = schemaStore.databases.find(
+            (d) => d.name === selectedDatabase,
+        );
+        return db?.schemas || [];
+    });
 
     function log(msg: string) {
         logs = [
@@ -53,10 +84,16 @@
 
         if (query.trim()) {
             console.log(`[Execute] Running query from ${source}:`, query);
-            log(`Executing (${source}):\n${query}`);
+            log(
+                `Executing (${source}) in ${selectedDatabase}.${selectedSchema}:\n${query}`,
+            );
         } else {
             log("No query to execute");
         }
+    }
+
+    function handleExplain(raw: boolean = false) {
+        log(`Explain ${raw ? "(Raw)" : ""} functionality not implemented yet.`);
     }
 
     useMonacoEditor(
@@ -89,7 +126,7 @@
             // Only set value if empty
             if (!handle.editor.getValue()) {
                 handle.editor.setValue(
-                    "-- SQL Auto-Completion Playground\n-- Type 'SELECT' or table names from your active connection\n\nSELECT * FROM ",
+                    `-- SQL Auto-Completion Playground\n-- Context: ${selectedDatabase}.${selectedSchema}\n-- Type 'SELECT' or table names from your active connection\n\nSELECT * FROM `,
                 );
                 handle.editor.setPosition({ lineNumber: 4, column: 15 });
             }
@@ -99,6 +136,118 @@
 </script>
 
 <div class="flex h-full w-full flex-col bg-background">
+    <!-- Toolbar -->
+    <div
+        class="flex h-10 items-center justify-between border-b border-border bg-muted/20 px-2 gap-2"
+    >
+        <div class="flex items-center gap-2">
+            <button
+                class="flex items-center gap-1 rounded bg-(--theme-accent-primary) px-3 py-1 text-xs font-semibold text-white hover:opacity-90 transition-opacity"
+                onclick={executeCurrent}
+                title="Run (Cmd+Enter)"
+            >
+                <IconPlayerPlay class="size-3 fill-current" />
+                Run
+            </button>
+
+            <DropdownMenu.Root>
+                <DropdownMenu.Trigger
+                    class="flex items-center gap-1 rounded border border-border bg-background px-3 py-1 text-xs font-medium hover:bg-accent hover:text-accent-foreground transition-colors"
+                >
+                    Explain
+                    <IconChevronDown class="size-3 text-muted-foreground" />
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Content align="start">
+                    <DropdownMenu.Item onclick={() => handleExplain(false)}
+                        >Explain Plan</DropdownMenu.Item
+                    >
+                    <DropdownMenu.Item onclick={() => handleExplain(true)}
+                        >Explain Plan (Raw)</DropdownMenu.Item
+                    >
+                </DropdownMenu.Content>
+            </DropdownMenu.Root>
+        </div>
+
+        <div class="flex items-center gap-2">
+            <!-- Database Picker -->
+            <DropdownMenu.Root>
+                <DropdownMenu.Trigger
+                    class="flex items-center gap-1.5 rounded border border-border bg-background px-3 py-1 text-xs font-medium hover:bg-accent hover:text-accent-foreground transition-colors min-w-[100px]"
+                    title="Select Database"
+                >
+                    <IconDatabase class="size-3 text-muted-foreground" />
+                    <span class="truncate max-w-[100px]"
+                        >{selectedDatabase || "Select DB"}</span
+                    >
+                    <IconChevronDown
+                        class="ml-auto size-3 text-muted-foreground"
+                    />
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Content
+                    align="end"
+                    class="max-h-[300px] overflow-auto"
+                >
+                    <DropdownMenu.Label>Databases</DropdownMenu.Label>
+                    <DropdownMenu.Separator />
+                    <DropdownMenu.RadioGroup
+                        value={selectedDatabase}
+                        onValueChange={(v) => {
+                            selectedDatabase = v;
+                            // Reset schema when DB changes
+                            const db = schemaStore.databases.find(
+                                (d) => d.name === v,
+                            );
+                            if (db && db.schemas.length > 0) {
+                                selectedSchema = "public"; // default to public or first
+                            }
+                        }}
+                    >
+                        {#each schemaStore.databases as db (db.name)}
+                            <DropdownMenu.RadioItem value={db.name}>
+                                {db.name}
+                            </DropdownMenu.RadioItem>
+                        {/each}
+                    </DropdownMenu.RadioGroup>
+                </DropdownMenu.Content>
+            </DropdownMenu.Root>
+
+            <span class="text-muted-foreground/30">/</span>
+
+            <!-- Schema Picker -->
+            <DropdownMenu.Root>
+                <DropdownMenu.Trigger
+                    class="flex items-center gap-1.5 rounded border border-border bg-background px-3 py-1 text-xs font-medium hover:bg-accent hover:text-accent-foreground transition-colors min-w-[100px]"
+                    title="Select Schema"
+                >
+                    <IconSchema class="size-3 text-muted-foreground" />
+                    <span class="truncate max-w-[100px]"
+                        >{selectedSchema || "public"}</span
+                    >
+                    <IconChevronDown
+                        class="ml-auto size-3 text-muted-foreground"
+                    />
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Content
+                    align="end"
+                    class="max-h-[300px] overflow-auto"
+                >
+                    <DropdownMenu.Label>Schemas</DropdownMenu.Label>
+                    <DropdownMenu.Separator />
+                    <DropdownMenu.RadioGroup
+                        value={selectedSchema}
+                        onValueChange={(v) => (selectedSchema = v)}
+                    >
+                        {#each currentSchemas as schema (schema.name)}
+                            <DropdownMenu.RadioItem value={schema.name}>
+                                {schema.name}
+                            </DropdownMenu.RadioItem>
+                        {/each}
+                    </DropdownMenu.RadioGroup>
+                </DropdownMenu.Content>
+            </DropdownMenu.Root>
+        </div>
+    </div>
+
     <div class="flex-1 relative">
         <div
             bind:this={editorContainer}
