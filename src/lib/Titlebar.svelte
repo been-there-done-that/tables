@@ -25,6 +25,7 @@
   import IconDatabase from "@tabler/icons-svelte/icons/database";
   import IconChevronDown from "@tabler/icons-svelte/icons/chevron-down";
   import IconLoader2 from "@tabler/icons-svelte/icons/loader-2";
+  import IconRefresh from "@tabler/icons-svelte/icons/refresh";
 
   import WindowControls from "$lib/components/WindowControls.svelte";
 
@@ -148,6 +149,22 @@
                 </Menu.RadioGroup>
               </Menu.Content>
             </Menu.Root>
+          {/if}
+
+          {#if schemaStore.activeConnection}
+            <button
+              class="h-6 w-6 flex items-center justify-center rounded-md border transition-all hover:bg-(--theme-bg-hover) border-transparent"
+              title="Refresh All Schemas"
+              onclick={() => schemaStore.refresh()}
+            >
+              <IconRefresh
+                class={cn(
+                  "size-4 opacity-70 transition-all hover:opacity-100",
+                  schemaStore.status === "refreshing" &&
+                    "animate-spin text-primary",
+                )}
+              />
+            </button>
           {/if}
         {/if}
       </div>
