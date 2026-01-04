@@ -55,31 +55,42 @@
       const tables = schema.tables.filter((t) => t.table_type === "table");
       const views = schema.tables.filter((t) => t.table_type === "view");
 
-      const children: TreeNode[] = [];
+      let children: TreeNode[] = [];
 
-      if (tables.length > 0) {
-        children.push({
-          id: `folder:tables:${db.name}:${schema.name}`,
-          name: "tables",
-          type: "folder" as NodeType,
-          count: tables.length,
-          children: tables.map((table) =>
-            mapTableToNode(table, db.name, schema.name),
-          ),
-        });
-      }
+      if (tables.length > 0 || views.length > 0) {
+        if (tables.length > 0) {
+          children.push({
+            id: `folder:tables:${db.name}:${schema.name}`,
+            name: "tables",
+            type: "folder" as NodeType,
+            count: tables.length,
+            children: tables.map((table) =>
+              mapTableToNode(table, db.name, schema.name),
+            ),
+          });
+        }
 
-      if (views.length > 0) {
-        children.push({
-          id: `folder:views:${db.name}:${schema.name}`,
-          name: "views",
-          type: "folder" as NodeType,
-          count: views.length,
-          children: views.map((table) => ({
-            ...mapTableToNode(table, db.name, schema.name),
-            detail: undefined,
-          })),
-        });
+        if (views.length > 0) {
+          children.push({
+            id: `folder:views:${db.name}:${schema.name}`,
+            name: "views",
+            type: "folder" as NodeType,
+            count: views.length,
+            children: views.map((table) => ({
+              ...mapTableToNode(table, db.name, schema.name),
+              detail: undefined,
+            })),
+          });
+        }
+      } else {
+        // Placeholder for lazy loading tables
+        children = [
+          {
+            id: `placeholder:tables:${db.name}:${schema.name}`,
+            name: "Loading tables...",
+            type: "column" as NodeType, // Use column as a generic leaf type for placeholder
+          },
+        ];
       }
 
       return {
@@ -352,7 +363,11 @@
     );
 
     if (isOpen && node.type === "database") {
-      schemaStore.loadDatabase(node.name);
+      schemaStore.fetchSchemas(node.name);
+    }
+
+    if (isOpen && node.type === "schema" && node.metadata?.dbName) {
+      schemaStore.fetchTables(node.metadata.dbName, node.name);
     }
 
     // Lazy load table details when table is expanded

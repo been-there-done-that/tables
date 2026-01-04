@@ -73,6 +73,15 @@ CREATE TABLE IF NOT EXISTS meta_databases (
     FOREIGN KEY (connection_id) REFERENCES connections(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS meta_schemas (
+    connection_id TEXT NOT NULL,
+    database TEXT NOT NULL,
+    name TEXT NOT NULL,
+    schema_type TEXT NOT NULL, -- 'user' or 'system'
+    PRIMARY KEY (connection_id, database, name),
+    FOREIGN KEY (connection_id, database) REFERENCES meta_databases(connection_id, name) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS meta_tables (
     connection_id TEXT NOT NULL,
     database TEXT NOT NULL DEFAULT 'main',
@@ -251,7 +260,7 @@ pub fn apply(conn: &Connection, now_fn: impl Fn() -> i64) -> Result<(), String> 
     // Note: meta_databases doesn't have a 'database' column (it uses 'name' instead)
     // Only check tables that should have the 'database' column for the hierarchy cache.
     let tables_to_check = vec![
-        // "meta_databases" - excluded: uses 'name' column, not 'database'
+        "meta_schemas",
         "meta_tables",
         "meta_columns",
         "meta_indexes",
