@@ -47,16 +47,23 @@ pub struct CompletionItemDto {
     pub detail: Option<String>,
     pub insert_text: String,
     pub score: u32,
+    /// If true, trigger completions again after this item is selected (for chained completions)
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub trigger_suggest: bool,
 }
 
 impl From<CompletionItem> for CompletionItemDto {
     fn from(item: CompletionItem) -> Self {
+        // Trigger suggest for schema completions (insert_text ends with ".")
+        let trigger_suggest = item.insert_text.ends_with('.');
+        
         Self {
             label: item.label,
             kind: map_completion_kind(item.kind),
             detail: item.detail,
             insert_text: item.insert_text,
             score: item.score,
+            trigger_suggest,
         }
     }
 }
