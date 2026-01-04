@@ -110,7 +110,7 @@ fn init_connection(db_path: &PathBuf) -> Result<Connection, String> {
             })?;
     }
     debug!("Opening database connection");
-    let conn = Connection::open(db_path)
+    let mut conn = Connection::open(db_path)
         .map_err(|e| {
             error!("Failed to open database {}: {}", db_path.display(), e);
             format!("Failed to open database {}: {e}", db_path.display())
@@ -134,7 +134,7 @@ fn init_connection(db_path: &PathBuf) -> Result<Connection, String> {
             format!("Failed to enable foreign keys: {e}")
         })?;
     debug!("Applying database migrations");
-    migrations::apply(&conn, now_ts)?;
+    migrations::apply(&mut conn, now_ts)?;
     info!("Database connection initialized successfully");
     Ok(conn)
 }
