@@ -24,6 +24,7 @@
   import * as Menu from "$lib/components/ui/dropdown-menu";
   import IconDatabase from "@tabler/icons-svelte/icons/database";
   import IconChevronDown from "@tabler/icons-svelte/icons/chevron-down";
+  import IconLoader2 from "@tabler/icons-svelte/icons/loader-2";
 
   import WindowControls from "$lib/components/WindowControls.svelte";
 
@@ -111,6 +112,9 @@
                   <span class="text-(--theme-fg-primary)"
                     >{schemaStore.selectedDatabase || "Select DB"}</span
                   >
+                  {#if schemaStore.status === "connecting" || schemaStore.status === "refreshing" || schemaStore.databases.find((d) => d.name === schemaStore.selectedDatabase)?.is_loading}
+                    <IconLoader2 class="size-3 animate-spin opacity-50" />
+                  {/if}
                   <IconChevronDown
                     class={cn(
                       "size-3 opacity-50 transition-transform duration-200",
@@ -136,14 +140,9 @@
                   {#each schemaStore.databases as db (db.name)}
                     <Menu.RadioItem
                       value={db.name}
-                      class="flex items-center gap-2 px-2 py-1.5 text-xs outline-none select-none data-highlighted:bg-accent data-highlighted:text-accent-foreground cursor-default"
+                      class="flex items-center gap-2 pl-8 pr-2 py-1.5 text-xs outline-none select-none data-highlighted:bg-accent data-highlighted:text-accent-foreground cursor-default"
                     >
                       <span class="flex-1 truncate">{db.name}</span>
-                      {#if schemaStore.selectedDatabase === db.name}
-                        <div
-                          class="size-1 rounded-full bg-primary ml-auto"
-                        ></div>
-                      {/if}
                     </Menu.RadioItem>
                   {/each}
                 </Menu.RadioGroup>
