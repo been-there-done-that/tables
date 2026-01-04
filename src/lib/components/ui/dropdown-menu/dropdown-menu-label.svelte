@@ -10,10 +10,10 @@
     }: any = $props();
 </script>
 
-<DropdownMenuPrimitive.Label
-    bind:ref
+<div
+    bind:this={ref}
     class={cn("px-2 py-1.5 text-sm font-semibold", className)}
     {...restProps}
 >
     {@render children?.()}
-</DropdownMenuPrimitive.Label>
+</div>

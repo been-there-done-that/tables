@@ -19,26 +19,18 @@
     let logs: string[] = $state([]);
 
     // Toolbar state
-    let selectedDatabase = $state(context?.dbName || "");
+    // We only track schema locally, database comes from global store
     let selectedSchema = $state(context?.schemaName || "public");
 
     // Sync state with context if it changes
     $effect(() => {
-        if (context?.dbName) selectedDatabase = context.dbName;
         if (context?.schemaName) selectedSchema = context.schemaName;
     });
 
-    // Default to first available database if none selected
-    $effect(() => {
-        if (!selectedDatabase && schemaStore.databases.length > 0) {
-            selectedDatabase = schemaStore.databases[0].name;
-        }
-    });
-
     const currentSchemas = $derived.by(() => {
-        const db = schemaStore.databases.find(
-            (d) => d.name === selectedDatabase,
-        );
+        const dbName = schemaStore.selectedDatabase;
+        if (!dbName) return [];
+        const db = schemaStore.databases.find((d) => d.name === dbName);
         return db?.schemas || [];
     });
 
@@ -85,7 +77,7 @@
         if (query.trim()) {
             console.log(`[Execute] Running query from ${source}:`, query);
             log(
-                `Executing (${source}) in ${selectedDatabase}.${selectedSchema}:\n${query}`,
+                `Executing (${source}) in ${schemaStore.selectedDatabase}.${selectedSchema}:\n${query}`,
             );
         } else {
             log("No query to execute");
@@ -126,7 +118,7 @@
             // Only set value if empty
             if (!handle.editor.getValue()) {
                 handle.editor.setValue(
-                    `-- SQL Auto-Completion Playground\n-- Context: ${selectedDatabase}.${selectedSchema}\n-- Type 'SELECT' or table names from your active connection\n\nSELECT * FROM `,
+                    `-- SQL Auto-Completion Playground\n-- Context: ${schemaStore.selectedDatabase}.${selectedSchema}\n-- Type 'SELECT' or table names from your active connection\n\nSELECT * FROM `,
                 );
                 handle.editor.setPosition({ lineNumber: 4, column: 15 });
             }
@@ -169,51 +161,7 @@
         </div>
 
         <div class="flex items-center gap-2">
-            <!-- Database Picker -->
-            <DropdownMenu.Root>
-                <DropdownMenu.Trigger
-                    class="flex items-center gap-1.5 rounded border border-border bg-background px-3 py-1 text-xs font-medium hover:bg-accent hover:text-accent-foreground transition-colors min-w-[100px]"
-                    title="Select Database"
-                >
-                    <IconDatabase class="size-3 text-muted-foreground" />
-                    <span class="truncate max-w-[100px]"
-                        >{selectedDatabase || "Select DB"}</span
-                    >
-                    <IconChevronDown
-                        class="ml-auto size-3 text-muted-foreground"
-                    />
-                </DropdownMenu.Trigger>
-                <DropdownMenu.Content
-                    align="end"
-                    class="max-h-[300px] overflow-auto"
-                >
-                    <DropdownMenu.Label>Databases</DropdownMenu.Label>
-                    <DropdownMenu.Separator />
-                    <DropdownMenu.RadioGroup
-                        value={selectedDatabase}
-                        onValueChange={(v) => {
-                            selectedDatabase = v;
-                            // Reset schema when DB changes
-                            const db = schemaStore.databases.find(
-                                (d) => d.name === v,
-                            );
-                            if (db && db.schemas.length > 0) {
-                                selectedSchema = "public"; // default to public or first
-                            }
-                        }}
-                    >
-                        {#each schemaStore.databases as db (db.name)}
-                            <DropdownMenu.RadioItem value={db.name}>
-                                {db.name}
-                            </DropdownMenu.RadioItem>
-                        {/each}
-                    </DropdownMenu.RadioGroup>
-                </DropdownMenu.Content>
-            </DropdownMenu.Root>
-
-            <span class="text-muted-foreground/30">/</span>
-
-            <!-- Schema Picker -->
+            <!-- Schema Picker (Database is implicit from global selection) -->
             <DropdownMenu.Root>
                 <DropdownMenu.Trigger
                     class="flex items-center gap-1.5 rounded border border-border bg-background px-3 py-1 text-xs font-medium hover:bg-accent hover:text-accent-foreground transition-colors min-w-[100px]"
