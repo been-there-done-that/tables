@@ -1294,8 +1294,8 @@ impl Introspector {
              FROM pg_constraint con
              JOIN pg_namespace sch ON sch.oid = con.connamespace
              JOIN pg_class tab ON tab.oid = con.conrelid
-             JOIN pg_namespace rsch ON rsch.oid = con.confnamespace
              JOIN pg_class rtab ON rtab.oid = con.confrelid
+             JOIN pg_namespace rsch ON rsch.oid = rtab.relnamespace
              -- Unnesting keys and their ordinality to handle multi-column FKs correctly
              JOIN LATERAL unnest(con.conkey) WITH ORDINALITY AS pos(attnum, seq_no) ON true
              JOIN pg_attribute col ON col.attrelid = tab.oid AND col.attnum = pos.attnum
@@ -1309,12 +1309,7 @@ impl Introspector {
              WHERE con.contype = 'f'
                AND sch.nspname = ANY($1)",
             &[&schemas]
-        ).await.map_err(|e| {
-            let code = e.as_db_error().map(|db_err| db_err.code().code().to_string()).unwrap_or_else(|| "UNKNOWN".to_string());
-            let message = e.as_db_error().map(|db_err| db_err.message().to_string()).unwrap_or_else(|| e.to_string());
-            error!("[POSTGRES_FK_QUERY] Failed. Code: {}, Message: {}, Schemas: {:?}", code, message, schemas);
-            format!("[POSTGRES_FK_QUERY] Postgres query for foreign keys failed: Code: {}, Message: {}", code, message)
-        })?;
+        ).await.map_err(|e| format!("Postgres query for foreign keys failed: {}", e))?;
 
         let mut fk_map: HashMap<(String, String), Vec<MetaForeignKey>> = HashMap::new();
         for row in rows {
