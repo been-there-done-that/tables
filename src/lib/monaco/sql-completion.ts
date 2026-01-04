@@ -35,6 +35,7 @@ export function registerSqlCompletion(monacoInstance: typeof monaco) {
                     connectionId,
                     text,
                     cursorOffset: offset,
+                    defaultSchema: schemaStore.activeSchema,
                 });
                 // console.timeEnd("rust_completion");
 

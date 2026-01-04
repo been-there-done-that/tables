@@ -157,6 +157,7 @@ pub async fn request_completions(
     connection_id: String,
     text: String,
     cursor_offset: usize,
+    default_schema: Option<String>,
 ) -> Result<Vec<CompletionItemDto>, String> {
     // 1. Cancellation: create new token, cancel old
     let cancel_token = CancellationToken::new();
@@ -211,7 +212,7 @@ pub async fn request_completions(
         }
         
         // Run completion engine
-        let items = CompletionEngine::complete(&semantic, &context, &schema);
+        let items = CompletionEngine::complete(&semantic, &context, &schema, default_schema.as_deref());
         
         // Convert to DTOs
         items.into_iter().map(CompletionItemDto::from).collect()

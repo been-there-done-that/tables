@@ -13,6 +13,7 @@ export class SchemaStore {
     error = $state<string | null>(null);
     lastRefreshed = $state<Date | null>(null);
     windowLabel = $state<string | null>(null);
+    activeSchema = $state<string | null>("public");
 
     async initialize(label: string) {
         this.windowLabel = label;

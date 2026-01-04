@@ -19,12 +19,12 @@
     let logs: string[] = $state([]);
 
     // Toolbar state
-    // We only track schema locally, database comes from global store
-    let selectedSchema = $state(context?.schemaName || "public");
-
-    // Sync state with context if it changes
+    // Use schemaStore.activeSchema instead of local state
+    // We synchronize it with context if provided
     $effect(() => {
-        if (context?.schemaName) selectedSchema = context.schemaName;
+        if (context?.schemaName) {
+            schemaStore.activeSchema = context.schemaName;
+        }
     });
 
     const currentSchemas = $derived.by(() => {
@@ -77,7 +77,7 @@
         if (query.trim()) {
             console.log(`[Execute] Running query from ${source}:`, query);
             log(
-                `Executing (${source}) in ${schemaStore.selectedDatabase}.${selectedSchema}:\n${query}`,
+                `Executing (${source}) in ${schemaStore.selectedDatabase}.${schemaStore.activeSchema}:\n${query}`,
             );
         } else {
             log("No query to execute");
@@ -118,7 +118,7 @@
             // Only set value if empty
             if (!handle.editor.getValue()) {
                 handle.editor.setValue(
-                    `-- SQL Auto-Completion Playground\n-- Context: ${schemaStore.selectedDatabase}.${selectedSchema}\n-- Type 'SELECT' or table names from your active connection\n\nSELECT * FROM `,
+                    `-- SQL Auto-Completion Playground\n-- Context: ${schemaStore.selectedDatabase}.${schemaStore.activeSchema}\n-- Type 'SELECT' or table names from your active connection\n\nSELECT * FROM `,
                 );
                 handle.editor.setPosition({ lineNumber: 4, column: 15 });
             }
@@ -161,15 +161,15 @@
         </div>
 
         <div class="flex items-center gap-2">
-            <!-- Schema Picker (Database is implicit from global selection) -->
+            <!-- Schema Picker -->
             <DropdownMenu.Root>
                 <DropdownMenu.Trigger
-                    class="flex items-center gap-1.5 rounded border border-border bg-background px-3 py-1 text-xs font-medium hover:bg-accent hover:text-accent-foreground transition-colors min-w-[100px]"
+                    class="flex items-center gap-1.5 rounded border border-border bg-background px-3 py-1 text-xs font-medium hover:bg-accent hover:text-accent-foreground transition-colors"
                     title="Select Schema"
                 >
                     <IconSchema class="size-3 text-muted-foreground" />
-                    <span class="truncate max-w-[100px]"
-                        >{selectedSchema || "public"}</span
+                    <span class="truncate max-w-[150px]"
+                        >{schemaStore.activeSchema || "public"}</span
                     >
                     <IconChevronDown
                         class="ml-auto size-3 text-muted-foreground"
@@ -177,13 +177,13 @@
                 </DropdownMenu.Trigger>
                 <DropdownMenu.Content
                     align="end"
-                    class="max-h-[300px] overflow-auto"
+                    class="min-w-[120px] w-max max-w-[300px] max-h-[300px] overflow-auto"
                 >
                     <DropdownMenu.Label>Schemas</DropdownMenu.Label>
                     <DropdownMenu.Separator />
                     <DropdownMenu.RadioGroup
-                        value={selectedSchema}
-                        onValueChange={(v) => (selectedSchema = v)}
+                        value={schemaStore.activeSchema || undefined}
+                        onValueChange={(v) => (schemaStore.activeSchema = v)}
                     >
                         {#each currentSchemas as schema (schema.name)}
                             <DropdownMenu.RadioItem value={schema.name}>
