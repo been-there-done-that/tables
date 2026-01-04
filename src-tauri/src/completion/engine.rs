@@ -89,6 +89,7 @@ impl CompletionEngine {
         semantic: &SemanticModel,
         context: &Context,
         schema: &SchemaGraph,
+        default_schema: Option<&str>,
     ) -> Vec<CompletionItem> {
         match &context.context_type {
             CursorContext::AfterDot { alias } => {
@@ -101,7 +102,7 @@ impl CompletionEngine {
                 Self::complete_root_context(context)
             }
             CursorContext::FromClause | CursorContext::JoinTable => {
-                Self::complete_table_names(schema, semantic, context)
+                Self::complete_table_names(schema, semantic, context, default_schema)
             }
             CursorContext::JoinCondition { left_table, right_table } => {
                 Self::complete_join_condition(left_table, right_table, semantic, schema)
@@ -289,18 +290,51 @@ impl CompletionEngine {
     fn complete_table_names(
         schema: &SchemaGraph, 
         semantic: &SemanticModel,
-        context: &Context
+        context: &Context,
+        default_schema: Option<&str>,
     ) -> Vec<CompletionItem> {
         let mut items = Vec::new();
         
+        let target_schema = default_schema.unwrap_or("public");
+
         // 1. Schema tables
-        for table_name in schema.table_names() {
+        for table_info in schema.tables.values() {
+            // Filter: Only show tables from current schema if specified?
+            // "tables should be coming from the current schema we have picked"
+            // We prioritize current schema, but maybe we should strictly filter?
+            // Let's implement prioritization + formatting first.
+            
+            let is_target = table_info.schema == target_schema;
+            let is_public = table_info.schema == "public";
+
+            // Format label: append schema if not public (or not target?)
+            // User: "append schema name if not public"
+            let label = if is_public {
+                table_info.name.clone()
+            } else {
+                if is_target {
+                   table_info.name.clone()
+                } else {
+                   format!("{}.{}", table_info.schema, table_info.name)
+                }
+            };
+            
+            // Score boost for current schema
+            let score = if is_target { 100 } else { 80 };
+            
+            // Only add if it matches target OR if we want to show all
+            // Interpreting "tables should be coming from the current schema we have picked"
+            // strictly: Filter non-matching schemas?
+            // But usually you want foreign tables available.
+            // I'll show ALL, but ranked.
+            // AND ensure non-public schemas are qualified in label.
+
             items.push(CompletionItem {
-                label: table_name.to_string(),
+                label,
                 kind: CompletionKind::Table,
-                detail: Some("table".to_string()),
-                insert_text: table_name.to_string(),
-                score: 100,
+                detail: Some(table_info.schema.clone()),
+                insert_text: table_info.name.clone(), // Or qualified? Usually raw name works if in search path
+                score,
             });
         }
 
@@ -609,7 +643,7 @@ mod tests {
             scope_depth: 0,
         };
         
-        let items = CompletionEngine::complete(&semantic, &context, &schema);
+        let items = CompletionEngine::complete(&semantic, &context, &schema, None);
         
         // Should return columns of users table
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
@@ -632,7 +666,7 @@ mod tests {
             scope_depth: 0,
         };
         
-        let items = CompletionEngine::complete_table_names(&schema, &semantic, &context);
+        let items = CompletionEngine::complete_table_names(&schema, &semantic, &context, None);
         
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(labels.contains(&"users"));
@@ -671,7 +705,7 @@ mod tests {
             scope_depth: 0,
         };
         
-        let items = CompletionEngine::complete(&semantic, &context, &schema);
+        let items = CompletionEngine::complete(&semantic, &context, &schema, None);
         
         // user_id (indexed) should rank higher than description (not indexed)
         let user_id_pos = items.iter().position(|i| i.label == "user_id");
