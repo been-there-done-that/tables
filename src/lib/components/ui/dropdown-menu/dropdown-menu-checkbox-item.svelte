@@ -26,5 +26,5 @@
             <Check class="h-4 w-4" />
         {/if}
     </span>
-    {@render children?.()}
+    {@render children?.({ checked, indeterminate: false })}
 </DropdownMenuPrimitive.CheckboxItem>

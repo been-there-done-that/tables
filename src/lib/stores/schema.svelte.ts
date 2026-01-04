@@ -9,6 +9,7 @@ export class SchemaStore {
     activeConnection = $state<Connection | null>(null);
     status = $state<"idle" | "connecting" | "refreshing" | "error">("idle");
     databases = $state<MetaDatabase[]>([]);
+    selectedDatabase = $state<string | null>(null);
     error = $state<string | null>(null);
     lastRefreshed = $state<Date | null>(null);
     windowLabel = $state<string | null>(null);
@@ -46,6 +47,7 @@ export class SchemaStore {
         this.error = null;
         this.activeConnection = conn;
         this.databases = []; // Clear previous schemas immediately
+        this.selectedDatabase = null;
         this.lastRefreshed = null;
 
         try {
@@ -110,6 +112,20 @@ export class SchemaStore {
 
             console.time("[SchemaStore] state update");
             this.databases = data;
+
+            // Auto-select database
+            if (this.databases.length > 0) {
+                // 1. Try configured database
+                const configuredDb = this.databases.find(d => d.name === conn.database);
+                if (configuredDb) {
+                    this.selectedDatabase = configuredDb.name;
+                } else {
+                    // 2. Fallback to first available
+                    this.selectedDatabase = this.databases[0].name;
+                }
+                console.log(`[SchemaStore] Auto-selected database: ${this.selectedDatabase}`);
+            }
+
             this.status = "idle";
             this.lastRefreshed = new Date();
             console.timeEnd("[SchemaStore] state update");
@@ -139,6 +155,7 @@ export class SchemaStore {
         const id = this.activeConnection.id;
         this.activeConnection = null;
         this.databases = [];
+        this.selectedDatabase = null;
         this.status = "idle";
 
         try {
@@ -226,6 +243,15 @@ export class SchemaStore {
         } catch (e) {
             this.status = "idle";
             toast.error("Refresh Failed", { description: String(e) });
+            toast.error("Refresh Failed", { description: String(e) });
+        }
+    }
+
+    selectDatabase(name: string) {
+        if (this.databases.find(d => d.name === name)) {
+            this.selectedDatabase = name;
+            // Trigger load if needed (optional, or rely on tree expansion)
+            this.loadDatabase(name);
         }
     }
 }

@@ -17,9 +17,13 @@
   import Logs from "@tabler/icons-svelte/icons/logs";
   import { invoke } from "@tauri-apps/api/core";
   import { windowState } from "$lib/stores/window.svelte";
+  import { schemaStore } from "$lib/stores/schema.svelte";
   import { cn } from "$lib/utils";
   import DataSource from "./components/datasource/DataSource.svelte";
   import ConnectionPicker from "$lib/components/ConnectionPicker.svelte";
+  import * as Menu from "$lib/components/ui/dropdown-menu";
+  import IconDatabase from "@tabler/icons-svelte/icons/database";
+  import IconChevronDown from "@tabler/icons-svelte/icons/chevron-down";
 
   import WindowControls from "$lib/components/WindowControls.svelte";
 
@@ -83,6 +87,36 @@
       >
         {#if !["datasource-window", "appearance-window"].includes(windowState.label)}
           <ConnectionPicker />
+
+          {#if schemaStore.activeConnection?.engine === "postgres"}
+            <div class="h-4 w-px bg-border mx-1"></div>
+            <!-- Database Picker -->
+            <Menu.Root>
+              <Menu.Trigger>
+                <button
+                  class="flex items-center gap-1.5 px-2 py-1 text-xs font-medium rounded-md hover:bg-(--theme-bg-hover) text-(--theme-fg-secondary) hover:text-(--theme-fg-primary) transition-colors"
+                >
+                  <IconDatabase class="size-3.5 opacity-70" />
+                  <span>{schemaStore.selectedDatabase || "Select DB"}</span>
+                  <IconChevronDown class="size-3 opacity-50" />
+                </button>
+              </Menu.Trigger>
+              <Menu.Content align="start" class="max-h-[300px] overflow-auto">
+                <Menu.Label>Databases</Menu.Label>
+                <Menu.Separator />
+                <Menu.RadioGroup
+                  value={schemaStore.selectedDatabase ?? undefined}
+                  onValueChange={(val) => schemaStore.selectDatabase(val)}
+                >
+                  {#each schemaStore.databases as db (db.name)}
+                    <Menu.RadioItem value={db.name}>
+                      {db.name}
+                    </Menu.RadioItem>
+                  {/each}
+                </Menu.RadioGroup>
+              </Menu.Content>
+            </Menu.Root>
+          {/if}
         {/if}
       </div>
 

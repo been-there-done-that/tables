@@ -20,7 +20,7 @@
 
   import SqlTestingEditor from "$lib/components/SqlTestingEditor.svelte";
 
-  let fileTree: any;
+  let fileTree = $state<any>(null);
   let showSqlEditor = $state(false);
 
   const activeSession = $derived(windowState.activeSession);
@@ -41,60 +41,52 @@
   });
 
   const treeData = $derived.by(() => {
-    const databases = schemaStore.databases;
     const activeConn = schemaStore.activeConnection;
+    const selectedDbName = schemaStore.selectedDatabase;
 
-    if (!activeConn) return [];
+    if (!activeConn || !selectedDbName) return [];
 
-    return databases.map((db) => {
-      const schemaNodes = db.schemas.map((schema) => {
-        const tables = schema.tables.filter((t) => t.table_type === "table");
-        const views = schema.tables.filter((t) => t.table_type === "view");
+    const db = schemaStore.databases.find((d) => d.name === selectedDbName);
+    if (!db) return [];
 
-        const children: TreeNode[] = [];
+    // Map schemas directly to root nodes
+    return db.schemas.map((schema) => {
+      const tables = schema.tables.filter((t) => t.table_type === "table");
+      const views = schema.tables.filter((t) => t.table_type === "view");
 
-        if (tables.length > 0) {
-          children.push({
-            id: `folder:tables:${db.name}:${schema.name}`,
-            name: "tables",
-            type: "folder" as NodeType,
-            count: tables.length,
-            children: tables.map((table) =>
-              mapTableToNode(table, db.name, schema.name),
-            ),
-          });
-        }
+      const children: TreeNode[] = [];
 
-        if (views.length > 0) {
-          children.push({
-            id: `folder:views:${db.name}:${schema.name}`,
-            name: "views",
-            type: "folder" as NodeType,
-            count: views.length,
-            children: views.map((table) => ({
-              ...mapTableToNode(table, db.name, schema.name),
-              detail: undefined,
-            })),
-          });
-        }
+      if (tables.length > 0) {
+        children.push({
+          id: `folder:tables:${db.name}:${schema.name}`,
+          name: "tables",
+          type: "folder" as NodeType,
+          count: tables.length,
+          children: tables.map((table) =>
+            mapTableToNode(table, db.name, schema.name),
+          ),
+        });
+      }
 
-        return {
-          id: `schema:${db.name}:${schema.name}`,
-          name: schema.name,
-          type: "schema" as NodeType,
-          children,
-          metadata: { dbName: db.name, schemaName: schema.name },
-        };
-      });
+      if (views.length > 0) {
+        children.push({
+          id: `folder:views:${db.name}:${schema.name}`,
+          name: "views",
+          type: "folder" as NodeType,
+          count: views.length,
+          children: views.map((table) => ({
+            ...mapTableToNode(table, db.name, schema.name),
+            detail: undefined,
+          })),
+        });
+      }
 
       return {
-        id: `db:${db.name}`,
-        name: db.name,
-        type: "database" as NodeType,
-        children: schemaNodes,
-        isConnected: db.is_connected,
-        isLoading: db.is_loading,
-        metadata: { dbName: db.name },
+        id: `schema:${db.name}:${schema.name}`,
+        name: schema.name,
+        type: "schema" as NodeType,
+        children,
+        metadata: { dbName: db.name, schemaName: schema.name },
       };
     });
   });

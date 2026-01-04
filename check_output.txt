@@ -1,0 +1,98 @@
+
+> tables@0.1.0 check /Users/__deesh_reddy__/projects/personal_git/rust_builds/completion_core
+> svelte-kit sync && svelte-check --tsconfig ./tsconfig.json
+
+Loading svelte-check in workspace: /Users/__deesh_reddy__/projects/personal_git/rust_builds/completion_core
+Getting Svelte diagnostics...
+
+/Users/__deesh_reddy__/projects/personal_git/rust_builds/completion_core/src/lib/components/ui/context-menu/context-menu-trigger.svelte:27:1
+Warn: `<div>` with a contextmenu handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions (svelte)
+
+<div class="contents" oncontextmenu={handleContextMenu}>
+	{@render children?.()}
+</div>
+
+/Users/__deesh_reddy__/projects/personal_git/rust_builds/completion_core/src/lib/components/ui/context-menu/context-menu-trigger-left.svelte:24:1
+Warn: `<div>` with a click or keydown handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions (svelte)
+
+<div
+    class="w-fit h-fit"
+    onclick={handleClick}
+    onkeydown={(e) => e.key === "Enter" && handleClick(e as any)}
+>
+    {@render children?.()}
+</div>
+
+/Users/__deesh_reddy__/projects/personal_git/rust_builds/completion_core/src/lib/components/ui/dropdown-menu/dropdown-menu-shortcut.svelte:11:1
+Warn: Self-closing HTML tags for non-void elements are ambiguous — use `<span ...></span>` rather than `<span ... />`
+https://svelte.dev/e/element_invalid_self_closing_tag (svelte)
+<!-- svelte-ignore a11y_missing_content -->
+<span
+    class={cn("ml-auto text-xs tracking-widest opacity-60", className)}
+    {...restProps}
+/>
+
+/Users/__deesh_reddy__/projects/personal_git/rust_builds/completion_core/src/lib/components/ui/dropdown-menu/dropdown-menu-label.svelte:13:24
+Error: Property 'Label' does not exist on type 'typeof import("/Users/__deesh_reddy__/projects/personal_git/rust_builds/completion_core/node_modules/.pnpm/bits-ui@2.14.4_@internationalized+date@3.10.1_@sveltejs+kit@2.49.2_@sveltejs+vite-plugi_0780b9150a58c3a357a0b639ea647919/node_modules/bits-ui/dist/bits/dropdown-menu/exports")'. (ts)
+
+<DropdownMenuPrimitive.Label
+    bind:ref
+
+/Users/__deesh_reddy__/projects/personal_git/rust_builds/completion_core/src/lib/components/ui/dropdown-menu/dropdown-menu-label.svelte:19:25
+Error: Property 'Label' does not exist on type 'typeof import("/Users/__deesh_reddy__/projects/personal_git/rust_builds/completion_core/node_modules/.pnpm/bits-ui@2.14.4_@internationalized+date@3.10.1_@sveltejs+kit@2.49.2_@sveltejs+vite-plugi_0780b9150a58c3a357a0b639ea647919/node_modules/bits-ui/dist/bits/dropdown-menu/exports")'. (ts)
+    {@render children?.()}
+</DropdownMenuPrimitive.Label>
+
+/Users/__deesh_reddy__/projects/personal_git/rust_builds/completion_core/src/lib/components/ui/dropdown-menu/dropdown-menu-checkbox-item.svelte:29:14
+Error: Expected 1 arguments, but got 0. (ts)
+    </span>
+    {@render children?.()}
+</DropdownMenuPrimitive.CheckboxItem>
+
+/Users/__deesh_reddy__/projects/personal_git/rust_builds/completion_core/src/lib/components/SqlTestingEditor.svelte:23:33
+Warn: This reference only captures the initial value of `context`. Did you mean to reference it inside a derived instead?
+https://svelte.dev/e/state_referenced_locally (svelte)
+    // We only track schema locally, database comes from global store
+    let selectedSchema = $state(context?.schemaName || "public");
+
+/Users/__deesh_reddy__/projects/personal_git/rust_builds/completion_core/src/lib/components/explorer/FileTree.svelte:1:19
+Warn: `context="module"` is deprecated, use the `module` attribute instead
+https://svelte.dev/e/script_context_deprecated (svelte)
+<script lang="ts" context="module">
+    import ChevronRight from "@tabler/icons-svelte/icons/chevron-right";
+
+/Users/__deesh_reddy__/projects/personal_git/rust_builds/completion_core/src/lib/components/table/editors/InlineTextEditor.svelte:21:34
+Warn: This reference only captures the initial value of `value`. Did you mean to reference it inside a closure instead?
+https://svelte.dev/e/state_referenced_locally (svelte)
+    let inputEl: HTMLInputElement;
+    let localValue = $state<any>(value); // Initialize with passed value
+
+/Users/__deesh_reddy__/projects/personal_git/rust_builds/completion_core/src/lib/components/table/JsonPopoverEditor.svelte:39:43
+Warn: This reference only captures the initial value of `value`. Did you mean to reference it inside a closure instead?
+https://svelte.dev/e/state_referenced_locally (svelte)
+
+    const originalText = buildInitialText(value);
+    const originalParsed = parseJsonSafe(originalText, value);
+
+/Users/__deesh_reddy__/projects/personal_git/rust_builds/completion_core/src/lib/components/table/JsonPopoverEditor.svelte:40:56
+Warn: This reference only captures the initial value of `value`. Did you mean to reference it inside a closure instead?
+https://svelte.dev/e/state_referenced_locally (svelte)
+    const originalText = buildInitialText(value);
+    const originalParsed = parseJsonSafe(originalText, value);
+
+/Users/__deesh_reddy__/projects/personal_git/rust_builds/completion_core/src/lib/components/table/JsonPopoverEditor.svelte:273:9
+Warn: `<div>` with a contextmenu handler must have an ARIA role
+https://svelte.dev/e/a11y_no_static_element_interactions (svelte)
+    <div class="flex-1 overflow-hidden min-h-[180px] relative">
+        <div
+            bind:this={editorContainer}
+            class="absolute inset-0 h-full w-full"
+            oncontextmenu={handleEditorContextMenu}
+        ></div>
+        {#if errorMessage}
+
+====================================
+svelte-check found 3 errors and 9 warnings in 9 files
+ ELIFECYCLE  Command failed with exit code 1.
