@@ -135,6 +135,18 @@ CREATE TABLE IF NOT EXISTS meta_foreign_keys (
     PRIMARY KEY (connection_id, database, schema, table_name, column_name, ref_table, ref_column),
     FOREIGN KEY (connection_id, database, schema, table_name) REFERENCES meta_tables(connection_id, database, schema, table_name) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS meta_triggers (
+    connection_id TEXT NOT NULL,
+    database TEXT NOT NULL DEFAULT 'main',
+    schema TEXT NOT NULL DEFAULT 'main',
+    table_name TEXT NOT NULL,
+    trigger_name TEXT NOT NULL,
+    event TEXT NOT NULL,
+    timing TEXT NOT NULL,
+    PRIMARY KEY (connection_id, database, schema, table_name, trigger_name),
+    FOREIGN KEY (connection_id, database, schema, table_name) REFERENCES meta_tables(connection_id, database, schema, table_name) ON DELETE CASCADE
+);
 "#;
 
 const CREATE_WINDOW_SESSIONS_TABLE: &str = r#"

@@ -32,6 +32,7 @@ pub struct MetaTable {
     pub columns: Vec<MetaColumn>,
     pub foreign_keys: Vec<MetaForeignKey>,
     pub indexes: Vec<MetaIndex>,
+    pub triggers: Vec<MetaTrigger>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -79,6 +80,17 @@ pub struct MetaForeignKey {
     pub column_name: String,
     pub ref_table: String,
     pub ref_column: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MetaTrigger {
+    pub connection_id: String,
+    pub database: String,
+    pub schema: String,
+    pub table_name: String,
+    pub trigger_name: String,
+    pub event: String,      // INSERT, UPDATE, DELETE
+    pub timing: String,     // BEFORE, AFTER, INSTEAD OF
 }
 
 pub struct Introspector {
@@ -142,6 +154,7 @@ impl Introspector {
                 columns,
                 foreign_keys,
                 indexes,
+                triggers: vec![],  // SQLite triggers introspection TODO
             };
 
             // Save everything to DB (Cache)
@@ -247,6 +260,7 @@ impl Introspector {
                 columns,
                 foreign_keys,
                 indexes,
+                triggers: vec![],  // Will be loaded in level 4
             });
         }
 
@@ -406,6 +420,9 @@ impl Introspector {
         for idx in &table.indexes {
             self.save_index(tx, idx.clone())?;
         }
+        for trigger in &table.triggers {
+            self.save_trigger(tx, trigger.clone())?;
+        }
         Ok(())
     }
 
@@ -462,6 +479,14 @@ impl Introspector {
         Ok(())
     }
 
+    fn save_trigger(&self, conn: &SqliteConnection, trigger: MetaTrigger) -> Result<(), String> {
+        conn.execute(
+            "INSERT OR REPLACE INTO meta_triggers (connection_id, database, schema, table_name, trigger_name, event, timing) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![trigger.connection_id, trigger.database, trigger.schema, trigger.table_name, trigger.trigger_name, trigger.event, trigger.timing]
+        ).map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
     // API Helpers
     pub fn get_tables(&self, connection_id: &str) -> Result<Vec<MetaTable>, String> {
         let conn = self.app_db.lock().unwrap();
@@ -480,6 +505,7 @@ impl Introspector {
                 columns: vec![],  // Will be populated below
                 foreign_keys: vec![],
                 indexes: vec![],
+                triggers: vec![],
             })
         }).map_err(|e| e.to_string())?;
 
@@ -514,6 +540,77 @@ impl Introspector {
             ).map_err(|e| e.to_string())?;
             
             table.columns = columns.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+
+            // Load foreign keys
+            let mut fk_stmt = conn.prepare(
+                "SELECT column_name, ref_table, ref_column 
+                 FROM meta_foreign_keys 
+                 WHERE connection_id = ?1 AND database = ?2 AND schema = ?3 AND table_name = ?4"
+            ).map_err(|e| e.to_string())?;
+            
+            let fks = fk_stmt.query_map(
+                params![&table.connection_id, &table.database, &table.schema, &table.table_name],
+                |row| {
+                    Ok(MetaForeignKey {
+                        connection_id: table.connection_id.clone(),
+                        database: table.database.clone(),
+                        schema: table.schema.clone(),
+                        table_name: table.table_name.clone(),
+                        column_name: row.get(0)?,
+                        ref_table: row.get(1)?,
+                        ref_column: row.get(2)?,
+                    })
+                }
+            ).map_err(|e| e.to_string())?;
+            
+            table.foreign_keys = fks.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+
+            // Load indexes
+            let mut idx_stmt = conn.prepare(
+                "SELECT index_name, is_unique 
+                 FROM meta_indexes 
+                 WHERE connection_id = ?1 AND database = ?2 AND schema = ?3 AND table_name = ?4"
+            ).map_err(|e| e.to_string())?;
+            
+            let indexes = idx_stmt.query_map(
+                params![&table.connection_id, &table.database, &table.schema, &table.table_name],
+                |row| {
+                    Ok(MetaIndex {
+                        connection_id: table.connection_id.clone(),
+                        database: table.database.clone(),
+                        schema: table.schema.clone(),
+                        table_name: table.table_name.clone(),
+                        index_name: row.get(0)?,
+                        is_unique: row.get::<_, i32>(1)? != 0,
+                    })
+                }
+            ).map_err(|e| e.to_string())?;
+            
+            table.indexes = indexes.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+
+            // Load triggers
+            let mut trigger_stmt = conn.prepare(
+                "SELECT trigger_name, event, timing 
+                 FROM meta_triggers 
+                 WHERE connection_id = ?1 AND database = ?2 AND schema = ?3 AND table_name = ?4"
+            ).map_err(|e| e.to_string())?;
+            
+            let triggers = trigger_stmt.query_map(
+                params![&table.connection_id, &table.database, &table.schema, &table.table_name],
+                |row| {
+                    Ok(MetaTrigger {
+                        connection_id: table.connection_id.clone(),
+                        database: table.database.clone(),
+                        schema: table.schema.clone(),
+                        table_name: table.table_name.clone(),
+                        trigger_name: row.get(0)?,
+                        event: row.get(1)?,
+                        timing: row.get(2)?,
+                    })
+                }
+            ).map_err(|e| e.to_string())?;
+            
+            table.triggers = triggers.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
         }
         
         Ok(tables)
@@ -751,6 +848,7 @@ impl Introspector {
                 columns,
                 foreign_keys,
                 indexes,
+                triggers: vec![],  // Will be loaded in level 4
             });
         }
 
@@ -934,5 +1032,197 @@ impl Introspector {
             });
         }
         Ok(indexes)
+    }
+
+    async fn introspect_postgres_triggers(&self, client: &tokio_postgres::Client, connection_id: &str, database: &str, schema: &str, table_name: &str) -> Result<Vec<MetaTrigger>, String> {
+        let rows = client.query(
+            "SELECT trigger_name, event_manipulation, action_timing
+             FROM information_schema.triggers
+             WHERE event_object_schema = $1 AND event_object_table = $2",
+            &[&schema, &table_name]
+        ).await.map_err(|e| e.to_string())?;
+
+        let mut triggers = Vec::new();
+        for row in rows {
+            triggers.push(MetaTrigger {
+                connection_id: connection_id.to_string(),
+                database: database.to_string(),
+                schema: schema.to_string(),
+                table_name: table_name.to_string(),
+                trigger_name: row.get(0),
+                event: row.get(1),
+                timing: row.get(2),
+            });
+        }
+        Ok(triggers)
+    }
+
+    /// Progressive introspection with event emission at each level
+    pub async fn introspect_postgres_progressive(&self, connection_id: &str, config: serde_json::Value, app: &tauri::AppHandle) -> Result<(), String> {
+        use tauri::Emitter;
+        
+        let start_time = std::time::Instant::now();
+        info!("Starting progressive Postgres introspection for connection {}", connection_id);
+
+        let db = config.get("db").ok_or("Missing 'db' config")?;
+        let host = db.get("host").and_then(|v| v.as_str()).ok_or("Missing host")?;
+        let port = db.get("port").and_then(|v| v.as_u64()).unwrap_or(5432) as u16;
+        let user = db.get("username").and_then(|v| v.as_str()).ok_or("Missing username")?;
+        let current_database = db.get("database").and_then(|v| v.as_str()).ok_or("Missing database")?;
+        let password = db.get("password").and_then(|v| v.as_str()).unwrap_or("");
+        
+        let tls_enabled = config.get("tls")
+            .and_then(|t| t.get("enabled"))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        
+        let conn_str = format!("postgres://{}:{}@{}:{}/{}", user, password, host, port, current_database);
+        
+        let client: tokio_postgres::Client = if tls_enabled {
+            let tls_connector = native_tls::TlsConnector::builder()
+                .danger_accept_invalid_certs(true)
+                .build()
+                .map_err(|e| format!("Failed to build TLS connector: {}", e))?;
+            let connector = postgres_native_tls::MakeTlsConnector::new(tls_connector);
+            let (client, connection) = tokio_postgres::connect(&conn_str, connector).await
+                .map_err(|e| format!("Connection error: {}", e))?;
+            tokio::spawn(async move { let _ = connection.await; });
+            client
+        } else {
+            let (client, connection) = tokio_postgres::connect(&conn_str, tokio_postgres::NoTls).await
+                .map_err(|e| format!("Connection error: {}", e))?;
+            tokio::spawn(async move { let _ = connection.await; });
+            client
+        };
+
+        // === LEVEL 1: Databases ===
+        let db_rows = client.query("SELECT datname FROM pg_database WHERE datistemplate = false", &[]).await
+            .map_err(|e| e.to_string())?;
+        let all_databases: Vec<String> = db_rows.iter().map(|r| r.get(0)).collect();
+        
+        {
+            let app_db = self.app_db.lock().unwrap();
+            let tx = app_db.unchecked_transaction().map_err(|e| e.to_string())?;
+            for db_name in &all_databases {
+                self.save_database(&tx, connection_id, db_name)?;
+            }
+            tx.commit().map_err(|e| e.to_string())?;
+        }
+        let _ = app.emit("schema:level-complete", serde_json::json!({
+            "level": 1,
+            "connection_id": connection_id,
+            "databases": &all_databases,
+        }));
+        info!("Level 1 complete: {} databases", all_databases.len());
+
+        // === LEVEL 2: Schemas ===
+        let schema_rows = client.query(
+            "SELECT schema_name FROM information_schema.schemata WHERE catalog_name = $1",
+            &[&current_database]
+        ).await.map_err(|e| e.to_string())?;
+        let all_schemas: Vec<String> = schema_rows.iter().map(|r| r.get(0)).collect();
+        
+        let _ = app.emit("schema:level-complete", serde_json::json!({
+            "level": 2,
+            "connection_id": connection_id,
+            "schemas": &all_schemas,
+        }));
+        info!("Level 2 complete: {} schemas", all_schemas.len());
+
+        // === LEVEL 3: Tables + Columns (bulk) ===
+        let table_rows = client.query(
+            "SELECT table_schema, table_name, table_type 
+             FROM information_schema.tables 
+             WHERE table_type IN ('BASE TABLE', 'VIEW')", 
+            &[]
+        ).await.map_err(|e| e.to_string())?;
+
+        let mut tables = Vec::new();
+        let now = chrono::Utc::now().timestamp_millis();
+
+        for row in &table_rows {
+            let schema: String = row.get(0);
+            let name: String = row.get(1);
+            let type_str: String = row.get(2);
+            let table_type = if type_str == "BASE TABLE" { "table" } else { "view" };
+
+            let columns = self.introspect_postgres_columns(&client, connection_id, current_database, &schema, &name).await?;
+
+            tables.push(MetaTable {
+                connection_id: connection_id.to_string(),
+                database: current_database.to_string(),
+                schema,
+                table_name: name,
+                table_type: table_type.to_string(),
+                classification: "user".to_string(),
+                last_introspected_at: now,
+                columns,
+                foreign_keys: vec![],
+                indexes: vec![],
+                triggers: vec![],
+            });
+        }
+
+        // Save tables in transaction
+        {
+            let app_db = self.app_db.lock().unwrap();
+            let tx = app_db.unchecked_transaction().map_err(|e| e.to_string())?;
+            for t in &tables {
+                self.save_table(&tx, t.clone())?;
+                for col in &t.columns {
+                    self.save_column(&tx, col.clone())?;
+                }
+            }
+            tx.commit().map_err(|e| e.to_string())?;
+        }
+        let _ = app.emit("schema:level-complete", serde_json::json!({
+            "level": 3,
+            "connection_id": connection_id,
+            "table_count": tables.len(),
+        }));
+        info!("Level 3 complete: {} tables", tables.len());
+
+        // === LEVEL 4: FK + Indexes + Triggers (bulk) ===
+        for table in &mut tables {
+            table.foreign_keys = self.introspect_postgres_foreign_keys(&client, connection_id, current_database, &table.schema, &table.table_name).await?;
+            table.indexes = self.introspect_postgres_indexes(&client, connection_id, current_database, &table.schema, &table.table_name).await?;
+            table.triggers = self.introspect_postgres_triggers(&client, connection_id, current_database, &table.schema, &table.table_name).await?;
+        }
+
+        // Save FK/indexes/triggers in transaction
+        {
+            let app_db = self.app_db.lock().unwrap();
+            let tx = app_db.unchecked_transaction().map_err(|e| e.to_string())?;
+            for t in &tables {
+                for fk in &t.foreign_keys {
+                    self.save_foreign_key(&tx, fk.clone())?;
+                }
+                for idx in &t.indexes {
+                    self.save_index(&tx, idx.clone())?;
+                }
+                for trigger in &t.triggers {
+                    self.save_trigger(&tx, trigger.clone())?;
+                }
+            }
+            tx.commit().map_err(|e| e.to_string())?;
+        }
+        
+        let fk_count: usize = tables.iter().map(|t| t.foreign_keys.len()).sum();
+        let idx_count: usize = tables.iter().map(|t| t.indexes.len()).sum();
+        let trigger_count: usize = tables.iter().map(|t| t.triggers.len()).sum();
+        
+        let _ = app.emit("schema:level-complete", serde_json::json!({
+            "level": 4,
+            "connection_id": connection_id,
+            "fk_count": fk_count,
+            "index_count": idx_count,
+            "trigger_count": trigger_count,
+        }));
+        
+        let elapsed = start_time.elapsed();
+        info!("Progressive introspection completed in {:.2?} ({} tables, {} FK, {} indexes, {} triggers)", 
+            elapsed, tables.len(), fk_count, idx_count, trigger_count);
+
+        Ok(())
     }
 }

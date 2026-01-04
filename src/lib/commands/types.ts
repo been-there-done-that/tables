@@ -277,6 +277,7 @@ export interface MetaTable {
   columns: MetaColumn[];
   foreign_keys: MetaForeignKey[];
   indexes: MetaIndex[];
+  triggers: MetaTrigger[];
 }
 
 export interface MetaColumn {
@@ -310,4 +311,14 @@ export interface MetaIndex {
   table_name: string;
   index_name: string;
   is_unique: boolean;
+}
+
+export interface MetaTrigger {
+  connection_id: string;
+  database: string;
+  schema: string;
+  table_name: string;
+  trigger_name: string;
+  event: string;
+  timing: string;
 }

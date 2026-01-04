@@ -140,6 +140,18 @@
             detail: `-> ${fk.ref_table}.${fk.ref_column}`,
           })),
         },
+        {
+          id: `triggers:${tableId}`,
+          name: "Triggers",
+          type: "group" as NodeType,
+          count: cachedDetails.triggers?.length || 0,
+          children: (cachedDetails.triggers || []).map((t: any) => ({
+            id: `trigger:${tableId}.${t.trigger_name}`,
+            name: t.trigger_name,
+            type: "trigger" as NodeType,
+            detail: `${t.timing} ${t.event}`,
+          })),
+        },
       ];
     } else {
       // Show placeholder - will be replaced when expanded
