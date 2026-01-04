@@ -108,7 +108,8 @@ export class SchemaStore {
             console.time("[SchemaStore] update_completion_schema");
             await invoke("update_completion_schema", {
                 connectionId: conn.id,
-                databases: data
+                databases: data,
+                selectedDatabase: conn.database  // Filter by configured database
             });
             console.timeEnd("[SchemaStore] update_completion_schema");
 
@@ -200,10 +201,11 @@ export class SchemaStore {
                 this.databases[index] = { ...updatedDb, is_loading: false };
             }
 
-            // Sync completion cache
+            // Sync completion cache - use the just-loaded database
             await invoke("update_completion_schema", {
                 connectionId: this.activeConnection.id,
-                databases: this.databases
+                databases: this.databases,
+                selectedDatabase: dbName
             });
 
             toast.success(`Database Loaded`, {
@@ -236,7 +238,8 @@ export class SchemaStore {
             // Sync completion cache
             await invoke<void>("update_completion_schema", {
                 connectionId: this.activeConnection.id,
-                databases: data
+                databases: data,
+                selectedDatabase: this.selectedDatabase
             });
 
             this.databases = data;
