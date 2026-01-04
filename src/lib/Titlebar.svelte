@@ -30,6 +30,7 @@
   let { isFullScreen } = $props();
   // let icons = $state(false);
   let datasourceWindowOpen = $state(false);
+  let isDbPickerOpen = $state(false);
 
   // Use user agent to detect Windows.
   // Note: This is a simple check. For improved reliability might want to use `@tauri-apps/plugin-os` in future.
@@ -90,27 +91,59 @@
 
           {#if schemaStore.activeConnection?.engine === "postgres"}
             <div class="h-4 w-px bg-border mx-1"></div>
-            <!-- Database Picker -->
-            <Menu.Root>
-              <Menu.Trigger>
-                <button
-                  class="flex items-center gap-1.5 px-2 py-1 text-xs font-medium rounded-md hover:bg-(--theme-bg-hover) text-(--theme-fg-secondary) hover:text-(--theme-fg-primary) transition-colors"
-                >
-                  <IconDatabase class="size-3.5 opacity-70" />
-                  <span>{schemaStore.selectedDatabase || "Select DB"}</span>
-                  <IconChevronDown class="size-3 opacity-50" />
-                </button>
+            <Menu.Root bind:open={isDbPickerOpen}>
+              <Menu.Trigger
+                class={cn(
+                  "group flex items-center gap-2 p-1 text-xs font-medium rounded-md transition-all duration-200",
+                  "hover:bg-(--theme-bg-hover) active:bg-(--theme-bg-active)",
+                  "border border-transparent focus:outline-none focus:ring-1 focus:ring-(--theme-border-active)",
+                  isDbPickerOpen ? "bg-(--theme-bg-active)" : "",
+                )}
+              >
+                <div class="flex items-center gap-2 px-2">
+                  <IconDatabase
+                    class={cn(
+                      "size-3.5 opacity-70 transition-opacity",
+                      isDbPickerOpen &&
+                        "opacity-100 text-(--theme-accent-primary)",
+                    )}
+                  />
+                  <span class="text-(--theme-fg-primary)"
+                    >{schemaStore.selectedDatabase || "Select DB"}</span
+                  >
+                  <IconChevronDown
+                    class={cn(
+                      "size-3 opacity-50 transition-transform duration-200",
+                      isDbPickerOpen && "rotate-180",
+                    )}
+                  />
+                </div>
               </Menu.Trigger>
-              <Menu.Content align="start" class="max-h-[300px] overflow-auto">
-                <Menu.Label>Databases</Menu.Label>
-                <Menu.Separator />
+              <Menu.Content
+                align="center"
+                sideOffset={8}
+                class="min-w-48 w-max max-w-[400px] max-h-80 overflow-auto z-50 p-1 bg-(--theme-bg-secondary) border border-(--theme-border-default)"
+              >
+                <Menu.Label
+                  class="px-2 py-1.5 text-xs font-semibold text-muted-foreground"
+                  >Databases</Menu.Label
+                >
+                <Menu.Separator class="my-1 h-px bg-border" />
                 <Menu.RadioGroup
                   value={schemaStore.selectedDatabase ?? undefined}
                   onValueChange={(val) => schemaStore.selectDatabase(val)}
                 >
                   {#each schemaStore.databases as db (db.name)}
-                    <Menu.RadioItem value={db.name}>
-                      {db.name}
+                    <Menu.RadioItem
+                      value={db.name}
+                      class="flex items-center gap-2 px-2 py-1.5 text-xs outline-none select-none data-highlighted:bg-accent data-highlighted:text-accent-foreground cursor-default"
+                    >
+                      <span class="flex-1 truncate">{db.name}</span>
+                      {#if schemaStore.selectedDatabase === db.name}
+                        <div
+                          class="size-1 rounded-full bg-primary ml-auto"
+                        ></div>
+                      {/if}
                     </Menu.RadioItem>
                   {/each}
                 </Menu.RadioGroup>
