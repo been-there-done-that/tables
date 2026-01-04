@@ -80,8 +80,11 @@ pub struct MetaForeignKey {
     pub schema: String,
     pub table_name: String,
     pub column_name: String,
+    pub ref_schema: String,
     pub ref_table: String,
     pub ref_column: String,
+    pub constraint_name: String,
+    pub seq_no: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -443,18 +446,23 @@ impl Introspector {
     }
 
     fn introspect_foreign_keys_internal(&self, target_conn: &SqliteConnection, connection_id: &str, database: &str, schema: &str, table_name: &str) -> Result<Vec<MetaForeignKey>, String> {
-        let mut stmt = target_conn.prepare(&format!("SELECT \"from\", \"table\", \"to\" FROM pragma_foreign_key_list('{}')", table_name))
+        let mut stmt = target_conn.prepare(&format!("SELECT \"id\", \"seq\", \"table\", \"from\", \"to\" FROM pragma_foreign_key_list('{}') ORDER BY \"id\", \"seq\"", table_name))
             .map_err(|e| e.to_string())?;
 
         let rows = stmt.query_map([], |row| {
+            let id: i32 = row.get(0)?;
+            let seq: i32 = row.get(1)?;
             Ok(MetaForeignKey {
                 connection_id: connection_id.to_string(),
                 database: database.to_string(),
                 schema: schema.to_string(),
                 table_name: table_name.to_string(),
-                column_name: row.get(0)?,
-                ref_table: row.get(1)?,
-                ref_column: row.get(2)?,
+                column_name: row.get(3)?,
+                ref_schema: "main".to_string(),
+                ref_table: row.get(2)?,
+                ref_column: row.get(4)?,
+                constraint_name: format!("fk_{}_{}", table_name, id),
+                seq_no: seq + 1,
             })
         }).map_err(|e| e.to_string())?;
 
@@ -520,7 +528,7 @@ impl Introspector {
         conn.execute(
             "INSERT OR REPLACE INTO meta_databases (connection_id, name) VALUES (?1, ?2)",
             params![connection_id, name]
-        ).map_err(|e| e.to_string())?;
+        ).map_err(|e| format!("Failed to save database '{}' to local cache: {}", name, e))?;
         Ok(())
     }
 
@@ -528,7 +536,7 @@ impl Introspector {
         conn.execute(
             "INSERT OR REPLACE INTO meta_schemas (connection_id, database, name, schema_type) VALUES (?1, ?2, ?3, ?4)",
             params![connection_id, database, name, schema_type]
-        ).map_err(|e| e.to_string())?;
+        ).map_err(|e| format!("Failed to save schema '{}.{}' to local cache: {}", database, name, e))?;
         Ok(())
     }
 
@@ -540,7 +548,7 @@ impl Introspector {
                classification=excluded.classification,
                last_introspected_at=excluded.last_introspected_at",
             params![table.connection_id, table.database, table.schema, table.table_name, table.table_type, table.classification, table.last_introspected_at]
-        ).map_err(|e| e.to_string())?;
+        ).map_err(|e| format!("Failed to save table '{}.{}.{}' to local cache: {}", table.database, table.schema, table.table_name, e))?;
         Ok(())
     }
 
@@ -549,15 +557,21 @@ impl Introspector {
             "INSERT OR REPLACE INTO meta_columns (connection_id, database, schema, table_name, ordinal_position, column_name, raw_type, logical_type, nullable, default_value, is_primary_key) 
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
             params![col.connection_id, col.database, col.schema, col.table_name, col.ordinal_position, col.column_name, col.raw_type, col.logical_type, col.nullable as i32, col.default_value, col.is_primary_key as i32]
-        ).map_err(|e| e.to_string())?;
+        ).map_err(|e| format!("Failed to save column '{}.{}.{}.{}' to local cache: {}", col.database, col.schema, col.table_name, col.column_name, e))?;
         Ok(())
     }
 
     fn save_foreign_key(&self, conn: &SqliteConnection, fk: MetaForeignKey) -> Result<(), String> {
         conn.execute(
-            "INSERT OR REPLACE INTO meta_foreign_keys (connection_id, database, schema, table_name, column_name, ref_table, ref_column) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params![fk.connection_id, fk.database, fk.schema, fk.table_name, fk.column_name, fk.ref_table, fk.ref_column]
-        ).map_err(|e| e.to_string())?;
+            "INSERT INTO meta_foreign_keys (connection_id, database, schema, table_name, column_name, ref_schema, ref_table, ref_column, constraint_name, seq_no) 
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+             ON CONFLICT(connection_id, database, schema, table_name, constraint_name, seq_no) DO UPDATE SET
+               column_name=excluded.column_name,
+               ref_schema=excluded.ref_schema,
+               ref_table=excluded.ref_table,
+               ref_column=excluded.ref_column",
+            params![fk.connection_id, fk.database, fk.schema, fk.table_name, fk.column_name, fk.ref_schema, fk.ref_table, fk.ref_column, fk.constraint_name, fk.seq_no]
+        ).map_err(|e| format!("[SQLITE_FK_SAVE] Failed to save foreign key '{}' ({}.{}.{}) to local cache: {}", fk.constraint_name, fk.database, fk.schema, fk.table_name, e))?;
         Ok(())
     }
 
@@ -565,7 +579,7 @@ impl Introspector {
         conn.execute(
             "INSERT OR REPLACE INTO meta_indexes (connection_id, database, schema, table_name, index_name, is_unique) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![idx.connection_id, idx.database, idx.schema, idx.table_name, idx.index_name, idx.is_unique as i32]
-        ).map_err(|e| e.to_string())?;
+        ).map_err(|e| format!("[SQLITE_IDX_SAVE] Failed to save index '{}' to local cache: {}", idx.index_name, e))?;
         Ok(())
     }
 
@@ -573,7 +587,7 @@ impl Introspector {
         conn.execute(
             "INSERT OR REPLACE INTO meta_index_columns (connection_id, database, schema, table_name, index_name, column_name, seq_no) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             params![col.connection_id, col.database, col.schema, col.table_name, col.index_name, col.column_name, col.seq_no]
-        ).map_err(|e| e.to_string())?;
+        ).map_err(|e| format!("Failed to save index column '{}' for index '{}' to local cache: {}", col.column_name, col.index_name, e))?;
         Ok(())
     }
 
@@ -581,7 +595,7 @@ impl Introspector {
         conn.execute(
             "INSERT OR REPLACE INTO meta_triggers (connection_id, database, schema, table_name, trigger_name, event, timing) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             params![trigger.connection_id, trigger.database, trigger.schema, trigger.table_name, trigger.trigger_name, trigger.event, trigger.timing]
-        ).map_err(|e| e.to_string())?;
+        ).map_err(|e| format!("[SQLITE_TRG_SAVE] Failed to save trigger '{}' to local cache: {}", trigger.trigger_name, e))?;
         Ok(())
     }
 
@@ -641,9 +655,10 @@ impl Introspector {
 
             // Load foreign keys
             let mut fk_stmt = conn.prepare(
-                "SELECT column_name, ref_table, ref_column 
+                "SELECT column_name, ref_schema, ref_table, ref_column, constraint_name, seq_no
                  FROM meta_foreign_keys 
-                 WHERE connection_id = ?1 AND database = ?2 AND schema = ?3 AND table_name = ?4"
+                 WHERE connection_id = ?1 AND database = ?2 AND schema = ?3 AND table_name = ?4
+                 ORDER BY constraint_name, seq_no"
             ).map_err(|e| e.to_string())?;
             
             let fks = fk_stmt.query_map(
@@ -655,8 +670,11 @@ impl Introspector {
                         schema: table.schema.clone(),
                         table_name: table.table_name.clone(),
                         column_name: row.get(0)?,
-                        ref_table: row.get(1)?,
-                        ref_column: row.get(2)?,
+                        ref_schema: row.get(1)?,
+                        ref_table: row.get(2)?,
+                        ref_column: row.get(3)?,
+                        constraint_name: row.get(4)?,
+                        seq_no: row.get(5)?,
                     })
                 }
             ).map_err(|e| e.to_string())?;
@@ -840,7 +858,7 @@ impl Introspector {
         }).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
 
         // Foreign Keys
-        let mut fk_stmt = conn.prepare("SELECT column_name, ref_table, ref_column FROM meta_foreign_keys WHERE connection_id = ?1 AND database = ?2 AND schema = ?3 AND table_name = ?4")
+        let mut fk_stmt = conn.prepare("SELECT column_name, ref_schema, ref_table, ref_column, constraint_name, seq_no FROM meta_foreign_keys WHERE connection_id = ?1 AND database = ?2 AND schema = ?3 AND table_name = ?4 ORDER BY constraint_name, seq_no")
             .map_err(|e| e.to_string())?;
         let foreign_keys = fk_stmt.query_map(params![connection_id, database, schema, table_name], |row| {
             Ok(MetaForeignKey {
@@ -849,8 +867,11 @@ impl Introspector {
                 schema: schema.to_string(),
                 table_name: table_name.to_string(),
                 column_name: row.get(0)?,
-                ref_table: row.get(1)?,
-                ref_column: row.get(2)?,
+                ref_schema: row.get(1)?,
+                ref_table: row.get(2)?,
+                ref_column: row.get(3)?,
+                constraint_name: row.get(4)?,
+                seq_no: row.get(5)?,
             })
         }).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
 
@@ -1132,34 +1153,49 @@ impl Introspector {
     async fn introspect_postgres_foreign_keys(&self, client: &tokio_postgres::Client, connection_id: &str, database: &str, schema: &str, table_name: &str) -> Result<Vec<MetaForeignKey>, String> {
         let rows = client.query(
             "SELECT
-                kcu.column_name,
-                ccu.table_name AS foreign_table_name,
-                ccu.column_name AS foreign_column_name
-             FROM information_schema.table_constraints AS tc
-             JOIN information_schema.key_column_usage AS kcu
-               ON tc.constraint_name = kcu.constraint_name
-               AND tc.table_schema = kcu.table_schema
-             JOIN information_schema.constraint_column_usage AS ccu
-               ON ccu.constraint_name = tc.constraint_name
-               AND ccu.table_schema = tc.table_schema
-             WHERE tc.constraint_type = 'FOREIGN KEY'
-               AND tc.table_schema = $1
-               AND tc.table_name = $2",
+                con.conname AS constraint_name,
+                sch.nspname AS schema_name,
+                tab.relname AS table_name,
+                col.attname AS column_name,
+                rsch.nspname AS ref_schema_name,
+                rtab.relname AS ref_table_name,
+                rcol.attname AS ref_column_name,
+                pos.seq_no
+             FROM pg_constraint con
+             JOIN pg_namespace sch ON sch.oid = con.connamespace
+             JOIN pg_class tab ON tab.oid = con.conrelid
+             JOIN pg_namespace rsch ON rsch.oid = con.confnamespace
+             JOIN pg_class rtab ON rtab.oid = con.confrelid
+             JOIN LATERAL unnest(con.conkey) WITH ORDINALITY AS pos(attnum, seq_no) ON true
+             JOIN pg_attribute col ON col.attrelid = tab.oid AND col.attnum = pos.attnum
+             JOIN LATERAL (
+                SELECT attname, row_number() OVER() as rnum 
+                FROM unnest(con.confkey) r_attnum
+                JOIN pg_attribute r_attr ON r_attr.attrelid = rtab.oid AND r_attr.attnum = r_attnum
+             ) rcol_info ON rcol_info.rnum = pos.seq_no
+             JOIN pg_attribute rcol ON rcol.attrelid = rtab.oid AND rcol.attname = rcol_info.attname
+             WHERE con.contype = 'f'
+               AND sch.nspname = $1
+               AND tab.relname = $2
+             ORDER BY seq_no",
             &[&schema, &table_name]
         ).await.map_err(|e| e.to_string())?;
 
-        let mut fks = Vec::new();
-        for row in rows {
-            fks.push(MetaForeignKey {
+        let fks = rows.iter().map(|row| {
+            MetaForeignKey {
                 connection_id: connection_id.to_string(),
                 database: database.to_string(),
                 schema: schema.to_string(),
                 table_name: table_name.to_string(),
-                column_name: row.get(0),
-                ref_table: row.get(1),
-                ref_column: row.get(2),
-            });
-        }
+                column_name: row.get(3),
+                ref_schema: row.get(4),
+                ref_table: row.get(5),
+                ref_column: row.get(6),
+                constraint_name: row.get(0),
+                seq_no: row.get::<_, i64>(7) as i32,
+            }
+        }).collect();
+        
         Ok(fks)
     }
 
@@ -1194,7 +1230,7 @@ impl Introspector {
              WHERE table_schema = ANY($1)
              ORDER BY table_schema, table_name, ordinal_position",
             &[&schemas]
-        ).await.map_err(|e| e.to_string())?;
+        ).await.map_err(|e| format!("Postgres query for columns failed: {}", e))?;
 
         // PKs bulk
         let pk_rows = client.query(
@@ -1206,7 +1242,7 @@ impl Introspector {
              WHERE tc.constraint_type = 'PRIMARY KEY'
                AND tc.table_schema = ANY($1)",
             &[&schemas]
-        ).await.map_err(|e| e.to_string())?;
+        ).await.map_err(|e| format!("Postgres query for primary keys failed: {}", e))?;
 
         let mut pk_map: HashSet<(String, String, String)> = HashSet::new();
         for r in pk_rows {
@@ -1247,35 +1283,61 @@ impl Introspector {
     async fn introspect_postgres_foreign_keys_bulk(&self, client: &tokio_postgres::Client, connection_id: &str, database: &str, schemas: &[String]) -> Result<HashMap<(String, String), Vec<MetaForeignKey>>, String> {
         let rows = client.query(
             "SELECT
-                tc.table_schema,
-                tc.table_name,
-                kcu.column_name,
-                ccu.table_name AS foreign_table_name,
-                ccu.column_name AS foreign_column_name
-             FROM information_schema.table_constraints AS tc
-             JOIN information_schema.key_column_usage AS kcu
-               ON tc.constraint_name = kcu.constraint_name
-               AND tc.table_schema = kcu.table_schema
-             JOIN information_schema.constraint_column_usage AS ccu
-               ON ccu.constraint_name = tc.constraint_name
-               AND ccu.table_schema = tc.table_schema
-             WHERE tc.constraint_type = 'FOREIGN KEY'
-               AND tc.table_schema = ANY($1)",
+                con.conname AS constraint_name,
+                sch.nspname AS schema_name,
+                tab.relname AS table_name,
+                col.attname AS column_name,
+                rsch.nspname AS ref_schema_name,
+                rtab.relname AS ref_table_name,
+                rcol.attname AS ref_column_name,
+                pos.seq_no
+             FROM pg_constraint con
+             JOIN pg_namespace sch ON sch.oid = con.connamespace
+             JOIN pg_class tab ON tab.oid = con.conrelid
+             JOIN pg_namespace rsch ON rsch.oid = con.confnamespace
+             JOIN pg_class rtab ON rtab.oid = con.confrelid
+             -- Unnesting keys and their ordinality to handle multi-column FKs correctly
+             JOIN LATERAL unnest(con.conkey) WITH ORDINALITY AS pos(attnum, seq_no) ON true
+             JOIN pg_attribute col ON col.attrelid = tab.oid AND col.attnum = pos.attnum
+             -- Join for referenced columns using the same ordinality
+             JOIN LATERAL (
+                SELECT attname, row_number() OVER() as rnum 
+                FROM unnest(con.confkey) r_attnum
+                JOIN pg_attribute r_attr ON r_attr.attrelid = rtab.oid AND r_attr.attnum = r_attnum
+             ) rcol_info ON rcol_info.rnum = pos.seq_no
+             JOIN pg_attribute rcol ON rcol.attrelid = rtab.oid AND rcol.attname = rcol_info.attname
+             WHERE con.contype = 'f'
+               AND sch.nspname = ANY($1)",
             &[&schemas]
-        ).await.map_err(|e| e.to_string())?;
+        ).await.map_err(|e| {
+            let code = e.as_db_error().map(|db_err| db_err.code().code().to_string()).unwrap_or_else(|| "UNKNOWN".to_string());
+            let message = e.as_db_error().map(|db_err| db_err.message().to_string()).unwrap_or_else(|| e.to_string());
+            error!("[POSTGRES_FK_QUERY] Failed. Code: {}, Message: {}, Schemas: {:?}", code, message, schemas);
+            format!("[POSTGRES_FK_QUERY] Postgres query for foreign keys failed: Code: {}, Message: {}", code, message)
+        })?;
 
         let mut fk_map: HashMap<(String, String), Vec<MetaForeignKey>> = HashMap::new();
         for row in rows {
-            let schema: String = row.get(0);
-            let table: String = row.get(1);
+            let constraint_name: String = row.get(0);
+            let schema: String = row.get(1);
+            let table: String = row.get(2);
+            let column_name: String = row.get(3);
+            let ref_schema: String = row.get(4);
+            let ref_table: String = row.get(5);
+            let ref_column: String = row.get(6);
+            let seq_no: i64 = row.get(7);
+
             fk_map.entry((schema.clone(), table.clone())).or_default().push(MetaForeignKey {
                 connection_id: connection_id.to_string(),
                 database: database.to_string(),
                 schema,
                 table_name: table,
-                column_name: row.get(2),
-                ref_table: row.get(3),
-                ref_column: row.get(4),
+                column_name,
+                ref_schema,
+                ref_table,
+                ref_column,
+                constraint_name,
+                seq_no: seq_no as i32,
             });
         }
         Ok(fk_map)
@@ -1285,7 +1347,7 @@ impl Introspector {
         let rows = client.query(
             "SELECT schemaname, tablename, indexname, indexdef FROM pg_indexes WHERE schemaname = ANY($1)",
             &[&schemas]
-        ).await.map_err(|e| e.to_string())?;
+        ).await.map_err(|e| format!("[POSTGRES_IDX_QUERY] Postgres query for indexes failed: {}", e))?;
 
         let mut idx_map: HashMap<(String, String), Vec<MetaIndex>> = HashMap::new();
         for row in rows {
@@ -1313,7 +1375,7 @@ impl Introspector {
              FROM information_schema.triggers
              WHERE event_object_schema = ANY($1)",
             &[&schemas]
-        ).await.map_err(|e| e.to_string())?;
+        ).await.map_err(|e| format!("[POSTGRES_TRG_QUERY] Postgres query for triggers failed: {}", e))?;
 
         let mut trg_map: HashMap<(String, String), Vec<MetaTrigger>> = HashMap::new();
         for row in rows {
@@ -1378,11 +1440,11 @@ impl Introspector {
         
         {
             let app_db = self.app_db.lock().unwrap();
-            let tx = app_db.unchecked_transaction().map_err(|e| e.to_string())?;
+            let tx = app_db.unchecked_transaction().map_err(|e| format!("Failed to start transaction for database level: {}", e))?;
             for db_name in &all_databases {
                 self.save_database(&tx, connection_id, db_name)?;
             }
-            tx.commit().map_err(|e| e.to_string())?;
+            tx.commit().map_err(|e| format!("Failed to commit transaction for database level: {}", e))?;
         }
         let _ = app.emit("schema:level-complete", serde_json::json!({
             "level": 1,
@@ -1433,7 +1495,7 @@ impl Introspector {
         
         {
             let app_db = self.app_db.lock().unwrap();
-            let tx = app_db.unchecked_transaction().map_err(|e| e.to_string())?;
+            let tx = app_db.unchecked_transaction().map_err(|e| format!("Failed to start transaction for schema level: {}", e))?;
             for s_name in &all_schemas {
                 let schema_type = if matches!(s_name.as_str(), "information_schema" | "pg_catalog" | "pg_toast") {
                     "system"
@@ -1442,7 +1504,7 @@ impl Introspector {
                 };
                 self.save_schema(&tx, connection_id, &effective_database, s_name, schema_type)?;
             }
-            tx.commit().map_err(|e| e.to_string())?;
+            tx.commit().map_err(|e| format!("Failed to commit transaction for schema level: {}", e))?;
         }
 
         let _ = app.emit("schema:level-complete", serde_json::json!({
@@ -1508,14 +1570,14 @@ impl Introspector {
         // Save priority in transaction and EMIT READY
         if !priority_tables.is_empty() {
             let app_db = self.app_db.lock().unwrap();
-            let tx = app_db.unchecked_transaction().map_err(|e| e.to_string())?;
+            let tx = app_db.unchecked_transaction().map_err(|e| format!("Failed to start transaction for priority tables: {}", e))?;
             for t in &priority_tables {
                 self.save_table(&tx, t.clone())?;
                 for col in &t.columns {
                     self.save_column(&tx, col.clone())?;
                 }
             }
-            tx.commit().map_err(|e| e.to_string())?;
+            tx.commit().map_err(|e| format!("Failed to commit transaction for priority tables: {}", e))?;
 
             let _ = app.emit("schema:ready", serde_json::json!({
                 "connection_id": connection_id,
@@ -1553,14 +1615,14 @@ impl Introspector {
         // Save others in transaction
         if !other_tables.is_empty() {
             let app_db = self.app_db.lock().unwrap();
-            let tx = app_db.unchecked_transaction().map_err(|e| e.to_string())?;
+            let tx = app_db.unchecked_transaction().map_err(|e| format!("Failed to start transaction for other tables: {}", e))?;
             for t in &other_tables {
                 self.save_table(&tx, t.clone())?;
                 for col in &t.columns {
                     self.save_column(&tx, col.clone())?;
                 }
             }
-            tx.commit().map_err(|e| e.to_string())?;
+            tx.commit().map_err(|e| format!("Failed to commit transaction for other tables: {}", e))?;
         }
 
         let mut all_tables = priority_tables;
@@ -1575,33 +1637,41 @@ impl Introspector {
 
         // === LEVEL 4: FK + Indexes + Triggers (bulk) ===
         // We could prioritize here too, but Level 3 is the "unblock" point.
-        let mut fk_map = self.introspect_postgres_foreign_keys_bulk(&current_client, connection_id, &effective_database, &all_schemas).await?;
-        let mut idx_map = self.introspect_postgres_indexes_bulk(&current_client, connection_id, &effective_database, &all_schemas).await?;
-        let mut trg_map = self.introspect_postgres_triggers_bulk(&current_client, connection_id, &effective_database, &all_schemas).await?;
+        let level4_res: Result<(), String> = (async {
+            let mut fk_map = self.introspect_postgres_foreign_keys_bulk(&current_client, connection_id, &effective_database, &all_schemas).await?;
+            let mut idx_map = self.introspect_postgres_indexes_bulk(&current_client, connection_id, &effective_database, &all_schemas).await?;
+            let mut trg_map = self.introspect_postgres_triggers_bulk(&current_client, connection_id, &effective_database, &all_schemas).await?;
 
-        for table in &mut all_tables {
-            let key = (table.schema.clone(), table.table_name.clone());
-            table.foreign_keys = fk_map.remove(&key).unwrap_or_default();
-            table.indexes = idx_map.remove(&key).unwrap_or_default();
-            table.triggers = trg_map.remove(&key).unwrap_or_default();
-        }
-
-        // Save FK/indexes/triggers in transaction
-        {
-            let app_db = self.app_db.lock().unwrap();
-            let tx = app_db.unchecked_transaction().map_err(|e| e.to_string())?;
-            for t in &all_tables {
-                for fk in &t.foreign_keys {
-                    self.save_foreign_key(&tx, fk.clone())?;
-                }
-                for idx in &t.indexes {
-                    self.save_index(&tx, idx.clone())?;
-                }
-                for trigger in &t.triggers {
-                    self.save_trigger(&tx, trigger.clone())?;
-                }
+            for table in &mut all_tables {
+                let key = (table.schema.clone(), table.table_name.clone());
+                table.foreign_keys = fk_map.remove(&key).unwrap_or_default();
+                table.indexes = idx_map.remove(&key).unwrap_or_default();
+                table.triggers = trg_map.remove(&key).unwrap_or_default();
             }
-            tx.commit().map_err(|e| e.to_string())?;
+
+            // Save FK/indexes/triggers in transaction
+            {
+                let app_db = self.app_db.lock().unwrap();
+                let tx = app_db.unchecked_transaction().map_err(|e| format!("[TX_START_L4] Failed to start transaction for Level 4 metadata: {}", e))?;
+                for t in &all_tables {
+                    for fk in &t.foreign_keys {
+                        self.save_foreign_key(&tx, fk.clone())?;
+                    }
+                    for idx in &t.indexes {
+                        self.save_index(&tx, idx.clone())?;
+                    }
+                    for trigger in &t.triggers {
+                        self.save_trigger(&tx, trigger.clone())?;
+                    }
+                }
+                tx.commit().map_err(|e| format!("[TX_COMMIT_L4] Failed to commit transaction for Level 4 metadata: {}", e))?;
+            }
+            Ok(())
+        }).await;
+
+        if let Err(e) = level4_res {
+            error!("[Introspector] Level 4 introspection failed: {}", e);
+            return Err(format!("Level 4 introspection failed: {}", e));
         }
         
         let fk_count: usize = all_tables.iter().map(|t| t.foreign_keys.len()).sum();

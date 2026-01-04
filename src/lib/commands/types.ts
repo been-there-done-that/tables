@@ -301,8 +301,11 @@ export interface MetaForeignKey {
   schema: string;
   table_name: string;
   column_name: string;
+  ref_schema: string;
   ref_table: string;
   ref_column: string;
+  constraint_name: string;
+  seq_no: number;
 }
 
 export interface MetaIndex {

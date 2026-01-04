@@ -148,7 +148,7 @@ mod tests {
         conn.pragma_update(None, "busy_timeout", 5000).unwrap();
         
         // Apply migrations
-        migrations::apply(&conn, || 0).unwrap();
+        migrations::apply(&mut conn, || 0).unwrap();
         
         let db = Arc::new(Mutex::new(conn));
         let report = run_lock_contention_test(db);
