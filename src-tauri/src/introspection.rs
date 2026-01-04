@@ -908,10 +908,11 @@ impl Introspector {
     pub fn get_schemas(&self, connection_id: &str, database: &str) -> Result<Vec<MetaSchema>, String> {
         let conn = self.app_db.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT s.name, s.schema_type,
+            "SELECT s.name, s.schema_type, 
              EXISTS(SELECT 1 FROM meta_tables t WHERE t.connection_id = s.connection_id AND t.database = s.database AND t.schema = s.name) as introspected
              FROM meta_schemas s 
              WHERE s.connection_id = ?1 AND s.database = ?2 
+             AND s.name NOT LIKE 'pg_toast%' AND s.name NOT LIKE 'pg_temp%'
              ORDER BY s.name"
         ).map_err(|e| e.to_string())?;
 
@@ -937,6 +938,7 @@ impl Introspector {
             "SELECT connection_id, database, schema, table_name, type, classification, last_introspected_at 
              FROM meta_tables 
              WHERE connection_id = ?1 AND database = ?2 AND schema = ?3 
+             AND table_name NOT LIKE 'pg_toast%'
              ORDER BY table_name"
         ).map_err(|e| e.to_string())?;
 

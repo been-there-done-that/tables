@@ -208,12 +208,12 @@ impl DatabaseAdapter for PostgresAdapter {
         let client_guard = self.client.lock().await;
         let client = client_guard.as_ref().unwrap();
 
-        let rows = client.query("SELECT schema_name FROM information_schema.schemata ORDER BY schema_name", &[])
+        let rows = client.query("SELECT schema_name FROM information_schema.schemata WHERE schema_name NOT LIKE 'pg_toast%' AND schema_name NOT LIKE 'pg_temp%' ORDER BY schema_name", &[])
             .await.map_err(|e| AdapterError::Query(format!("Failed to list schemas: {}", e)))?;
 
         Ok(rows.iter().map(|row| {
             let name: String = row.get(0);
-            let schema_type = if matches!(name.as_str(), "information_schema" | "pg_catalog" | "pg_toast") { "system" } else { "user" };
+            let schema_type = if matches!(name.as_str(), "information_schema" | "pg_catalog") { "system" } else { "user" };
             MetaSchema { name, schema_type: schema_type.to_string(), is_introspected: false, tables: vec![] }
         }).collect())
     }
@@ -224,7 +224,7 @@ impl DatabaseAdapter for PostgresAdapter {
         let client = client_guard.as_ref().unwrap();
 
         let rows = client.query(
-            "SELECT table_name, table_type FROM information_schema.tables WHERE table_schema = $1 AND table_type IN ('BASE TABLE', 'VIEW') ORDER BY table_name",
+            "SELECT table_name, table_type FROM information_schema.tables WHERE table_schema = $1 AND table_type IN ('BASE TABLE', 'VIEW') AND table_name NOT LIKE 'pg_toast%' ORDER BY table_name",
             &[&schema],
         ).await.map_err(|e| AdapterError::Query(format!("Failed to list tables: {}", e)))?;
 
