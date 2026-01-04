@@ -241,6 +241,7 @@
     schemaName: string,
     tableName: string,
   ) {
+    if (!schemaStore.activeConnection) return;
     const cacheKey = `${dbName}:${schemaName}:${tableName}`;
 
     if (tableDetailsCache.has(cacheKey) || loadingTables.has(cacheKey)) return;
@@ -249,7 +250,7 @@
 
     try {
       console.time(`[LazyLoad] ${tableName}`);
-      const details = await invoke<any>("get_schema_table_details", {
+      const details = await invoke<any>("get_cached_table_details", {
         connectionId: schemaStore.activeConnection?.id,
         database: dbName,
         schema: schemaName,
@@ -641,10 +642,21 @@
     </ResizableSplitPane>
   </div>
 
-  <!-- Footer -->
   <footer
     class="flex h-6 flex-none items-center border-t border-border bg-muted/5 px-4"
   >
-    <div class="text-xs">x</div>
+    <div class="flex items-center gap-2">
+      <div
+        class="size-1.5 rounded-full bg-primary animate-pulse {schemaStore.status ===
+        'idle'
+          ? 'hidden'
+          : ''}"
+      ></div>
+      <div
+        class="text-[10px] text-muted-foreground font-medium uppercase tracking-wider"
+      >
+        {schemaStore.statusMessage}
+      </div>
+    </div>
   </footer>
 </div>

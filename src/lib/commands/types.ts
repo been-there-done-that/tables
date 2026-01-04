@@ -326,3 +326,27 @@ export interface MetaTrigger {
   event: string;
   timing: string;
 }
+
+// Unified Introspection Types
+export type IntrospectionScope =
+  | { type: 'global' }
+  | { type: 'database'; name: string }
+  | { type: 'schema'; database: string; schema: string }
+  | { type: 'table'; database: string; schema: string; table: string };
+
+export interface IntrospectionOptions {
+  scope: IntrospectionScope;
+  force?: boolean;
+  priority_database?: string;
+  priority_schema?: string;
+}
+
+export interface IntrospectionEvent {
+  type: 'level_complete' | 'schema_ready' | 'complete' | 'error';
+  connection_id: string;
+  level?: number;
+  database?: string;
+  schema_count?: number;
+  table_count?: number;
+  message?: string;
+}

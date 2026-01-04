@@ -8,6 +8,7 @@ import type { Connection, MetaDatabase, MetaSchema } from "$lib/commands/types";
 export class SchemaStore {
     activeConnection = $state<Connection | null>(null);
     status = $state<"idle" | "connecting" | "refreshing" | "error">("idle");
+    statusMessage = $state<string>("Ready");
     databases = $state<MetaDatabase[]>([]);
     selectedDatabase = $state<string | null>(null);
     error = $state<string | null>(null);
@@ -15,7 +16,9 @@ export class SchemaStore {
     windowLabel = $state<string | null>(null);
     activeSchema = $state<string | null>("public");
     private unlistenLevel: (() => void) | null = null;
-    private unlistenReady: (() => void) | null = null;
+    private unlistenSchema: (() => void) | null = null;
+    private unlistenComplete: (() => void) | null = null;
+    private unlistenError: (() => void) | null = null;
 
     async initialize(label: string) {
         this.windowLabel = label;
@@ -35,24 +38,48 @@ export class SchemaStore {
 
             // Setup listeners
             if (this.unlistenLevel) this.unlistenLevel();
-            if (this.unlistenReady) this.unlistenReady();
+            if (this.unlistenSchema) this.unlistenSchema();
+            if (this.unlistenComplete) this.unlistenComplete();
+            if (this.unlistenError) this.unlistenError();
 
             const { listen } = await import("@tauri-apps/api/event");
-            this.unlistenLevel = await listen("schema:level-complete", async (event: any) => {
-                console.log(`[SchemaStore] Level complete:`, event.payload);
+
+            this.unlistenLevel = await listen("introspection:level_complete", async (event: any) => {
+                const payload = event.payload;
+                console.log(`[SchemaStore] Level ${payload.level} complete:`, payload);
+                this.statusMessage = `Introspected Level ${payload.level}: ${payload.database || 'Metadata'}`;
                 await this.syncFromCache();
             });
 
-            this.unlistenReady = await listen("schema:ready", async (event: any) => {
-                console.log(`[SchemaStore] Schema ready:`, event.payload);
+            this.unlistenSchema = await listen("introspection:schema_ready", async (event: any) => {
+                const payload = event.payload;
+                console.log(`[SchemaStore] Schema ready:`, payload);
+                this.statusMessage = `Schema ready: ${payload.database}`;
                 await this.syncFromCache();
-                // Unblock UI
+
                 if (this.status === "refreshing") {
                     this.status = "idle";
                     toast.success("Schema prioritized and ready", {
-                        description: `Tables for ${event.payload.schema} are now interactive.`
+                        description: `Tables for ${payload.database} are now interactive.`
                     });
                 }
+            });
+
+            this.unlistenComplete = await listen("introspection:complete", async (event: any) => {
+                const payload = event.payload;
+                console.log(`[SchemaStore] Introspection complete:`, payload);
+                this.statusMessage = "Ready";
+                this.status = "idle";
+                await this.syncFromCache();
+            });
+
+            this.unlistenError = await listen("introspection:error", async (event: any) => {
+                const payload = event.payload;
+                console.error(`[SchemaStore] Introspection error:`, payload);
+                this.statusMessage = `Error: ${payload.message}`;
+                this.status = "error";
+                this.error = payload.message;
+                toast.error("Introspection Error", { description: payload.message });
             });
 
         } catch (e) {
@@ -99,7 +126,7 @@ export class SchemaStore {
             await this.fetchDatabases();
             console.timeEnd("[SchemaStore] fetchDatabases");
 
-            // 4.1 If no databases found, trigger introspection (progressive refresh)
+            // 4.1 If no databases found, trigger introspection (unified refresh)
             if (this.databases.length === 0) {
                 const loadingToastId = toast.loading("Introspecting schema...", {
                     description: "First-time connection, discovering database structure.",
@@ -107,9 +134,16 @@ export class SchemaStore {
                 });
 
                 try {
-                    console.time("[SchemaStore] refresh_schema_progressive");
-                    await invoke("refresh_schema_progressive", { connectionId: conn.id });
-                    console.timeEnd("[SchemaStore] refresh_schema_progressive");
+                    console.time("[SchemaStore] refresh_schema_unified");
+                    this.statusMessage = "Discovering databases...";
+                    await invoke("refresh_schema_unified", {
+                        connectionId: conn.id,
+                        options: {
+                            scope: { type: 'global' },
+                            priority_database: conn.database
+                        }
+                    });
+                    console.timeEnd("[SchemaStore] refresh_schema_unified");
 
                     await this.fetchDatabases();
                     console.log(`[SchemaStore] After refresh: ${this.databases.length} databases`);
@@ -207,16 +241,17 @@ export class SchemaStore {
                 console.warn(`[SchemaStore] loadDatabase called while already refreshing. Skipping auto-trigger.`);
                 return;
             }
-            const updatedDb = await invoke<MetaDatabase>("introspect_database", {
+            this.statusMessage = `Introspecting ${dbName}...`;
+            await invoke("refresh_schema_unified", {
                 connectionId: this.activeConnection.id,
-                databaseName: dbName
+                options: {
+                    scope: { type: 'database', name: dbName }
+                }
             });
 
-            // Update the database in the list
-            const index = this.databases.findIndex(d => d.name === dbName);
-            if (index !== -1) {
-                this.databases[index] = { ...updatedDb, is_loading: false };
-            }
+            // Update the database in the list via refresh
+            await this.fetchDatabases();
+            const updatedDb = this.databases.find(d => d.name === dbName);
 
             // Sync completion cache
             await invoke("update_completion_schema", {
@@ -243,7 +278,7 @@ export class SchemaStore {
 
     async fetchDatabases() {
         if (!this.activeConnection) return;
-        const dbs = await invoke<MetaDatabase[]>("get_databases", { connectionId: this.activeConnection.id });
+        const dbs = await invoke<MetaDatabase[]>("get_cached_databases", { connectionId: this.activeConnection.id });
         // Preserve existing branches if they were loaded
         this.databases = dbs.map(newDb => {
             const existing = this.databases.find(d => d.name === newDb.name);
@@ -260,7 +295,7 @@ export class SchemaStore {
         const dbIndex = this.databases.findIndex(d => d.name === dbName);
         if (dbIndex === -1) return;
 
-        const schemas = await invoke<MetaSchema[]>("get_schemas", {
+        const schemas = await invoke<MetaSchema[]>("get_cached_schemas", {
             connectionId: this.activeConnection.id,
             database: dbName
         });
@@ -314,13 +349,15 @@ export class SchemaStore {
             }
             console.log(`[SchemaStore] Schema ${schemaName} not cached, triggering remote fetch.`);
             try {
-                await invoke("refresh_schema_specific_progressive", {
+                this.statusMessage = `Introspecting ${schemaName}...`;
+                await invoke("refresh_schema_unified", {
                     connectionId: this.activeConnection.id,
-                    databaseName: dbName,
-                    schemaName: schemaName
+                    options: {
+                        scope: { type: 'schema', database: dbName, schema: schemaName }
+                    }
                 });
                 // After refresh, sync from cache for this schema
-                const tables = await invoke<any[]>("get_tables_in_schema", {
+                const tables = await invoke<any[]>("get_cached_tables", {
                     connectionId: this.activeConnection.id,
                     database: dbName,
                     schema: schemaName
@@ -333,7 +370,7 @@ export class SchemaStore {
             return;
         }
 
-        const tables = await invoke<any[]>("get_tables_in_schema", {
+        const tables = await invoke<any[]>("get_cached_tables", {
             connectionId: this.activeConnection.id,
             database: dbName,
             schema: schemaName
@@ -380,17 +417,25 @@ export class SchemaStore {
         try {
             if (databaseName && schemaName) {
                 // Targeted refresh
-                await invoke("refresh_schema_specific_progressive", {
+                this.statusMessage = `Refreshing ${schemaName}...`;
+                await invoke("refresh_schema_unified", {
                     connectionId: this.activeConnection.id,
-                    databaseName,
-                    schemaName
+                    options: {
+                        scope: { type: 'schema', database: databaseName, schema: schemaName },
+                        force: true
+                    }
                 });
             } else {
                 // Global progressive refresh with priority
-                await invoke("refresh_schema_progressive", {
+                this.statusMessage = "Starting refresh...";
+                await invoke("refresh_schema_unified", {
                     connectionId: this.activeConnection.id,
-                    priorityDatabase: this.selectedDatabase,
-                    prioritySchema: this.activeSchema
+                    options: {
+                        scope: { type: 'global' },
+                        priority_database: this.selectedDatabase || undefined,
+                        priority_schema: this.activeSchema || undefined,
+                        force: true
+                    }
                 });
             }
 

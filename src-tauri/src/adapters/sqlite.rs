@@ -46,10 +46,14 @@ impl SqliteAdapter {
     }
 
     pub fn from_config(config: serde_json::Value) -> Result<Self, AdapterError> {
-        let path = config
-            .get("path")
+        // Try root level
+        let path = config.get("path")
+            .or_else(|| config.get("file"))
+            // Try inside 'db' object (matching Postgres pattern)
+            .or_else(|| config.get("db").and_then(|db| db.get("path").or_else(|| db.get("file"))))
             .and_then(|v| v.as_str())
-            .ok_or_else(|| AdapterError::Connection("Missing 'path' in SQLite config".to_string()))?;
+            .map(|s| s.to_string())
+            .ok_or_else(|| AdapterError::Connection("Missing 'path' or 'file' in SQLite config".to_string()))?;
         
         Ok(Self::new(SqliteConfig::new(path)))
     }
