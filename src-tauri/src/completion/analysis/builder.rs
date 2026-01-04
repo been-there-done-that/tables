@@ -428,18 +428,12 @@ impl<'a> ModelBuilder<'a> {
         for (i, child) in children.iter().enumerate() {
             match child.kind() {
                 "object_reference" => {
-                    // Descend into object_reference to get the actual table name
-                    let mut inner_cursor = child.walk();
-                    for inner in child.children(&mut inner_cursor) {
-                        if inner.kind() == "identifier" {
-                            table_name = Some(self.node_text(&inner));
-                            break;
-                        }
-                    }
-                    // Fallback: use the whole text if no identifier found
-                    if table_name.is_none() {
-                        table_name = Some(self.node_text(child));
-                    }
+                    // For schema-qualified names like "production.task_hierarchy_table",
+                    // use the full text of the object_reference, not just the first identifier.
+                    // The object_reference node contains the complete qualified name.
+                    let full_text = self.node_text(child);
+                    log::debug!("[Builder] object_reference full text: '{}'", full_text);
+                    table_name = Some(full_text);
                 }
                 "identifier" => {
                     // Direct identifier child - this is the alias
@@ -496,20 +490,31 @@ impl<'a> ModelBuilder<'a> {
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
             match child.kind() {
-                "identifier" | "table_name" | "object_reference" => {
+                "object_reference" => {
+                    // object_reference contains the full qualified table name (e.g., production.task_hierarchy_table)
                     let text = self.node_text(&child);
+                    log::debug!("[Builder] aliased_table object_reference: '{}'", text);
+                    table_name = Some(text);
+                }
+                "identifier" | "table_name" => {
+                    let text = self.node_text(&child);
+                    log::debug!("[Builder] aliased_table identifier/table_name: '{}'", text);
                     if table_name.is_none() {
                         table_name = Some(text);
-                    } else {
+                    } else if alias_name.is_none() {
                         alias_name = Some(text);
                     }
                 }
                 "alias" => {
-                    alias_name = Some(self.node_text(&child));
+                    let text = self.node_text(&child);
+                    log::debug!("[Builder] aliased_table alias: '{}'", text);
+                    alias_name = Some(text);
                 }
                 _ => {}
             }
         }
+
+        log::debug!("[Builder] aliased_table result: table={:?}, alias={:?}", table_name, alias_name);
 
         if let (Some(table), Some(alias)) = (table_name, alias_name) {
             let range = node.start_byte()..node.end_byte();

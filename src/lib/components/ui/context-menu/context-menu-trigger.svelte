@@ -15,6 +15,10 @@
 	function handleContextMenu(e: MouseEvent) {
 		if (!ctx) return;
 		e.preventDefault();
+		e.stopPropagation(); // Prevent parent context menus from interfering
+		console.log(
+			`[ContextMenu Debug] Clicked at (${e.clientX}, ${e.clientY})`,
+		);
 		ctx.setCoords({ x: e.clientX, y: e.clientY });
 		ctx.setOpen(true);
 	}

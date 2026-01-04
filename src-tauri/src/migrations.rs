@@ -66,19 +66,28 @@ CREATE TABLE IF NOT EXISTS credentials (
 "#;
 
 const CREATE_META_TABLES: &str = r#"
+CREATE TABLE IF NOT EXISTS meta_databases (
+    connection_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    PRIMARY KEY (connection_id, name),
+    FOREIGN KEY (connection_id) REFERENCES connections(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS meta_tables (
     connection_id TEXT NOT NULL,
+    database TEXT NOT NULL DEFAULT 'main',
     schema TEXT NOT NULL DEFAULT 'main',
     table_name TEXT NOT NULL,
     type TEXT NOT NULL, -- 'table' or 'view'
     classification TEXT NOT NULL, -- 'user', 'system', 'fts', 'virtual'
     last_introspected_at INTEGER NOT NULL,
-    PRIMARY KEY (connection_id, schema, table_name),
+    PRIMARY KEY (connection_id, database, schema, table_name),
     FOREIGN KEY (connection_id) REFERENCES connections(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS meta_columns (
     connection_id TEXT NOT NULL,
+    database TEXT NOT NULL DEFAULT 'main',
     schema TEXT NOT NULL DEFAULT 'main',
     table_name TEXT NOT NULL,
     ordinal_position INTEGER NOT NULL,
@@ -88,40 +97,43 @@ CREATE TABLE IF NOT EXISTS meta_columns (
     nullable INTEGER DEFAULT 1,
     default_value TEXT,
     is_primary_key INTEGER DEFAULT 0,
-    PRIMARY KEY (connection_id, schema, table_name, column_name),
-    FOREIGN KEY (connection_id, schema, table_name) REFERENCES meta_tables(connection_id, schema, table_name) ON DELETE CASCADE
+    PRIMARY KEY (connection_id, database, schema, table_name, column_name),
+    FOREIGN KEY (connection_id, database, schema, table_name) REFERENCES meta_tables(connection_id, database, schema, table_name) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS meta_indexes (
     connection_id TEXT NOT NULL,
+    database TEXT NOT NULL DEFAULT 'main',
     schema TEXT NOT NULL DEFAULT 'main',
     table_name TEXT NOT NULL,
     index_name TEXT NOT NULL,
     is_unique INTEGER DEFAULT 0,
-    PRIMARY KEY (connection_id, schema, table_name, index_name),
-    FOREIGN KEY (connection_id, schema, table_name) REFERENCES meta_tables(connection_id, schema, table_name) ON DELETE CASCADE
+    PRIMARY KEY (connection_id, database, schema, table_name, index_name),
+    FOREIGN KEY (connection_id, database, schema, table_name) REFERENCES meta_tables(connection_id, database, schema, table_name) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS meta_index_columns (
     connection_id TEXT NOT NULL,
+    database TEXT NOT NULL DEFAULT 'main',
     schema TEXT NOT NULL DEFAULT 'main',
     table_name TEXT NOT NULL,
     index_name TEXT NOT NULL,
     column_name TEXT NOT NULL,
     seq_no INTEGER NOT NULL,
-    PRIMARY KEY (connection_id, schema, table_name, index_name, column_name),
-    FOREIGN KEY (connection_id, schema, table_name, index_name) REFERENCES meta_indexes(connection_id, schema, table_name, index_name) ON DELETE CASCADE
+    PRIMARY KEY (connection_id, database, schema, table_name, index_name, column_name),
+    FOREIGN KEY (connection_id, database, schema, table_name, index_name) REFERENCES meta_indexes(connection_id, database, schema, table_name, index_name) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS meta_foreign_keys (
     connection_id TEXT NOT NULL,
+    database TEXT NOT NULL DEFAULT 'main',
     schema TEXT NOT NULL DEFAULT 'main',
     table_name TEXT NOT NULL,
     column_name TEXT NOT NULL,
     ref_table TEXT NOT NULL,
     ref_column TEXT NOT NULL,
-    PRIMARY KEY (connection_id, schema, table_name, column_name, ref_table, ref_column),
-    FOREIGN KEY (connection_id, schema, table_name) REFERENCES meta_tables(connection_id, schema, table_name) ON DELETE CASCADE
+    PRIMARY KEY (connection_id, database, schema, table_name, column_name, ref_table, ref_column),
+    FOREIGN KEY (connection_id, database, schema, table_name) REFERENCES meta_tables(connection_id, database, schema, table_name) ON DELETE CASCADE
 );
 "#;
 
@@ -223,9 +235,11 @@ pub fn apply(conn: &Connection, now_fn: impl Fn() -> i64) -> Result<(), String> 
             format!("Failed to create window sessions table: {e}")
         })?;
 
-    // Safe Migration: Ensure 'schema' column exists in all meta tables
-    // We use ALTER TABLE instead of dropping logic to preserve data
+    // Safe Migration: Ensure 'database' column exists in tables that need it.
+    // Note: meta_databases doesn't have a 'database' column (it uses 'name' instead)
+    // Only check tables that should have the 'database' column for the hierarchy cache.
     let tables_to_check = vec![
+        // "meta_databases" - excluded: uses 'name' column, not 'database'
         "meta_tables",
         "meta_columns",
         "meta_indexes",
@@ -234,20 +248,22 @@ pub fn apply(conn: &Connection, now_fn: impl Fn() -> i64) -> Result<(), String> 
     ];
 
     for table in tables_to_check {
-        let has_schema_col: i64 = conn.query_row(
-            &format!("SELECT COUNT(*) FROM pragma_table_info('{}') WHERE name='schema'", table),
+        let has_database_col: i64 = conn.query_row(
+            &format!("SELECT COUNT(*) FROM pragma_table_info('{}') WHERE name='database'", table),
             [],
             |row| row.get(0)
         ).unwrap_or(0);
 
-        if has_schema_col == 0 {
-             debug!("Migrating {} schema column via ALTER TABLE", table);
-             // Note: This adds the column but DOES NOT update the Primary Key constraint.
-             // This is acceptable as a non-destructive fix for existing data.
-             conn.execute(&format!("ALTER TABLE {} ADD COLUMN schema TEXT NOT NULL DEFAULT 'main'", table), [])
-                .map_err(|e| format!("Failed to alter table {}: {e}", table))?;
+        if has_database_col == 0 {
+             debug!("Migrating {} - dropping to recreate with new PK (database hierarchy)", table);
+             conn.execute(&format!("DROP TABLE IF EXISTS {}", table), [])
+                .map_err(|e| format!("Failed to drop table {}: {e}", table))?;
         }
     }
+    
+    // Re-run batch to create them with correct PKs if they were dropped
+    conn.execute_batch(CREATE_META_TABLES)
+        .map_err(|e| format!("Failed to ensure meta tables after drop: {e}"))?;
 
     let ts = now_fn();
     info!("Seeding {} builtin themes", BUILTIN_THEME_FILES.len());

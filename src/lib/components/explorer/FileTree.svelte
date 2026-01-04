@@ -3,16 +3,18 @@
     import Folder from "@tabler/icons-svelte/icons/folder";
     import FolderOpen from "@tabler/icons-svelte/icons/folder-open";
     import FileText from "@tabler/icons-svelte/icons/file-text";
-    import Database from "@tabler/icons-svelte/icons/database";
+    import Database from "@tabler/icons-svelte/icons/server"; // Creative change
     import Key from "@tabler/icons-svelte/icons/key";
-    import Table from "@tabler/icons-svelte/icons/table";
     import Columns from "@tabler/icons-svelte/icons/columns";
     import Bolt from "@tabler/icons-svelte/icons/bolt";
     import ListSearch from "@tabler/icons-svelte/icons/list-search";
-    import Cube from "@tabler/icons-svelte/icons/cube"; // For Schema
+    import Cube from "@tabler/icons-svelte/icons/cube"; // Revert to Cube, or use Box
+    import ViewIcon from "@tabler/icons-svelte/icons/eye"; // For Views
+    import SqlIcon from "@tabler/icons-svelte/icons/file-database"; // Action icon
+    import LoaderIcon from "@tabler/icons-svelte/icons/loader-2"; // Spinner
     import ColumnIcon from "$lib/components/icons/ColumnIcon.svelte";
+    import TableIcon from "$lib/components/icons/TableIcon.svelte";
     import PrimaryKeyIcon from "$lib/components/icons/PrimaryKeyIcon.svelte";
-    import IconSql from "@tabler/icons-svelte/icons/file-database"; // Closest to requested "paper + database"
 
     export type NodeType =
         | "folder"
@@ -23,6 +25,7 @@
         | "primary_key"
         | "schema"
         | "table"
+        | "view"
         | "column"
         | "index"
         | "trigger"
@@ -36,6 +39,9 @@
         detail?: string; // For type info like "VARCHAR(45)"
         icon?: any; // Allow overriding icon
         count?: number; // Added for displaying item counts
+        isConnected?: boolean; // For database connection status
+        isLoading?: boolean; // For on-demand loading state
+        metadata?: Record<string, any>; // For lazy loading metadata
     };
 </script>
 
@@ -53,6 +59,7 @@
         onNodeClick?: (node: TreeNode) => void;
         onAction?: (node: TreeNode) => void;
         onContextMenuAction?: (action: string, node: TreeNode) => void;
+        onExpand?: (node: TreeNode, isOpen: boolean) => void;
         expanded?: Set<string>;
     }
 
@@ -60,10 +67,11 @@
         items = [] as TreeNode[],
         class: className = "",
         isCompact = false,
-        indent = 24,
+        indent = 16,
         onNodeClick = (node: TreeNode) => {},
         onAction = (node: TreeNode) => {},
         onContextMenuAction = (action: string, node: TreeNode) => {},
+        onExpand = (node: TreeNode, isOpen: boolean) => {},
         expanded = $bindable(new Set()),
     }: Props = $props();
 
@@ -77,10 +85,11 @@
         folder: Folder,
         group: Folder,
         file: FileText,
-        database: Database,
+        database: Database, // uses Server now
         key: Key,
-        schema: Cube,
-        table: Table,
+        schema: Cube, // uses BoxSeam now
+        table: TableIcon, // Custom SVG!
+        view: ViewIcon, // New!
         column: ColumnIcon,
         primary_key: PrimaryKeyIcon,
         index: ListSearch,
@@ -88,11 +97,13 @@
         foreign_key: Key,
     };
 
-    function toggle(key: string) {
+    function toggle(key: string, node: TreeNode) {
         const next = new Set(expanded);
+        const willOpen = !next.has(key);
         if (next.has(key)) next.delete(key);
         else next.add(key);
         expanded = next;
+        if (onExpand) onExpand(node, willOpen);
     }
 
     export function expandAll() {
@@ -116,10 +127,13 @@
 </script>
 
 <div
-    class={cn("font-mono text-sm select-none flex flex-col h-full", className)}
+    class={cn(
+        "font-mono text-[13px] select-none flex flex-col h-full",
+        className,
+    )}
 >
     <!-- Tree -->
-    <ul class="flex flex-col gap-0.5 overflow-auto flex-1">
+    <ul class="flex flex-col gap-0 overflow-auto flex-1">
         {#each items as item, i (getKey(item, i))}
             {@render TreeItem({ node: item, index: i, depth: 0 })}
         {/each}
@@ -139,45 +153,49 @@
     {@const isFolder =
         !!node.children?.length ||
         node.type === "folder" ||
-        node.type === "group"}
+        node.type === "group" ||
+        node.type === "database" ||
+        node.type === "schema"}
     {@const isOpen = expanded.has(key)}
     {@const isGroup = node.type === "group"}
     {@const isCompact =
         node.type === "column" ||
         node.type === "primary_key" ||
         node.type === "index" ||
-        node.type === "foreign_key"}
+        node.type === "foreign_key" ||
+        node.type === "table" ||
+        node.type === "view"}
 
     <li class="relative">
         <ContextMenu.Root>
             <ContextMenu.Trigger>
                 <div
                     class={cn(
-                        "group flex items-center gap-2 rounded-md cursor-default transition-colors border border-transparent",
+                        "group flex items-center gap-1.5 rounded-sm cursor-default transition-colors border border-transparent",
                         isCompact
-                            ? "py-0 text-xs h-5 hover:bg-accent/50 text-foreground/80 hover:text-foreground" // Compact with hover
-                            : "py-1 text-sm hover:bg-accent/50 text-foreground/80 hover:text-foreground",
+                            ? "h-6 hover:bg-accent/40 text-foreground/90 hover:text-foreground"
+                            : "h-6 hover:bg-accent/40 text-foreground hover:text-foreground",
                     )}
                     style="padding-left: calc({indent}px * {depth} + 4px);"
                     onclick={(e) => {
                         e.stopPropagation();
                         if (isFolder) {
-                            toggle(key);
+                            toggle(key, node);
                         }
                         onNodeClick(node);
                     }}
                     onkeydown={(e) =>
                         (e.key === "Enter" || e.key === " ") &&
                         isFolder &&
-                        toggle(key)}
+                        toggle(key, node)}
                     role="button"
                     tabindex="0"
                 >
                     <!-- Arrow -->
                     <span
-                        class="flex items-center justify-center size-4 shrink-0 text-muted-foreground/50"
+                        class="flex items-center justify-center w-4 shrink-0 text-muted-foreground/60"
                     >
-                        {#if isFolder && node.children && node.children.length > 0}
+                        {#if isFolder && (node.type === "database" || (node.children && node.children.length > 0))}
                             <ChevronRight
                                 class={cn(
                                     "size-3.5 transition-transform duration-200",
@@ -193,26 +211,41 @@
                     >
                         {#if node.type === "folder" || node.type === "group"}
                             {#if isOpen}
-                                <FolderOpen class="size-4" />
+                                <FolderOpen class="size-3.5" />
                             {:else}
-                                <Folder class="size-4" />
+                                <Folder class="size-3.5" />
                             {/if}
                         {:else}
                             {@const Icon =
                                 typeIcon[node.type || "file"] || FileText}
-                            <Icon class="size-4" />
+                            <Icon class="size-3.5" />
                         {/if}
                     </span>
 
                     <!-- Label -->
-                    <span class="truncate leading-none opacity-90">
-                        {node.name}
+                    <span
+                        class="flex items-center gap-1.5 truncate leading-none overflow-hidden"
+                    >
+                        <span class="truncate">{node.name}</span>
+                        {#if node.isConnected && node.type === "database"}
+                            <span
+                                class="size-1.5 rounded-full bg-primary shrink-0"
+                                title="Connected"
+                            ></span>
+                        {/if}
                     </span>
+
+                    <!-- Loader (New) -->
+                    {#if node.isLoading && node.type === "database"}
+                        <LoaderIcon
+                            class="size-2.5 ml-1 animate-spin text-muted-foreground/70 shrink-0"
+                        />
+                    {/if}
 
                     <!-- Count (New) -->
                     {#if node.count !== undefined}
-                        <span class="ml-1 text-[10px] text-muted-foreground/70"
-                            >({node.count})</span
+                        <span class="ml-1 text-[11px] text-muted-foreground/60"
+                            >{node.count}</span
                         >
                     {/if}
 
@@ -234,7 +267,7 @@
                             }}
                             title="Open in new tab"
                         >
-                            <IconSql class="size-3.5" />
+                            <SqlIcon class="size-4" />
                         </button>
                     {/if}
                 </div>
@@ -247,11 +280,11 @@
             <div class="relative" transition:slide={{ duration: 200 }}>
                 <!-- Vertical Line -->
                 <div
-                    class="absolute top-0 bottom-0 w-px bg-border/60"
-                    style="left: calc({indent}px * {depth} + 12px);"
+                    class="absolute top-0 bottom-0 w-px bg-border/40"
+                    style="left: calc({indent}px * {depth} + 10px);"
                 ></div>
 
-                <ul class={cn("flex flex-col", isGroup ? "gap-0" : "gap-0.5")}>
+                <ul class="flex flex-col gap-0">
                     {#each node.children as child, childIndex (getKey(child, childIndex))}
                         {@render TreeItem({
                             node: child,

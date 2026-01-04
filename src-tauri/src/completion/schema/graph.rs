@@ -55,16 +55,22 @@ impl SchemaGraph {
     }
 
     /// Add a table to the schema.
+    /// Tables are stored with schema-qualified keys to handle duplicate names across schemas.
     pub fn add_table(&mut self, table: TableInfo) {
-        let name = table.name.to_lowercase();
+        // Use schema-qualified key (e.g., "production.tasks") to avoid overwrites
+        let qualified_key = format!("{}.{}", table.schema.to_lowercase(), table.name.to_lowercase());
+        let simple_key = table.name.to_lowercase();
         
-        // Add to graph if not present
-        if !self.node_indices.contains_key(&name) {
-            let idx = self.fk_graph.add_node(name.clone());
-            self.node_indices.insert(name.clone(), idx);
+        log::debug!("[SchemaGraph] Adding table: {} (key: {})", table.name, qualified_key);
+        
+        // Add to graph using simple name for FK lookups
+        if !self.node_indices.contains_key(&simple_key) {
+            let idx = self.fk_graph.add_node(simple_key.clone());
+            self.node_indices.insert(simple_key, idx);
         }
         
-        self.tables.insert(name, table);
+        // Store with qualified key
+        self.tables.insert(qualified_key, table);
     }
 
     /// Add a foreign key relationship.
@@ -89,21 +95,75 @@ impl SchemaGraph {
     }
 
     /// Get a table by name.
+    /// Handles both simple names (users) and schema-qualified names (public.users)
     pub fn get_table(&self, name: &str) -> Option<&TableInfo> {
-        self.tables.get(&name.to_lowercase())
+        let name_lower = name.to_lowercase();
+        
+        // Try exact match first (for schema-qualified names)
+        if let Some(table) = self.tables.get(&name_lower) {
+            return Some(table);
+        }
+        
+        // Try to find a table with matching name (for simple names)
+        for table in self.tables.values() {
+            if table.name.to_lowercase() == name_lower {
+                return Some(table);
+            }
+        }
+        
+        None
     }
 
     /// Check if a table exists.
     pub fn has_table(&self, name: &str) -> bool {
-        self.tables.contains_key(&name.to_lowercase())
+        self.get_table(name).is_some()
     }
 
     /// Get columns for a table.
+    /// Handles both simple names (tasks) and schema-qualified names (production.tasks)
     pub fn get_columns(&self, table_name: &str) -> Vec<&ColumnInfo> {
-        self.tables
-            .get(&table_name.to_lowercase())
-            .map(|t| t.columns.iter().collect())
-            .unwrap_or_default()
+        let name_lower = table_name.to_lowercase();
+        
+        log::debug!("[GetColumns] Looking up table '{}' (normalized: '{}')", table_name, name_lower);
+        log::debug!("[GetColumns] Available tables: {:?}", self.tables.keys().collect::<Vec<_>>());
+        
+        // Strategy 1: Try exact match (for simple table names)
+        if let Some(table) = self.tables.get(&name_lower) {
+            log::debug!("[GetColumns] Strategy 1: Exact match found for '{}'", name_lower);
+            return table.columns.iter().collect();
+        }
+        
+        // Strategy 2: Handle schema-qualified name (production.tasks)
+        // Extract just the table name part and try again
+        if let Some(dot_pos) = name_lower.rfind('.') {
+            let table_only = &name_lower[dot_pos + 1..];
+            log::debug!("[GetColumns] Strategy 2: Trying unqualified name '{}'", table_only);
+            if let Some(table) = self.tables.get(table_only) {
+                log::debug!("[GetColumns] Strategy 2: Found table '{}' with {} columns", table_only, table.columns.len());
+                return table.columns.iter().collect();
+            }
+        }
+        
+        // Strategy 3: Check if any table matches the given name
+        // (handles case where schema.table is passed but table is stored as just "table")
+        log::debug!("[GetColumns] Strategy 3: Scanning all tables...");
+        for (key, table) in &self.tables {
+            if key == &name_lower || table.name.to_lowercase() == name_lower {
+                log::debug!("[GetColumns] Strategy 3: Match on key '{}' or name '{}'", key, table.name);
+                return table.columns.iter().collect();
+            }
+            // Also check if the table name matches the unqualified part
+            if let Some(dot_pos) = name_lower.rfind('.') {
+                let table_only = &name_lower[dot_pos + 1..];
+                if key == table_only || table.name.to_lowercase() == table_only {
+                    log::debug!("[GetColumns] Strategy 3: Match on unqualified '{}' -> key '{}'", table_only, key);
+                    return table.columns.iter().collect();
+                }
+            }
+        }
+        
+        log::debug!("[GetColumns] No table found for '{}'", table_name);
+        Vec::new()
     }
 
     /// Find FK path between two tables.

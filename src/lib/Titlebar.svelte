@@ -17,15 +17,21 @@
   import Logs from "@tabler/icons-svelte/icons/logs";
   import { invoke } from "@tauri-apps/api/core";
   import { windowState } from "$lib/stores/window.svelte";
+  import { schemaStore } from "$lib/stores/schema.svelte";
   import { cn } from "$lib/utils";
   import DataSource from "./components/datasource/DataSource.svelte";
   import ConnectionPicker from "$lib/components/ConnectionPicker.svelte";
+  import * as Menu from "$lib/components/ui/dropdown-menu";
+  import IconDatabase from "@tabler/icons-svelte/icons/database";
+  import IconChevronDown from "@tabler/icons-svelte/icons/chevron-down";
+  import IconLoader2 from "@tabler/icons-svelte/icons/loader-2";
 
   import WindowControls from "$lib/components/WindowControls.svelte";
 
   let { isFullScreen } = $props();
   // let icons = $state(false);
   let datasourceWindowOpen = $state(false);
+  let isDbPickerOpen = $state(false);
 
   // Use user agent to detect Windows.
   // Note: This is a simple check. For improved reliability might want to use `@tauri-apps/plugin-os` in future.
@@ -83,6 +89,66 @@
       >
         {#if !["datasource-window", "appearance-window"].includes(windowState.label)}
           <ConnectionPicker />
+
+          {#if schemaStore.activeConnection?.engine === "postgres"}
+            <div class="h-4 w-px bg-border mx-1"></div>
+            <Menu.Root bind:open={isDbPickerOpen}>
+              <Menu.Trigger
+                class={cn(
+                  "group flex items-center gap-2 p-1 text-xs font-medium rounded-md transition-all duration-200",
+                  "hover:bg-(--theme-bg-hover) active:bg-(--theme-bg-active)",
+                  "border border-transparent focus:outline-none focus:ring-1 focus:ring-(--theme-border-active)",
+                  isDbPickerOpen ? "bg-(--theme-bg-active)" : "",
+                )}
+              >
+                <div class="flex items-center gap-2 px-2">
+                  <IconDatabase
+                    class={cn(
+                      "size-3.5 opacity-70 transition-opacity",
+                      isDbPickerOpen &&
+                        "opacity-100 text-(--theme-accent-primary)",
+                    )}
+                  />
+                  <span class="text-(--theme-fg-primary)"
+                    >{schemaStore.selectedDatabase || "Select DB"}</span
+                  >
+                  {#if schemaStore.status === "connecting" || schemaStore.status === "refreshing" || schemaStore.databases.find((d) => d.name === schemaStore.selectedDatabase)?.is_loading}
+                    <IconLoader2 class="size-3 animate-spin opacity-50" />
+                  {/if}
+                  <IconChevronDown
+                    class={cn(
+                      "size-3 opacity-50 transition-transform duration-200",
+                      isDbPickerOpen && "rotate-180",
+                    )}
+                  />
+                </div>
+              </Menu.Trigger>
+              <Menu.Content
+                align="center"
+                sideOffset={8}
+                class="min-w-48 w-max max-w-[400px] max-h-80 overflow-auto z-50 p-1 bg-(--theme-bg-secondary) border border-(--theme-border-default)"
+              >
+                <Menu.Label
+                  class="px-2 py-1.5 text-xs font-semibold text-muted-foreground"
+                  >Databases</Menu.Label
+                >
+                <Menu.Separator class="my-1 h-px bg-border" />
+                <Menu.RadioGroup
+                  value={schemaStore.selectedDatabase ?? undefined}
+                  onValueChange={(val) => schemaStore.selectDatabase(val)}
+                >
+                  {#each schemaStore.databases as db (db.name)}
+                    <Menu.RadioItem
+                      value={db.name}
+                      class="flex items-center gap-2 pl-8 pr-2 py-1.5 text-xs outline-none select-none data-highlighted:bg-accent data-highlighted:text-accent-foreground cursor-default"
+                    >
+                      <span class="flex-1 truncate">{db.name}</span>
+                    </Menu.RadioItem>
+                  {/each}
+                </Menu.RadioGroup>
+              </Menu.Content>
+            </Menu.Root>
+          {/if}
         {/if}
       </div>
 
