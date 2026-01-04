@@ -70,6 +70,7 @@ fn map_completion_kind(kind: CompletionKind) -> u8 {
         CompletionKind::Keyword => 14,    // Keyword
         CompletionKind::Function => 3,    // Function
         CompletionKind::JoinCondition => 15, // Snippet
+        CompletionKind::Schema => 9,      // Module
     }
 }
 

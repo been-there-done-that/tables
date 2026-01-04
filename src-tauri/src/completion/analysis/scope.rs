@@ -15,7 +15,24 @@ pub struct SemanticModel {
     pub ctes: HashMap<String, Vec<String>>,
 }
 
+/// The type of scope for proper handling of CTEs and subqueries.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum ScopeType {
+    /// Root query or top-level statement
+    #[default]
+    Root,
+    /// CTE definition (WITH clause body)
+    CTE { name: String },
+    /// Subquery (nested SELECT)
+    Subquery,
+    /// Derived table (FROM subquery with alias)
+    DerivedTable { alias: String },
+}
+
 /// A scope represents a query or subquery context.
+/// 
+/// Scopes form a tree: each scope has an optional parent.
+/// This enables correlated subqueries to see outer aliases.
 #[derive(Debug)]
 pub struct Scope {
     /// Unique scope ID (index in SemanticModel.scopes)
@@ -26,8 +43,13 @@ pub struct Scope {
     pub range: Range<usize>,
     /// Symbols defined in this scope (tables, aliases)
     pub symbols: Vec<Symbol>,
-    /// Is this a CTE scope?
+    /// Type of scope (Root, CTE, Subquery, DerivedTable)
+    pub scope_type: ScopeType,
+    /// Is this a CTE scope? (legacy, use scope_type instead)
     pub is_cte: bool,
+    /// Derived columns from subquery/CTE projection
+    /// Only populated for DerivedTable and CTE scopes
+    pub derived_columns: Option<Vec<String>>,
 }
 
 impl Scope {
@@ -37,8 +59,25 @@ impl Scope {
             parent_id,
             range,
             symbols: Vec::new(),
+            scope_type: ScopeType::Root,
             is_cte: false,
+            derived_columns: None,
         }
+    }
+    
+    /// Create a new scope with a specific type.
+    pub fn with_type(mut self, scope_type: ScopeType) -> Self {
+        self.scope_type = scope_type;
+        if matches!(self.scope_type, ScopeType::CTE { .. }) {
+            self.is_cte = true;
+        }
+        self
+    }
+    
+    /// Set derived columns for this scope.
+    pub fn with_derived_columns(mut self, columns: Vec<String>) -> Self {
+        self.derived_columns = Some(columns);
+        self
     }
 
     /// Find a symbol by name in this scope.

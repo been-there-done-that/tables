@@ -99,11 +99,40 @@ impl SchemaGraph {
     }
 
     /// Get columns for a table.
+    /// Handles both simple names (tasks) and schema-qualified names (production.tasks)
     pub fn get_columns(&self, table_name: &str) -> Vec<&ColumnInfo> {
-        self.tables
-            .get(&table_name.to_lowercase())
-            .map(|t| t.columns.iter().collect())
-            .unwrap_or_default()
+        let name_lower = table_name.to_lowercase();
+        
+        // Strategy 1: Try exact match (for simple table names)
+        if let Some(table) = self.tables.get(&name_lower) {
+            return table.columns.iter().collect();
+        }
+        
+        // Strategy 2: Handle schema-qualified name (production.tasks)
+        // Extract just the table name part and try again
+        if let Some(dot_pos) = name_lower.rfind('.') {
+            let table_only = &name_lower[dot_pos + 1..];
+            if let Some(table) = self.tables.get(table_only) {
+                return table.columns.iter().collect();
+            }
+        }
+        
+        // Strategy 3: Check if any table matches the given name
+        // (handles case where schema.table is passed but table is stored as just "table")
+        for (key, table) in &self.tables {
+            if key == &name_lower || table.name.to_lowercase() == name_lower {
+                return table.columns.iter().collect();
+            }
+            // Also check if the table name matches the unqualified part
+            if let Some(dot_pos) = name_lower.rfind('.') {
+                let table_only = &name_lower[dot_pos + 1..];
+                if key == table_only || table.name.to_lowercase() == table_only {
+                    return table.columns.iter().collect();
+                }
+            }
+        }
+        
+        Vec::new()
     }
 
     /// Find FK path between two tables.
