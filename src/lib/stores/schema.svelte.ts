@@ -77,7 +77,8 @@ export class SchemaStore {
             // 4.1 If cache is empty (first-time connection), trigger introspection
             if (data.length === 0) {
                 const loadingToastId = toast.loading("Introspecting schema...", {
-                    description: "First-time connection, discovering database structure."
+                    description: "First-time connection, discovering database structure.",
+                    duration: Infinity,
                 });
 
                 try {
@@ -181,6 +182,7 @@ export class SchemaStore {
         db.is_loading = true;
         const toastId = toast.loading(`Introspecting ${dbName}...`, {
             description: "Fetching schemas and tables information.",
+            duration: Infinity,
         });
 
         try {
