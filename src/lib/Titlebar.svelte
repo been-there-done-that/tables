@@ -92,7 +92,7 @@
           <ConnectionPicker />
 
           {#if schemaStore.activeConnection?.engine === "postgres"}
-            <div class="h-4 w-px bg-border mx-1"></div>
+            <div class="h-4 w-px bg-border mx-0.5"></div>
             <Menu.Root bind:open={isDbPickerOpen}>
               <Menu.Trigger
                 class={cn(
@@ -152,14 +152,15 @@
           {/if}
 
           {#if schemaStore.activeConnection}
+            <div class="h-4 w-px bg-border mx-0.5"></div>
             <button
-              class="h-6 w-6 flex items-center justify-center rounded-md border transition-all hover:bg-(--theme-bg-hover) border-transparent"
+              class="group h-6 w-6 flex items-center justify-center rounded-md border transition-all hover:bg-(--theme-bg-hover) border-transparent"
               title="Refresh All Schemas"
               onclick={() => schemaStore.refresh()}
             >
               <IconRefresh
                 class={cn(
-                  "size-4 opacity-70 transition-all hover:opacity-100",
+                  "size-5 opacity-70 transition-all group-hover:opacity-100",
                   schemaStore.status === "refreshing" &&
                     "animate-spin text-primary",
                 )}
@@ -182,7 +183,7 @@
       <div class="flex items-center gap-3 pointer-events-auto">
         {#if !["datasource-window", "appearance-window"].includes(windowState.label)}
           <button
-            class="h-6 w-6 flex items-center justify-center rounded-md border transition-all hover:bg-(--theme-bg-hover) border-transparent"
+            class="group h-6 w-6 flex items-center justify-center rounded-md border transition-all hover:bg-(--theme-bg-hover) border-transparent"
             onclick={async () => {
               try {
                 await invoke("create_new_window");
@@ -192,12 +193,14 @@
             }}
             title="New Window"
           >
-            <IconPlus class="size-6" />
+            <IconPlus
+              class="size-5 opacity-70 transition-all group-hover:opacity-100"
+            />
           </button>
 
           <button
             class={cn(
-              "h-6 w-6 flex items-center justify-center rounded-md border transition-all",
+              "group h-6 w-6 flex items-center justify-center rounded-md border transition-all",
               datasourceWindowOpen
                 ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
                 : "hover:bg-(--theme-bg-hover) border-transparent",
@@ -205,12 +208,14 @@
             onclick={() => (datasourceWindowOpen = !datasourceWindowOpen)}
             title="New Datasource"
           >
-            <PlaylistAdd class="size-6" />
+            <PlaylistAdd
+              class="size-5 opacity-70 transition-all group-hover:opacity-100"
+            />
           </button>
 
           <button
             class={cn(
-              "h-6 w-7 flex items-center justify-center rounded-md border transition-all",
+              "group h-6 w-7 flex items-center justify-center rounded-md border transition-all",
               windowState.datasourceWindowOpen
                 ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
                 : "hover:bg-(--theme-bg-hover) border-transparent",
@@ -219,62 +224,79 @@
             title="External Datasource Window"
             id="datasource-btn"
           >
-            <IconPlus class="size-6" />
+            <IconPlus
+              class="size-5 opacity-70 transition-all group-hover:opacity-100"
+            />
           </button>
 
           <button
             class={cn(
-              "h-6 w-6 flex items-center justify-center rounded-md border transition-all",
+              "group h-6 w-6 flex items-center justify-center rounded-md border transition-all",
               windowState.layout.left
                 ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
                 : "hover:bg-(--theme-bg-hover) border-transparent",
             )}
             onclick={() => (windowState.layout.left = !windowState.layout.left)}
+            title="Toggle Left Panel"
           >
             {#if windowState.layout.left}
-              <IconLayoutSidebarFilled class="size-5" />
+              <IconLayoutSidebarFilled
+                class="size-5 opacity-70 transition-all group-hover:opacity-100"
+              />
             {:else}
-              <IconLayoutSidebar class="size-5" />
+              <IconLayoutSidebar
+                class="size-5 opacity-70 transition-all group-hover:opacity-100"
+              />
             {/if}
           </button>
 
           <button
             class={cn(
-              "h-6 w-6 flex items-center justify-center rounded-md border transition-all",
+              "group h-6 w-6 flex items-center justify-center rounded-md border transition-all",
               windowState.layout.bottom
                 ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
                 : "hover:bg-(--theme-bg-hover) border-transparent",
             )}
             onclick={() =>
               (windowState.layout.bottom = !windowState.layout.bottom)}
+            title="Toggle Bottom Panel"
           >
             {#if windowState.layout.bottom}
-              <IconLayoutBottombarFilled class="size-5" />
+              <IconLayoutBottombarFilled
+                class="size-5 opacity-70 transition-all group-hover:opacity-100"
+              />
             {:else}
-              <IconLayoutBottombar class="size-5" />
+              <IconLayoutBottombar
+                class="size-5 opacity-70 transition-all group-hover:opacity-100"
+              />
             {/if}
           </button>
 
           <button
             class={cn(
-              "h-6 w-6 flex items-center justify-center rounded-md border transition-all",
+              "group h-6 w-6 flex items-center justify-center rounded-md border transition-all",
               windowState.layout.right
                 ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
                 : "hover:bg-(--theme-bg-hover) border-transparent",
             )}
             onclick={() =>
               (windowState.layout.right = !windowState.layout.right)}
+            title="Toggle Right Panel"
           >
             {#if windowState.layout.right}
-              <IconLayoutSidebarRightFilled class="size-5" />
+              <IconLayoutSidebarRightFilled
+                class="size-5 opacity-70 transition-all group-hover:opacity-100"
+              />
             {:else}
-              <IconLayoutSidebarRight class="size-5" />
+              <IconLayoutSidebarRight
+                class="size-5 opacity-70 transition-all group-hover:opacity-100"
+              />
             {/if}
           </button>
 
           <button
             class={cn(
-              "h-6 w-7 flex items-center justify-center rounded-md border transition-all",
+              "group h-6 w-7 flex items-center justify-center rounded-md border transition-all",
               windowState.settingsWindowOpen
                 ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
                 : "hover:bg-(--theme-bg-hover) border-transparent",
@@ -283,19 +305,25 @@
             title="Settings"
           >
             {#if windowState.settingsWindowOpen}
-              <IconSettingsFilled class="size-5" />
+              <IconSettingsFilled
+                class="size-5 opacity-70 transition-all group-hover:opacity-100"
+              />
             {:else}
-              <IconSettings class="size-5" />
+              <IconSettings
+                class="size-5 opacity-70 transition-all group-hover:opacity-100"
+              />
             {/if}
           </button>
         {/if}
 
         <button
-          class="h-6 w-6 flex items-center justify-center rounded-md border transition-all border-transparent hover:bg-(--theme-bg-hover) active:bg-(--theme-bg-active)"
+          class="group h-6 w-6 flex items-center justify-center rounded-md border transition-all border-transparent hover:bg-(--theme-bg-hover) active:bg-(--theme-bg-active)"
           onclick={() => window.location.reload()}
           title="Reload Window"
         >
-          <IconRestore class="size-5" />
+          <IconRestore
+            class="size-5 opacity-70 transition-all group-hover:opacity-100"
+          />
         </button>
 
         {#if isWindows}
