@@ -130,6 +130,8 @@ pub async fn introspect_database(
 #[tauri::command]
 pub async fn refresh_schema_progressive(
     connection_id: String,
+    priority_database: Option<String>,
+    priority_schema: Option<String>,
     db_state: State<'_, DatabaseState>,
     conn_state: State<'_, ConnectionManagerState>,
     app: tauri::AppHandle,
@@ -156,7 +158,7 @@ pub async fn refresh_schema_progressive(
     
     match connection.engine.as_str() {
         "postgres" | "postgresql" => {
-            introspector.introspect_postgres_progressive(&connection_id, config, &app).await?;
+            introspector.introspect_postgres_progressive(&connection_id, config, priority_database, priority_schema, &app).await?;
         },
         "sqlite" => {
             let sqlite_path = config.get("file")
@@ -178,5 +180,43 @@ pub async fn refresh_schema_progressive(
     }
 
     info!("Progressive schema refresh finished for connection {}", connection_id);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn refresh_schema_specific_progressive(
+    connection_id: String,
+    database_name: String,
+    schema_name: String,
+    db_state: State<'_, DatabaseState>,
+    conn_state: State<'_, ConnectionManagerState>,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    info!("Starting specific schema refresh for {}.{} in connection {}", database_name, schema_name, connection_id);
+    let manager = ConnectionManager::from_state(&db_state, &conn_state);
+    
+    let (connection, credentials) = manager.get_connection(&connection_id)?;
+    let mut config: serde_json::Value = serde_json::from_str(&connection.config_json)
+        .map_err(|e| format!("Failed to parse connection config: {}", e))?;
+
+    if let Some(db) = config.get_mut("db") {
+        if let Some(db_obj) = db.as_object_mut() {
+            if let Some(password) = &credentials.password {
+                db_obj.insert("password".to_string(), serde_json::Value::String(password.expose().to_string()));
+            }
+        }
+    }
+
+    let introspector = Introspector::new(db_state.conn.clone());
+    
+    match connection.engine.as_str() {
+        "postgres" | "postgresql" => {
+            introspector.introspect_postgres_schema_progressive(&connection_id, config, &database_name, &schema_name, &app).await?;
+        },
+        _ => {
+            return Err(format!("Engine '{}' not supported for specific schema refresh", connection.engine));
+        }
+    }
+
     Ok(())
 }

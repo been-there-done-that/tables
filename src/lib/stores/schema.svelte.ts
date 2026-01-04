@@ -14,6 +14,8 @@ export class SchemaStore {
     lastRefreshed = $state<Date | null>(null);
     windowLabel = $state<string | null>(null);
     activeSchema = $state<string | null>("public");
+    private unlistenLevel: (() => void) | null = null;
+    private unlistenReady: (() => void) | null = null;
 
     async initialize(label: string) {
         this.windowLabel = label;
@@ -30,6 +32,29 @@ export class SchemaStore {
                     await this.connect(conn);
                 }
             }
+
+            // Setup listeners
+            if (this.unlistenLevel) this.unlistenLevel();
+            if (this.unlistenReady) this.unlistenReady();
+
+            const { listen } = await import("@tauri-apps/api/event");
+            this.unlistenLevel = await listen("schema:level-complete", async (event: any) => {
+                console.log(`[SchemaStore] Level complete:`, event.payload);
+                await this.syncFromCache();
+            });
+
+            this.unlistenReady = await listen("schema:ready", async (event: any) => {
+                console.log(`[SchemaStore] Schema ready:`, event.payload);
+                await this.syncFromCache();
+                // Unblock UI
+                if (this.status === "refreshing") {
+                    this.status = "idle";
+                    toast.success("Schema prioritized and ready", {
+                        description: `Tables for ${event.payload.schema} are now interactive.`
+                    });
+                }
+            });
+
         } catch (e) {
             console.error("[SchemaStore] Failed to restore session:", e);
         }
@@ -225,30 +250,47 @@ export class SchemaStore {
         }
     }
 
-    async refresh() {
+    async syncFromCache() {
+        if (!this.activeConnection) return;
+        const data = await invoke<MetaDatabase[]>("get_schema", { connection_id: this.activeConnection.id });
+
+        await invoke<void>("update_completion_schema", {
+            connectionId: this.activeConnection.id,
+            databases: data,
+            selectedDatabase: this.selectedDatabase
+        });
+
+        this.databases = data;
+        this.lastRefreshed = new Date();
+    }
+
+    async refresh(databaseName?: string, schemaName?: string) {
         if (!this.activeConnection) return;
 
         this.status = "refreshing";
         this.error = null;
 
         try {
-            await invoke("refresh_schema", { connectionId: this.activeConnection.id });
-            const data = await invoke<MetaDatabase[]>("get_schema", { connectionId: this.activeConnection.id });
+            if (databaseName && schemaName) {
+                // Targeted refresh
+                await invoke("refresh_schema_specific_progressive", {
+                    connectionId: this.activeConnection.id,
+                    databaseName,
+                    schemaName
+                });
+            } else {
+                // Global progressive refresh with priority
+                await invoke("refresh_schema_progressive", {
+                    connectionId: this.activeConnection.id,
+                    priorityDatabase: this.selectedDatabase,
+                    prioritySchema: this.activeSchema
+                });
+            }
 
-            // Sync completion cache
-            await invoke<void>("update_completion_schema", {
-                connectionId: this.activeConnection.id,
-                databases: data,
-                selectedDatabase: this.selectedDatabase
-            });
-
-            this.databases = data;
             this.status = "idle";
-            this.lastRefreshed = new Date();
-            toast.success("Schema Refreshed");
+            toast.success("Refresh Complete");
         } catch (e) {
             this.status = "idle";
-            toast.error("Refresh Failed", { description: String(e) });
             toast.error("Refresh Failed", { description: String(e) });
         }
     }

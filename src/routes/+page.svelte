@@ -244,6 +244,9 @@
   }
 
   function handleExplorerAction(node: TreeNode) {
+    if (node.metadata?.schemaName) {
+      schemaStore.activeSchema = node.metadata.schemaName;
+    }
     if (!activeSession) return;
 
     if (node.type === "table") {
@@ -324,6 +327,15 @@
         // For tables, it sets { dbName, schemaName, tableName }.
 
         session.openView("schema-visualizer", diagramTitle, vizData);
+        break;
+      case "refresh":
+        const dbName = node.metadata?.dbName || schemaStore.selectedDatabase;
+        const schemaName = node.metadata?.schemaName;
+        if (dbName && schemaName) {
+          schemaStore.refresh(dbName, schemaName);
+        } else {
+          schemaStore.refresh();
+        }
         break;
       // Stubs for other actions
       default:
@@ -602,4 +614,11 @@
       {/snippet}
     </ResizableSplitPane>
   </div>
+
+  <!-- Footer -->
+  <footer
+    class="flex h-8 flex-none items-center border-t border-border bg-muted/5 px-4"
+  >
+    <SystemMetricsWidget />
+  </footer>
 </div>
