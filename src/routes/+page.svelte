@@ -19,6 +19,7 @@
   import PlaylistAdd from "@tabler/icons-svelte/icons/playlist-add";
 
   import SqlTestingEditor from "$lib/components/SqlTestingEditor.svelte";
+  import SchemaVisualizer from "$lib/components/visualizer/SchemaVisualizer.svelte";
 
   let fileTree = $state<any>(null);
   let showSqlEditor = $state(false);
@@ -290,6 +291,28 @@
         });
         session.openView("editor", title, node.metadata);
         break;
+      case "view_diagram":
+        const diagramTitle =
+          node.type === "schema"
+            ? `Diagram: ${node.name}`
+            : `Diagram: ${node.name} (Related)`;
+
+        // Prepare metadata for visualizer
+        const vizData = {
+          database: node.metadata?.dbName || schemaStore.selectedDatabase,
+          schema: node.metadata?.schemaName || schemaStore.activeSchema,
+          focusedTable:
+            node.type === "table" || node.type === "column"
+              ? node.name
+              : undefined,
+        };
+
+        // For schema nodes, they might store dbName/schemaName differently or just be 'schema' type
+        // The FileTree creation logic sets metadata: { dbName: ..., schemaName: ... } for schemas.
+        // For tables, it sets { dbName, schemaName, tableName }.
+
+        session.openView("schema-visualizer", diagramTitle, vizData);
+        break;
       // Stubs for other actions
       default:
         console.log(
@@ -335,7 +358,10 @@
           <div
             class="flex h-8 flex-none items-center border-b border-border bg-background/50 px-4"
           >
-            <h2 class="text-sm font-semibold">Explorer</h2>
+            <h2 class="text-sm font-semibold">
+              Explorer
+              <a href="/visualizer">Visualizer</a>
+            </h2>
             <div class="ml-auto flex items-center gap-1">
               <button
                 class="p-1 hover:bg-accent rounded-sm text-muted-foreground hover:text-foreground transition-colors"
@@ -506,6 +532,14 @@
                         <div class="flex-1 overflow-hidden relative">
                           {#if activeView?.type === "editor"}
                             <SqlTestingEditor context={activeView.data} />
+                          {:else if activeView?.type === "schema-visualizer"}
+                            <div class="h-full w-full">
+                              <SchemaVisualizer
+                                database={activeView.data?.database}
+                                schema={activeView.data?.schema}
+                                focusedTable={activeView.data?.focusedTable}
+                              />
+                            </div>
                           {:else if activeView?.type === "table"}
                             <div
                               class="flex items-center justify-center h-full text-muted-foreground italic text-sm"

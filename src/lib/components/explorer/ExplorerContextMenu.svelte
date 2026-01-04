@@ -39,6 +39,14 @@
     <ContextMenu.Separator />
 
     <ContextMenu.Item
+        onclick={() => onAction("view_diagram", node)}
+        disabled={!isSchema && !isTable && node.type !== "column"}
+    >
+        <IconTable class="mr-2 size-4 text-purple-500" />
+        <span>View Diagram</span>
+    </ContextMenu.Item>
+
+    <ContextMenu.Item
         onclick={() => onAction("new_column", node)}
         disabled={!isTable}
     >
