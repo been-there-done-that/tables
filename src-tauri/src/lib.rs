@@ -16,6 +16,8 @@ pub mod adapter;
 pub mod adapters;
 pub mod orchestrator;
 pub mod adapter_registry;
+#[cfg(test)]
+mod dci_tests;
 
 use tauri::{Manager, PhysicalPosition, PhysicalSize, Size, Emitter, Listener};
 use std::{path::PathBuf, sync::{Arc, Mutex}, time::SystemTime, collections::{HashMap, HashSet}};

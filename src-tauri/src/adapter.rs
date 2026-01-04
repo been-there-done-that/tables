@@ -37,6 +37,29 @@ impl Default for CaseSensitivity {
     }
 }
 
+/// Engine capability profile for test matrix classification.
+///
+/// Profiles group engines by structural capabilities, enabling
+/// capability-based testing rather than per-engine tests.
+///
+/// ## Profiles
+/// - `DB0`: No database, no schema (SQLite)
+/// - `DB1`: Database only, no schemas (MySQL, MongoDB)
+/// - `DB2`: Database + schema (PostgreSQL)
+/// - `DB3`: Multi-catalog (Trino, Snowflake - future)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum EngineProfile {
+    /// No database, no schema - flat structure (SQLite)
+    DB0,
+    /// Database only, no schemas (MySQL, MongoDB)
+    DB1,
+    /// Full database + schema support (PostgreSQL)
+    DB2,
+    /// Multi-catalog support (Trino, Snowflake)
+    DB3,
+}
+
 /// A fully-qualified reference to a database table.
 ///
 /// This struct normalizes table references across all database engines,
@@ -278,6 +301,22 @@ impl DatabaseCapabilities {
             .map(|s| s.to_string())
             .or_else(|| self.default_schema.clone())
             .unwrap_or_else(|| "main".to_string())
+    }
+
+    /// Get the engine profile for test matrix classification.
+    ///
+    /// Profiles group engines by structural capabilities:
+    /// - `DB0`: No database, no schema (SQLite)
+    /// - `DB1`: Database only, no schemas (MySQL, MongoDB)
+    /// - `DB2`: Database + schema (PostgreSQL)
+    /// - `DB3`: Multi-catalog (future)
+    pub fn profile(&self) -> EngineProfile {
+        match (self.supports_databases, self.supports_schemas) {
+            (false, false) => EngineProfile::DB0,
+            (true, false) => EngineProfile::DB1,
+            (true, true) => EngineProfile::DB2,
+            (false, true) => EngineProfile::DB2, // Unusual but treat as DB2
+        }
     }
 }
 
