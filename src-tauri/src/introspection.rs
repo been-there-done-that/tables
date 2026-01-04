@@ -5,6 +5,8 @@ use std::sync::{Arc, Mutex};
 use chrono;
 use tokio_postgres;
 use std::collections::{HashMap, HashSet};
+use std::hash::{Hash, Hasher};
+use std::collections::hash_map::DefaultHasher;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MetaDatabase {
@@ -83,8 +85,20 @@ pub struct MetaForeignKey {
     pub ref_schema: String,
     pub ref_table: String,
     pub ref_column: String,
-    pub constraint_name: String,
+    pub constraint_name: Option<String>,  // May be None for engines that don't provide it
+    pub constraint_hash: String,          // Deterministic hash for deduplication
     pub seq_no: i32,
+}
+
+/// Compute a deterministic hash for a foreign key constraint.
+/// This is used for stable deduplication across introspection runs.
+pub fn compute_fk_hash(table: &str, column: &str, ref_table: &str, ref_column: &str) -> String {
+    let mut hasher = DefaultHasher::new();
+    table.hash(&mut hasher);
+    column.hash(&mut hasher);
+    ref_table.hash(&mut hasher);
+    ref_column.hash(&mut hasher);
+    format!("{:016x}", hasher.finish())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -452,16 +466,21 @@ impl Introspector {
         let rows = stmt.query_map([], |row| {
             let id: i32 = row.get(0)?;
             let seq: i32 = row.get(1)?;
+            let ref_table: String = row.get(2)?;
+            let column_name: String = row.get(3)?;
+            let ref_column: String = row.get(4)?;
+            let hash = compute_fk_hash(table_name, &column_name, &ref_table, &ref_column);
             Ok(MetaForeignKey {
                 connection_id: connection_id.to_string(),
                 database: database.to_string(),
                 schema: schema.to_string(),
                 table_name: table_name.to_string(),
-                column_name: row.get(3)?,
+                column_name,
                 ref_schema: "main".to_string(),
-                ref_table: row.get(2)?,
-                ref_column: row.get(4)?,
-                constraint_name: format!("fk_{}_{}", table_name, id),
+                ref_table,
+                ref_column,
+                constraint_name: Some(format!("fk_{}_{}", table_name, id)),
+                constraint_hash: hash,
                 seq_no: seq + 1,
             })
         }).map_err(|e| e.to_string())?;
@@ -524,77 +543,169 @@ impl Introspector {
         Ok(())
     }
 
-    fn save_database(&self, conn: &SqliteConnection, connection_id: &str, name: &str) -> Result<(), String> {
+    fn save_database(&self, conn: &SqliteConnection, connection_id: &str, name: &str) -> Result<i64, String> {
         conn.execute(
-            "INSERT OR REPLACE INTO meta_databases (connection_id, name) VALUES (?1, ?2)",
+            "INSERT INTO meta_databases (connection_id, name) VALUES (?1, ?2)
+             ON CONFLICT(connection_id, name) DO NOTHING",
             params![connection_id, name]
         ).map_err(|e| format!("Failed to save database '{}' to local cache: {}", name, e))?;
-        Ok(())
+        
+        // Get the database_id (either from insert or existing row)
+        let database_id: i64 = conn.query_row(
+            "SELECT database_id FROM meta_databases WHERE connection_id = ?1 AND name = ?2",
+            params![connection_id, name],
+            |row| row.get(0)
+        ).map_err(|e| format!("Failed to get database_id for '{}': {}", name, e))?;
+        
+        Ok(database_id)
     }
 
-    fn save_schema(&self, conn: &SqliteConnection, connection_id: &str, database: &str, name: &str, schema_type: &str) -> Result<(), String> {
+    fn save_schema(&self, conn: &SqliteConnection, connection_id: &str, database: &str, name: &str, schema_type: &str) -> Result<i64, String> {
+        // Get database_id first
+        let database_id: i64 = conn.query_row(
+            "SELECT database_id FROM meta_databases WHERE connection_id = ?1 AND name = ?2",
+            params![connection_id, database],
+            |row| row.get(0)
+        ).map_err(|e| format!("Database '{}' not found for schema '{}': {}", database, name, e))?;
+        
         conn.execute(
-            "INSERT OR REPLACE INTO meta_schemas (connection_id, database, name, schema_type) VALUES (?1, ?2, ?3, ?4)",
-            params![connection_id, database, name, schema_type]
+            "INSERT INTO meta_schemas (database_id, connection_id, database, name, schema_type) 
+             VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT(database_id, name) DO UPDATE SET schema_type = excluded.schema_type",
+            params![database_id, connection_id, database, name, schema_type]
         ).map_err(|e| format!("Failed to save schema '{}.{}' to local cache: {}", database, name, e))?;
-        Ok(())
+        
+        // Get the schema_id
+        let schema_id: i64 = conn.query_row(
+            "SELECT schema_id FROM meta_schemas WHERE database_id = ?1 AND name = ?2",
+            params![database_id, name],
+            |row| row.get(0)
+        ).map_err(|e| format!("Failed to get schema_id for '{}.{}': {}", database, name, e))?;
+        
+        Ok(schema_id)
     }
 
-    fn save_table(&self, conn: &SqliteConnection, table: MetaTable) -> Result<(), String> {
+    fn save_table(&self, conn: &SqliteConnection, table: MetaTable) -> Result<i64, String> {
+        // Get schema_id first
+        let schema_id: i64 = conn.query_row(
+            "SELECT schema_id FROM meta_schemas WHERE connection_id = ?1 AND database = ?2 AND name = ?3",
+            params![table.connection_id, table.database, table.schema],
+            |row| row.get(0)
+        ).map_err(|e| format!("Schema '{}.{}' not found for table '{}': {}", table.database, table.schema, table.table_name, e))?;
+        
         conn.execute(
-            "INSERT INTO meta_tables (connection_id, database, schema, table_name, type, classification, last_introspected_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+            "INSERT INTO meta_tables (schema_id, connection_id, database, schema, table_name, type, classification, last_introspected_at) 
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
              ON CONFLICT(connection_id, database, schema, table_name) DO UPDATE SET
                type=excluded.type,
                classification=excluded.classification,
                last_introspected_at=excluded.last_introspected_at",
-            params![table.connection_id, table.database, table.schema, table.table_name, table.table_type, table.classification, table.last_introspected_at]
+            params![schema_id, table.connection_id, table.database, table.schema, table.table_name, table.table_type, table.classification, table.last_introspected_at]
         ).map_err(|e| format!("Failed to save table '{}.{}.{}' to local cache: {}", table.database, table.schema, table.table_name, e))?;
-        Ok(())
+        
+        // Get the table_id
+        let table_id: i64 = conn.query_row(
+            "SELECT table_id FROM meta_tables WHERE connection_id = ?1 AND database = ?2 AND schema = ?3 AND table_name = ?4",
+            params![table.connection_id, table.database, table.schema, table.table_name],
+            |row| row.get(0)
+        ).map_err(|e| format!("Failed to get table_id for '{}.{}.{}': {}", table.database, table.schema, table.table_name, e))?;
+        
+        Ok(table_id)
     }
 
     fn save_column(&self, conn: &SqliteConnection, col: MetaColumn) -> Result<(), String> {
+        // Get table_id
+        let table_id: i64 = conn.query_row(
+            "SELECT table_id FROM meta_tables WHERE connection_id = ?1 AND database = ?2 AND schema = ?3 AND table_name = ?4",
+            params![col.connection_id, col.database, col.schema, col.table_name],
+            |row| row.get(0)
+        ).map_err(|e| format!("Table '{}.{}.{}' not found for column '{}': {}", col.database, col.schema, col.table_name, col.column_name, e))?;
+        
         conn.execute(
-            "INSERT OR REPLACE INTO meta_columns (connection_id, database, schema, table_name, ordinal_position, column_name, raw_type, logical_type, nullable, default_value, is_primary_key) 
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
-            params![col.connection_id, col.database, col.schema, col.table_name, col.ordinal_position, col.column_name, col.raw_type, col.logical_type, col.nullable as i32, col.default_value, col.is_primary_key as i32]
+            "INSERT INTO meta_columns (table_id, connection_id, database, schema, table_name, ordinal_position, column_name, raw_type, logical_type, nullable, default_value, is_primary_key) 
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+             ON CONFLICT(table_id, column_name) DO UPDATE SET
+               ordinal_position=excluded.ordinal_position,
+               raw_type=excluded.raw_type,
+               logical_type=excluded.logical_type,
+               nullable=excluded.nullable,
+               default_value=excluded.default_value,
+               is_primary_key=excluded.is_primary_key",
+            params![table_id, col.connection_id, col.database, col.schema, col.table_name, col.ordinal_position, col.column_name, col.raw_type, col.logical_type, col.nullable as i32, col.default_value, col.is_primary_key as i32]
         ).map_err(|e| format!("Failed to save column '{}.{}.{}.{}' to local cache: {}", col.database, col.schema, col.table_name, col.column_name, e))?;
         Ok(())
     }
 
     fn save_foreign_key(&self, conn: &SqliteConnection, fk: MetaForeignKey) -> Result<(), String> {
+        // Get table_id
+        let table_id: i64 = conn.query_row(
+            "SELECT table_id FROM meta_tables WHERE connection_id = ?1 AND database = ?2 AND schema = ?3 AND table_name = ?4",
+            params![fk.connection_id, fk.database, fk.schema, fk.table_name],
+            |row| row.get(0)
+        ).map_err(|e| format!("Table '{}.{}.{}' not found for FK: {}", fk.database, fk.schema, fk.table_name, e))?;
+        
         conn.execute(
-            "INSERT INTO meta_foreign_keys (connection_id, database, schema, table_name, column_name, ref_schema, ref_table, ref_column, constraint_name, seq_no) 
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
-             ON CONFLICT(connection_id, database, schema, table_name, constraint_name, seq_no) DO UPDATE SET
+            "INSERT INTO meta_foreign_keys (table_id, connection_id, database, schema, table_name, column_name, ref_schema, ref_table, ref_column, constraint_name, constraint_hash, seq_no) 
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+             ON CONFLICT(table_id, constraint_hash, seq_no) DO UPDATE SET
                column_name=excluded.column_name,
                ref_schema=excluded.ref_schema,
                ref_table=excluded.ref_table,
-               ref_column=excluded.ref_column",
-            params![fk.connection_id, fk.database, fk.schema, fk.table_name, fk.column_name, fk.ref_schema, fk.ref_table, fk.ref_column, fk.constraint_name, fk.seq_no]
-        ).map_err(|e| format!("[SQLITE_FK_SAVE] Failed to save foreign key '{}' ({}.{}.{}) to local cache: {}", fk.constraint_name, fk.database, fk.schema, fk.table_name, e))?;
+               ref_column=excluded.ref_column,
+               constraint_name=excluded.constraint_name",
+            params![table_id, fk.connection_id, fk.database, fk.schema, fk.table_name, fk.column_name, fk.ref_schema, fk.ref_table, fk.ref_column, fk.constraint_name, fk.constraint_hash, fk.seq_no]
+        ).map_err(|e| format!("[SQLITE_FK_SAVE] Failed to save foreign key '{}' ({}.{}.{}) to local cache: {}", fk.constraint_hash, fk.database, fk.schema, fk.table_name, e))?;
         Ok(())
     }
 
-    fn save_index(&self, conn: &SqliteConnection, idx: MetaIndex) -> Result<(), String> {
+    fn save_index(&self, conn: &SqliteConnection, idx: MetaIndex) -> Result<i64, String> {
+        // Get table_id
+        let table_id: i64 = conn.query_row(
+            "SELECT table_id FROM meta_tables WHERE connection_id = ?1 AND database = ?2 AND schema = ?3 AND table_name = ?4",
+            params![idx.connection_id, idx.database, idx.schema, idx.table_name],
+            |row| row.get(0)
+        ).map_err(|e| format!("Table '{}.{}.{}' not found for index '{}': {}", idx.database, idx.schema, idx.table_name, idx.index_name, e))?;
+        
         conn.execute(
-            "INSERT OR REPLACE INTO meta_indexes (connection_id, database, schema, table_name, index_name, is_unique) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![idx.connection_id, idx.database, idx.schema, idx.table_name, idx.index_name, idx.is_unique as i32]
+            "INSERT INTO meta_indexes (table_id, connection_id, database, schema, table_name, index_name, is_unique) 
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+             ON CONFLICT(table_id, index_name) DO UPDATE SET is_unique=excluded.is_unique",
+            params![table_id, idx.connection_id, idx.database, idx.schema, idx.table_name, idx.index_name, idx.is_unique as i32]
         ).map_err(|e| format!("[SQLITE_IDX_SAVE] Failed to save index '{}' to local cache: {}", idx.index_name, e))?;
-        Ok(())
+        
+        // Get the index_id
+        let index_id: i64 = conn.query_row(
+            "SELECT index_id FROM meta_indexes WHERE table_id = ?1 AND index_name = ?2",
+            params![table_id, idx.index_name],
+            |row| row.get(0)
+        ).map_err(|e| format!("Failed to get index_id for '{}': {}", idx.index_name, e))?;
+        
+        Ok(index_id)
     }
 
-    fn save_index_column(&self, conn: &SqliteConnection, col: MetaIndexColumn) -> Result<(), String> {
+    fn save_index_column(&self, conn: &SqliteConnection, index_id: i64, column_name: &str, seq_no: i32) -> Result<(), String> {
         conn.execute(
-            "INSERT OR REPLACE INTO meta_index_columns (connection_id, database, schema, table_name, index_name, column_name, seq_no) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params![col.connection_id, col.database, col.schema, col.table_name, col.index_name, col.column_name, col.seq_no]
-        ).map_err(|e| format!("Failed to save index column '{}' for index '{}' to local cache: {}", col.column_name, col.index_name, e))?;
+            "INSERT INTO meta_index_columns (index_id, column_name, seq_no) 
+             VALUES (?1, ?2, ?3)
+             ON CONFLICT(index_id, column_name) DO UPDATE SET seq_no=excluded.seq_no",
+            params![index_id, column_name, seq_no]
+        ).map_err(|e| format!("Failed to save index column '{}' for index_id {}: {}", column_name, index_id, e))?;
         Ok(())
     }
 
     fn save_trigger(&self, conn: &SqliteConnection, trigger: MetaTrigger) -> Result<(), String> {
+        // Get table_id
+        let table_id: i64 = conn.query_row(
+            "SELECT table_id FROM meta_tables WHERE connection_id = ?1 AND database = ?2 AND schema = ?3 AND table_name = ?4",
+            params![trigger.connection_id, trigger.database, trigger.schema, trigger.table_name],
+            |row| row.get(0)
+        ).map_err(|e| format!("Table '{}.{}.{}' not found for trigger '{}': {}", trigger.database, trigger.schema, trigger.table_name, trigger.trigger_name, e))?;
+        
         conn.execute(
-            "INSERT OR REPLACE INTO meta_triggers (connection_id, database, schema, table_name, trigger_name, event, timing) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params![trigger.connection_id, trigger.database, trigger.schema, trigger.table_name, trigger.trigger_name, trigger.event, trigger.timing]
+            "INSERT INTO meta_triggers (table_id, connection_id, database, schema, table_name, trigger_name, event, timing) 
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+             ON CONFLICT(table_id, trigger_name) DO UPDATE SET event=excluded.event, timing=excluded.timing",
+            params![table_id, trigger.connection_id, trigger.database, trigger.schema, trigger.table_name, trigger.trigger_name, trigger.event, trigger.timing]
         ).map_err(|e| format!("[SQLITE_TRG_SAVE] Failed to save trigger '{}' to local cache: {}", trigger.trigger_name, e))?;
         Ok(())
     }
@@ -655,26 +766,33 @@ impl Introspector {
 
             // Load foreign keys
             let mut fk_stmt = conn.prepare(
-                "SELECT column_name, ref_schema, ref_table, ref_column, constraint_name, seq_no
+                "SELECT column_name, ref_schema, ref_table, ref_column, constraint_name, constraint_hash, seq_no
                  FROM meta_foreign_keys 
                  WHERE connection_id = ?1 AND database = ?2 AND schema = ?3 AND table_name = ?4
-                 ORDER BY constraint_name, seq_no"
+                 ORDER BY constraint_hash, seq_no"
             ).map_err(|e| e.to_string())?;
             
             let fks = fk_stmt.query_map(
                 params![&table.connection_id, &table.database, &table.schema, &table.table_name],
                 |row| {
+                    let column_name: String = row.get(0)?;
+                    let ref_schema: String = row.get(1)?;
+                    let ref_table: String = row.get(2)?;
+                    let ref_column: String = row.get(3)?;
+                    let constraint_name: Option<String> = row.get(4)?;
+                    let constraint_hash: String = row.get(5)?;
                     Ok(MetaForeignKey {
                         connection_id: table.connection_id.clone(),
                         database: table.database.clone(),
                         schema: table.schema.clone(),
                         table_name: table.table_name.clone(),
-                        column_name: row.get(0)?,
-                        ref_schema: row.get(1)?,
-                        ref_table: row.get(2)?,
-                        ref_column: row.get(3)?,
-                        constraint_name: row.get(4)?,
-                        seq_no: row.get(5)?,
+                        column_name,
+                        ref_schema,
+                        ref_table,
+                        ref_column,
+                        constraint_name,
+                        constraint_hash,
+                        seq_no: row.get(6)?,
                     })
                 }
             ).map_err(|e| e.to_string())?;
@@ -858,7 +976,7 @@ impl Introspector {
         }).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
 
         // Foreign Keys
-        let mut fk_stmt = conn.prepare("SELECT column_name, ref_schema, ref_table, ref_column, constraint_name, seq_no FROM meta_foreign_keys WHERE connection_id = ?1 AND database = ?2 AND schema = ?3 AND table_name = ?4 ORDER BY constraint_name, seq_no")
+        let mut fk_stmt = conn.prepare("SELECT column_name, ref_schema, ref_table, ref_column, constraint_name, constraint_hash, seq_no FROM meta_foreign_keys WHERE connection_id = ?1 AND database = ?2 AND schema = ?3 AND table_name = ?4 ORDER BY constraint_hash, seq_no")
             .map_err(|e| e.to_string())?;
         let foreign_keys = fk_stmt.query_map(params![connection_id, database, schema, table_name], |row| {
             Ok(MetaForeignKey {
@@ -871,7 +989,8 @@ impl Introspector {
                 ref_table: row.get(2)?,
                 ref_column: row.get(3)?,
                 constraint_name: row.get(4)?,
-                seq_no: row.get(5)?,
+                constraint_hash: row.get(5)?,
+                seq_no: row.get(6)?,
             })
         }).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
 
@@ -1182,16 +1301,23 @@ impl Introspector {
         ).await.map_err(|e| e.to_string())?;
 
         let fks = rows.iter().map(|row| {
+            let column_name: String = row.get(3);
+            let ref_schema: String = row.get(4);
+            let ref_table: String = row.get(5);
+            let ref_column: String = row.get(6);
+            let constraint_name: String = row.get(0);
+            let hash = compute_fk_hash(table_name, &column_name, &ref_table, &ref_column);
             MetaForeignKey {
                 connection_id: connection_id.to_string(),
                 database: database.to_string(),
                 schema: schema.to_string(),
                 table_name: table_name.to_string(),
-                column_name: row.get(3),
-                ref_schema: row.get(4),
-                ref_table: row.get(5),
-                ref_column: row.get(6),
-                constraint_name: row.get(0),
+                column_name,
+                ref_schema,
+                ref_table,
+                ref_column,
+                constraint_name: Some(constraint_name),
+                constraint_hash: hash,
                 seq_no: row.get::<_, i64>(7) as i32,
             }
         }).collect();
@@ -1322,6 +1448,7 @@ impl Introspector {
             let ref_column: String = row.get(6);
             let seq_no: i64 = row.get(7);
 
+            let hash = compute_fk_hash(&table, &column_name, &ref_table, &ref_column);
             fk_map.entry((schema.clone(), table.clone())).or_default().push(MetaForeignKey {
                 connection_id: connection_id.to_string(),
                 database: database.to_string(),
@@ -1331,7 +1458,8 @@ impl Introspector {
                 ref_schema,
                 ref_table,
                 ref_column,
-                constraint_name,
+                constraint_name: Some(constraint_name),
+                constraint_hash: hash,
                 seq_no: seq_no as i32,
             });
         }

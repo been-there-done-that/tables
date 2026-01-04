@@ -5,7 +5,6 @@ use log::{info, debug, warn, error};
 
 const MIGRATIONS: &[(&str, &str)] = &[
     ("001_initial", include_str!("../migrations/001_initial.sql")),
-    ("002_robust_fks", include_str!("../migrations/002_robust_fks.sql")),
 ];
 
 #[derive(Debug, Deserialize)]
