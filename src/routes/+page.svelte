@@ -9,6 +9,7 @@
   import EditorHome from "$lib/components/EditorHome.svelte";
   import { windowState } from "$lib/stores/window.svelte";
   import { schemaStore } from "$lib/stores/schema.svelte";
+  import { invoke } from "@tauri-apps/api/core";
   import IconLoader2 from "@tabler/icons-svelte/icons/loader-2";
   import { cn } from "$lib/utils";
   import IconRefresh from "@tabler/icons-svelte/icons/refresh";
@@ -19,101 +20,214 @@
 
   import SqlTestingEditor from "$lib/components/SqlTestingEditor.svelte";
 
-  let fileTree: any;
+  let fileTree = $state<any>(null);
   let showSqlEditor = $state(false);
 
   const activeSession = $derived(windowState.activeSession);
 
+  // Cache for lazily-loaded table details
+  let tableDetailsCache = $state<Map<string, any>>(new Map());
+  let loadingTables = $state<Set<string>>(new Set());
+
+  // Ensure a session exists when schemaStore has an active connection
+  $effect(() => {
+    const conn = schemaStore.activeConnection;
+    const hasSession = !!windowState.activeSession;
+
+    if (conn && !hasSession && schemaStore.status === "idle") {
+      console.log(`[AutoSession] Creating session for connection ${conn.id}`);
+      windowState.startSession(conn);
+    }
+  });
+
   const treeData = $derived.by(() => {
-    // ... (existing treeData logic) ...
-    return schemaStore.schemas.map((schema) => {
-      const isSqlite = schemaStore.activeConnection?.engine === "sqlite";
+    const activeConn = schemaStore.activeConnection;
+    const selectedDbName = schemaStore.selectedDatabase;
 
-      let children: any[] = [];
+    if (!activeConn || !selectedDbName) return [];
 
-      if (isSqlite) {
-        const tables = schema.tables.filter((t) => t.table_type === "table");
-        const views = schema.tables.filter((t) => t.table_type === "view");
+    const db = schemaStore.databases.find((d) => d.name === selectedDbName);
+    if (!db) return [];
 
-        children = [
-          {
-            id: `folder:tables:${schema.name}`,
-            name: "tables",
-            type: "folder" as NodeType,
-            count: tables.length,
-            children: tables.map((table) => mapTableToNode(table, schema.name)),
-          },
-          {
-            id: `folder:views:${schema.name}`,
-            name: "views",
-            type: "folder" as NodeType,
-            count: views.length,
-            children: views.map((table) => ({
-              ...mapTableToNode(table, schema.name),
-              detail: undefined,
-            })),
-          },
-        ];
-      } else {
-        children = schema.tables.map((table) =>
-          mapTableToNode(table, schema.name),
-        );
+    // Map schemas directly to root nodes
+    return db.schemas.map((schema) => {
+      const tables = schema.tables.filter((t) => t.table_type === "table");
+      const views = schema.tables.filter((t) => t.table_type === "view");
+
+      const children: TreeNode[] = [];
+
+      if (tables.length > 0) {
+        children.push({
+          id: `folder:tables:${db.name}:${schema.name}`,
+          name: "tables",
+          type: "folder" as NodeType,
+          count: tables.length,
+          children: tables.map((table) =>
+            mapTableToNode(table, db.name, schema.name),
+          ),
+        });
+      }
+
+      if (views.length > 0) {
+        children.push({
+          id: `folder:views:${db.name}:${schema.name}`,
+          name: "views",
+          type: "folder" as NodeType,
+          count: views.length,
+          children: views.map((table) => ({
+            ...mapTableToNode(table, db.name, schema.name),
+            detail: undefined,
+          })),
+        });
       }
 
       return {
-        id: `schema:${schema.name}`,
+        id: `schema:${db.name}:${schema.name}`,
         name: schema.name,
         type: "schema" as NodeType,
         children,
+        metadata: { dbName: db.name, schemaName: schema.name },
       };
     });
   });
 
-  function mapTableToNode(table: any, schemaName: string) {
-    return {
-      id: `table:${schemaName}.${table.table_name}`,
-      name: table.table_name,
-      type: "table" as NodeType,
-      detail: table.table_type === "table" ? undefined : table.table_type,
-      children: [
+  function mapTableToNode(table: any, dbName: string, schemaName: string) {
+    const tableId = `table:${dbName}:${schemaName}.${table.table_name}`;
+    const cacheKey = `${dbName}:${schemaName}:${table.table_name}`;
+    const cachedDetails = tableDetailsCache.get(cacheKey);
+    const isLoading = loadingTables.has(cacheKey);
+
+    // If details are cached, show them; otherwise show placeholder children
+    let children: TreeNode[] = [];
+
+    if (cachedDetails) {
+      // Use cached details
+      children = [
         {
-          id: `cols:${schemaName}.${table.table_name}`,
+          id: `cols:${tableId}`,
           name: "Columns",
           type: "group" as NodeType,
-          count: table.columns.length,
-          children: table.columns.map((col: any) => ({
-            id: `col:${schemaName}.${table.table_name}.${col.column_name}`,
+          count: cachedDetails.columns?.length || 0,
+          children: (cachedDetails.columns || []).map((col: any) => ({
+            id: `col:${tableId}.${col.column_name}`,
             name: col.column_name,
             type: (col.is_primary_key ? "primary_key" : "column") as NodeType,
             detail: col.logical_type,
           })),
         },
         {
-          id: `idxs:${schemaName}.${table.table_name}`,
+          id: `idxs:${tableId}`,
           name: "Indexes",
           type: "group" as NodeType,
-          count: table.indexes.length,
-          children: table.indexes.map((idx: any) => ({
-            id: `idx:${schemaName}.${table.table_name}.${idx.index_name}`,
-            name: idx.index_name,
+          count: cachedDetails.indexes?.length || 0,
+          children: (cachedDetails.indexes || []).map((idx: any) => ({
+            id: `idx:${tableId}.${idx.name}`,
+            name: idx.name,
             type: "index" as NodeType,
             detail: idx.is_unique ? "Unique" : "",
           })),
         },
         {
-          id: `fks:${schemaName}.${table.table_name}`,
+          id: `fks:${tableId}`,
           name: "Foreign Keys",
           type: "group" as NodeType,
-          count: table.foreign_keys.length,
-          children: table.foreign_keys.map((fk: any) => ({
-            id: `fk:${schemaName}.${table.table_name}.${fk.column_name}`,
+          count: cachedDetails.foreign_keys?.length || 0,
+          children: (cachedDetails.foreign_keys || []).map((fk: any) => ({
+            id: `fk:${tableId}.${fk.column_name}`,
             name: fk.column_name,
             type: "foreign_key" as NodeType,
             detail: `-> ${fk.ref_table}.${fk.ref_column}`,
           })),
         },
-      ],
+      ];
+    } else {
+      // Show placeholder - will be replaced when expanded
+      children = [
+        {
+          id: `placeholder:${tableId}`,
+          name: isLoading ? "Loading..." : "Expand to load details",
+          type: "column" as NodeType,
+        },
+      ];
+    }
+
+    return {
+      id: tableId,
+      name: table.table_name,
+      type: "table" as NodeType,
+      detail: table.table_type === "table" ? undefined : table.table_type,
+      children,
+      // Store metadata for lazy loading
+      metadata: { dbName, schemaName, tableName: table.table_name },
     };
+  }
+
+  // Effect to load details for pre-expanded tables
+  $effect(() => {
+    const session = activeSession;
+    const expanded = session?.explorerState?.expanded;
+    const hasConnection = !!schemaStore.activeConnection;
+
+    console.log(
+      `[Effect] Checking pre-expanded tables: session=${!!session}, expanded=${expanded?.size || "null"}, hasConnection=${hasConnection}`,
+    );
+
+    if (!expanded || !schemaStore.activeConnection) return;
+
+    console.log(`[Effect] Expanded keys:`, [...expanded]);
+
+    // Find expanded table nodes and load their details
+    for (const key of expanded) {
+      // Check if this is a table key (format: table:db:schema.tableName or table:db:schema.tableName-index)
+      if (key.startsWith("table:")) {
+        console.log(`[Effect] Found table key: ${key}`);
+        const match = key.match(/^table:([^:]+):([^.]+)\.([^-]+)/);
+        if (match) {
+          const [, dbName, schemaName, tableName] = match;
+          const cacheKey = `${dbName}:${schemaName}:${tableName}`;
+
+          // Load if not already cached or loading
+          if (
+            !tableDetailsCache.has(cacheKey) &&
+            !loadingTables.has(cacheKey)
+          ) {
+            console.log(`[LazyLoad] Pre-expanded table detected: ${tableName}`);
+            loadTableDetails(dbName, schemaName, tableName);
+          }
+        } else {
+          console.log(`[Effect] Key didn't match regex: ${key}`);
+        }
+      }
+    }
+  });
+
+  async function loadTableDetails(
+    dbName: string,
+    schemaName: string,
+    tableName: string,
+  ) {
+    const cacheKey = `${dbName}:${schemaName}:${tableName}`;
+
+    if (tableDetailsCache.has(cacheKey) || loadingTables.has(cacheKey)) return;
+
+    loadingTables = new Set([...loadingTables, cacheKey]);
+
+    try {
+      console.time(`[LazyLoad] ${tableName}`);
+      const details = await invoke<any>("get_schema_table_details", {
+        connectionId: schemaStore.activeConnection?.id,
+        database: dbName,
+        schema: schemaName,
+        tableName: tableName,
+      });
+      console.timeEnd(`[LazyLoad] ${tableName}`);
+
+      tableDetailsCache = new Map(tableDetailsCache).set(cacheKey, details);
+    } catch (e) {
+      console.error(`Failed to load details for ${tableName}:`, e);
+    } finally {
+      loadingTables = new Set([...loadingTables].filter((k) => k !== cacheKey));
+    }
   }
 
   function handleExplorerAction(node: TreeNode) {
@@ -126,8 +240,13 @@
       node.type === "primary_key" ||
       node.type === "foreign_key"
     ) {
+      // id format: col:table:db:schema.table.column
+      const parts = node.id?.split(":");
+      const dbSchemaTable = parts?.[parts.length - 1] || "";
+      const tableRef = dbSchemaTable.split(".").slice(0, 2).join("."); // schema.table
+
       activeSession.openView("editor", `Query: ${node.name}`, {
-        initialValue: `SELECT * FROM ${node.id?.split(".")[0].split(":")[1]}.${node.id?.split(".")[1]} WHERE ${node.name} = ...`,
+        initialValue: `SELECT * FROM ${tableRef} WHERE ${node.name} = ...`,
       });
     }
   }
@@ -169,13 +288,34 @@
           type: "editor",
           title,
         });
-        session.openView("editor", title);
+        session.openView("editor", title, node.metadata);
         break;
       // Stubs for other actions
       default:
         console.log(
           `[handleContextMenuAction] Action "${action}" not implemented for node ${node.name}`,
         );
+    }
+  }
+
+  async function handleNodeExpand(node: TreeNode, isOpen: boolean) {
+    console.log(
+      `[handleNodeExpand] type=${node.type}, name=${node.name}, isOpen=${isOpen}, metadata=`,
+      node.metadata,
+    );
+
+    if (isOpen && node.type === "database") {
+      schemaStore.loadDatabase(node.name);
+    }
+
+    // Lazy load table details when table is expanded
+    if (isOpen && node.type === "table" && node.metadata) {
+      const { dbName, schemaName, tableName } = node.metadata as {
+        dbName: string;
+        schemaName: string;
+        tableName: string;
+      };
+      loadTableDetails(dbName, schemaName, tableName);
     }
   }
 </script>
@@ -261,7 +401,7 @@
                   Connecting...
                 </p>
               </div>
-            {:else if schemaStore.schemas.length === 0 && schemaStore.status !== "refreshing"}
+            {:else if schemaStore.databases.length === 0 && schemaStore.status !== "refreshing"}
               <div
                 class="flex flex-col items-center justify-center p-8 text-center h-full max-h-[400px]"
               >
@@ -305,6 +445,7 @@
                   bind:expanded={activeSession.explorerState.expanded}
                   onAction={handleExplorerAction}
                   onContextMenuAction={handleContextMenuAction}
+                  onExpand={handleNodeExpand}
                 />
               </div>
             {:else}
@@ -314,6 +455,7 @@
                   bind:this={fileTree}
                   onAction={handleExplorerAction}
                   onContextMenuAction={handleContextMenuAction}
+                  onExpand={handleNodeExpand}
                 />
               </div>
             {/if}
@@ -351,7 +493,11 @@
                         <EditorHome />
                       {:else if showSqlEditor}
                         <div class="flex-1 relative overflow-hidden">
-                          <SqlTestingEditor />
+                          <SqlTestingEditor
+                            context={activeSession.views.find(
+                              (v) => v.id === activeSession.activeViewId,
+                            )?.data}
+                          />
                         </div>
                       {:else}
                         {@const activeView = activeSession.views.find(
@@ -359,7 +505,7 @@
                         )}
                         <div class="flex-1 overflow-hidden relative">
                           {#if activeView?.type === "editor"}
-                            <SqlTestingEditor />
+                            <SqlTestingEditor context={activeView.data} />
                           {:else if activeView?.type === "table"}
                             <div
                               class="flex items-center justify-center h-full text-muted-foreground italic text-sm"

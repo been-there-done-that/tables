@@ -11,6 +11,7 @@ interface CompletionItemDto {
     detail: string | null;
     insert_text: string;
     score: number;
+    trigger_suggest?: boolean;  // If true, trigger completions again after selection
 }
 
 export function registerSqlCompletion(monacoInstance: typeof monaco) {
@@ -21,6 +22,7 @@ export function registerSqlCompletion(monacoInstance: typeof monaco) {
         provideCompletionItems: async (model, position) => {
             // Only proceed if we have an active connection
             if (!schemaStore.activeConnection) {
+                console.log('[Completion] No active connection');
                 return { suggestions: [] };
             }
 
@@ -29,17 +31,31 @@ export function registerSqlCompletion(monacoInstance: typeof monaco) {
             const offset = model.getOffsetAt(position);
             const connectionId = schemaStore.activeConnection.id;
 
+            console.log('[Completion] Request:', {
+                requestId: myRequestId,
+                offset,
+                defaultSchema: schemaStore.activeSchema,
+                textSnippet: text.slice(Math.max(0, offset - 50), offset + 10),
+            });
+
             try {
-                // console.time("rust_completion");
+                console.time(`[Completion] Request #${myRequestId}`);
                 const items = await invoke<CompletionItemDto[]>('request_completions', {
                     connectionId,
                     text,
                     cursorOffset: offset,
+                    defaultSchema: schemaStore.activeSchema,
                 });
-                // console.timeEnd("rust_completion");
+                console.timeEnd(`[Completion] Request #${myRequestId}`);
+
+                console.log(`[Completion] Received ${items.length} items from backend`);
+                if (items.length > 0) {
+                    console.log('[Completion] First 5 items:', items.slice(0, 5));
+                }
 
                 // If a newer request started while we were waiting, ignore this one
                 if (myRequestId !== currentRequestId) {
+                    console.log('[Completion] Stale request, ignoring');
                     return { suggestions: [] };
                 }
 
@@ -53,7 +69,7 @@ export function registerSqlCompletion(monacoInstance: typeof monaco) {
                             endColumn: word.endColumn,
                         };
 
-                        return {
+                        const suggestion: monaco.languages.CompletionItem = {
                             label: item.label,
                             kind: mapKind(monacoInstance, item.kind),
                             insertText: item.insert_text,
@@ -61,10 +77,21 @@ export function registerSqlCompletion(monacoInstance: typeof monaco) {
                             sortText: getSortText(item.score),
                             range: range,
                         };
+
+                        // Add command to trigger completions again after selecting this item
+                        // This enables chained completions (e.g., schema. -> tables)
+                        if (item.trigger_suggest) {
+                            suggestion.command = {
+                                id: 'editor.action.triggerSuggest',
+                                title: 'Trigger Suggest',
+                            };
+                        }
+
+                        return suggestion;
                     })
                 };
             } catch (e) {
-                console.error("Completion failed:", e);
+                console.error("[Completion] Request failed:", e);
                 return { suggestions: [] };
             }
         }
