@@ -11,6 +11,7 @@ interface CompletionItemDto {
     detail: string | null;
     insert_text: string;
     score: number;
+    trigger_suggest?: boolean;  // If true, trigger completions again after selection
 }
 
 export function registerSqlCompletion(monacoInstance: typeof monaco) {
@@ -68,7 +69,7 @@ export function registerSqlCompletion(monacoInstance: typeof monaco) {
                             endColumn: word.endColumn,
                         };
 
-                        return {
+                        const suggestion: monaco.languages.CompletionItem = {
                             label: item.label,
                             kind: mapKind(monacoInstance, item.kind),
                             insertText: item.insert_text,
@@ -76,6 +77,17 @@ export function registerSqlCompletion(monacoInstance: typeof monaco) {
                             sortText: getSortText(item.score),
                             range: range,
                         };
+
+                        // Add command to trigger completions again after selecting this item
+                        // This enables chained completions (e.g., schema. -> tables)
+                        if (item.trigger_suggest) {
+                            suggestion.command = {
+                                id: 'editor.action.triggerSuggest',
+                                title: 'Trigger Suggest',
+                            };
+                        }
+
+                        return suggestion;
                     })
                 };
             } catch (e) {
