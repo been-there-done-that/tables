@@ -225,7 +225,7 @@ pub async fn request_completions(
         }
         
         // Run completion engine
-        let items = CompletionEngine::complete(&semantic, &context, &schema, default_schema.as_deref());
+        let items = CompletionEngine::complete(&semantic, &context, &schema, default_schema.as_deref(), None);
         
         // Convert to DTOs
         items.into_iter().map(CompletionItemDto::from).collect()

@@ -12,6 +12,10 @@ mod metrics;
 mod introspection;
 mod db_test;
 mod completion;
+pub mod adapter;
+pub mod adapters;
+pub mod orchestrator;
+pub mod adapter_registry;
 
 use tauri::{Manager, PhysicalPosition, PhysicalSize, Size, Emitter, Listener};
 use std::{path::PathBuf, sync::{Arc, Mutex}, time::SystemTime, collections::{HashMap, HashSet}};
