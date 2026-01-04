@@ -852,7 +852,7 @@ mod tests {
         let key_manager = MasterKeyManager::new(&temp_dir);
         let _master_key = key_manager.load_or_generate().unwrap();
         let credential_manager = Arc::new(CredentialManager::new(&temp_dir, Arc::clone(&db)).unwrap());
-        let active_connections = Arc::new(Mutex::new(std::collections::HashSet::new()));
+        let active_connections = Arc::new(Mutex::new(std::collections::HashMap::new()));
         let manager = ConnectionManager::new(db, credential_manager, active_connections);
         (manager, Arc::new(Mutex::new(SqliteConnection::open_in_memory().unwrap()))) // dummy db for manager
     }
