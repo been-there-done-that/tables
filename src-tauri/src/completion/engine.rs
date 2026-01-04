@@ -36,7 +36,40 @@ pub enum CompletionKind {
     Keyword = 3,
     Function = 4,
     JoinCondition = 5,
+    Schema = 6,
 }
+
+// ============================================================================
+// Scoring Constants (Additive Model)
+// ============================================================================
+
+/// Cursor context relevance (highest priority)
+const SCORE_CURSOR_RELEVANCE: u32 = 1000;
+/// Table/alias already in query scope
+const SCORE_QUERY_SCOPE_MATCH: u32 = 800;
+/// Alias matches exactly
+const SCORE_ALIAS_MATCH: u32 = 700;
+/// Exact prefix match
+const SCORE_EXACT_MATCH: u32 = 600;
+/// Prefix starts with typed text
+const SCORE_PREFIX_MATCH: u32 = 400;
+/// Matches UI schema hint (dropdown selection)
+const SCORE_UI_SCHEMA_HINT: u32 = 300;
+/// Matches default schema
+const SCORE_DEFAULT_SCHEMA: u32 = 200;
+/// Matches public schema
+const SCORE_PUBLIC_SCHEMA: u32 = 150;
+/// CTE definitions (local, highest priority for tables - beats UI schema hint)
+const SCORE_CTE: u32 = 400;
+/// Primary key column
+const SCORE_PRIMARY_KEY: u32 = 30;
+/// Indexed column
+const SCORE_INDEXED: u32 = 20;
+
+/// Penalty for cross-schema (not in selected schema)
+const PENALTY_CROSS_SCHEMA: i32 = -250;
+/// Penalty for ambiguous column (exists in multiple tables)
+const PENALTY_AMBIGUITY: i32 = -400;
 
 /// The completion engine.
 pub struct CompletionEngine;
@@ -89,6 +122,7 @@ impl CompletionEngine {
         semantic: &SemanticModel,
         context: &Context,
         schema: &SchemaGraph,
+        default_schema: Option<&str>,
     ) -> Vec<CompletionItem> {
         match &context.context_type {
             CursorContext::AfterDot { alias } => {
@@ -101,7 +135,7 @@ impl CompletionEngine {
                 Self::complete_root_context(context)
             }
             CursorContext::FromClause | CursorContext::JoinTable => {
-                Self::complete_table_names(schema, semantic, context)
+                Self::complete_table_names(schema, semantic, context, default_schema)
             }
             CursorContext::JoinCondition { left_table, right_table } => {
                 Self::complete_join_condition(left_table, right_table, semantic, schema)
@@ -124,6 +158,7 @@ impl CompletionEngine {
     }
 
     /// Complete after a dot: `alias.|` → columns of the aliased table.
+    /// Also handles `schema.|` → tables in that schema.
     fn complete_after_dot(
         alias: &str,
         semantic: &SemanticModel,
@@ -132,40 +167,71 @@ impl CompletionEngine {
     ) -> Vec<CompletionItem> {
         let mut items = Vec::new();
         
-        // Resolve alias to table
-        let Some(symbol) = semantic.resolve_at_cursor(context.cursor_offset, alias) else {
-            return items;
-        };
+        log::debug!("[AfterDot] Looking up '{}' at cursor offset {}", alias, context.cursor_offset);
         
-        let Some(table_name) = symbol.resolve_table_name() else {
-            return items;
-        };
-        
-        // Get columns from schema
-        let columns = schema.get_columns(table_name);
-        
-        if !columns.is_empty() {
-            // Schema table match
-            for col in columns {
-                let score = Self::column_score(col.is_primary_key, col.is_indexed);
-                items.push(CompletionItem {
-                    label: col.name.clone(),
-                    kind: CompletionKind::Column,
-                    detail: Some(format!("{} ({})", col.data_type, table_name)),
-                    insert_text: col.name.clone(),
-                    score,
-                });
+        // First, try to resolve as a table alias (e.g., SELECT u.| FROM users u)
+        if let Some(symbol) = semantic.resolve_at_cursor(context.cursor_offset, alias) {
+            log::debug!("[AfterDot] Resolved as alias: {:?}", symbol.kind);
+            
+            if let Some(table_name) = symbol.resolve_table_name() {
+                log::debug!("[AfterDot] Table name: '{}'", table_name);
+                
+                // Get columns from schema
+                let columns = schema.get_columns(table_name);
+                log::debug!("[AfterDot] Found {} columns for table '{}'", columns.len(), table_name);
+                
+                if !columns.is_empty() {
+                    for col in &columns {
+                        log::debug!("[AfterDot] Column: {} ({})", col.name, col.data_type);
+                    }
+                    for col in columns {
+                        let score = Self::column_score(col.is_primary_key, col.is_indexed);
+                        items.push(CompletionItem {
+                            label: col.name.clone(),
+                            kind: CompletionKind::Column,
+                            detail: Some(format!("{} ({})", col.data_type, table_name)),
+                            insert_text: col.name.clone(),
+                            score,
+                        });
+                    }
+                } else {
+                    // Check CTEs
+                    if let Some(cte_cols) = semantic.ctes.get(&table_name.to_lowercase()) {
+                        log::debug!("[AfterDot] Found {} CTE columns", cte_cols.len());
+                        for col_name in cte_cols {
+                            items.push(CompletionItem {
+                                label: col_name.clone(),
+                                kind: CompletionKind::Column,
+                                detail: Some(format!("CTE Column ({})", table_name)),
+                                insert_text: col_name.clone(),
+                                score: 90,
+                            });
+                        }
+                    }
+                }
             }
-        } else {
-            // CTE match
-             if let Some(cte_cols) = semantic.ctes.get(&table_name.to_lowercase()) {
-                for col_name in cte_cols {
+        }
+        
+        // If no alias match, check if this is a schema name (e.g., SELECT * FROM public.|)
+        if items.is_empty() {
+            log::debug!("[AfterDot] No alias match, checking if '{}' is a schema name", alias);
+            
+            // Look for tables in this schema
+            let alias_lower = alias.to_lowercase();
+            let schema_tables: Vec<_> = schema.tables.values()
+                .filter(|t| t.schema.to_lowercase() == alias_lower)
+                .collect();
+            
+            log::debug!("[AfterDot] Found {} tables in schema '{}'", schema_tables.len(), alias);
+            
+            if !schema_tables.is_empty() {
+                for table in schema_tables {
                     items.push(CompletionItem {
-                        label: col_name.clone(),
-                        kind: CompletionKind::Column,
-                        detail: Some(format!("CTE Column ({})", table_name)),
-                        insert_text: col_name.clone(),
-                        score: 90, // High score for CTE columns
+                        label: table.name.clone(),
+                        kind: CompletionKind::Table,
+                        detail: Some(table.schema.clone()),
+                        insert_text: table.name.clone(), // Don't need schema prefix since user already typed it
+                        score: SCORE_CURSOR_RELEVANCE + SCORE_UI_SCHEMA_HINT,
                     });
                 }
             }
@@ -173,6 +239,8 @@ impl CompletionEngine {
         
         // Filter by prefix
         Self::filter_by_prefix(&mut items, &context.prefix);
+        
+        log::debug!("[AfterDot] Returning {} items after filtering by prefix '{}'", items.len(), context.prefix);
         
         // Sort by score descending
         items.sort_by(|a, b| b.score.cmp(&a.score));
@@ -286,50 +354,104 @@ impl CompletionEngine {
     }
 
     /// Complete table names for FROM/JOIN clauses.
+    /// 
+    /// Uses additive scoring and explicit schema qualification:
+    /// - Tables from UI schema hint get +300
+    /// - Tables from default schema get +200
+    /// - Tables from public schema get +150
+    /// - Cross-schema tables get -250 penalty
+    /// - Always qualify non-default/non-public schemas in insert_text
     fn complete_table_names(
         schema: &SchemaGraph, 
         semantic: &SemanticModel,
-        context: &Context
+        context: &Context,
+        default_schema: Option<&str>,
     ) -> Vec<CompletionItem> {
         let mut items = Vec::new();
+        let mut seen_schemas = std::collections::HashSet::new();
         
-        // 1. Schema tables
-        for table_name in schema.table_names() {
+        let ui_schema = default_schema.unwrap_or("public");
+
+        // 1. Add schema suggestions first (for schema.table completion)
+        for table_info in schema.tables.values() {
+            if seen_schemas.insert(table_info.schema.clone()) {
+                let score = Self::calculate_schema_score(&table_info.schema, ui_schema);
+                items.push(CompletionItem {
+                    label: table_info.schema.clone(),
+                    kind: CompletionKind::Schema,
+                    detail: Some("schema".to_string()),
+                    insert_text: format!("{}.", table_info.schema),
+                    score,
+                });
+            }
+        }
+
+        // 2. Schema tables with explicit qualification
+        for table_info in schema.tables.values() {
+            let is_ui_schema = table_info.schema == ui_schema;
+            let is_public = table_info.schema == "public";
+            
+            // Calculate score using additive model
+            let mut score: i32 = SCORE_CURSOR_RELEVANCE as i32; // Base: cursor relevance for FROM clause
+            
+            if is_ui_schema {
+                score += SCORE_UI_SCHEMA_HINT as i32;
+            } else if is_public {
+                score += SCORE_PUBLIC_SCHEMA as i32;
+            } else {
+                score += PENALTY_CROSS_SCHEMA;
+            }
+            
+            // Explicit qualification rule:
+            // Insert qualified name for non-default, non-public schemas
+            let insert_text = Self::qualify_table_name(
+                &table_info.schema, 
+                &table_info.name, 
+                ui_schema
+            );
+            
+            // Label shows table name with schema hint for disambiguation
+            let label = if is_ui_schema || is_public {
+                table_info.name.clone()
+            } else {
+                format!("{} ({})", table_info.name, table_info.schema)
+            };
+
             items.push(CompletionItem {
-                label: table_name.to_string(),
+                label,
                 kind: CompletionKind::Table,
-                detail: Some("table".to_string()),
-                insert_text: table_name.to_string(),
-                score: 100,
+                detail: Some(table_info.schema.clone()),
+                insert_text,
+                score: score.max(0) as u32,
             });
         }
 
-        // 2. CTEs from current scope
+        // 3. CTEs from current scope (highest priority - local definitions)
         for sym in semantic.visible_symbols_at(context.cursor_offset) {
             if let SymbolKind::CTE { cte_name } = &sym.kind {
                 items.push(CompletionItem {
                     label: cte_name.clone(),
-                    kind: CompletionKind::Table, // Treat CTE as a table
+                    kind: CompletionKind::Table,
                     detail: Some("CTE".to_string()),
                     insert_text: cte_name.clone(),
-                    score: 110, // Higher priority than schema tables (local definition)
+                    score: SCORE_CURSOR_RELEVANCE + SCORE_CTE, // CTEs beat all tables
                 });
             }
         }
         
-        // 3. FROM-context keywords (JOIN, WHERE, etc.) - NO functions
+        // 4. FROM-context keywords (JOIN, WHERE, etc.) - lower priority
         for kw in FROM_KEYWORDS {
             items.push(CompletionItem {
                 label: kw.to_string(),
                 kind: CompletionKind::Keyword,
                 detail: None,
                 insert_text: kw.to_string(),
-                score: 40, // Lower than tables
+                score: 40,
             });
         }
         
         Self::filter_by_prefix(&mut items, &context.prefix);
-        items.sort_by(|a, b| b.score.cmp(&a.score)); // Sort by score DESC
+        items.sort_by(|a, b| b.score.cmp(&a.score));
         items
     }
 
@@ -550,15 +672,41 @@ impl CompletionEngine {
     }
 
     /// Calculate score for a column based on its properties.
+    /// Uses additive scoring model.
     fn column_score(is_pk: bool, is_indexed: bool) -> u32 {
-        let mut score = 50;
+        let mut score: u32 = 50; // Base score
         if is_pk {
-            score += 30;
+            score += SCORE_PRIMARY_KEY;
         }
         if is_indexed {
-            score += 20;
+            score += SCORE_INDEXED;
         }
         score
+    }
+    
+    /// Qualify a table name with schema if not in default/public schema.
+    /// 
+    /// Key rule: Always insert qualified names for non-default schemas.
+    /// This prevents ambiguity and matches PostgreSQL semantics.
+    fn qualify_table_name(schema: &str, table: &str, default_schema: &str) -> String {
+        if schema == default_schema || schema == "public" {
+            table.to_string()
+        } else {
+            format!("{}.{}", schema, table)
+        }
+    }
+    
+    /// Calculate score for a schema suggestion.
+    fn calculate_schema_score(schema: &str, ui_schema: &str) -> u32 {
+        let mut score: i32 = 50; // Base
+        if schema == ui_schema {
+            score += SCORE_UI_SCHEMA_HINT as i32;
+        } else if schema == "public" {
+            score += SCORE_PUBLIC_SCHEMA as i32;
+        } else {
+            score += PENALTY_CROSS_SCHEMA;
+        }
+        score.max(0) as u32
     }
 
     /// Filter items by prefix.
@@ -609,7 +757,7 @@ mod tests {
             scope_depth: 0,
         };
         
-        let items = CompletionEngine::complete(&semantic, &context, &schema);
+        let items = CompletionEngine::complete(&semantic, &context, &schema, None);
         
         // Should return columns of users table
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
@@ -632,7 +780,7 @@ mod tests {
             scope_depth: 0,
         };
         
-        let items = CompletionEngine::complete_table_names(&schema, &semantic, &context);
+        let items = CompletionEngine::complete_table_names(&schema, &semantic, &context, None);
         
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(labels.contains(&"users"));
@@ -671,7 +819,7 @@ mod tests {
             scope_depth: 0,
         };
         
-        let items = CompletionEngine::complete(&semantic, &context, &schema);
+        let items = CompletionEngine::complete(&semantic, &context, &schema, None);
         
         // user_id (indexed) should rank higher than description (not indexed)
         let user_id_pos = items.iter().position(|i| i.label == "user_id");

@@ -1,7 +1,6 @@
-use tauri::{State, Emitter};
-use tauri::AppHandle;
+use tauri::State;
 use crate::DatabaseState;
-use crate::introspection::{Introspector, MetaTable, MetaSchema};
+use crate::introspection::{Introspector, MetaTable, MetaDatabase};
 use crate::connection_manager::{ConnectionManager, ConnectionManagerState};
 use log::{debug, info};
 
@@ -15,23 +14,45 @@ pub async fn refresh_schema(
     let manager = ConnectionManager::from_state(&db_state, &conn_state);
     
     // 1. Get connection info
-    let (connection, _credentials) = manager.get_connection(&connection_id)?;
+    let (connection, _initial_creds) = manager.get_connection(&connection_id)?;
     
-    if connection.engine != "sqlite" {
-        return Err("Only SQLite is supported for introspection currently".to_string());
-    }
-
-    // 2. Parse config to get file path
-    let config: serde_json::Value = serde_json::from_str(&connection.config_json)
+    // 2. Parse config
+    let mut config: serde_json::Value = serde_json::from_str(&connection.config_json)
         .map_err(|e| format!("Failed to parse connection config: {}", e))?;
-    
-    let sqlite_path = config.get("file")
-        .and_then(|v| v.as_str())
-        .ok_or("Missing SQLite file path in config")?;
 
-    // 3. Run introspection (Hard Refresh)
+    // 3. Dispatch based on engine
     let introspector = Introspector::new(db_state.conn.clone());
-    introspector.introspect_sqlite(&connection_id, sqlite_path)?;
+
+    match connection.engine.as_str() {
+        "sqlite" => {
+            let sqlite_path = config.get("file")
+                .and_then(|v| v.as_str())
+                .ok_or("Missing SQLite file path in config")?;
+            introspector.introspect_sqlite(&connection_id, sqlite_path)?;
+        },
+        "postgres" | "postgresql" => {
+            // Inject secure credentials (password) into config
+             // ConnectionManager get_connection returns credentials with the connection, but get_connection was called above and returned `(connection, _credentials)`.
+             // Actually, `_credentials` variable holds them.
+            
+             // Re-fetch credentials properly since I ignored them in line 18
+             let (_, credentials) = manager.get_connection(&connection_id)?;
+             
+             if let Some(db) = config.get_mut("db") {
+                 if let Some(db_obj) = db.as_object_mut() {
+                     if let Some(password) = &credentials.password {
+                         debug!("Injecting password from secure credentials into connection config for introspection");
+                         db_obj.insert("password".to_string(), serde_json::Value::String(password.expose().to_string()));
+                     }
+                 }
+             }
+             
+            introspector.introspect_postgres(&connection_id, config).await?;
+        },
+        _ => {
+            return Err(format!("Engine '{}' is not supported for introspection currently", connection.engine));
+        }
+    }
 
     info!("Schema refresh finished for connection {}", connection_id);
     Ok(())
@@ -41,7 +62,7 @@ pub async fn refresh_schema(
 pub async fn get_schema(
     connection_id: String,
     db_state: State<'_, DatabaseState>,
-) -> Result<Vec<MetaSchema>, String> {
+) -> Result<Vec<MetaDatabase>, String> {
     debug!("Fetching cached schema for connection {}", connection_id);
     let introspector = Introspector::new(db_state.conn.clone());
     introspector.get_schema(&connection_id)
@@ -60,12 +81,43 @@ pub async fn get_schema_tables(
 #[tauri::command]
 pub async fn get_schema_table_details(
     connection_id: String,
+    database: Option<String>,
     schema: Option<String>,
     table_name: String,
     db_state: State<'_, DatabaseState>,
 ) -> Result<serde_json::Value, String> {
+    let database = database.unwrap_or_else(|| "main".to_string());
     let schema = schema.unwrap_or_else(|| "main".to_string());
-    debug!("Fetching cached details for table {}.{} in connection {}", schema, table_name, connection_id);
+    debug!("Fetching cached details for table {}.{}.{} in connection {}", database, schema, table_name, connection_id);
     let introspector = Introspector::new(db_state.conn.clone());
-    introspector.get_table_details(&connection_id, &schema, &table_name)
+    introspector.get_table_details(&connection_id, &database, &schema, &table_name)
+}
+#[tauri::command]
+pub async fn introspect_database(
+    connection_id: String,
+    database_name: String,
+    db_state: State<'_, DatabaseState>,
+    conn_state: State<'_, ConnectionManagerState>,
+) -> Result<MetaDatabase, String> {
+    info!("Command: introspect_database for {} in connection {}", database_name, connection_id);
+    let manager = ConnectionManager::from_state(&db_state, &conn_state);
+    
+    // 1. Get connection info
+    let (connection, credentials) = manager.get_connection(&connection_id)?;
+    
+    // 2. Parse config
+    let mut config: serde_json::Value = serde_json::from_str(&connection.config_json)
+        .map_err(|e| format!("Failed to parse connection config: {}", e))?;
+
+    // 3. Inject password if available
+    if let Some(db) = config.get_mut("db") {
+        if let Some(db_obj) = db.as_object_mut() {
+            if let Some(password) = &credentials.password {
+                db_obj.insert("password".to_string(), serde_json::Value::String(password.expose().to_string()));
+            }
+        }
+    }
+
+    let introspector = Introspector::new(db_state.conn.clone());
+    introspector.introspect_database(&connection_id, config, &database_name).await
 }
