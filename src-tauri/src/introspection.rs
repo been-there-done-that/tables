@@ -198,6 +198,33 @@ impl Introspector {
         }])
     }
 
+    /// Public API for saving an introspected database hierarchy
+    pub fn save_introspected_database(&self, connection_id: &str, database: &MetaDatabase) -> Result<(), String> {
+        let conn = self.app_db.lock().map_err(|e| e.to_string())?;
+        
+        // Save database record
+        self.save_database(&conn, connection_id, &database.name)?;
+        
+        for schema in &database.schemas {
+            self.save_schema(&conn, connection_id, &database.name, &schema.name, &schema.schema_type)?;
+            
+            for table in &schema.tables {
+                self.save_table_full(&conn, table)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Public API for saving columns for a specific table
+    pub fn save_introspected_columns(&self, _connection_id: &str, _database: &str, _schema: &str, _table: &str, columns: &[MetaColumn]) -> Result<(), String> {
+        let conn = self.app_db.lock().map_err(|e| e.to_string())?;
+        
+        for col in columns {
+            self.save_column(&conn, col.clone())?;
+        }
+        Ok(())
+    }
+
     pub async fn introspect_database(&self, connection_id: &str, config: serde_json::Value, database_name: &str, app: &tauri::AppHandle) -> Result<MetaDatabase, String> {
         use tauri::Emitter;
         

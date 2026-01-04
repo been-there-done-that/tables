@@ -447,6 +447,56 @@ pub trait DatabaseAdapter: Send + Sync {
 // =============================================================================
 // Tests
 // =============================================================================
+// =============================================================================
+// Trait Implementation for Box
+// =============================================================================
+
+#[async_trait]
+impl DatabaseAdapter for Box<dyn DatabaseAdapter> {
+    fn capabilities(&self) -> &DatabaseCapabilities {
+        (**self).capabilities()
+    }
+
+    async fn connect(&mut self) -> Result<(), AdapterError> {
+        (**self).connect().await
+    }
+
+    fn is_connected(&self) -> bool {
+        (**self).is_connected()
+    }
+
+    async fn disconnect(&mut self) -> Result<(), AdapterError> {
+        (**self).disconnect().await
+    }
+
+    async fn list_databases(&self) -> Result<Vec<MetaDatabase>, AdapterError> {
+        (**self).list_databases().await
+    }
+
+    async fn list_schemas(&self, database: &str) -> Result<Vec<MetaSchema>, AdapterError> {
+        (**self).list_schemas(database).await
+    }
+
+    async fn list_tables(&self, database: &str, schema: &str) -> Result<Vec<MetaTable>, AdapterError> {
+        (**self).list_tables(database, schema).await
+    }
+
+    async fn list_columns(&self, table: &TableRef) -> Result<Vec<MetaColumn>, AdapterError> {
+        (**self).list_columns(table).await
+    }
+
+    async fn list_foreign_keys(&self, table: &TableRef) -> Result<Vec<MetaForeignKey>, AdapterError> {
+        (**self).list_foreign_keys(table).await
+    }
+
+    async fn list_indexes(&self, table: &TableRef) -> Result<Vec<MetaIndex>, AdapterError> {
+        (**self).list_indexes(table).await
+    }
+
+    async fn list_triggers(&self, table: &TableRef) -> Result<Vec<MetaTrigger>, AdapterError> {
+        (**self).list_triggers(table).await
+    }
+}
 
 #[cfg(test)]
 mod tests {

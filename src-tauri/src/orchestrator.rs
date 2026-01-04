@@ -90,6 +90,16 @@ impl IntrospectorConfig {
             ..Default::default()
         }
     }
+
+    pub fn with_cache(mut self, enabled: bool) -> Self {
+        self.save_to_cache = enabled;
+        self
+    }
+
+    pub fn with_events(mut self, enabled: bool) -> Self {
+        self.emit_events = enabled;
+        self
+    }
 }
 
 // =============================================================================
@@ -131,6 +141,11 @@ impl<A: DatabaseAdapter> ProgressiveIntrospector<A> {
     pub fn with_event_callback(mut self, callback: EventCallback) -> Self {
         self.event_callback = Some(callback);
         self
+    }
+
+    /// Get a reference to the inner adapter.
+    pub fn adapter(&self) -> &A {
+        &self.adapter
     }
 
     /// Get a reference to the adapter's capabilities.

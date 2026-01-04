@@ -457,3 +457,30 @@ mod cross_profile_tests {
         assert!(!caps.requires_qualified_names, "Postgres defaults to public");
     }
 }
+
+#[cfg(test)]
+mod unified_introspection_tests {
+    use crate::commands::unified_introspection::{IntrospectionOptions, IntrospectionScope};
+    use crate::orchestrator::IntrospectorConfig;
+    
+    #[test]
+    fn test_options_default() {
+        let opts = IntrospectionOptions::default();
+        match opts.scope {
+            IntrospectionScope::Global => {},
+            _ => panic!("Default scope should be Global"),
+        }
+        assert_eq!(opts.force, false);
+    }
+
+    #[test]
+    fn test_config_builder() {
+        let config = IntrospectorConfig::new("conn-1")
+            .with_cache(false)
+            .with_events(true);
+            
+        assert_eq!(config.connection_id, "conn-1");
+        assert_eq!(config.save_to_cache, false);
+        assert_eq!(config.emit_events, true);
+    }
+}
