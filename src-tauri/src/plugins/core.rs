@@ -234,6 +234,7 @@ macro_rules! aggregate_plugin_commands {
             
             // Introspection commands
             refresh_schema,
+            refresh_schema_progressive,
             get_schema,
             get_schema_tables,
             get_schema_table_details,

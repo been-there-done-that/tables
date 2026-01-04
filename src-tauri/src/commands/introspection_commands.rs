@@ -121,3 +121,62 @@ pub async fn introspect_database(
     let introspector = Introspector::new(db_state.conn.clone());
     introspector.introspect_database(&connection_id, config, &database_name).await
 }
+
+/// Progressive schema introspection with level-based event emission
+/// Level 1: Databases
+/// Level 2: Schemas  
+/// Level 3: Tables + Columns
+/// Level 4: FK + Indexes + Triggers
+#[tauri::command]
+pub async fn refresh_schema_progressive(
+    connection_id: String,
+    db_state: State<'_, DatabaseState>,
+    conn_state: State<'_, ConnectionManagerState>,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    use tauri::Emitter;
+    
+    info!("Starting progressive schema refresh for connection {}", connection_id);
+    let manager = ConnectionManager::from_state(&db_state, &conn_state);
+    
+    let (connection, credentials) = manager.get_connection(&connection_id)?;
+    let mut config: serde_json::Value = serde_json::from_str(&connection.config_json)
+        .map_err(|e| format!("Failed to parse connection config: {}", e))?;
+
+    // Inject password if available
+    if let Some(db) = config.get_mut("db") {
+        if let Some(db_obj) = db.as_object_mut() {
+            if let Some(password) = &credentials.password {
+                db_obj.insert("password".to_string(), serde_json::Value::String(password.expose().to_string()));
+            }
+        }
+    }
+
+    let introspector = Introspector::new(db_state.conn.clone());
+    
+    match connection.engine.as_str() {
+        "postgres" | "postgresql" => {
+            introspector.introspect_postgres_progressive(&connection_id, config, &app).await?;
+        },
+        "sqlite" => {
+            let sqlite_path = config.get("file")
+                .and_then(|v| v.as_str())
+                .ok_or("Missing SQLite file path in config")?;
+            // For SQLite, we do all-at-once but still emit events for each level
+            introspector.introspect_sqlite(&connection_id, sqlite_path)?;
+            // Emit completion event for all levels
+            for level in 1..=4 {
+                let _ = app.emit("schema:level-complete", serde_json::json!({
+                    "level": level,
+                    "connection_id": &connection_id,
+                }));
+            }
+        },
+        _ => {
+            return Err(format!("Engine '{}' not supported for progressive introspection", connection.engine));
+        }
+    }
+
+    info!("Progressive schema refresh finished for connection {}", connection_id);
+    Ok(())
+}
