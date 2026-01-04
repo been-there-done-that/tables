@@ -237,6 +237,7 @@ macro_rules! aggregate_plugin_commands {
             get_schema,
             get_schema_tables,
             get_schema_table_details,
+            introspect_database,
             run_db_contention_test,
             
             // Completion commands

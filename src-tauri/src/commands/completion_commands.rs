@@ -13,7 +13,7 @@ use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 use serde::Serialize;
 
-use crate::introspection::{MetaSchema, MetaTable, MetaColumn, MetaForeignKey, MetaIndex};
+use crate::introspection::{MetaDatabase, MetaSchema, MetaTable, MetaColumn, MetaForeignKey, MetaIndex};
 use crate::completion::schema::graph::{SchemaGraph, TableInfo, ColumnInfo, ForeignKey};
 use crate::completion::parsing::parse_sql;
 use crate::completion::context::Context;
@@ -47,16 +47,23 @@ pub struct CompletionItemDto {
     pub detail: Option<String>,
     pub insert_text: String,
     pub score: u32,
+    /// If true, trigger completions again after this item is selected (for chained completions)
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub trigger_suggest: bool,
 }
 
 impl From<CompletionItem> for CompletionItemDto {
     fn from(item: CompletionItem) -> Self {
+        // Trigger suggest for schema completions (insert_text ends with ".")
+        let trigger_suggest = item.insert_text.ends_with('.');
+        
         Self {
             label: item.label,
             kind: map_completion_kind(item.kind),
             detail: item.detail,
             insert_text: item.insert_text,
             score: item.score,
+            trigger_suggest,
         }
     }
 }
@@ -70,18 +77,27 @@ fn map_completion_kind(kind: CompletionKind) -> u8 {
         CompletionKind::Keyword => 14,    // Keyword
         CompletionKind::Function => 3,    // Function
         CompletionKind::JoinCondition => 15, // Snippet
+        CompletionKind::Schema => 9,      // Module
     }
 }
 
-/// Build a SchemaGraph from MetaSchema data.
-pub fn schema_graph_from_meta(schemas: &[MetaSchema]) -> SchemaGraph {
+/// Build a SchemaGraph from MetaDatabase data.
+pub fn schema_graph_from_meta(databases: &[MetaDatabase], selected_database: Option<&str>) -> SchemaGraph {
     let mut graph = SchemaGraph::new();
     
     // Collect all indexed columns for lookup
-    let mut indexed_columns: HashMap<(String, String), bool> = HashMap::new();
+    let mut _indexed_columns: HashMap<(String, String), bool> = HashMap::new();
     
-    for schema in schemas {
-        for table in &schema.tables {
+    for db in databases {
+        // Filter by selected database if specified
+        if let Some(selected) = selected_database {
+            if db.name != selected {
+                continue;
+            }
+        }
+        
+        for schema in &db.schemas {
+            for table in &schema.tables {
             // Collect indexed columns
             for index in &table.indexes {
                 // For each index, we need to mark columns as indexed
@@ -101,6 +117,9 @@ pub fn schema_graph_from_meta(schemas: &[MetaSchema]) -> SchemaGraph {
                 }
             }).collect();
             
+            log::debug!("[SchemaBuilder] Adding table {}.{}.{} with {} columns", 
+                db.name, schema.name, table.table_name, columns.len());
+            
             graph.add_table(TableInfo {
                 name: table.table_name.clone(),
                 schema: schema.name.clone(),
@@ -118,7 +137,8 @@ pub fn schema_graph_from_meta(schemas: &[MetaSchema]) -> SchemaGraph {
             }
         }
     }
-    
+}
+
     graph
 }
 
@@ -127,9 +147,15 @@ pub fn schema_graph_from_meta(schemas: &[MetaSchema]) -> SchemaGraph {
 pub async fn update_completion_schema(
     state: State<'_, CompletionState>,
     connection_id: String,
-    schemas: Vec<MetaSchema>,
+    databases: Vec<MetaDatabase>,
+    selected_database: Option<String>,
 ) -> Result<(), String> {
-    let schema_graph = schema_graph_from_meta(&schemas);
+    log::debug!("[CompletionSchema] Updating schema for connection {}, selected_database: {:?}", 
+        connection_id, selected_database);
+    
+    let schema_graph = schema_graph_from_meta(&databases, selected_database.as_deref());
+    
+    log::debug!("[CompletionSchema] Built graph with {} tables", schema_graph.tables.len());
     
     let mut cache = state.schema_cache.lock().await;
     cache.insert(connection_id, Arc::new(schema_graph));
@@ -155,6 +181,7 @@ pub async fn request_completions(
     connection_id: String,
     text: String,
     cursor_offset: usize,
+    default_schema: Option<String>,
 ) -> Result<Vec<CompletionItemDto>, String> {
     // 1. Cancellation: create new token, cancel old
     let cancel_token = CancellationToken::new();
@@ -181,14 +208,20 @@ pub async fn request_completions(
     };
     
     // 3. Off-thread execution
+    let text_clone = text.clone();
+    let default_schema_clone = default_schema.clone();
     let result = tokio::task::spawn_blocking(move || {
         // Check cancellation before parsing
         if cancel_token.is_cancelled() {
+            log::debug!("[Completion] Request cancelled before parsing");
             return vec![];
         }
         
+        log::debug!("[Completion] Parsing SQL: '{}'", &text[..text.len().min(100)]);
+        
         // Parse SQL
         let tree = parse_sql(&text, None);
+        log::debug!("[Completion] Parse result: tree={}", tree.is_some());
         
         // Check cancellation before semantic analysis
         if cancel_token.is_cancelled() {
@@ -200,16 +233,43 @@ pub async fn request_completions(
             .map(|t| build_semantic_model(&text, t))
             .unwrap_or_default();
         
+        log::debug!("[Completion] Semantic model: {} scopes, {} CTEs", 
+            semantic.scopes.len(), 
+            semantic.ctes.len()
+        );
+        
+        // Log visible symbols
+        let visible = semantic.visible_symbols_at(cursor_offset);
+        log::debug!("[Completion] Visible symbols at offset {}: {:?}", 
+            cursor_offset,
+            visible.iter().map(|s| format!("{}:{:?}", s.name, s.kind)).collect::<Vec<_>>()
+        );
+        
         // Analyze cursor context
         let context = Context::analyze(&text, tree.as_ref(), cursor_offset);
+        log::debug!("[Completion] Context: {:?}, prefix='{}', scope_depth={}", 
+            context.context_type, 
+            context.prefix,
+            context.scope_depth
+        );
         
         // Check cancellation before completion
         if cancel_token.is_cancelled() {
             return vec![];
         }
         
+        log::debug!("[Completion] Schema graph has {} tables", schema.tables.len());
+        log::debug!("[Completion] Default schema: {:?}", default_schema_clone);
+        
         // Run completion engine
-        let items = CompletionEngine::complete(&semantic, &context, &schema);
+        let items = CompletionEngine::complete(&semantic, &context, &schema, default_schema.as_deref());
+        
+        log::debug!("[Completion] Engine returned {} items", items.len());
+        if !items.is_empty() {
+            for item in items.iter().take(5) {
+                log::debug!("[Completion] Item: {} ({:?}) score={}", item.label, item.kind, item.score);
+            }
+        }
         
         // Convert to DTOs
         items.into_iter().map(CompletionItemDto::from).collect()
@@ -217,6 +277,7 @@ pub async fn request_completions(
     .await
     .map_err(|e| e.to_string())?;
     
+    log::debug!("[Completion] Returning {} completion items to frontend", result.len());
     Ok(result)
 }
 

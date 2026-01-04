@@ -64,7 +64,7 @@ fn now_ts() -> i64 {
 }
 
 fn load_theme(row: &rusqlite::Row<'_>) -> Result<Theme, rusqlite::Error> {
-    debug!("Loading theme from database row");
+    // debug!("Loading theme from database row");
     Ok(Theme {
         id: row.get(0)?,
         name: row.get(1)?,
@@ -144,7 +144,7 @@ pub fn run() {
     // Initialize logger once for the Tauri side; default to debug for our crate if not set.
     tracing_log::LogTracer::init().ok();
     tracing_subscriber::registry()
-        .with(tracing_subscriber::fmt::layer().json())
+        .with(tracing_subscriber::fmt::layer())
         .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("tables=debug")))
         .try_init()
         .ok();
