@@ -16,6 +16,7 @@
 //! DatabaseAdapter (engine-specific)
 //! ```
 
+use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use tauri::{State, AppHandle, Emitter};
 use log::{debug, info, error};
@@ -142,13 +143,14 @@ pub async fn refresh_schema_unified(
 
     // 5. Create orchestrator with event emission
     let app_clone = app.clone();
-    let conn_id = connection_id.clone();
     
     let orchestrator_config = IntrospectorConfig::new(&connection_id)
         .with_cache(true)
-        .with_events(true);
+        .with_events(true)
+        .with_priority(options.priority_database.clone(), options.priority_schema.clone());
     
     let orchestrator = ProgressiveIntrospector::new(adapter, orchestrator_config)
+        .with_cache(db_state.conn.clone())
         .with_event_callback(Box::new(move |event| {
             // Forward events to frontend
             let event_name = match &event {
@@ -168,31 +170,28 @@ pub async fn refresh_schema_unified(
     
     match options.scope {
         IntrospectionScope::Global => {
-            let databases = orchestrator.introspect_all().await
+            let orchestrator = Arc::new(orchestrator);
+            let dbs = orchestrator.introspect_foreground().await
                 .map_err(|e| format!("Introspection failed: {:?}", e))?;
             
-            // Save to cache
-            let introspector = Introspector::new(db_state.conn.clone());
-            for db in databases {
-                introspector.save_introspected_database(&connection_id, &db)?;
-            }
+            // Background the rest
+            let orchestrator_bg = Arc::clone(&orchestrator);
+            tokio::spawn(async move {
+                orchestrator_bg.introspect_background(dbs).await;
+            });
+            
+            // Return early to unblock frontend "connecting" status
+            return Ok(());
         },
         IntrospectionScope::Database { name } => {
-            let database = orchestrator.introspect_database(&name).await
+            orchestrator.introspect_database(&name).await
                 .map_err(|e| format!("Introspection failed: {:?}", e))?;
-            
-            // Save to cache
-            let introspector = Introspector::new(db_state.conn.clone());
-            introspector.save_introspected_database(&connection_id, &database)?;
+            // Cache saving is now handled progressively by the orchestrator
         },
         IntrospectionScope::Schema { database, schema } => {
-            // For schema-level, we introspect the database and filter
-            let db = orchestrator.introspect_database(&database).await
+            orchestrator.introspect_database(&database).await
                 .map_err(|e| format!("Introspection failed: {:?}", e))?;
-            
-            // Save to cache (will update only the requested schema)
-            let introspector = Introspector::new(db_state.conn.clone());
-            introspector.save_introspected_database(&connection_id, &db)?;
+            // Cache saving is now handled progressively by the orchestrator
         },
         IntrospectionScope::Table { database, schema, table } => {
             // Table-level refresh - get table details only
@@ -200,7 +199,7 @@ pub async fn refresh_schema_unified(
             let columns = orchestrator.adapter().list_columns(&table_ref).await
                 .map_err(|e| format!("Failed to get columns: {:?}", e))?;
             
-            // This would update just the table in cache
+            // This still needs manual save as it's not a full introspect_database path
             let introspector = Introspector::new(db_state.conn.clone());
             introspector.save_introspected_columns(&connection_id, &database, &schema, &table, &columns)?;
         },

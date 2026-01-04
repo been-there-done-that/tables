@@ -64,15 +64,18 @@ impl PostgresConfig {
 pub struct PostgresAdapter {
     capabilities: DatabaseCapabilities,
     config: PostgresConfig,
-    client: Option<Arc<Mutex<tokio_postgres::Client>>>,
+    client: Arc<Mutex<Option<tokio_postgres::Client>>>,
+    active_database: Arc<Mutex<String>>,
 }
 
 impl PostgresAdapter {
     pub fn new(config: PostgresConfig) -> Self {
+        let default_db = config.database.clone().unwrap_or_else(|| "postgres".to_string());
         Self {
             capabilities: DatabaseCapabilities::postgres(),
             config,
-            client: None,
+            client: Arc::new(Mutex::new(None)),
+            active_database: Arc::new(Mutex::new(default_db)),
         }
     }
 
@@ -98,8 +101,45 @@ impl PostgresAdapter {
         Ok(Self::new(pg_config))
     }
 
-    fn client(&self) -> Result<Arc<Mutex<tokio_postgres::Client>>, AdapterError> {
-        self.client.clone().ok_or_else(|| AdapterError::Connection("Not connected".to_string()))
+    async fn ensure_connected(&self, database: &str) -> Result<(), AdapterError> {
+        let mut client_guard = self.client.lock().await;
+        let mut active_db_guard = self.active_database.lock().await;
+
+        // If not connected or different database, reconnect
+        if client_guard.is_none() || *active_db_guard != database {
+            debug!("Connecting/Switching Postgres database to '{}'", database);
+            let conn_str = self.config.connection_string(Some(database));
+            
+            let new_client = if self.config.use_tls {
+                let tls_connector = native_tls::TlsConnector::builder()
+                    .danger_accept_invalid_certs(true)
+                    .build()
+                    .map_err(|e| AdapterError::Connection(format!("TLS error: {}", e)))?;
+                let connector = postgres_native_tls::MakeTlsConnector::new(tls_connector);
+                let (client, connection) = tokio_postgres::connect(&conn_str, connector).await
+                    .map_err(|e| AdapterError::Connection(format!("Connection error: {}", e)))?;
+                tokio::spawn(async move {
+                    if let Err(e) = connection.await {
+                        error!("Postgres connection error: {}", e);
+                    }
+                });
+                client
+            } else {
+                let (client, connection) = tokio_postgres::connect(&conn_str, tokio_postgres::NoTls).await
+                    .map_err(|e| AdapterError::Connection(format!("Connection error: {}", e)))?;
+                tokio::spawn(async move {
+                    if let Err(e) = connection.await {
+                        error!("Postgres connection error: {}", e);
+                    }
+                });
+                client
+            };
+
+            *client_guard = Some(new_client);
+            *active_db_guard = database.to_string();
+        }
+
+        Ok(())
     }
 
     fn map_postgres_type(raw: &str) -> String {
@@ -125,54 +165,32 @@ impl DatabaseAdapter for PostgresAdapter {
     }
 
     async fn connect(&mut self) -> Result<(), AdapterError> {
-        info!("Connecting to PostgreSQL at {}:{}", self.config.host, self.config.port);
-        
         let database = self.config.database.clone().unwrap_or_else(|| "postgres".to_string());
-        let conn_str = self.config.connection_string(Some(&database));
-
-        let client = if self.config.use_tls {
-            let tls_connector = native_tls::TlsConnector::builder()
-                .danger_accept_invalid_certs(true)
-                .build()
-                .map_err(|e| AdapterError::Connection(format!("TLS error: {}", e)))?;
-            let connector = postgres_native_tls::MakeTlsConnector::new(tls_connector);
-            let (client, connection) = tokio_postgres::connect(&conn_str, connector).await
-                .map_err(|e| AdapterError::Connection(format!("Connection error: {}", e)))?;
-            tokio::spawn(async move {
-                if let Err(e) = connection.await {
-                    error!("Postgres connection error: {}", e);
-                }
-            });
-            client
-        } else {
-            let (client, connection) = tokio_postgres::connect(&conn_str, tokio_postgres::NoTls).await
-                .map_err(|e| AdapterError::Connection(format!("Connection error: {}", e)))?;
-            tokio::spawn(async move {
-                if let Err(e) = connection.await {
-                    error!("Postgres connection error: {}", e);
-                }
-            });
-            client
-        };
-
-        self.client = Some(Arc::new(Mutex::new(client)));
-        debug!("PostgreSQL connection established");
-        Ok(())
+        self.ensure_connected(&database).await
     }
 
     fn is_connected(&self) -> bool {
-        self.client.is_some()
+        // Need to lock or use a separate flag. For a simple check, try_lock might be okay or just check if Option is Some.
+        // Since &self can't easily lock Mutex without blocking, we might want a different approach for is_connected.
+        // But in our case, it's fine to block briefly or just return true if it's been initialized.
+        let client = self.client.try_lock();
+        match client {
+            Ok(guard) => guard.is_some(),
+            Err(_) => true, // Still busy, assume connected
+        }
     }
 
     async fn disconnect(&mut self) -> Result<(), AdapterError> {
-        self.client = None;
+        let mut client_guard = self.client.lock().await;
+        *client_guard = None;
         debug!("PostgreSQL connection closed");
         Ok(())
     }
 
     async fn list_databases(&self) -> Result<Vec<MetaDatabase>, AdapterError> {
-        let client_arc = self.client()?;
-        let client = client_arc.lock().await;
+        self.ensure_connected("postgres").await?;
+        let client_guard = self.client.lock().await;
+        let client = client_guard.as_ref().unwrap();
 
         let rows = client.query("SELECT datname FROM pg_database WHERE datistemplate = false ORDER BY datname", &[])
             .await.map_err(|e| AdapterError::Query(format!("Failed to list databases: {}", e)))?;
@@ -185,9 +203,10 @@ impl DatabaseAdapter for PostgresAdapter {
         }).collect())
     }
 
-    async fn list_schemas(&self, _database: &str) -> Result<Vec<MetaSchema>, AdapterError> {
-        let client_arc = self.client()?;
-        let client = client_arc.lock().await;
+    async fn list_schemas(&self, database: &str) -> Result<Vec<MetaSchema>, AdapterError> {
+        self.ensure_connected(database).await?;
+        let client_guard = self.client.lock().await;
+        let client = client_guard.as_ref().unwrap();
 
         let rows = client.query("SELECT schema_name FROM information_schema.schemata ORDER BY schema_name", &[])
             .await.map_err(|e| AdapterError::Query(format!("Failed to list schemas: {}", e)))?;
@@ -200,8 +219,9 @@ impl DatabaseAdapter for PostgresAdapter {
     }
 
     async fn list_tables(&self, database: &str, schema: &str) -> Result<Vec<MetaTable>, AdapterError> {
-        let client_arc = self.client()?;
-        let client = client_arc.lock().await;
+        self.ensure_connected(database).await?;
+        let client_guard = self.client.lock().await;
+        let client = client_guard.as_ref().unwrap();
 
         let rows = client.query(
             "SELECT table_name, table_type FROM information_schema.tables WHERE table_schema = $1 AND table_type IN ('BASE TABLE', 'VIEW') ORDER BY table_name",
@@ -232,8 +252,9 @@ impl DatabaseAdapter for PostgresAdapter {
     }
 
     async fn list_columns(&self, table: &TableRef) -> Result<Vec<MetaColumn>, AdapterError> {
-        let client_arc = self.client()?;
-        let client = client_arc.lock().await;
+        self.ensure_connected(&table.database).await?;
+        let client_guard = self.client.lock().await;
+        let client = client_guard.as_ref().unwrap();
 
         let rows = client.query(
             "SELECT ordinal_position, column_name, data_type, is_nullable, column_default FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2 ORDER BY ordinal_position",
@@ -260,8 +281,9 @@ impl DatabaseAdapter for PostgresAdapter {
     }
 
     async fn list_indexes(&self, table: &TableRef) -> Result<Vec<MetaIndex>, AdapterError> {
-        let client_arc = self.client()?;
-        let client = client_arc.lock().await;
+        self.ensure_connected(&table.database).await?;
+        let client_guard = self.client.lock().await;
+        let client = client_guard.as_ref().unwrap();
 
         let rows = client.query(
             "SELECT indexname, indexdef FROM pg_indexes WHERE schemaname = $1 AND tablename = $2",
@@ -283,8 +305,9 @@ impl DatabaseAdapter for PostgresAdapter {
     }
 
     async fn list_foreign_keys(&self, table: &TableRef) -> Result<Vec<MetaForeignKey>, AdapterError> {
-        let client_arc = self.client()?;
-        let client = client_arc.lock().await;
+        self.ensure_connected(&table.database).await?;
+        let client_guard = self.client.lock().await;
+        let client = client_guard.as_ref().unwrap();
 
         let rows = client.query(
             "SELECT con.conname, att.attname, ref_sch.nspname, ref_tab.relname, ref_att.attname, ordinality
@@ -327,8 +350,9 @@ impl DatabaseAdapter for PostgresAdapter {
     }
 
     async fn list_triggers(&self, table: &TableRef) -> Result<Vec<MetaTrigger>, AdapterError> {
-        let client_arc = self.client()?;
-        let client = client_arc.lock().await;
+        self.ensure_connected(&table.database).await?;
+        let client_guard = self.client.lock().await;
+        let client = client_guard.as_ref().unwrap();
 
         let rows = client.query(
             "SELECT trigger_name, event_manipulation, action_timing FROM information_schema.triggers WHERE event_object_schema = $1 AND event_object_table = $2",
