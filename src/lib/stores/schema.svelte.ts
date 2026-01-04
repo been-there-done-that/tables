@@ -94,32 +94,29 @@ export class SchemaStore {
                 }).catch(console.error);
             }
 
-            // 4. Fetch Schema (Cached)
-            console.time("[SchemaStore] get_schema");
-            let data = await invoke<MetaDatabase[]>("get_schema", { connectionId: conn.id });
-            console.timeEnd("[SchemaStore] get_schema");
-            console.log(`[SchemaStore] get_schema returned ${data.length} databases`);
+            // 4. Fetch Databases (Cached)
+            console.time("[SchemaStore] fetchDatabases");
+            await this.fetchDatabases();
+            console.timeEnd("[SchemaStore] fetchDatabases");
 
-            // 4.1 If cache is empty (first-time connection), trigger introspection
-            if (data.length === 0) {
+            // 4.1 If no databases found, trigger introspection (progressive refresh)
+            if (this.databases.length === 0) {
                 const loadingToastId = toast.loading("Introspecting schema...", {
                     description: "First-time connection, discovering database structure.",
                     duration: Infinity,
                 });
 
                 try {
-                    console.time("[SchemaStore] refresh_schema");
-                    await invoke("refresh_schema", { connectionId: conn.id });
-                    console.timeEnd("[SchemaStore] refresh_schema");
+                    console.time("[SchemaStore] refresh_schema_progressive");
+                    await invoke("refresh_schema_progressive", { connectionId: conn.id });
+                    console.timeEnd("[SchemaStore] refresh_schema_progressive");
 
-                    console.time("[SchemaStore] get_schema (after refresh)");
-                    data = await invoke<MetaDatabase[]>("get_schema", { connectionId: conn.id });
-                    console.timeEnd("[SchemaStore] get_schema (after refresh)");
-                    console.log(`[SchemaStore] After refresh: ${data.length} databases`);
+                    await this.fetchDatabases();
+                    console.log(`[SchemaStore] After refresh: ${this.databases.length} databases`);
 
-                    toast.success("Schema Loaded", {
+                    toast.success("Connection Established", {
                         id: loadingToastId,
-                        description: `Discovered ${data.length} databases.`
+                        description: `Discovered structures for ${this.databases.length} databases.`
                     });
                 } catch (introError) {
                     toast.error("Introspection Failed", {
@@ -129,41 +126,29 @@ export class SchemaStore {
                 }
             }
 
-            // 5. Update Completion Engine Cache
-            console.time("[SchemaStore] update_completion_schema");
+            // 5. Update Completion Engine Cache with whatever we have
             await invoke("update_completion_schema", {
                 connectionId: conn.id,
-                databases: data,
-                selectedDatabase: conn.database  // Filter by configured database
+                databases: $state.snapshot(this.databases),
+                selectedDatabase: conn.database
             });
-            console.timeEnd("[SchemaStore] update_completion_schema");
-
-            console.time("[SchemaStore] state update");
-            this.databases = data;
 
             // Auto-select database
             if (this.databases.length > 0) {
-                // 1. Try configured database
                 const configuredDb = this.databases.find(d => d.name === conn.database);
                 if (configuredDb) {
                     this.selectedDatabase = configuredDb.name;
+                    await this.fetchSchemas(configuredDb.name);
                 } else {
-                    // 2. Fallback to first available
                     this.selectedDatabase = this.databases[0].name;
+                    await this.fetchSchemas(this.databases[0].name);
                 }
                 console.log(`[SchemaStore] Auto-selected database: ${this.selectedDatabase}`);
             }
 
             this.status = "idle";
             this.lastRefreshed = new Date();
-            console.timeEnd("[SchemaStore] state update");
-            console.log(`[SchemaStore] Status changed to: ${this.status}, databases count: ${this.databases.length}`);
-
-            if (data.length === 0) {
-                toast.success("Connected", { description: "No schema found. Try refreshing." });
-            } else {
-                toast.success("Connected", { description: `Loaded ${data.length} databases.` });
-            }
+            toast.success("Connected", { description: `Session active for ${this.activeConnection.name}` });
 
         } catch (e) {
             this.status = "error";
@@ -250,17 +235,74 @@ export class SchemaStore {
         }
     }
 
+    async fetchDatabases() {
+        if (!this.activeConnection) return;
+        const dbs = await invoke<MetaDatabase[]>("get_databases", { connectionId: this.activeConnection.id });
+        // Preserve existing branches if they were loaded
+        this.databases = dbs.map(newDb => {
+            const existing = this.databases.find(d => d.name === newDb.name);
+            if (existing) {
+                return { ...newDb, schemas: existing.schemas, is_introspected: existing.is_introspected };
+            }
+            return newDb;
+        });
+    }
+
+    async fetchSchemas(dbName: string) {
+        if (!this.activeConnection) return;
+        const dbIndex = this.databases.findIndex(d => d.name === dbName);
+        if (dbIndex === -1) return;
+
+        const schemas = await invoke<any[]>("get_schemas", {
+            connectionId: this.activeConnection.id,
+            database: dbName
+        });
+
+        this.databases[dbIndex].schemas = schemas.map(s => {
+            const existing = this.databases[dbIndex].schemas.find(es => es.name === s.name);
+            if (existing) {
+                return { ...s, tables: existing.tables };
+            }
+            return { ...s, tables: [] };
+        });
+        this.databases[dbIndex].is_introspected = schemas.length > 0;
+    }
+
+    async fetchTables(dbName: string, schemaName: string) {
+        if (!this.activeConnection) return;
+        const dbIndex = this.databases.findIndex(d => d.name === dbName);
+        if (dbIndex === -1) return;
+
+        const schemaIndex = this.databases[dbIndex].schemas.findIndex(s => s.name === schemaName);
+        if (schemaIndex === -1) return;
+
+        const tables = await invoke<any[]>("get_tables_in_schema", {
+            connectionId: this.activeConnection.id,
+            database: dbName,
+            schema: schemaName
+        });
+
+        this.databases[dbIndex].schemas[schemaIndex].tables = tables;
+    }
+
     async syncFromCache() {
         if (!this.activeConnection) return;
-        const data = await invoke<MetaDatabase[]>("get_schema", { connection_id: this.activeConnection.id });
+
+        // In lazy mode, syncFromCache should probably refresh everything we've expanded?
+        // Or just re-fetch databases and update completion engine.
+        // For simplicity, we re-fetch databases and the selected database's schemas.
+        await this.fetchDatabases();
+        if (this.selectedDatabase) {
+            await this.fetchSchemas(this.selectedDatabase);
+            // Also refresh tables for any expanded schemas? Maybe overkill for syncFromCache.
+        }
 
         await invoke<void>("update_completion_schema", {
             connectionId: this.activeConnection.id,
-            databases: data,
+            databases: $state.snapshot(this.databases),
             selectedDatabase: this.selectedDatabase
         });
 
-        this.databases = data;
         this.lastRefreshed = new Date();
     }
 

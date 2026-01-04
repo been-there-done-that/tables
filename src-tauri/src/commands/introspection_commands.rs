@@ -1,6 +1,6 @@
 use tauri::State;
 use crate::DatabaseState;
-use crate::introspection::{Introspector, MetaTable, MetaDatabase};
+use crate::introspection::{Introspector, MetaTable, MetaDatabase, MetaSchema};
 use crate::connection_manager::{ConnectionManager, ConnectionManagerState};
 use log::{debug, info};
 
@@ -79,6 +79,39 @@ pub async fn get_schema_tables(
 }
 
 #[tauri::command]
+pub async fn get_databases(
+    connection_id: String,
+    db_state: State<'_, DatabaseState>,
+) -> Result<Vec<MetaDatabase>, String> {
+    debug!("Fetching cached databases for connection {}", connection_id);
+    let introspector = Introspector::new(db_state.conn.clone());
+    introspector.get_databases(&connection_id)
+}
+
+#[tauri::command]
+pub async fn get_schemas(
+    connection_id: String,
+    database: String,
+    db_state: State<'_, DatabaseState>,
+) -> Result<Vec<MetaSchema>, String> {
+    debug!("Fetching cached schemas for {}.{} ", connection_id, database);
+    let introspector = Introspector::new(db_state.conn.clone());
+    introspector.get_schemas(&connection_id, &database)
+}
+
+#[tauri::command]
+pub async fn get_tables_in_schema(
+    connection_id: String,
+    database: String,
+    schema: String,
+    db_state: State<'_, DatabaseState>,
+) -> Result<Vec<MetaTable>, String> {
+    debug!("Fetching cached tables for {}.{}.{} ", connection_id, database, schema);
+    let introspector = Introspector::new(db_state.conn.clone());
+    introspector.get_tables_in_schema(&connection_id, &database, &schema)
+}
+
+#[tauri::command]
 pub async fn get_schema_table_details(
     connection_id: String,
     database: Option<String>,
@@ -98,6 +131,7 @@ pub async fn introspect_database(
     database_name: String,
     db_state: State<'_, DatabaseState>,
     conn_state: State<'_, ConnectionManagerState>,
+    app: tauri::AppHandle,
 ) -> Result<MetaDatabase, String> {
     info!("Command: introspect_database for {} in connection {}", database_name, connection_id);
     let manager = ConnectionManager::from_state(&db_state, &conn_state);
@@ -119,7 +153,7 @@ pub async fn introspect_database(
     }
 
     let introspector = Introspector::new(db_state.conn.clone());
-    introspector.introspect_database(&connection_id, config, &database_name).await
+    introspector.introspect_database(&connection_id, config, &database_name, &app).await
 }
 
 /// Progressive schema introspection with level-based event emission
