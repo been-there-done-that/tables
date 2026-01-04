@@ -48,14 +48,20 @@ export class SchemaStore {
                 const payload = event.payload;
                 console.log(`[SchemaStore] Level ${payload.level} complete:`, payload);
                 this.statusMessage = `Introspected Level ${payload.level}: ${payload.database || 'Metadata'}`;
-                await this.syncFromCache();
+
+                // Level 1 = Databases list changed
+                const isDbListUpdate = payload.level === 1;
+                await this.syncFromCache({
+                    database: payload.database,
+                    refreshDbList: isDbListUpdate
+                });
             });
 
             this.unlistenSchema = await listen("introspection:schema_ready", async (event: any) => {
                 const payload = event.payload;
                 console.log(`[SchemaStore] Schema ready:`, payload);
                 this.statusMessage = `Schema ready: ${payload.database}`;
-                await this.syncFromCache();
+                await this.syncFromCache({ database: payload.database, refreshDbList: false });
 
                 if (this.status === "refreshing") {
                     this.status = "idle";
@@ -70,7 +76,26 @@ export class SchemaStore {
                 console.log(`[SchemaStore] Introspection complete:`, payload);
                 this.statusMessage = "Ready";
                 this.status = "idle";
-                await this.syncFromCache();
+
+                let dbName: string | undefined;
+                let isGlobal = false;
+
+                if (payload.database) {
+                    dbName = payload.database;
+                    isGlobal = false;
+                } else if (payload.scope) {
+                    if (payload.scope.type === 'database') {
+                        dbName = payload.scope.name;
+                    } else if (payload.scope.type === 'schema' || payload.scope.type === 'table') {
+                        dbName = payload.scope.database;
+                    } else {
+                        isGlobal = true;
+                    }
+                } else {
+                    isGlobal = true;
+                }
+
+                await this.syncFromCache({ database: dbName, refreshDbList: isGlobal });
             });
 
             this.unlistenError = await listen("introspection:error", async (event: any) => {
@@ -353,6 +378,9 @@ export class SchemaStore {
                 return;
             }
             console.log(`[SchemaStore] Schema ${schemaName} not cached, triggering remote fetch.`);
+
+            this.status = "refreshing";
+
             try {
                 this.statusMessage = `Introspecting ${schemaName}...`;
                 await invoke("refresh_schema_unified", {
@@ -367,10 +395,21 @@ export class SchemaStore {
                     database: dbName,
                     schema: schemaName
                 });
-                this.databases[dbIndex].schemas[schemaIndex].tables = tables;
-                this.databases[dbIndex].schemas[schemaIndex].is_introspected = true;
+
+                // Re-find schema in case array was mutated by background event
+                const dIdx = this.databases.findIndex(d => d.name === dbName);
+                if (dIdx !== -1) {
+                    const sIdx = this.databases[dIdx].schemas.findIndex(s => s.name === schemaName);
+                    if (sIdx !== -1) {
+                        this.databases[dIdx].schemas[sIdx].tables = tables;
+                        this.databases[dIdx].schemas[sIdx].is_introspected = true;
+                    }
+                }
             } catch (e) {
                 console.error(`Failed to refresh schema ${schemaName}:`, e);
+                toast.error(`Failed to load ${schemaName}`, { description: String(e) });
+            } finally {
+                this.status = "idle";
             }
             return;
         }
@@ -385,16 +424,48 @@ export class SchemaStore {
         this.databases[dbIndex].schemas[schemaIndex].is_introspected = true;
     }
 
-    async syncFromCache() {
+    private syncTimeout: ReturnType<typeof setTimeout> | null = null;
+    private pendingSyncDbs = new Set<string>();
+    private pendingDbListRefresh = false;
+
+    async syncFromCache(options?: { database?: string, refreshDbList?: boolean }) {
         if (!this.activeConnection) return;
 
-        // In lazy mode, syncFromCache should probably refresh everything we've expanded?
-        // Or just re-fetch databases and update completion engine.
-        // For simplicity, we re-fetch databases and the selected database's schemas.
-        await this.fetchDatabases();
-        if (this.selectedDatabase) {
+        if (options?.refreshDbList) {
+            this.pendingDbListRefresh = true;
+        }
+
+        this.pendingSyncDbs.add(options?.database || '__GLOBAL__');
+
+        if (this.syncTimeout) {
+            clearTimeout(this.syncTimeout);
+        }
+
+        this.syncTimeout = setTimeout(() => {
+            this._performSync();
+        }, 200);
+    }
+
+    private async _performSync() {
+        if (!this.activeConnection) return;
+
+        const dbsToSync = new Set(this.pendingSyncDbs);
+        const startDbListRefresh = this.pendingDbListRefresh;
+
+        this.pendingSyncDbs.clear();
+        this.pendingDbListRefresh = false;
+        this.syncTimeout = null;
+
+        if (startDbListRefresh) {
+            await this.fetchDatabases();
+        }
+
+        const shouldRefreshSchemas =
+            dbsToSync.has('__GLOBAL__') ||
+            (this.selectedDatabase && dbsToSync.has(this.selectedDatabase));
+
+        if (shouldRefreshSchemas && this.selectedDatabase) {
             await this.fetchSchemas(this.selectedDatabase);
-            // Also refresh tables for any expanded schemas? Maybe overkill for syncFromCache.
         }
 
         await invoke<void>("update_completion_schema", {
@@ -444,11 +515,12 @@ export class SchemaStore {
                 });
             }
 
-            this.status = "idle";
             toast.success("Refresh Complete");
         } catch (e) {
-            this.status = "idle";
+            this.error = String(e);
             toast.error("Refresh Failed", { description: String(e) });
+        } finally {
+            this.status = "idle";
         }
     }
 

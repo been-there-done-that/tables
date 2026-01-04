@@ -211,7 +211,7 @@ pub async fn refresh_schema_unified(
         "scope": scope_for_emit,
     }));
 
-    info!("Unified schema refresh completed for connection {}", connection_id);
+    info!("Unified schema refresh completed for connection {} (Scope: {:?})", connection_id, scope_for_emit);
     Ok(())
 }
 
@@ -238,7 +238,9 @@ pub async fn get_cached_databases(
 ) -> Result<Vec<MetaDatabase>, String> {
     debug!("Fetching cached databases for connection {}", connection_id);
     let introspector = Introspector::new(db_state.conn.clone());
-    introspector.get_databases(&connection_id)
+    let results = introspector.get_databases(&connection_id)?;
+    debug!("Found {} cached databases for connection {}", results.len(), connection_id);
+    Ok(results)
 }
 
 /// Get cached schemas for a database.
@@ -250,7 +252,9 @@ pub async fn get_cached_schemas(
 ) -> Result<Vec<MetaSchema>, String> {
     debug!("Fetching cached schemas for {}.{}", connection_id, database);
     let introspector = Introspector::new(db_state.conn.clone());
-    introspector.get_schemas(&connection_id, &database)
+    let results = introspector.get_schemas(&connection_id, &database)?;
+    debug!("Found {} cached schemas for {}.{}", results.len(), connection_id, database);
+    Ok(results)
 }
 
 /// Get cached tables for a schema.
@@ -263,7 +267,9 @@ pub async fn get_cached_tables(
 ) -> Result<Vec<MetaTable>, String> {
     debug!("Fetching cached tables for {}.{}.{}", connection_id, database, schema);
     let introspector = Introspector::new(db_state.conn.clone());
-    introspector.get_tables_in_schema(&connection_id, &database, &schema)
+    let results = introspector.get_tables_in_schema(&connection_id, &database, &schema)?;
+    debug!("Found {} cached tables for {}.{}.{}", results.len(), connection_id, database, schema);
+    Ok(results)
 }
 
 /// Get cached table details.
