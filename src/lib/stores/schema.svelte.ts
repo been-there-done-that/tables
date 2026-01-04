@@ -3,7 +3,7 @@ import { toast } from "svelte-sonner";
 import LoaderIcon from "@tabler/icons-svelte/icons/loader-2";
 import CheckIcon from "@tabler/icons-svelte/icons/check";
 import XIcon from "@tabler/icons-svelte/icons/x";
-import type { Connection, MetaDatabase } from "$lib/commands/types";
+import type { Connection, MetaDatabase, MetaSchema } from "$lib/commands/types";
 
 export class SchemaStore {
     activeConnection = $state<Connection | null>(null);
@@ -72,8 +72,8 @@ export class SchemaStore {
         this.status = "connecting";
         this.error = null;
         this.activeConnection = conn;
-        this.databases = []; // Clear previous schemas immediately
-        this.selectedDatabase = null;
+        this.databases = [];
+        this.selectedDatabase = conn.database || null;
         this.lastRefreshed = null;
 
         try {
@@ -188,8 +188,12 @@ export class SchemaStore {
         const db = this.databases.find(d => d.name === dbName);
         if (!db) return;
 
-        // If already introspected, just show it (the FileTree handle the state)
-        if (db.is_introspected) return;
+        // Smart check: if already cached, just fetch schemas from cache
+        if (db.is_introspected) {
+            console.log(`[SchemaStore] Database ${dbName} is already cached, fetching schemas from cache.`);
+            await this.fetchSchemas(dbName);
+            return;
+        }
 
         db.is_loading = true;
         const toastId = toast.loading(`Introspecting ${dbName}...`, {
@@ -198,7 +202,11 @@ export class SchemaStore {
         });
 
         try {
-            console.log(`[SchemaStore] Loading database: ${dbName}`);
+            console.log(`[SchemaStore] Loading database: ${dbName} (Remote Fetch) (status: ${this.status})`);
+            if (this.status === "refreshing") {
+                console.warn(`[SchemaStore] loadDatabase called while already refreshing. Skipping auto-trigger.`);
+                return;
+            }
             const updatedDb = await invoke<MetaDatabase>("introspect_database", {
                 connectionId: this.activeConnection.id,
                 databaseName: dbName
@@ -207,14 +215,13 @@ export class SchemaStore {
             // Update the database in the list
             const index = this.databases.findIndex(d => d.name === dbName);
             if (index !== -1) {
-                // Ensure we keep is_connected true if it was returned so by backend
                 this.databases[index] = { ...updatedDb, is_loading: false };
             }
 
-            // Sync completion cache - use the just-loaded database
+            // Sync completion cache
             await invoke("update_completion_schema", {
                 connectionId: this.activeConnection.id,
-                databases: this.databases,
+                databases: $state.snapshot(this.databases),
                 selectedDatabase: dbName
             });
 
@@ -223,7 +230,6 @@ export class SchemaStore {
                 description: `Successfully introspected ${dbName}`
             });
         } catch (e) {
-            // Restore loading state
             const index = this.databases.findIndex(d => d.name === dbName);
             if (index !== -1) {
                 this.databases[index].is_loading = false;
@@ -242,10 +248,11 @@ export class SchemaStore {
         this.databases = dbs.map(newDb => {
             const existing = this.databases.find(d => d.name === newDb.name);
             if (existing) {
-                return { ...newDb, schemas: existing.schemas, is_introspected: existing.is_introspected };
+                return { ...newDb, schemas: existing.schemas };
             }
             return newDb;
         });
+        console.log(`[SchemaStore] fetchDatabases: found ${this.databases.length} dbs. selected: ${this.selectedDatabase}`);
     }
 
     async fetchSchemas(dbName: string) {
@@ -253,10 +260,23 @@ export class SchemaStore {
         const dbIndex = this.databases.findIndex(d => d.name === dbName);
         if (dbIndex === -1) return;
 
-        const schemas = await invoke<any[]>("get_schemas", {
+        const schemas = await invoke<MetaSchema[]>("get_schemas", {
             connectionId: this.activeConnection.id,
             database: dbName
         });
+
+        console.log(`[SchemaStore] fetchSchemas(${dbName}): found ${schemas.length} schemas. is_introspected: ${this.databases[dbIndex].is_introspected}`);
+
+        // If no schemas in cache, trigger a remote load if not already introspected
+        if (schemas.length === 0 && !this.databases[dbIndex].is_introspected) {
+            if (this.status === "refreshing") {
+                console.log(`[SchemaStore] fetchSchemas: No schemas in cache for ${dbName}, but refresh is in progress. Skipping auto-trigger.`);
+                return;
+            }
+            console.log(`[SchemaStore] No schemas in cache for ${dbName}, triggering load.`);
+            await this.loadDatabase(dbName);
+            return;
+        }
 
         this.databases[dbIndex].schemas = schemas.map(s => {
             const existing = this.databases[dbIndex].schemas.find(es => es.name === s.name);
@@ -265,7 +285,11 @@ export class SchemaStore {
             }
             return { ...s, tables: [] };
         });
-        this.databases[dbIndex].is_introspected = schemas.length > 0;
+
+        // Update is_introspected if we found schemas
+        if (schemas.length > 0) {
+            this.databases[dbIndex].is_introspected = true;
+        }
     }
 
     async fetchTables(dbName: string, schemaName: string) {
@@ -275,6 +299,35 @@ export class SchemaStore {
 
         const schemaIndex = this.databases[dbIndex].schemas.findIndex(s => s.name === schemaName);
         if (schemaIndex === -1) return;
+
+        const schema = this.databases[dbIndex].schemas[schemaIndex];
+
+        // If not cached, trigger a specific refresh
+        if (!schema.is_introspected) {
+            if (this.status === "refreshing") {
+                console.log(`[SchemaStore] fetchTables: Schema ${schemaName} not cached, but refresh is in progress. Skipping auto-trigger.`);
+                return;
+            }
+            console.log(`[SchemaStore] Schema ${schemaName} not cached, triggering remote fetch.`);
+            try {
+                await invoke("refresh_schema_specific_progressive", {
+                    connectionId: this.activeConnection.id,
+                    databaseName: dbName,
+                    schemaName: schemaName
+                });
+                // After refresh, sync from cache for this schema
+                const tables = await invoke<any[]>("get_tables_in_schema", {
+                    connectionId: this.activeConnection.id,
+                    database: dbName,
+                    schema: schemaName
+                });
+                this.databases[dbIndex].schemas[schemaIndex].tables = tables;
+                this.databases[dbIndex].schemas[schemaIndex].is_introspected = true;
+            } catch (e) {
+                console.error(`Failed to refresh schema ${schemaName}:`, e);
+            }
+            return;
+        }
 
         const tables = await invoke<any[]>("get_tables_in_schema", {
             connectionId: this.activeConnection.id,
@@ -308,6 +361,13 @@ export class SchemaStore {
 
     async refresh(databaseName?: string, schemaName?: string) {
         if (!this.activeConnection) return;
+
+        console.log(`[SchemaStore] Refresh called for ${databaseName || 'all'} (current status: ${this.status})`);
+
+        if (this.status === "refreshing") {
+            console.warn("[SchemaStore] Refresh requested while already refreshing. Throttling.");
+            return;
+        }
 
         this.status = "refreshing";
         this.error = null;

@@ -18,6 +18,7 @@ pub struct MetaDatabase {
 pub struct MetaSchema {
     pub name: String,
     pub schema_type: String, // "user" or "system"
+    pub is_introspected: bool,
     pub tables: Vec<MetaTable>,
 }
 
@@ -174,6 +175,7 @@ impl Introspector {
             schemas: vec![MetaSchema {
                 name: "main".to_string(),
                 schema_type: "user".to_string(),
+                is_introspected: true,
                 tables,
             }],
         }])
@@ -372,6 +374,7 @@ impl Introspector {
             schema_vec.push(MetaSchema {
                 name: s_name,
                 schema_type: schema_type.to_string(),
+                is_introspected: true,
                 tables: s_tables,
             });
         }
@@ -713,13 +716,21 @@ impl Introspector {
 
     pub fn get_databases(&self, connection_id: &str) -> Result<Vec<MetaDatabase>, String> {
         let conn = self.app_db.lock().unwrap();
-        let mut stmt = conn.prepare("SELECT name FROM meta_databases WHERE connection_id = ?1 ORDER BY name")
-            .map_err(|e| e.to_string())?;
+        
+        // Query databases and check if any schemas exist for each to determine is_introspected
+        let mut stmt = conn.prepare(
+            "SELECT d.name, 
+             EXISTS(SELECT 1 FROM meta_schemas s WHERE s.connection_id = d.connection_id AND s.database = d.name) as introspected
+             FROM meta_databases d 
+             WHERE d.connection_id = ?1 
+             ORDER BY d.name"
+        ).map_err(|e| e.to_string())?;
+
         let rows = stmt.query_map(params![connection_id], |row| {
             Ok(MetaDatabase {
                 name: row.get(0)?,
                 is_connected: false,
-                is_introspected: false,
+                is_introspected: row.get(1)?,
                 schemas: vec![],
             })
         }).map_err(|e| e.to_string())?;
@@ -733,12 +744,19 @@ impl Introspector {
 
     pub fn get_schemas(&self, connection_id: &str, database: &str) -> Result<Vec<MetaSchema>, String> {
         let conn = self.app_db.lock().unwrap();
-        let mut stmt = conn.prepare("SELECT name, schema_type FROM meta_schemas WHERE connection_id = ?1 AND database = ?2 ORDER BY name")
-            .map_err(|e| e.to_string())?;
+        let mut stmt = conn.prepare(
+            "SELECT s.name, s.schema_type,
+             EXISTS(SELECT 1 FROM meta_tables t WHERE t.connection_id = s.connection_id AND t.database = s.database AND t.schema = s.name) as introspected
+             FROM meta_schemas s 
+             WHERE s.connection_id = ?1 AND s.database = ?2 
+             ORDER BY s.name"
+        ).map_err(|e| e.to_string())?;
+
         let rows = stmt.query_map(params![connection_id, database], |row| {
             Ok(MetaSchema {
                 name: row.get(0)?,
                 schema_type: row.get(1)?,
+                is_introspected: row.get(2)?,
                 tables: vec![],
             })
         }).map_err(|e| e.to_string())?;
@@ -1014,7 +1032,12 @@ impl Introspector {
                     } else {
                         "user"
                     };
-                    schemas.push(MetaSchema { name: s_name, schema_type: schema_type.to_string(), tables: s_tables });
+                    schemas.push(MetaSchema { 
+            name: s_name, 
+            schema_type: schema_type.to_string(), 
+            is_introspected: true,
+            tables: s_tables 
+        });
                 }
             }
             db_list.push(MetaDatabase { 
@@ -1369,9 +1392,42 @@ impl Introspector {
         info!("Level 1 complete: {} databases", all_databases.len());
 
         // === LEVEL 2: Schemas ===
-        let schema_rows = client.query(
+        // If priority_database is set and different from current_database, we must reconnect 
+        // because information_schema/pg_catalog are database-local.
+        let mut current_client = client;
+        let mut effective_database = current_database.to_string();
+
+        if let Some(priority_db) = &priority_database {
+            if priority_db != &effective_database {
+                info!("[Introspector] Priority database {} is different from current connected database {}, reconnecting...", 
+                    priority_db, effective_database);
+                
+                let priority_conn_str = format!("postgres://{}:{}@{}:{}/{}", user, password, host, port, priority_db);
+                
+                let new_client = if tls_enabled {
+                    let tls_connector = native_tls::TlsConnector::builder()
+                        .danger_accept_invalid_certs(true)
+                        .build()
+                        .map_err(|e| format!("Failed to build TLS connector: {}", e))?;
+                    let connector = postgres_native_tls::MakeTlsConnector::new(tls_connector);
+                    let (client, connection) = tokio_postgres::connect(&priority_conn_str, connector).await
+                        .map_err(|e| format!("Priority connection error: {}", e))?;
+                    tokio::spawn(async move { let _ = connection.await; });
+                    client
+                } else {
+                    let (client, connection) = tokio_postgres::connect(&priority_conn_str, tokio_postgres::NoTls).await
+                        .map_err(|e| format!("Priority connection error: {}", e))?;
+                    tokio::spawn(async move { let _ = connection.await; });
+                    client
+                };
+                current_client = new_client;
+                effective_database = priority_db.clone();
+            }
+        }
+
+        let schema_rows = current_client.query(
             "SELECT schema_name FROM information_schema.schemata WHERE catalog_name = $1",
-            &[&current_database]
+            &[&effective_database]
         ).await.map_err(|e| e.to_string())?;
         let all_schemas: Vec<String> = schema_rows.iter().map(|r| r.get(0)).collect();
         
@@ -1384,7 +1440,7 @@ impl Introspector {
                 } else {
                     "user"
                 };
-                self.save_schema(&tx, connection_id, current_database, s_name, schema_type)?;
+                self.save_schema(&tx, connection_id, &effective_database, s_name, schema_type)?;
             }
             tx.commit().map_err(|e| e.to_string())?;
         }
@@ -1392,12 +1448,13 @@ impl Introspector {
         let _ = app.emit("schema:level-complete", serde_json::json!({
             "level": 2,
             "connection_id": connection_id,
+            "database": &effective_database,
             "schemas": &all_schemas,
         }));
-        info!("Level 2 complete: {} schemas", all_schemas.len());
+        info!("Level 2 complete: {} schemas for database {}", all_schemas.len(), effective_database);
 
         // === LEVEL 3: Tables + Columns (bulk) ===
-        let table_rows = client.query(
+        let table_rows = current_client.query(
             "SELECT table_schema, table_name, table_type 
              FROM information_schema.tables 
              WHERE table_type IN ('BASE TABLE', 'VIEW')", 
@@ -1405,7 +1462,7 @@ impl Introspector {
         ).await.map_err(|e| e.to_string())?;
         let now = chrono::Utc::now().timestamp_millis();
 
-        let mut column_map = self.introspect_postgres_columns_bulk(&client, connection_id, current_database, &all_schemas).await?;
+        let mut column_map = self.introspect_postgres_columns_bulk(&current_client, connection_id, &effective_database, &all_schemas).await?;
 
         // Partition rows by priority
         let mut priority_rows = Vec::new();
@@ -1414,7 +1471,7 @@ impl Introspector {
         for row in table_rows {
             let schema: String = row.get(0);
             let is_priority = priority_schema.as_ref().map(|s| s == &schema).unwrap_or(false) 
-                              && priority_database.as_ref().map(|d| d == current_database).unwrap_or(true);
+                              && priority_database.as_ref().map(|d| d == &effective_database).unwrap_or(true);
             
             if is_priority {
                 priority_rows.push(row);
@@ -1435,7 +1492,7 @@ impl Introspector {
 
             priority_tables.push(MetaTable {
                 connection_id: connection_id.to_string(),
-                database: current_database.to_string(),
+                database: effective_database.to_string(),
                 schema,
                 table_name: name,
                 table_type: table_type.to_string(),
@@ -1462,7 +1519,7 @@ impl Introspector {
 
             let _ = app.emit("schema:ready", serde_json::json!({
                 "connection_id": connection_id,
-                "database": current_database,
+                "database": &effective_database,
                 "schema": priority_schema.as_ref().unwrap_or(&"public".to_string()),
             }));
             info!("Priority schema ready: {} tables", priority_tables.len());
@@ -1480,7 +1537,7 @@ impl Introspector {
 
             other_tables.push(MetaTable {
                 connection_id: connection_id.to_string(),
-                database: current_database.to_string(),
+                database: effective_database.to_string(),
                 schema,
                 table_name: name,
                 table_type: table_type.to_string(),
@@ -1518,9 +1575,9 @@ impl Introspector {
 
         // === LEVEL 4: FK + Indexes + Triggers (bulk) ===
         // We could prioritize here too, but Level 3 is the "unblock" point.
-        let mut fk_map = self.introspect_postgres_foreign_keys_bulk(&client, connection_id, current_database, &all_schemas).await?;
-        let mut idx_map = self.introspect_postgres_indexes_bulk(&client, connection_id, current_database, &all_schemas).await?;
-        let mut trg_map = self.introspect_postgres_triggers_bulk(&client, connection_id, current_database, &all_schemas).await?;
+        let mut fk_map = self.introspect_postgres_foreign_keys_bulk(&current_client, connection_id, &effective_database, &all_schemas).await?;
+        let mut idx_map = self.introspect_postgres_indexes_bulk(&current_client, connection_id, &effective_database, &all_schemas).await?;
+        let mut trg_map = self.introspect_postgres_triggers_bulk(&current_client, connection_id, &effective_database, &all_schemas).await?;
 
         for table in &mut all_tables {
             let key = (table.schema.clone(), table.table_name.clone());

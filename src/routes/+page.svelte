@@ -632,8 +632,8 @@
 
   <!-- Footer -->
   <footer
-    class="flex h-8 flex-none items-center border-t border-border bg-muted/5 px-4"
+    class="flex h-6 flex-none items-center border-t border-border bg-muted/5 px-4"
   >
-    <SystemMetricsWidget />
+    <div class="text-xs">x</div>
   </footer>
 </div>

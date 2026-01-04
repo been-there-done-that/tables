@@ -263,6 +263,7 @@ export interface MetaDatabase {
 export interface MetaSchema {
   name: string;
   schema_type: "user" | "system";
+  is_introspected: boolean;
   tables: MetaTable[];
 }
 
