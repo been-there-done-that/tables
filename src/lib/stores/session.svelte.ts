@@ -1,6 +1,6 @@
 import type { Connection, MetaSchema } from "$lib/commands/types";
 
-export type ViewType = "editor" | "table" | "custom";
+export type ViewType = "editor" | "table" | "custom" | "schema-visualizer";
 
 export interface ViewState {
     id: string;
