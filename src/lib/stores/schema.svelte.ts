@@ -49,6 +49,24 @@ export class SchemaStore {
                 console.log(`[SchemaStore] Level ${payload.level} complete:`, payload);
                 this.statusMessage = `Introspected Level ${payload.level}: ${payload.database || 'Metadata'}`;
 
+                // Update Toast Progressively if applicable
+                if (payload.database) {
+                    const toastId = `load-db-${payload.database}`;
+                    if (payload.level === 2) {
+                        toast.loading(`Loading Schemas (${payload.database})...`, {
+                            id: toastId,
+                            description: `Found ${payload.schema_count || 0} schemas. Fetching tables...`,
+                            duration: Infinity,
+                        });
+                    } else if (payload.level === 3) {
+                        toast.loading(`Loading Tables (${payload.database})...`, {
+                            id: toastId,
+                            description: `Found ${payload.table_count || 0} tables. Finalizing...`,
+                            duration: Infinity,
+                        });
+                    }
+                }
+
                 // Level 1 = Databases list changed
                 const isDbListUpdate = payload.level === 1;
                 await this.syncFromCache({
@@ -65,9 +83,7 @@ export class SchemaStore {
 
                 if (this.status === "refreshing") {
                     this.status = "idle";
-                    toast.success("Schema prioritized and ready", {
-                        description: `Tables for ${payload.database} are now interactive.`
-                    });
+                    // Handled by loadDatabase promise resolution
                 }
             });
 
@@ -262,7 +278,9 @@ export class SchemaStore {
         db.is_loading = true;
         this.status = "refreshing";
 
-        const toastId = toast.loading(`Introspecting ${dbName}...`, {
+        const toastId = `load-db-${dbName}`;
+        toast.loading(`Introspecting ${dbName}...`, {
+            id: toastId,
             description: "Fetching schemas and tables information.",
             duration: Infinity,
         });

@@ -1033,8 +1033,17 @@ impl Introspector {
 
         let mut enriched_indexes = Vec::new();
         for (index_name, is_unique) in indexes {
-            let mut col_stmt = conn.prepare("SELECT column_name, seq_no FROM meta_index_columns WHERE connection_id = ?1 AND database = ?2 AND schema = ?3 AND table_name = ?4 AND index_name = ?5 ORDER BY seq_no")
-                .map_err(|e| e.to_string())?;
+            let mut col_stmt = conn.prepare("
+                SELECT mic.column_name, mic.seq_no 
+                FROM meta_index_columns mic
+                JOIN meta_indexes mi ON mic.index_id = mi.index_id
+                WHERE mi.connection_id = ?1 
+                  AND mi.database = ?2 
+                  AND mi.schema = ?3 
+                  AND mi.table_name = ?4 
+                  AND mi.index_name = ?5 
+                ORDER BY mic.seq_no
+            ").map_err(|e| e.to_string())?;
             let columns = col_stmt.query_map(params![connection_id, database, schema, table_name, index_name], |row| {
                 Ok(serde_json::json!({
                     "column_name": row.get::<_, String>(0)?,

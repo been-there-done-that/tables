@@ -174,11 +174,15 @@ pub async fn refresh_schema_unified(
             let dbs = orchestrator.introspect_foreground().await
                 .map_err(|e| format!("Introspection failed: {:?}", e))?;
             
-            // Background the rest
+            // Background the rest - DISABLED for Lazy Introspection
+            // Users prefer to only introspect what they click on.
+            // Greedy background introspection causes performance issues and "random" updates.
+            /*
             let orchestrator_bg = Arc::clone(&orchestrator);
             tokio::spawn(async move {
                 orchestrator_bg.introspect_background(dbs).await;
             });
+            */
             
             // Return early to unblock frontend "connecting" status
             return Ok(());
