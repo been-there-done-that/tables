@@ -205,13 +205,13 @@ impl Introspector {
         // Save database record
         self.save_database(&conn, connection_id, &database.name)?;
         
-        info!("[INTRO_DEBUG] saving database {} with {} schemas", database.name, database.schemas.len());
+        debug!("[INTRO_DEBUG] saving database {} with {} schemas", database.name, database.schemas.len());
 
         for schema in &database.schemas {
             self.save_schema(&conn, connection_id, &database.name, &schema.name, &schema.schema_type)?;
             
             for table in &schema.tables {
-                // info!("[INTRO_DEBUG] saving table {}.{}.{}", database.name, schema.name, table.table_name);
+                // debug!("[INTRO_DEBUG] saving table {}.{}.{}", database.name, schema.name, table.table_name);
                 self.save_table_full(&conn, table)?;
             }
         }
@@ -974,10 +974,38 @@ impl Introspector {
     // PUBLIC SAVE METHODS - For lazy loading commands
     // =========================================================================
 
+    /// Save a list of databases to cache (public bulk wrapper)
+    pub fn save_databases_public(&self, connection_id: &str, names: &[String]) -> Result<(), String> {
+        let mut conn = self.app_db.lock().map_err(|e| e.to_string())?;
+        // Use a transaction for bulk insert
+        let tx = conn.transaction().map_err(|e| e.to_string())?;
+        for name in names {
+            self.save_database(&tx, connection_id, name)?;
+        }
+        tx.commit().map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
     /// Save a database to cache (public wrapper)
     pub fn save_database_public(&self, connection_id: &str, name: &str) -> Result<(), String> {
         let conn = self.app_db.lock().unwrap();
         self.save_database(&conn, connection_id, name)?;
+        Ok(())
+    }
+
+    /// Save a list of schemas to cache (public bulk wrapper)
+    pub fn save_schemas_public(&self, connection_id: &str, database: &str, schemas: &[MetaSchema]) -> Result<(), String> {
+        let mut conn = self.app_db.lock().map_err(|e| e.to_string())?;
+        let tx = conn.transaction().map_err(|e| e.to_string())?;
+        
+        // Ensure database exists first
+        self.save_database(&tx, connection_id, database)?;
+        
+        for schema in schemas {
+            self.save_schema(&tx, connection_id, database, &schema.name, &schema.schema_type)?;
+        }
+        
+        tx.commit().map_err(|e| e.to_string())?;
         Ok(())
     }
 

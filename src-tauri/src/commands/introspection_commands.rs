@@ -305,9 +305,8 @@ pub async fn get_databases_lazy(
         .map_err(|e| format!("Failed to list databases: {}", e))?;
     
     // Save to cache
-    for db in &dbs {
-        introspector.save_database_public(&connection_id, &db.name)?;
-    }
+    let db_names: Vec<String> = dbs.iter().map(|d| d.name.clone()).collect();
+    introspector.save_databases_public(&connection_id, &db_names)?;
     
     Ok(dbs)
 }
@@ -354,11 +353,8 @@ pub async fn get_schemas_lazy(
     let schemas = adapter.list_schemas(&database).await
         .map_err(|e| format!("Failed to list schemas: {}", e))?;
     
-    // Save to cache - first ensure database exists
-    introspector.save_database_public(&connection_id, &database)?;
-    for schema in &schemas {
-        introspector.save_schema_public(&connection_id, &database, &schema.name, &schema.schema_type)?;
-    }
+    // Save to cache - bulk
+    introspector.save_schemas_public(&connection_id, &database, &schemas)?;
     
     Ok(schemas)
 }

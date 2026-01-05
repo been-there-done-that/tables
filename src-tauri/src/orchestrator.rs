@@ -213,9 +213,8 @@ impl<A: DatabaseAdapter> ProgressiveIntrospector<A> {
             if let Some(ref app_db) = self.app_db {
                 use crate::introspection::Introspector;
                 let introspector = Introspector::new(Arc::clone(app_db));
-                for db in &databases {
-                    let _ = introspector.save_introspected_database(connection_id, db);
-                }
+                let db_names: Vec<String> = databases.iter().map(|d| d.name.clone()).collect();
+                let _ = introspector.save_databases_public(connection_id, &db_names);
             }
         }
 
