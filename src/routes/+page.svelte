@@ -1,10 +1,9 @@
 <script lang="ts">
   import ResizableSplitPane from "$lib/components/ResizableSplitPane.svelte";
   import SystemMetricsWidget from "$lib/components/SystemMetricsWidget.svelte";
-  import FileTree, {
-    type NodeType,
-    type TreeNode,
-  } from "$lib/components/explorer/FileTree.svelte";
+  import DatabaseExplorer, {
+    type ExplorerNodeData,
+  } from "$lib/components/explorer/DatabaseExplorer.svelte";
   import EditorTabs from "$lib/components/EditorTabs.svelte";
   import EditorHome from "$lib/components/EditorHome.svelte";
   import { windowState } from "$lib/stores/window.svelte";
@@ -21,15 +20,10 @@
   import SqlTestingEditor from "$lib/components/SqlTestingEditor.svelte";
   import SchemaVisualizer from "$lib/components/visualizer/SchemaVisualizer.svelte";
 
-  let fileTree = $state<any>(null);
+  let explorer = $state<any>(null);
   let showSqlEditor = $state(false);
 
   const activeSession = $derived(windowState.activeSession);
-
-  // Cache for lazily-loaded table details
-  let tableDetailsCache = $state<Map<string, any>>(new Map());
-  let loadingTables = $state<Set<string>>(new Set());
-  let fetchedSchemas = new Set<string>(); // Non-reactive set to track auto-fetches per session
 
   // Ensure a session exists when schemaStore has an active connection
   $effect(() => {
@@ -42,274 +36,25 @@
     }
   });
 
-  const treeData = $derived.by(() => {
-    const activeConn = schemaStore.activeConnection;
-    const selectedDbName = schemaStore.selectedDatabase;
-
-    if (!activeConn || !selectedDbName) return [];
-
-    const db = schemaStore.databases.find((d) => d.name === selectedDbName);
-    if (!db) return [];
-
-    // Map schemas directly to root nodes
-    return db.schemas.map((schema) => {
-      const tables = schema.tables.filter((t) => t.table_type === "table");
-      const views = schema.tables.filter((t) => t.table_type === "view");
-
-      let children: TreeNode[] = [];
-
-      if (tables.length > 0 || views.length > 0) {
-        if (tables.length > 0) {
-          children.push({
-            id: `folder:tables:${db.name}:${schema.name}`,
-            name: "tables",
-            type: "folder" as NodeType,
-            count: tables.length,
-            children: tables.map((table) =>
-              mapTableToNode(table, db.name, schema.name),
-            ),
-          });
-        }
-
-        if (views.length > 0) {
-          children.push({
-            id: `folder:views:${db.name}:${schema.name}`,
-            name: "views",
-            type: "folder" as NodeType,
-            count: views.length,
-            children: views.map((table) => ({
-              ...mapTableToNode(table, db.name, schema.name),
-              detail: undefined,
-            })),
-          });
-        }
-      } else {
-        // Check if schema has been introspected (loaded) but is empty
-        if (schema.is_introspected) {
-          children = [
-            {
-              id: `empty:${db.name}:${schema.name}`,
-              name: "No tables found",
-              type: "column" as NodeType, // Generic leaf type
-            },
-          ];
-        } else {
-          // Placeholder for lazy loading tables
-          children = [
-            {
-              id: `placeholder:tables:${db.name}:${schema.name}`,
-              name: "Loading tables...",
-              type: "column" as NodeType,
-            },
-          ];
-        }
-      }
-
-      return {
-        id: `schema:${db.name}:${schema.name}`,
-        name: schema.name,
-        type: "schema" as NodeType,
-        children,
-        metadata: { dbName: db.name, schemaName: schema.name },
-      };
-    });
-  });
-
-  function mapTableToNode(table: any, dbName: string, schemaName: string) {
-    const tableId = `table:${dbName}:${schemaName}.${table.table_name}`;
-    const cacheKey = `${dbName}:${schemaName}:${table.table_name}`;
-    const cachedDetails = tableDetailsCache.get(cacheKey);
-    const isLoading = loadingTables.has(cacheKey);
-
-    // If details are cached, show them; otherwise show placeholder children
-    let children: TreeNode[] = [];
-
-    if (cachedDetails) {
-      // Use cached details
-      children = [
-        {
-          id: `cols:${tableId}`,
-          name: "Columns",
-          type: "group" as NodeType,
-          count: cachedDetails.columns?.length || 0,
-          children: (cachedDetails.columns || []).map((col: any) => ({
-            id: `col:${tableId}.${col.column_name}`,
-            name: col.column_name,
-            type: (col.is_primary_key ? "primary_key" : "column") as NodeType,
-            detail: col.logical_type,
-          })),
-        },
-        {
-          id: `idxs:${tableId}`,
-          name: "Indexes",
-          type: "group" as NodeType,
-          count: cachedDetails.indexes?.length || 0,
-          children: (cachedDetails.indexes || []).map((idx: any) => ({
-            id: `idx:${tableId}.${idx.name}`,
-            name: idx.name,
-            type: "index" as NodeType,
-            detail: idx.is_unique ? "Unique" : "",
-          })),
-        },
-        {
-          id: `fks:${tableId}`,
-          name: "Foreign Keys",
-          type: "group" as NodeType,
-          count: cachedDetails.foreign_keys?.length || 0,
-          children: (cachedDetails.foreign_keys || []).map((fk: any) => ({
-            id: `fk:${tableId}.${fk.column_name}`,
-            name: fk.column_name,
-            type: "foreign_key" as NodeType,
-            detail: `-> ${fk.ref_table}.${fk.ref_column}`,
-          })),
-        },
-        {
-          id: `triggers:${tableId}`,
-          name: "Triggers",
-          type: "group" as NodeType,
-          count: cachedDetails.triggers?.length || 0,
-          children: (cachedDetails.triggers || []).map((t: any) => ({
-            id: `trigger:${tableId}.${t.trigger_name}`,
-            name: t.trigger_name,
-            type: "trigger" as NodeType,
-            detail: `${t.timing} ${t.event}`,
-          })),
-        },
-      ];
-    } else {
-      // Show placeholder - will be replaced when expanded
-      children = [
-        {
-          id: `placeholder:${tableId}`,
-          name: isLoading ? "Loading..." : "Expand to load details",
-          type: "column" as NodeType,
-        },
-      ];
+  function handleNodeSelect(data: ExplorerNodeData) {
+    if (data.schema) {
+      schemaStore.activeSchema = data.schema.name;
     }
 
-    return {
-      id: tableId,
-      name: table.table_name,
-      type: "table" as NodeType,
-      detail: table.table_type === "table" ? undefined : table.table_type,
-      children,
-      // Store metadata for lazy loading
-      metadata: { dbName, schemaName, tableName: table.table_name },
-    };
-  }
-
-  // Effect to load details for pre-expanded tables
-  $effect(() => {
-    const session = activeSession;
-    const expanded = session?.explorerState?.expanded;
-    const hasConnection = !!schemaStore.activeConnection;
-
-    console.log(
-      `[Effect] Checking pre-expanded tables: session=${!!session}, expanded=${expanded?.size || "null"}, hasConnection=${hasConnection}`,
-    );
-
-    if (!expanded || !schemaStore.activeConnection) return;
-
-    console.log(`[Effect] Expanded keys:`, [...expanded]);
-
-    // Find expanded table nodes and load their details
-    for (const key of expanded) {
-      // Check if this is a table key (format: table:db:schema.tableName or table:db:schema.tableName-index)
-      // Check if this is a table key logic...
-      if (key.startsWith("table:")) {
-        console.log(`[Effect] Found table key: ${key}`);
-        const match = key.match(/^table:([^:]+):([^.]+)\.([^-]+)/);
-        if (match) {
-          const [, dbName, schemaName, tableName] = match;
-          const cacheKey = `${dbName}:${schemaName}:${tableName}`;
-
-          // Load if not already cached or loading
-          if (
-            !tableDetailsCache.has(cacheKey) &&
-            !loadingTables.has(cacheKey)
-          ) {
-            console.log(`[LazyLoad] Pre-expanded table detected: ${tableName}`);
-            loadTableDetails(dbName, schemaName, tableName);
-          }
-        }
-      }
-      // NEW: Handle pre-expanded schemas
-      else if (key.startsWith("schema:")) {
-        // Format: schema:dbName:schemaName
-        const parts = key.split(":");
-        if (parts.length >= 3) {
-          const dbName = parts[1];
-          const schemaName = parts[2];
-
-          const schemaKey = `schema-load:${dbName}:${schemaName}`;
-
-          if (!fetchedSchemas.has(schemaKey)) {
-            console.log(
-              `[Effect] Pre-expanded schema detected: ${schemaName} in ${dbName}. Fetching tables...`,
-            );
-            fetchedSchemas.add(schemaKey);
-            schemaStore.fetchTables(dbName, schemaName);
-          }
-        }
-      }
-    }
-  });
-
-  async function loadTableDetails(
-    dbName: string,
-    schemaName: string,
-    tableName: string,
-  ) {
-    if (!schemaStore.activeConnection) return;
-    const cacheKey = `${dbName}:${schemaName}:${tableName}`;
-
-    if (tableDetailsCache.has(cacheKey) || loadingTables.has(cacheKey)) return;
-
-    loadingTables = new Set([...loadingTables, cacheKey]);
-
-    try {
-      console.time(`[LazyLoad] ${tableName}`);
-      const details = await invoke<any>("get_cached_table_details", {
-        connectionId: schemaStore.activeConnection?.id,
-        database: dbName,
-        schema: schemaName,
-        tableName: tableName,
-      });
-      console.timeEnd(`[LazyLoad] ${tableName}`);
-
-      tableDetailsCache = new Map(tableDetailsCache).set(cacheKey, details);
-    } catch (e) {
-      console.error(`Failed to load details for ${tableName}:`, e);
-    } finally {
-      loadingTables = new Set([...loadingTables].filter((k) => k !== cacheKey));
-    }
-  }
-
-  function handleExplorerAction(node: TreeNode) {
-    if (node.metadata?.schemaName) {
-      schemaStore.activeSchema = node.metadata.schemaName;
-    }
     if (!activeSession) return;
 
-    if (node.type === "table") {
-      activeSession.openView("table", node.name, { tableName: node.name });
-    } else if (
-      node.type === "column" ||
-      node.type === "primary_key" ||
-      node.type === "foreign_key"
-    ) {
-      // id format: col:table:db:schema.table.column
-      const parts = node.id?.split(":");
-      const dbSchemaTable = parts?.[parts.length - 1] || "";
-      const tableRef = dbSchemaTable.split(".").slice(0, 2).join("."); // schema.table
+    if (data.type === "table" && data.table) {
+      activeSession.openView("table", data.name, { tableName: data.name });
+    } else if (data.type === "column" && data.column) {
+      const tableRef = `${data.parentSchema}.${data.parentTable}`;
 
-      activeSession.openView("editor", `Query: ${node.name}`, {
-        initialValue: `SELECT * FROM ${tableRef} WHERE ${node.name} = ...`,
+      activeSession.openView("editor", `Query: ${data.name}`, {
+        initialValue: `SELECT * FROM ${tableRef} WHERE ${data.name} = ...`,
       });
     }
   }
 
-  function handleContextMenuAction(action: string, node: TreeNode) {
+  function handleContextMenuAction(action: string, node: any) {
     console.log("[handleContextMenuAction] Triggered", {
       action,
       nodeName: node.name,
@@ -364,10 +109,6 @@
               : undefined,
         };
 
-        // For schema nodes, they might store dbName/schemaName differently or just be 'schema' type
-        // The FileTree creation logic sets metadata: { dbName: ..., schemaName: ... } for schemas.
-        // For tables, it sets { dbName, schemaName, tableName }.
-
         session.openView("schema-visualizer", diagramTitle, vizData);
         break;
       case "refresh":
@@ -387,38 +128,8 @@
     }
   }
 
-  async function handleNodeExpand(node: TreeNode, isOpen: boolean) {
-    console.log(
-      `[handleNodeExpand] type=${node.type}, name=${node.name}, isOpen=${isOpen}, metadata=`,
-      node.metadata,
-    );
-
-    if (isOpen && node.type === "database") {
-      schemaStore.fetchSchemas(node.name);
-    }
-
-    if (isOpen && node.type === "schema" && node.metadata?.dbName) {
-      console.log(
-        `[handleNodeExpand] Fetching tables for schema: ${node.name} in db: ${node.metadata.dbName}`,
-      );
-      schemaStore.fetchTables(node.metadata.dbName, node.name);
-    } else if (isOpen && node.type === "schema") {
-      console.warn(
-        `[handleNodeExpand] Schema node expanded but missing dbName metadata!`,
-        node,
-      );
-    }
-
-    // Lazy load table details when table is expanded
-    if (isOpen && node.type === "table" && node.metadata) {
-      const { dbName, schemaName, tableName } = node.metadata as {
-        dbName: string;
-        schemaName: string;
-        tableName: string;
-      };
-      loadTableDetails(dbName, schemaName, tableName);
-    }
-  }
+  // NOTE: Context menu logic would need to be re-integrated into DatabaseExplorer
+  // or handled via a wrapper. For now, we focus on the main interaction.
 </script>
 
 <div class="flex h-full w-full flex-col bg-background text-foreground">
@@ -438,20 +149,6 @@
           >
             <h2 class="text-sm font-semibold">Explorer</h2>
             <div class="ml-auto flex items-center gap-1">
-              <button
-                class="p-1 hover:bg-accent rounded-sm text-muted-foreground hover:text-foreground transition-colors"
-                title="Expand All"
-                onclick={() => fileTree?.expandAll()}
-              >
-                <Expand />
-              </button>
-              <button
-                class="p-1 hover:bg-accent rounded-sm text-muted-foreground hover:text-foreground transition-colors"
-                title="Collapse All"
-                onclick={() => fileTree?.collapseAll()}
-              >
-                <Compact />
-              </button>
               <button
                 class="p-1 hover:bg-accent rounded-sm text-muted-foreground hover:text-foreground transition-colors"
                 class:text-primary={showSqlEditor}
@@ -502,61 +199,43 @@
                   Connecting...
                 </p>
               </div>
-            {:else if schemaStore.databases.length === 0 && schemaStore.status !== "refreshing"}
+            {:else if !schemaStore.activeConnection}
               <div
                 class="flex flex-col items-center justify-center p-8 text-center h-full max-h-[400px]"
               >
-                <div class="mb-4 rounded-full bg-muted/30 p-4">
-                  <IconDatabase
-                    class="size-8 text-muted-foreground opacity-20"
-                  />
+                <h3 class="text-sm font-medium mb-1">Explorer</h3>
+                <p class="text-xs text-muted-foreground mb-4 max-w-[180px]">
+                  Select a database connection from the titlebar to browse your
+                  data.
+                </p>
+                <div
+                  class="flex items-center gap-2 text-[10px] text-primary bg-primary/5 px-2 py-1 rounded-full border border-primary/10"
+                >
+                  <PlaylistAdd class="size-3" />
+                  <span>Quick Select (Meta+P)</span>
                 </div>
-                {#if schemaStore.activeConnection}
-                  <h3 class="text-sm font-medium mb-1">No Schemas Found</h3>
-                  <p class="text-xs text-muted-foreground mb-4 max-w-[180px]">
-                    Successfully connected to <b
-                      >{schemaStore.activeConnection.name}</b
-                    >, but no schemas were detected.
-                  </p>
-                  <button
-                    class="px-4 py-1.5 rounded-md bg-(--theme-bg-active) border border-(--theme-border-subtle) text-xs font-medium hover:bg-(--theme-bg-hover) transition-colors"
-                    onclick={() => schemaStore.refresh()}
-                  >
-                    Refresh Schema
-                  </button>
-                {:else}
-                  <h3 class="text-sm font-medium mb-1">Explorer</h3>
-                  <p class="text-xs text-muted-foreground mb-4 max-w-[180px]">
-                    Select a database connection from the titlebar to browse
-                    your data.
-                  </p>
-                  <div
-                    class="flex items-center gap-2 text-[10px] text-primary bg-primary/5 px-2 py-1 rounded-full border border-primary/10"
-                  >
-                    <PlaylistAdd class="size-3" />
-                    <span>Quick Select (Meta+P)</span>
-                  </div>
-                {/if}
               </div>
             {:else if activeSession}
-              <div class="animate-in fade-in slide-in-from-left-2 duration-300">
-                <FileTree
-                  items={treeData}
-                  bind:this={fileTree}
+              <div
+                class="animate-in fade-in slide-in-from-left-2 duration-300 h-full"
+              >
+                <DatabaseExplorer
+                  connectionId={schemaStore.activeConnection.id}
+                  database={schemaStore.selectedDatabase}
                   bind:expanded={activeSession.explorerState.expanded}
-                  onAction={handleExplorerAction}
+                  onNodeSelect={handleNodeSelect}
                   onContextMenuAction={handleContextMenuAction}
-                  onExpand={handleNodeExpand}
                 />
               </div>
             {:else}
-              <div class="animate-in fade-in slide-in-from-left-2 duration-300">
-                <FileTree
-                  items={treeData}
-                  bind:this={fileTree}
-                  onAction={handleExplorerAction}
+              <div
+                class="animate-in fade-in slide-in-from-left-2 duration-300 h-full"
+              >
+                <DatabaseExplorer
+                  connectionId={schemaStore.activeConnection.id}
+                  database={schemaStore.selectedDatabase}
+                  onNodeSelect={handleNodeSelect}
                   onContextMenuAction={handleContextMenuAction}
-                  onExpand={handleNodeExpand}
                 />
               </div>
             {/if}
@@ -624,7 +303,6 @@
                           {:else}
                             <!-- Default Fallback -->
                             <div class="flex-1 overflow-auto p-4 space-y-4">
-                              <!-- ... (previous demo content) ... -->
                               <pre
                                 class="p-4 bg-muted/30 rounded border border-border text-xs">View ID: {activeSession.activeViewId}</pre>
                             </div>

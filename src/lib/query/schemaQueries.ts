@@ -142,8 +142,36 @@ export function useTables(
             if (!connId || !db || !sch) throw new Error('Missing parameters');
             return invoke<MetaTable[]>('get_tables_lazy', { connectionId: connId, database: db, schema: sch });
         },
-        staleTime: 30_000, // 30 seconds - tables may change more frequently
-        enabled: !!connectionId() && !!database() && !!schema(),
+    }));
+}
+
+/**
+ * Query hook for fetching columns within a table.
+ * Uses lazy loading - fetches from cache first, remote if needed.
+ */
+export function useColumns(
+    connectionId: () => string | null | undefined,
+    database: () => string | null | undefined,
+    schema: () => string | null | undefined,
+    table: () => string | null | undefined
+) {
+    return createQuery(() => ({
+        queryKey: ['columns', connectionId(), database(), schema(), table()] as const,
+        queryFn: async () => {
+            const connId = connectionId();
+            const db = database();
+            const sch = schema();
+            const tbl = table();
+            if (!connId || !db || !sch || !tbl) throw new Error('Missing parameters');
+            return invoke<MetaColumn[]>('get_columns_lazy', {
+                connectionId: connId,
+                database: db,
+                schema: sch,
+                table: tbl
+            });
+        },
+        staleTime: 60_000,
+        enabled: !!connectionId() && !!database() && !!schema() && !!table(),
     }));
 }
 

@@ -26,7 +26,7 @@ use crate::connection_manager::{ConnectionManager, ConnectionManagerState};
 use crate::adapter::{DatabaseCapabilities, TableRef};
 use crate::adapter_registry;
 use crate::orchestrator::{ProgressiveIntrospector, IntrospectorConfig, IntrospectionEvent};
-use crate::introspection::{Introspector, MetaDatabase, MetaSchema, MetaTable};
+use crate::introspection::{Introspector, MetaColumn, MetaDatabase, MetaSchema, MetaTable};
 
 // =============================================================================
 // Introspection Options (Unified API)
@@ -491,6 +491,69 @@ pub async fn get_tables_lazy(
     }
     
     Ok(meta_tables)
+}
+
+/// Get columns for a table.
+/// Uses lazy loading: returns cached columns if present, otherwise fetches from remote.
+#[tauri::command]
+pub async fn get_columns_lazy(
+    connection_id: String,
+    database: String,
+    schema: String,
+    table: String,
+    db_state: State<'_, DatabaseState>,
+    conn_state: State<'_, ConnectionManagerState>,
+) -> Result<Vec<MetaColumn>, String> {
+    debug!("get_columns_lazy: {}.{}.{}", connection_id, database, schema);
+    let introspector = Introspector::new(db_state.conn.clone());
+    
+    // 1. Try Cache First - Check table details which includes columns
+    let details = introspector.get_table_details(&connection_id, &database, &schema, &table)?;
+    
+    // Check if we have columns in the cached details
+    if let Some(columns_val) = details.get("columns") {
+        if let Ok(columns) = serde_json::from_value::<Vec<MetaColumn>>(columns_val.clone()) {
+            if !columns.is_empty() {
+                debug!("Found {} cached columns for {}.{}.{}", columns.len(), connection_id, database, schema);
+                return Ok(columns);
+            }
+        }
+    }
+    
+    // 2. Cache empty, fetch from remote
+    debug!("Cache empty for {}.{}.{}.{}, fetching from remote", connection_id, database, schema, table);
+    let manager = ConnectionManager::from_state(&db_state, &conn_state);
+    let (connection, credentials) = manager.get_connection(&connection_id)?;
+    
+    let mut config: serde_json::Value = serde_json::from_str(&connection.config_json)
+        .map_err(|e| format!("Failed to parse connection config: {}", e))?;
+
+    // Update config with specific database
+    if let Some(db) = config.get_mut("db") {
+        if let Some(db_obj) = db.as_object_mut() {
+            db_obj.insert("database".to_string(), serde_json::Value::String(database.clone()));
+            if let Some(password) = &credentials.password {
+                db_obj.insert("password".to_string(), 
+                    serde_json::Value::String(password.expose().to_string()));
+            }
+        }
+    }
+    
+    let mut adapter = adapter_registry::create(&connection.engine, config)
+        .map_err(|e| format!("Failed to create adapter: {}", e))?;
+    
+    adapter.connect().await
+        .map_err(|e| format!("Failed to connect: {}", e))?;
+    
+    // Use TableRef for standardized column listing
+    let table_ref = TableRef::new(&database, &schema, &table);
+    let columns = adapter.list_columns(&table_ref).await
+        .map_err(|e| format!("Failed to list columns: {}", e))?;
+        
+    // 3. Save to cache
+    introspector.save_introspected_columns(&connection_id, &database, &schema, &table, &columns)?;
+    
+    Ok(columns)
 }
 
 /// Get engine capabilities for a connection.

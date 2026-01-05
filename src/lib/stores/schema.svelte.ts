@@ -392,7 +392,6 @@ export class SchemaStore {
         console.log(`[SchemaStore] fetchTables(${dbName}, ${schemaName}) - is_introspected: ${schema.is_introspected}`);
 
         // If not cached, trigger a specific refresh
-        // If not cached, trigger a specific refresh
         if (!schema.is_introspected) {
             // Guard: If busy, wait instead of dropping
             if (this.status !== "idle" || this.databases[dbIndex].is_loading) {
@@ -439,6 +438,35 @@ export class SchemaStore {
 
         this.databases[dbIndex].schemas[schemaIndex].tables = tables;
         this.databases[dbIndex].schemas[schemaIndex].is_introspected = true;
+    }
+
+    cacheColumns(dbName: string, schemaName: string, tableName: string, columns: any[]) {
+        if (!this.activeConnection) return;
+        const dbIndex = this.databases.findIndex(d => d.name === dbName);
+        if (dbIndex === -1) return;
+
+        const schemaIndex = this.databases[dbIndex].schemas.findIndex(s => s.name === schemaName);
+        if (schemaIndex === -1) return;
+
+        const tableIndex = this.databases[dbIndex].schemas[schemaIndex].tables.findIndex(t => t.table_name === tableName);
+        if (tableIndex === -1) {
+            // Maybe table was not loaded in cache yet? If so, we can't attach columns easily without the table object.
+            // But we can try to find it or ignore.
+            // If we lazy loaded tables, they should be there.
+            return;
+        }
+
+        // Check if columns are already equal to avoid reactiveness loop or redundant sync
+        const currentColumns = this.databases[dbIndex].schemas[schemaIndex].tables[tableIndex].columns;
+        if (currentColumns && currentColumns.length === columns.length) {
+            // Shallow check or assuming they are fresh if lengths match?
+            // Let's just update.
+        }
+
+        this.databases[dbIndex].schemas[schemaIndex].tables[tableIndex].columns = columns;
+
+        // Trigger sync to completion engine
+        this.syncFromCache({ database: dbName });
     }
 
     private syncTimeout: ReturnType<typeof setTimeout> | null = null;

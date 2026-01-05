@@ -219,6 +219,7 @@ macro_rules! aggregate_plugin_commands {
             get_databases_lazy,
             get_schemas_lazy,
             get_tables_lazy,
+            get_columns_lazy,
             
             // Completion commands
             request_completions,

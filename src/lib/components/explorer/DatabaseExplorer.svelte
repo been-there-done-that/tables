@@ -1,13 +1,15 @@
+<script lang="ts" module>
+    import * as ContextMenu from "$lib/components/ui/context-menu";
+    import ExplorerContextMenu from "./ExplorerContextMenu.svelte";
+</script>
+
 <!--
-  DatabaseExplorer.svelte - Lazy Loading Database Tree
+  DatabaseExplorer.svelte - Lazy Loading Schema Tree
   
-  This component composes LazyTree with TanStack Query hooks to provide
-  a fully lazy-loaded database explorer. It handles:
-  - Fetching databases on mount
-  - Fetching schemas when database is expanded
-  - Fetching tables when schema is expanded
+  Shows schemas for the currently selected database at the root level.
+  Hierarchy: Schema → Table → Column
   
-  Uses the new architectural pattern: Logic (LazyTree) + Data (TanStack Query)
+  Uses $effect-based lazy loading for reliable reactivity.
 -->
 <script lang="ts">
     import LazyTree, {
@@ -16,105 +18,242 @@
     } from "../tree/LazyTree.svelte";
     import { cn } from "$lib/utils";
     import {
-        useDatabases,
-        useSchemas,
-        useTables,
-        type MetaDatabase,
         type MetaSchema,
         type MetaTable,
+        type MetaColumn,
     } from "$lib/query/schemaQueries";
     import {
-        IconDatabase,
         IconSchema,
         IconTable,
         IconColumns,
         IconChevronRight,
         IconChevronDown,
         IconLoader2,
+        IconKey,
     } from "@tabler/icons-svelte";
+    import { invoke } from "@tauri-apps/api/core";
+    import { schemaStore } from "$lib/stores/schema.svelte";
 
     // Props
     let {
         connectionId,
+        database,
         expanded = $bindable(new Set<string>()),
         selected = $bindable<string | null>(null),
-        onTableSelect,
+        onNodeSelect,
+        onContextMenuAction,
     }: {
         connectionId: string | null;
+        database: string | null;
         expanded?: Set<string>;
         selected?: string | null;
-        onTableSelect?: (table: MetaTable) => void;
+        onNodeSelect?: (node: ExplorerNodeData) => void;
+        onContextMenuAction?: (action: string, node: any) => void;
     } = $props();
 
     // Node type discriminator
-    type NodeType = "database" | "schema" | "table" | "column";
+    type NodeType = "schema" | "table" | "column";
 
-    interface ExplorerNodeData {
+    export interface ExplorerNodeData {
         type: NodeType;
         name: string;
-        database?: MetaDatabase;
         schema?: MetaSchema;
         table?: MetaTable;
-        parentDb?: string;
+        column?: MetaColumn;
         parentSchema?: string;
+        parentTable?: string;
     }
 
-    // Queries - using accessor pattern
-    // TanStack Svelte Query returns a store-like object
-    const databasesQuery = useDatabases(() => connectionId);
+    // Data state
+    let schemas = $state<MetaSchema[]>([]);
+    let tablesCache = $state<Map<string, MetaTable[]>>(new Map());
+    let columnsCache = $state<Map<string, MetaColumn[]>>(new Map());
 
-    // Track which nodes are being loaded
+    // Loading state
     let loadingNodes = $state(new Set<string>());
+    let isLoadingSchemas = $state(false);
+    let errorMessage = $state<string | null>(null);
+
+    // Helper to parse expanded IDs
+    const expandedSchemaNames = $derived(
+        [...expanded]
+            .filter((id) => id.startsWith("schema:"))
+            .map((id) => id.split(":")[1]),
+    );
+
+    const expandedTableKeys = $derived(
+        [...expanded]
+            .filter((id) => id.startsWith("table:"))
+            .map((id) => {
+                const parts = id.split(":");
+                return {
+                    schema: parts[1],
+                    table: parts[2],
+                    key: `${parts[1]}:${parts[2]}`,
+                };
+            }),
+    );
+
+    // Fetch schemas when connection/database changes
+    $effect(() => {
+        if (!connectionId || !database) {
+            schemas = [];
+            return;
+        }
+
+        isLoadingSchemas = true;
+        errorMessage = null;
+
+        invoke<MetaSchema[]>("get_schemas_lazy", { connectionId, database })
+            .then((result) => {
+                schemas = result;
+                isLoadingSchemas = false;
+            })
+            .catch((err) => {
+                errorMessage = String(err);
+                isLoadingSchemas = false;
+            });
+    });
+
+    // Fetch tables when schemas are expanded
+    $effect(() => {
+        if (!connectionId || !database) return;
+
+        for (const schemaName of expandedSchemaNames) {
+            // Skip if already cached
+            if (tablesCache.has(schemaName)) continue;
+
+            const nodeId = `schema:${schemaName}`;
+            loadingNodes.add(nodeId);
+            loadingNodes = new Set(loadingNodes);
+
+            invoke<MetaTable[]>("get_tables_lazy", {
+                connectionId,
+                database,
+                schema: schemaName,
+            })
+                .then((result) => {
+                    tablesCache.set(schemaName, result);
+                    tablesCache = new Map(tablesCache); // Trigger reactivity
+                    loadingNodes.delete(nodeId);
+                    loadingNodes = new Set(loadingNodes);
+                })
+                .catch((err) => {
+                    console.error(
+                        `Failed to fetch tables for ${schemaName}:`,
+                        err,
+                    );
+                    loadingNodes.delete(nodeId);
+                    loadingNodes = new Set(loadingNodes);
+                });
+        }
+    });
+
+    // Fetch columns when tables are expanded
+    $effect(() => {
+        if (!connectionId || !database) return;
+
+        for (const { schema, table, key } of expandedTableKeys) {
+            // Skip if already cached
+            if (columnsCache.has(key)) continue;
+
+            const nodeId = `table:${schema}:${table}`;
+            loadingNodes.add(nodeId);
+            loadingNodes = new Set(loadingNodes);
+
+            invoke<MetaColumn[]>("get_columns_lazy", {
+                connectionId,
+                database,
+                schema,
+                table,
+            })
+                .then((result) => {
+                    columnsCache.set(key, result);
+                    columnsCache = new Map(columnsCache);
+                    loadingNodes.delete(nodeId);
+                    loadingNodes = new Set(loadingNodes);
+
+                    // Sync to completion engine
+                    schemaStore.cacheColumns(database!, schema, table, result);
+                })
+                .catch((err) => {
+                    console.error(`Failed to fetch columns for ${table}:`, err);
+                    loadingNodes.delete(nodeId);
+                    loadingNodes = new Set(loadingNodes);
+                });
+        }
+    });
+
+    // Clear caches when connection/database changes
+    $effect(() => {
+        // This runs when connectionId or database changes
+        const _ = connectionId;
+        const __ = database;
+
+        // Clear caches (but not on initial mount)
+        return () => {
+            tablesCache = new Map();
+            columnsCache = new Map();
+        };
+    });
+
+    // Helper functions to get data
+    function getTables(schemaName: string): MetaTable[] {
+        return tablesCache.get(schemaName) ?? [];
+    }
+
+    function getColumns(schemaName: string, tableName: string): MetaColumn[] {
+        return columnsCache.get(`${schemaName}:${tableName}`) ?? [];
+    }
 
     // Build flat tree from hierarchical data
-    // Access query result via .current in Svelte 5 with TanStack Query
     let treeNodes = $derived.by(() => {
         const nodes: TreeNode<ExplorerNodeData>[] = [];
-        const queryResult = databasesQuery;
-        const dbData = queryResult.data ?? [];
 
-        for (const db of dbData) {
-            const dbId = `db:${db.name}`;
+        for (const schema of schemas) {
+            const schemaId = `schema:${schema.name}`;
             nodes.push({
-                id: dbId,
-                data: { type: "database", name: db.name, database: db },
+                id: schemaId,
+                data: { type: "schema", name: schema.name, schema },
                 hasChildren: true,
                 level: 0,
             });
 
-            // If expanded, add schemas
-            if (expanded.has(dbId)) {
-                // Get schemas for this database
-                const schemasForDb = getSchemas(db.name);
-                for (const schema of schemasForDb) {
-                    const schemaId = `schema:${db.name}:${schema.name}`;
+            // If schema expanded, add tables
+            if (expanded.has(schemaId)) {
+                const tables = getTables(schema.name);
+                for (const table of tables) {
+                    const tableId = `table:${schema.name}:${table.table_name}`;
                     nodes.push({
-                        id: schemaId,
+                        id: tableId,
                         data: {
-                            type: "schema",
-                            name: schema.name,
-                            schema,
-                            parentDb: db.name,
+                            type: "table",
+                            name: table.table_name,
+                            table,
+                            parentSchema: schema.name,
                         },
                         hasChildren: true,
                         level: 1,
                     });
 
-                    // If schema expanded, add tables
-                    if (expanded.has(schemaId)) {
-                        const tablesForSchema = getTables(db.name, schema.name);
-                        for (const table of tablesForSchema) {
-                            const tableId = `table:${db.name}:${schema.name}:${table.table_name}`;
+                    // If table expanded, add columns
+                    if (expanded.has(tableId)) {
+                        const columns = getColumns(
+                            schema.name,
+                            table.table_name,
+                        );
+                        for (const col of columns) {
+                            const colId = `col:${schema.name}:${table.table_name}:${col.column_name}`;
                             nodes.push({
-                                id: tableId,
+                                id: colId,
                                 data: {
-                                    type: "table",
-                                    name: table.table_name,
-                                    table,
-                                    parentDb: db.name,
+                                    type: "column",
+                                    name: col.column_name,
+                                    column: col,
                                     parentSchema: schema.name,
+                                    parentTable: table.table_name,
                                 },
-                                hasChildren: table.columns?.length > 0,
+                                hasChildren: false,
                                 level: 2,
                             });
                         }
@@ -126,82 +265,23 @@
         return nodes;
     });
 
-    // Schema queries cache - keyed by database name
-    let schemaQueries = $state(
-        new Map<string, ReturnType<typeof useSchemas>>(),
-    );
-
-    function getSchemas(dbName: string): MetaSchema[] {
-        if (!schemaQueries.has(dbName)) {
-            const query = useSchemas(
-                () => connectionId,
-                () => dbName,
-            );
-            schemaQueries.set(dbName, query);
-            schemaQueries = new Map(schemaQueries); // Trigger reactivity
-        }
-        const query = schemaQueries.get(dbName);
-        return query?.data ?? [];
-    }
-
-    // Table queries cache - keyed by db:schema
-    let tableQueries = $state(new Map<string, ReturnType<typeof useTables>>());
-
-    function getTables(dbName: string, schemaName: string): MetaTable[] {
-        const key = `${dbName}:${schemaName}`;
-        if (!tableQueries.has(key)) {
-            const query = useTables(
-                () => connectionId,
-                () => dbName,
-                () => schemaName,
-            );
-            tableQueries.set(key, query);
-            tableQueries = new Map(tableQueries);
-        }
-        const query = tableQueries.get(key);
-        return query?.data ?? [];
-    }
-
-    // Handle expansion - trigger data loading
+    // Handle expansion (no-op, data loading is handled by effects)
     function handleExpand(node: TreeNode<ExplorerNodeData>) {
-        const { data } = node;
-
-        if (data.type === "database") {
-            // Expanding a database - schemas will be fetched via getSchemas
-            loadingNodes.add(node.id);
-            loadingNodes = new Set(loadingNodes);
-
-            // Schemas should load automatically via the query
-            setTimeout(() => {
-                loadingNodes.delete(node.id);
-                loadingNodes = new Set(loadingNodes);
-            }, 100);
-        }
-
-        if (data.type === "schema" && data.parentDb) {
-            // Expanding a schema - tables will be fetched via getTables
-            loadingNodes.add(node.id);
-            loadingNodes = new Set(loadingNodes);
-
-            setTimeout(() => {
-                loadingNodes.delete(node.id);
-                loadingNodes = new Set(loadingNodes);
-            }, 100);
-        }
+        // Effects will handle loading
     }
 
     // Handle selection
     function handleSelect(node: TreeNode<ExplorerNodeData>) {
-        if (node.data.type === "table" && node.data.table) {
-            onTableSelect?.(node.data.table);
-        }
+        onNodeSelect?.(node.data);
     }
 
     // Get icon for node type
-    function getIcon(type: NodeType) {
-        switch (type) {
-            case "database":
-                return IconDatabase;
+    function getIcon(data: ExplorerNodeData) {
+        if (data.type === "column" && data.column?.is_primary_key) {
+            return IconKey;
+        }
+
+        switch (data.type) {
             case "schema":
                 return IconSchema;
             case "table":
@@ -218,16 +298,16 @@
     }
 </script>
 
-{#if !connectionId}
-    <div class="p-4 text-muted-foreground text-sm">No connection selected</div>
-{:else if databasesQuery.isLoading}
+{#if !connectionId || !database}
+    <div class="p-4 text-muted-foreground text-sm">No database selected</div>
+{:else if isLoadingSchemas}
     <div class="p-4 flex items-center gap-2 text-muted-foreground text-sm">
         <IconLoader2 class="w-4 h-4 animate-spin" />
-        Loading databases...
+        Loading schemas...
     </div>
-{:else if databasesQuery.isError}
+{:else if errorMessage}
     <div class="p-4 text-destructive text-sm">
-        Error: {databasesQuery.error?.message}
+        Error: {errorMessage}
     </div>
 {:else}
     <LazyTree
@@ -240,47 +320,87 @@
         class="text-[13px]"
     >
         {#snippet renderNode(ctx: NodeContext<ExplorerNodeData>)}
-            {@const Icon = getIcon(ctx.node.data.type)}
-            <div
-                class={cn(
-                    "flex items-center gap-1 px-2 py-1 cursor-pointer rounded transition-colors hover:bg-hover",
-                    ctx.isSelected && "bg-accent text-accent-foreground",
-                )}
-                style="padding-left: {ctx.node.level * 16 + 8}px"
-                role="treeitem"
-                aria-expanded={ctx.node.hasChildren
-                    ? ctx.isExpanded
-                    : undefined}
-                aria-selected={ctx.isSelected}
-                onclick={ctx.select}
-                ondblclick={() => ctx.node.hasChildren && ctx.toggle()}
-            >
-                <!-- Expansion arrow -->
-                {#if ctx.node.hasChildren}
-                    <button
-                        class="flex items-center justify-center w-4 h-4 p-0 bg-transparent border-none cursor-pointer opacity-60 hover:opacity-100 text-inherit"
-                        onclick={(e) => handleToggleClick(e, ctx.toggle)}
-                        aria-label={ctx.isExpanded ? "Collapse" : "Expand"}
+            {@const Icon = getIcon(ctx.node.data)}
+            {@const contextMenuNode = {
+                id: ctx.node.id,
+                name: ctx.node.data.name,
+                type: ctx.node.data.type,
+                metadata: {
+                    dbName: database,
+                    schemaName:
+                        ctx.node.data.schema?.name ||
+                        ctx.node.data.parentSchema,
+                    tableName:
+                        ctx.node.data.table?.table_name ||
+                        ctx.node.data.parentTable,
+                },
+            }}
+
+            <ContextMenu.Root>
+                <ContextMenu.Trigger>
+                    <div
+                        class={cn(
+                            "flex items-center gap-1 px-2 py-1 cursor-pointer rounded transition-colors hover:bg-hover",
+                            ctx.isSelected &&
+                                "bg-accent text-accent-foreground",
+                        )}
+                        style="padding-left: {ctx.node.level * 16 + 8}px"
+                        role="treeitem"
+                        aria-expanded={ctx.node.hasChildren
+                            ? ctx.isExpanded
+                            : undefined}
+                        aria-selected={ctx.isSelected}
+                        onclick={ctx.select}
+                        ondblclick={() => ctx.node.hasChildren && ctx.toggle()}
                     >
-                        {#if ctx.isLoading}
-                            <IconLoader2 class="w-3 h-3 animate-spin" />
-                        {:else if ctx.isExpanded}
-                            <IconChevronDown class="w-3 h-3" />
+                        <!-- Expansion arrow -->
+                        {#if ctx.node.hasChildren}
+                            <button
+                                class="flex items-center justify-center w-4 h-4 p-0 bg-transparent border-none cursor-pointer opacity-60 hover:opacity-100 text-inherit"
+                                onclick={(e) =>
+                                    handleToggleClick(e, ctx.toggle)}
+                                aria-label={ctx.isExpanded
+                                    ? "Collapse"
+                                    : "Expand"}
+                            >
+                                {#if ctx.isLoading}
+                                    <IconLoader2 class="w-3 h-3 animate-spin" />
+                                {:else if ctx.isExpanded}
+                                    <IconChevronDown class="w-3 h-3" />
+                                {:else}
+                                    <IconChevronRight class="w-3 h-3" />
+                                {/if}
+                            </button>
                         {:else}
-                            <IconChevronRight class="w-3 h-3" />
+                            <span class="w-4 h-4"></span>
                         {/if}
-                    </button>
-                {:else}
-                    <span class="w-4 h-4"></span>
-                {/if}
 
-                <!-- Icon -->
-                <Icon class="w-4 h-4 shrink-0 text-muted-foreground" />
+                        <!-- Icon -->
+                        <Icon
+                            class={cn(
+                                "w-4 h-4 shrink-0 text-muted-foreground",
+                                ctx.node.data.column?.is_primary_key &&
+                                    "text-yellow-500",
+                            )}
+                        />
 
-                <!-- Name -->
-                <span class="flex-1 min-w-0 truncate">{ctx.node.data.name}</span
-                >
-            </div>
+                        <!-- Name -->
+                        <span class="flex-1 min-w-0 truncate">
+                            {ctx.node.data.name}
+                            {#if ctx.node.data.type === "column" && ctx.node.data.column}
+                                <span
+                                    class="ml-2 text-[10px] text-muted-foreground/60"
+                                    >{ctx.node.data.column.logical_type}</span
+                                >
+                            {/if}
+                        </span>
+                    </div>
+                </ContextMenu.Trigger>
+                <ExplorerContextMenu
+                    node={contextMenuNode}
+                    onAction={onContextMenuAction}
+                />
+            </ContextMenu.Root>
         {/snippet}
     </LazyTree>
 {/if}
