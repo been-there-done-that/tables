@@ -379,7 +379,7 @@ export class SchemaStore {
         }
     }
 
-    async fetchTables(dbName: string, schemaName: string) {
+    async fetchTables(dbName: string, schemaName: string): Promise<void> {
         if (!this.activeConnection) return;
         const dbIndex = this.databases.findIndex(d => d.name === dbName);
         if (dbIndex === -1) return;
@@ -391,7 +391,10 @@ export class SchemaStore {
 
         console.log(`[SchemaStore] fetchTables(${dbName}, ${schemaName}) - is_introspected: ${schema.is_introspected}`);
 
-        // If not cached, trigger a specific refresh
+
+        // Set loading state
+        this.databases[dbIndex].schemas[schemaIndex].is_loading = true;
+
         // If not cached, trigger a specific refresh
         if (!schema.is_introspected) {
             // Guard: If busy, wait instead of dropping
@@ -405,7 +408,10 @@ export class SchemaStore {
 
             console.log(`[SchemaStore] Schema ${schemaName} not cached, triggering remote fetch.`);
 
-            this.status = "refreshing";
+            // We don't set global status to "refreshing" here to avoid blocking UI
+            // unless we want to indicate a background activity in the footer
+            // this.status = "refreshing"; 
+
             // ... remote fetch logic ...
             try {
                 this.statusMessage = `Introspecting ${schemaName}...`;
@@ -419,10 +425,8 @@ export class SchemaStore {
             } catch (e) {
                 console.error(`Failed to refresh schema ${schemaName}:`, e);
                 toast.error(`Failed to load ${schemaName}`, { description: String(e) });
-                this.status = "idle"; // Ensure reset
+                this.databases[dbIndex].schemas[schemaIndex].is_loading = false;
                 return;
-            } finally {
-                this.status = "idle";
             }
 
             // Fall through to fetch from cache
@@ -439,6 +443,7 @@ export class SchemaStore {
 
         this.databases[dbIndex].schemas[schemaIndex].tables = tables;
         this.databases[dbIndex].schemas[schemaIndex].is_introspected = true;
+        this.databases[dbIndex].schemas[schemaIndex].is_loading = false;
     }
 
     private syncTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -539,10 +544,16 @@ export class SchemaStore {
             } else {
                 // Global progressive refresh with priority
                 this.statusMessage = "Starting refresh...";
+
+                // If we have a selected database, scope the refresh to it to avoid full introspection
+                const scope = this.selectedDatabase
+                    ? { type: 'database', name: this.selectedDatabase }
+                    : { type: 'global' };
+
                 await invoke("refresh_schema_unified", {
                     connectionId: this.activeConnection.id,
                     options: {
-                        scope: { type: 'global' },
+                        scope: scope,
                         priority_database: this.selectedDatabase || undefined,
                         priority_schema: this.activeSchema || undefined,
                         force: true

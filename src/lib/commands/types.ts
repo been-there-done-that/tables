@@ -264,6 +264,7 @@ export interface MetaSchema {
   name: string;
   schema_type: "user" | "system";
   is_introspected: boolean;
+  is_loading?: boolean; // UI only
   tables: MetaTable[];
 }
 

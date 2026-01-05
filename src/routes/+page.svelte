@@ -57,6 +57,7 @@
       const views = schema.tables.filter((t) => t.table_type === "view");
 
       let children: TreeNode[] = [];
+      const isLoading = schema.is_loading;
 
       if (tables.length > 0 || views.length > 0) {
         if (tables.length > 0) {
@@ -85,7 +86,15 @@
         }
       } else {
         // Check if schema has been introspected (loaded) but is empty
-        if (schema.is_introspected) {
+        if (isLoading) {
+          children = [
+            {
+              id: `loading:${db.name}:${schema.name}`,
+              name: "Loading tables...",
+              type: "column" as NodeType,
+            },
+          ];
+        } else if (schema.is_introspected) {
           children = [
             {
               id: `empty:${db.name}:${schema.name}`,
@@ -98,7 +107,7 @@
           children = [
             {
               id: `placeholder:tables:${db.name}:${schema.name}`,
-              name: "Loading tables...",
+              name: "Expand to load",
               type: "column" as NodeType,
             },
           ];
@@ -107,7 +116,7 @@
 
       return {
         id: `schema:${db.name}:${schema.name}`,
-        name: schema.name,
+        name: isLoading ? `${schema.name} ...` : schema.name,
         type: "schema" as NodeType,
         children,
         metadata: { dbName: db.name, schemaName: schema.name },
@@ -481,10 +490,8 @@
             </div>
           </div>
           {#if schemaStore.status === "refreshing"}
-            <div
-              class="absolute inset-0 z-50 flex items-center justify-center bg-background/50 backdrop-blur-[1px]"
-            >
-              <IconLoader2 class="size-5 animate-spin text-muted-foreground" />
+            <div class="absolute top-0 right-0 p-2 z-50">
+              <IconLoader2 class="size-4 animate-spin text-muted-foreground" />
             </div>
           {/if}
           <div
