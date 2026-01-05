@@ -32,7 +32,7 @@ use commands::aws_commands::*;
 use commands::redis_commands::*;
 use commands::athena_commands::*;
 use commands::window_commands::*;
-use commands::introspection_commands::*;
+// use commands::introspection_commands::*; legacy
 use commands::test_commands::*;
 use commands::completion_commands::*;
 use commands::unified_introspection::*;

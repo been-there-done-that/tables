@@ -292,6 +292,207 @@ pub async fn get_cached_table_details(
     introspector.get_table_details(&connection_id, &database, &schema, &table_name)
 }
 
+/// Get all cached tables for a connection (flat list).
+#[tauri::command]
+pub async fn get_cached_all_tables(
+    connection_id: String,
+    db_state: State<'_, DatabaseState>,
+) -> Result<Vec<MetaTable>, String> {
+    debug!("Fetching all cached tables for connection {}", connection_id);
+    let introspector = Introspector::new(db_state.conn.clone());
+    introspector.get_tables(&connection_id)
+}
+
+// =============================================================================
+// Lazy Loading Commands (Modern Architecture)
+// =============================================================================
+
+/// Get databases for a connection.
+/// Uses lazy loading: returns cached databases if present, otherwise fetches from remote.
+#[tauri::command]
+pub async fn get_databases_lazy(
+    connection_id: String,
+    db_state: State<'_, DatabaseState>,
+    conn_state: State<'_, ConnectionManagerState>,
+) -> Result<Vec<MetaDatabase>, String> {
+    debug!("get_databases_lazy: {}", connection_id);
+    let introspector = Introspector::new(db_state.conn.clone());
+    
+    // 1. Try Cache First
+    let cached = introspector.get_databases(&connection_id)?;
+    if !cached.is_empty() {
+        debug!("Found {} cached databases for {}", cached.len(), connection_id);
+        return Ok(cached);
+    }
+    
+    // 2. Cache empty, fetch from remote
+    debug!("Cache empty for {}, fetching from remote", connection_id);
+    let manager = ConnectionManager::from_state(&db_state, &conn_state);
+    let (connection, credentials) = manager.get_connection(&connection_id)?;
+    
+    let mut config: serde_json::Value = serde_json::from_str(&connection.config_json)
+        .map_err(|e| format!("Failed to parse connection config: {}", e))?;
+
+    // Inject password if available
+    if let Some(db) = config.get_mut("db") {
+        if let Some(db_obj) = db.as_object_mut() {
+            if let Some(password) = &credentials.password {
+                db_obj.insert("password".to_string(), 
+                    serde_json::Value::String(password.expose().to_string()));
+            }
+        }
+    }
+    
+    let mut adapter = adapter_registry::create(&connection.engine, config)
+        .map_err(|e| format!("Failed to create adapter: {}", e))?;
+    
+    adapter.connect().await
+        .map_err(|e| format!("Failed to connect: {}", e))?;
+    
+    let dbs = adapter.list_databases().await
+        .map_err(|e| format!("Failed to list databases: {}", e))?;
+        
+    // 3. Save to cache
+    let db_names: Vec<String> = dbs.iter().map(|d| d.name.clone()).collect();
+    introspector.save_databases_public(&connection_id, &db_names)?;
+    
+    Ok(dbs.into_iter().map(|d| MetaDatabase {
+        name: d.name,
+        is_connected: d.is_connected,
+        is_introspected: false,
+        schemas: vec![],
+    }).collect())
+}
+
+/// Get schemas for a database.
+/// Uses lazy loading: returns cached schemas if present, otherwise fetches from remote.
+#[tauri::command]
+pub async fn get_schemas_lazy(
+    connection_id: String,
+    database: String,
+    db_state: State<'_, DatabaseState>,
+    conn_state: State<'_, ConnectionManagerState>,
+) -> Result<Vec<MetaSchema>, String> {
+    debug!("get_schemas_lazy: {}.{}", connection_id, database);
+    let introspector = Introspector::new(db_state.conn.clone());
+    
+    // 1. Try Cache First
+    let cached = introspector.get_schemas(&connection_id, &database)?;
+    if !cached.is_empty() {
+        debug!("Found {} cached schemas for {}.{}", cached.len(), connection_id, database);
+        return Ok(cached);
+    }
+    
+    // 2. Cache empty, fetch from remote
+    debug!("Cache empty for {}.{}, fetching from remote", connection_id, database);
+    let manager = ConnectionManager::from_state(&db_state, &conn_state);
+    let (connection, credentials) = manager.get_connection(&connection_id)?;
+    
+    let mut config: serde_json::Value = serde_json::from_str(&connection.config_json)
+        .map_err(|e| format!("Failed to parse connection config: {}", e))?;
+
+    // Update config with the specific database
+    if let Some(db) = config.get_mut("db") {
+        if let Some(db_obj) = db.as_object_mut() {
+            db_obj.insert("database".to_string(), serde_json::Value::String(database.clone()));
+            if let Some(password) = &credentials.password {
+                db_obj.insert("password".to_string(), 
+                    serde_json::Value::String(password.expose().to_string()));
+            }
+        }
+    }
+    
+    let mut adapter = adapter_registry::create(&connection.engine, config)
+        .map_err(|e| format!("Failed to create adapter: {}", e))?;
+    
+    adapter.connect().await
+        .map_err(|e| format!("Failed to connect: {}", e))?;
+    
+    let schemas = adapter.list_schemas(&database).await
+        .map_err(|e| format!("Failed to list schemas: {}", e))?;
+        
+    // 3. Save to cache
+    let meta_schemas: Vec<MetaSchema> = schemas.iter().map(|s| MetaSchema {
+        name: s.name.clone(),
+        schema_type: "schema".to_string(),
+        is_introspected: false,
+        tables: vec![],
+    }).collect();
+    introspector.save_schemas_public(&connection_id, &database, &meta_schemas)?;
+    
+    Ok(meta_schemas)
+}
+
+/// Get tables for a schema.
+/// Uses lazy loading: returns cached tables if present, otherwise fetches from remote.
+#[tauri::command]
+pub async fn get_tables_lazy(
+    connection_id: String,
+    database: String,
+    schema: String,
+    db_state: State<'_, DatabaseState>,
+    conn_state: State<'_, ConnectionManagerState>,
+) -> Result<Vec<MetaTable>, String> {
+    debug!("get_tables_lazy: {}.{}.{}", connection_id, database, schema);
+    let introspector = Introspector::new(db_state.conn.clone());
+    
+    // 1. Try Cache First
+    let cached = introspector.get_tables_in_schema(&connection_id, &database, &schema)?;
+    if !cached.is_empty() {
+        debug!("Found {} cached tables for {}.{}.{}", cached.len(), connection_id, database, schema);
+        return Ok(cached);
+    }
+    
+    // 2. Cache empty, fetch from remote
+    debug!("Cache empty for {}.{}.{}, fetching from remote", connection_id, database, schema);
+    let manager = ConnectionManager::from_state(&db_state, &conn_state);
+    let (connection, credentials) = manager.get_connection(&connection_id)?;
+    
+    let mut config: serde_json::Value = serde_json::from_str(&connection.config_json)
+        .map_err(|e| format!("Failed to parse connection config: {}", e))?;
+
+    // Update config with specific database
+    if let Some(db) = config.get_mut("db") {
+        if let Some(db_obj) = db.as_object_mut() {
+            db_obj.insert("database".to_string(), serde_json::Value::String(database.clone()));
+            if let Some(password) = &credentials.password {
+                db_obj.insert("password".to_string(), 
+                    serde_json::Value::String(password.expose().to_string()));
+            }
+        }
+    }
+    
+    let mut adapter = adapter_registry::create(&connection.engine, config)
+        .map_err(|e| format!("Failed to create adapter: {}", e))?;
+    
+    adapter.connect().await
+        .map_err(|e| format!("Failed to connect: {}", e))?;
+    
+    let tables = adapter.list_tables(&database, &schema).await
+        .map_err(|e| format!("Failed to list tables: {}", e))?;
+        
+    // 3. Save to cache
+    let meta_tables: Vec<MetaTable> = tables.into_iter().map(|t| MetaTable {
+        connection_id: connection_id.clone(),
+        database: database.clone(),
+        schema: schema.clone(),
+        table_name: t.table_name,
+        table_type: t.table_type,
+        classification: "table".to_string(),
+        last_introspected_at: 0,
+        columns: vec![],
+        foreign_keys: vec![],
+        indexes: vec![],
+        triggers: vec![],
+    }).collect();
+
+    for table in &meta_tables {
+        introspector.save_table_public(&connection_id, &database, &schema, table)?;
+    }
+    
+    Ok(meta_tables)
+}
+
 /// Get engine capabilities for a connection.
 #[tauri::command]
 pub async fn get_connection_capabilities(

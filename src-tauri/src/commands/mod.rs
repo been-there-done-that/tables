@@ -4,7 +4,7 @@ pub mod aws_commands;
 pub mod redis_commands;
 pub mod athena_commands;
 pub mod window_commands;
-pub mod introspection_commands;
+// pub mod introspection_commands; legacy
 pub mod test_commands;
 pub mod completion_commands;
 pub mod unified_introspection;
@@ -15,7 +15,7 @@ pub use aws_commands::*;
 pub use redis_commands::*;
 pub use athena_commands::*;
 pub use window_commands::*;
-pub use introspection_commands::*;
+// pub use introspection_commands::*; legacy
 pub use test_commands::*;
 pub use completion_commands::*;
 pub use unified_introspection::*;

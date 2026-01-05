@@ -48,7 +48,9 @@
     async function loadCachedTables(id: string) {
         try {
             status = "busy";
-            tables = await invoke("get_schema_tables", { connectionId: id });
+            tables = await invoke("get_cached_all_tables", {
+                connectionId: id,
+            });
             status = "success";
         } catch (e) {
             console.error("Failed to load cache:", e);
@@ -66,8 +68,9 @@
         tables = [];
 
         try {
-            await invoke("introspect_connection", {
-                id: selectedId,
+            await invoke("refresh_schema_unified", {
+                connectionId: selectedId,
+                options: { scope: { type: "global" } },
             });
             // Introspection complete, but we were listening to events mostly.
             // A final fetch ensures we have everything if events failed?
@@ -111,8 +114,9 @@
     async function viewTableDetails(tableName: string, schema: string) {
         if (!selectedId) return;
         try {
-            selectedTableDetails = await invoke("get_schema_table_details", {
+            selectedTableDetails = await invoke("get_cached_table_details", {
                 connectionId: selectedId,
+                database: "main", // Default or extract from table object
                 schema,
                 tableName,
             });

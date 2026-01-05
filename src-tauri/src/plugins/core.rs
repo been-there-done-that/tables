@@ -232,26 +232,17 @@ macro_rules! aggregate_plugin_commands {
             open_appearance_window,
             create_new_window,
             
-            // Introspection commands
-            refresh_schema,
-            refresh_schema_progressive,
-            refresh_schema_specific_progressive,
-            refresh_schema_unified, // New unified command
-            get_schema,
-            get_databases,
-            get_schemas,
-            get_tables_in_schema,
-            get_schema_tables,
-            get_schema_table_details,
-            // Unified cached reads
+            // Introspection commands (Unified)
+            refresh_schema_unified,
             get_cached_schema,
             get_cached_databases,
             get_cached_schemas,
             get_cached_tables,
             get_cached_table_details,
+            get_cached_all_tables,
             get_connection_capabilities,
-            introspect_database,
             run_db_contention_test,
+            
             // Lazy loading commands (new architecture)
             get_databases_lazy,
             get_schemas_lazy,
