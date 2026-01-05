@@ -1,12 +1,9 @@
 /**
- * Schema Query Hooks
+ * Schema Types
  * 
- * TanStack Query hooks for lazy loading database schema data.
- * These hooks provide automatic caching, deduplication, and stale-while-revalidate.
+ * Type definitions for database metadata.
+ * These match the backend Rust types from introspection.
  */
-
-import { createQuery, type CreateQueryOptions } from '@tanstack/svelte-query';
-import { invoke } from '@tauri-apps/api/core';
 
 // Types matching the backend
 export interface MetaDatabase {
@@ -82,125 +79,4 @@ export interface MetaTrigger {
     trigger_name: string;
     event: string;
     timing: string;
-}
-
-/**
- * Query hook for fetching databases.
- * Uses lazy loading - fetches from cache first, remote if needed.
- * 
- * TanStack Svelte Query expects an accessor function, not a plain object.
- */
-export function useDatabases(connectionId: () => string | null | undefined) {
-    return createQuery(() => ({
-        queryKey: ['databases', connectionId()] as const,
-        queryFn: async () => {
-            const id = connectionId();
-            if (!id) throw new Error('No connection ID');
-            return invoke<MetaDatabase[]>('get_databases_lazy', { connectionId: id });
-        },
-        staleTime: 60_000, // 60 seconds
-        enabled: !!connectionId(),
-    }));
-}
-
-/**
- * Query hook for fetching schemas within a database.
- * Uses lazy loading - fetches from cache first, remote if needed.
- */
-export function useSchemas(
-    connectionId: () => string | null | undefined,
-    database: () => string | null | undefined
-) {
-    return createQuery(() => ({
-        queryKey: ['schemas', connectionId(), database()] as const,
-        queryFn: async () => {
-            const connId = connectionId();
-            const db = database();
-            if (!connId || !db) throw new Error('Missing parameters');
-            return invoke<MetaSchema[]>('get_schemas_lazy', { connectionId: connId, database: db });
-        },
-        staleTime: 60_000,
-        enabled: !!connectionId() && !!database(),
-    }));
-}
-
-/**
- * Query hook for fetching tables within a schema.
- * Uses lazy loading - fetches from cache first, remote if needed.
- */
-export function useTables(
-    connectionId: () => string | null | undefined,
-    database: () => string | null | undefined,
-    schema: () => string | null | undefined
-) {
-    return createQuery(() => ({
-        queryKey: ['tables', connectionId(), database(), schema()] as const,
-        queryFn: async () => {
-            const connId = connectionId();
-            const db = database();
-            const sch = schema();
-            if (!connId || !db || !sch) throw new Error('Missing parameters');
-            return invoke<MetaTable[]>('get_tables_lazy', { connectionId: connId, database: db, schema: sch });
-        },
-    }));
-}
-
-/**
- * Query hook for fetching columns within a table.
- * Uses lazy loading - fetches from cache first, remote if needed.
- */
-export function useColumns(
-    connectionId: () => string | null | undefined,
-    database: () => string | null | undefined,
-    schema: () => string | null | undefined,
-    table: () => string | null | undefined
-) {
-    return createQuery(() => ({
-        queryKey: ['columns', connectionId(), database(), schema(), table()] as const,
-        queryFn: async () => {
-            const connId = connectionId();
-            const db = database();
-            const sch = schema();
-            const tbl = table();
-            if (!connId || !db || !sch || !tbl) throw new Error('Missing parameters');
-            return invoke<MetaColumn[]>('get_columns_lazy', {
-                connectionId: connId,
-                database: db,
-                schema: sch,
-                table: tbl
-            });
-        },
-        staleTime: 60_000,
-        enabled: !!connectionId() && !!database() && !!schema() && !!table(),
-    }));
-}
-
-/**
- * Query hook for fetching table details (columns, indexes, FKs).
- * Uses the existing cached command.
- */
-export function useTableDetails(
-    connectionId: () => string | null | undefined,
-    database: () => string | null | undefined,
-    schema: () => string | null | undefined,
-    tableName: () => string | null | undefined
-) {
-    return createQuery(() => ({
-        queryKey: ['tableDetails', connectionId(), database(), schema(), tableName()] as const,
-        queryFn: async () => {
-            const connId = connectionId();
-            const db = database();
-            const sch = schema();
-            const table = tableName();
-            if (!connId || !db || !sch || !table) throw new Error('Missing parameters');
-            return invoke<any>('get_cached_table_details', {
-                connectionId: connId,
-                database: db,
-                schema: sch,
-                tableName: table,
-            });
-        },
-        staleTime: 30_000,
-        enabled: !!connectionId() && !!database() && !!schema() && !!tableName(),
-    }));
 }

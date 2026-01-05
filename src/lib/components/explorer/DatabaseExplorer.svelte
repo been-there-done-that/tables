@@ -1,15 +1,14 @@
 <script lang="ts" module>
     import * as ContextMenu from "$lib/components/ui/context-menu";
     import ExplorerContextMenu from "./ExplorerContextMenu.svelte";
+    import type { TreeNode as FileTreeNode } from "./FileTree.svelte";
 </script>
 
 <!--
-  DatabaseExplorer.svelte - Lazy Loading Schema Tree
+  DatabaseExplorer.svelte - Driver-Based Lazy Loading Schema Tree
   
-  Shows schemas for the currently selected database at the root level.
-  Hierarchy: Schema → Table → Column
-  
-  Uses $effect-based lazy loading for reliable reactivity.
+  Uses the Driver Pattern for database-agnostic tree rendering.
+  Uses global explorerStateStore for reactivity (Svelte 5 $bindable is broken for Sets/Maps).
 -->
 <script lang="ts">
     import LazyTree, {
@@ -18,10 +17,11 @@
     } from "../tree/LazyTree.svelte";
     import { cn } from "$lib/utils";
     import {
-        type MetaSchema,
-        type MetaTable,
+        type DatabaseDriver,
+        type ExplorerNode,
+        type NodeType,
         type MetaColumn,
-    } from "$lib/query/schemaQueries";
+    } from "./drivers";
     import {
         IconSchema,
         IconTable,
@@ -30,265 +30,223 @@
         IconChevronDown,
         IconLoader2,
         IconKey,
+        IconDatabase,
+        IconFolder,
     } from "@tabler/icons-svelte";
-    import { invoke } from "@tauri-apps/api/core";
     import { schemaStore } from "$lib/stores/schema.svelte";
+    import { explorerStateStore } from "$lib/stores/explorerState.svelte";
 
     // Props
     let {
-        connectionId,
-        database,
-        expanded = $bindable(new Set<string>()),
+        driver,
         selected = $bindable<string | null>(null),
         onNodeSelect,
         onContextMenuAction,
     }: {
-        connectionId: string | null;
-        database: string | null;
-        expanded?: Set<string>;
+        driver: DatabaseDriver | null;
         selected?: string | null;
-        onNodeSelect?: (node: ExplorerNodeData) => void;
+        onNodeSelect?: (node: ExplorerNode) => void;
         onContextMenuAction?: (action: string, node: any) => void;
     } = $props();
 
-    // Node type discriminator
-    type NodeType = "schema" | "table" | "column";
+    // Re-export for external use
+    export type { ExplorerNode };
 
-    export interface ExplorerNodeData {
-        type: NodeType;
-        name: string;
-        schema?: MetaSchema;
-        table?: MetaTable;
-        column?: MetaColumn;
-        parentSchema?: string;
-        parentTable?: string;
-    }
-
-    // Data state
-    let schemas = $state<MetaSchema[]>([]);
-    let tablesCache = $state<Map<string, MetaTable[]>>(new Map());
-    let columnsCache = $state<Map<string, MetaColumn[]>>(new Map());
-
-    // Loading state
-    let loadingNodes = $state(new Set<string>());
-    let isLoadingSchemas = $state(false);
+    // Data state (only rootNodes is local, everything else uses global store)
+    let rootNodes = $state<ExplorerNode[]>([]);
+    let isLoadingRoots = $state(false);
     let errorMessage = $state<string | null>(null);
 
-    // Helper to parse expanded IDs
-    const expandedSchemaNames = $derived(
-        [...expanded]
-            .filter((id) => id.startsWith("schema:"))
-            .map((id) => id.split(":")[1]),
-    );
-
-    const expandedTableKeys = $derived(
-        [...expanded]
-            .filter((id) => id.startsWith("table:"))
-            .map((id) => {
-                const parts = id.split(":");
-                return {
-                    schema: parts[1],
-                    table: parts[2],
-                    key: `${parts[1]}:${parts[2]}`,
-                };
-            }),
-    );
-
-    // Fetch schemas when connection/database changes
+    // Fetch root nodes when driver changes
     $effect(() => {
-        if (!connectionId || !database) {
-            schemas = [];
+        if (!driver) {
+            rootNodes = [];
+            explorerStateStore.clearCache();
             return;
         }
 
-        isLoadingSchemas = true;
+        const currentDriver = driver;
+        isLoadingRoots = true;
         errorMessage = null;
 
-        invoke<MetaSchema[]>("get_schemas_lazy", { connectionId, database })
+        currentDriver
+            .getRoots()
             .then((result) => {
-                schemas = result;
-                isLoadingSchemas = false;
+                rootNodes = result;
+                isLoadingRoots = false;
             })
             .catch((err) => {
                 errorMessage = String(err);
-                isLoadingSchemas = false;
+                isLoadingRoots = false;
             });
     });
 
-    // Fetch tables when schemas are expanded
+    // Clear cache when driver changes
     $effect(() => {
-        if (!connectionId || !database) return;
-
-        for (const schemaName of expandedSchemaNames) {
-            // Skip if already cached
-            if (tablesCache.has(schemaName)) continue;
-
-            const nodeId = `schema:${schemaName}`;
-            loadingNodes.add(nodeId);
-            loadingNodes = new Set(loadingNodes);
-
-            invoke<MetaTable[]>("get_tables_lazy", {
-                connectionId,
-                database,
-                schema: schemaName,
-            })
-                .then((result) => {
-                    tablesCache.set(schemaName, result);
-                    tablesCache = new Map(tablesCache); // Trigger reactivity
-                    loadingNodes.delete(nodeId);
-                    loadingNodes = new Set(loadingNodes);
-                })
-                .catch((err) => {
-                    console.error(
-                        `Failed to fetch tables for ${schemaName}:`,
-                        err,
-                    );
-                    loadingNodes.delete(nodeId);
-                    loadingNodes = new Set(loadingNodes);
-                });
-        }
-    });
-
-    // Fetch columns when tables are expanded
-    $effect(() => {
-        if (!connectionId || !database) return;
-
-        for (const { schema, table, key } of expandedTableKeys) {
-            // Skip if already cached
-            if (columnsCache.has(key)) continue;
-
-            const nodeId = `table:${schema}:${table}`;
-            loadingNodes.add(nodeId);
-            loadingNodes = new Set(loadingNodes);
-
-            invoke<MetaColumn[]>("get_columns_lazy", {
-                connectionId,
-                database,
-                schema,
-                table,
-            })
-                .then((result) => {
-                    columnsCache.set(key, result);
-                    columnsCache = new Map(columnsCache);
-                    loadingNodes.delete(nodeId);
-                    loadingNodes = new Set(loadingNodes);
-
-                    // Sync to completion engine
-                    schemaStore.cacheColumns(database!, schema, table, result);
-                })
-                .catch((err) => {
-                    console.error(`Failed to fetch columns for ${table}:`, err);
-                    loadingNodes.delete(nodeId);
-                    loadingNodes = new Set(loadingNodes);
-                });
-        }
-    });
-
-    // Clear caches when connection/database changes
-    $effect(() => {
-        // This runs when connectionId or database changes
-        const _ = connectionId;
-        const __ = database;
-
-        // Clear caches (but not on initial mount)
+        const _ = driver;
         return () => {
-            tablesCache = new Map();
-            columnsCache = new Map();
+            explorerStateStore.clearCache();
         };
     });
 
-    // Helper functions to get data
-    function getTables(schemaName: string): MetaTable[] {
-        return tablesCache.get(schemaName) ?? [];
-    }
-
-    function getColumns(schemaName: string, tableName: string): MetaColumn[] {
-        return columnsCache.get(`${schemaName}:${tableName}`) ?? [];
+    // Get node type from ID prefix
+    function getNodeTypeFromId(id: string): NodeType | null {
+        if (id.startsWith("schema:")) return "schema";
+        if (id.startsWith("table:")) return "table";
+        if (id.startsWith("column:")) return "column";
+        if (id.startsWith("database:")) return "database";
+        return null;
     }
 
     // Build flat tree from hierarchical data
+    // Uses explorerStateStore for reactivity
     let treeNodes = $derived.by(() => {
-        const nodes: TreeNode<ExplorerNodeData>[] = [];
+        // Force dependency tracking via store version
+        const version = explorerStateStore.version;
+        const roots = rootNodes;
 
-        for (const schema of schemas) {
-            const schemaId = `schema:${schema.name}`;
+        console.log(
+            "[DatabaseExplorer] Rebuilding treeNodes, version:",
+            version,
+            "roots:",
+            roots.length,
+        );
+
+        const nodes: TreeNode<ExplorerNode>[] = [];
+
+        function addNode(node: ExplorerNode, level: number) {
             nodes.push({
-                id: schemaId,
-                data: { type: "schema", name: schema.name, schema },
-                hasChildren: true,
-                level: 0,
+                id: node.id,
+                data: node,
+                hasChildren: node.hasChildren,
+                level,
             });
 
-            // If schema expanded, add tables
-            if (expanded.has(schemaId)) {
-                const tables = getTables(schema.name);
-                for (const table of tables) {
-                    const tableId = `table:${schema.name}:${table.table_name}`;
-                    nodes.push({
-                        id: tableId,
-                        data: {
-                            type: "table",
-                            name: table.table_name,
-                            table,
-                            parentSchema: schema.name,
-                        },
-                        hasChildren: true,
-                        level: 1,
-                    });
-
-                    // If table expanded, add columns
-                    if (expanded.has(tableId)) {
-                        const columns = getColumns(
-                            schema.name,
-                            table.table_name,
-                        );
-                        for (const col of columns) {
-                            const colId = `col:${schema.name}:${table.table_name}:${col.column_name}`;
-                            nodes.push({
-                                id: colId,
-                                data: {
-                                    type: "column",
-                                    name: col.column_name,
-                                    column: col,
-                                    parentSchema: schema.name,
-                                    parentTable: table.table_name,
-                                },
-                                hasChildren: false,
-                                level: 2,
-                            });
-                        }
-                    }
+            if (explorerStateStore.isExpanded(node.id)) {
+                const children = explorerStateStore.getChildren(node.id);
+                for (const child of children) {
+                    addNode(child, level + 1);
                 }
             }
+        }
+
+        for (const root of roots) {
+            addNode(root, 0);
         }
 
         return nodes;
     });
 
-    // Handle expansion (no-op, data loading is handled by effects)
-    function handleExpand(node: TreeNode<ExplorerNodeData>) {
-        // Effects will handle loading
+    // Handle expansion - directly load children when node is expanded
+    function handleExpand(node: TreeNode<ExplorerNode>) {
+        if (!driver) return;
+
+        const nodeId = node.id;
+        const nodeType = getNodeTypeFromId(nodeId);
+
+        console.log(
+            "[DatabaseExplorer] handleExpand called for:",
+            nodeId,
+            "type:",
+            nodeType,
+        );
+
+        // Skip if already cached or loading
+        if (explorerStateStore.hasChildren(nodeId)) {
+            console.log("[DatabaseExplorer] Already cached, skipping load");
+            return;
+        }
+        if (explorerStateStore.isLoading(nodeId)) {
+            console.log("[DatabaseExplorer] Already loading, skipping");
+            return;
+        }
+        if (!nodeType) {
+            console.log("[DatabaseExplorer] Unknown node type, skipping");
+            return;
+        }
+
+        console.log("[DatabaseExplorer] Loading children for:", nodeId);
+
+        // Mark as loading
+        explorerStateStore.setLoading(nodeId, true);
+
+        driver
+            .getChildren(nodeId, nodeType)
+            .then((children) => {
+                console.log(
+                    "[DatabaseExplorer] Loaded",
+                    children.length,
+                    "children for",
+                    nodeId,
+                );
+                explorerStateStore.setChildren(nodeId, children);
+                explorerStateStore.setLoading(nodeId, false);
+
+                // Sync columns to completion engine
+                if (nodeType === "table" && children.length > 0) {
+                    const firstChild = children[0];
+                    if (
+                        firstChild.metadata.schema &&
+                        firstChild.metadata.tableName
+                    ) {
+                        const columns = children
+                            .map((c) => c.metadata.raw as MetaColumn)
+                            .filter(Boolean);
+                        schemaStore.cacheColumns(
+                            driver!.database,
+                            firstChild.metadata.schema,
+                            firstChild.metadata.tableName,
+                            columns,
+                        );
+                    }
+                }
+            })
+            .catch((err) => {
+                console.error(
+                    "[DatabaseExplorer] Failed to fetch children for",
+                    nodeId,
+                    err,
+                );
+                explorerStateStore.setLoading(nodeId, false);
+            });
     }
 
     // Handle selection
-    function handleSelect(node: TreeNode<ExplorerNodeData>) {
+    function handleSelect(node: TreeNode<ExplorerNode>) {
         onNodeSelect?.(node.data);
     }
 
-    // Get icon for node type
-    function getIcon(data: ExplorerNodeData) {
-        if (data.type === "column" && data.column?.is_primary_key) {
-            return IconKey;
+    // Map icon type to Tabler icon component
+    function getIcon(node: ExplorerNode) {
+        // Special case for primary key columns
+        if (node.type === "column" && node.metadata.raw) {
+            const column = node.metadata.raw as MetaColumn;
+            if (column.is_primary_key) return IconKey;
         }
 
-        switch (data.type) {
+        switch (node.icon) {
+            case "database":
+                return IconDatabase;
             case "schema":
                 return IconSchema;
             case "table":
                 return IconTable;
             case "column":
                 return IconColumns;
+            case "key":
+                return IconKey;
+            case "folder":
+                return IconFolder;
+            default:
+                return IconFolder;
         }
+    }
+
+    // Check if column is primary key
+    function isPrimaryKey(node: ExplorerNode): boolean {
+        if (node.type !== "column" || !node.metadata.raw) return false;
+        const column = node.metadata.raw as MetaColumn;
+        return column.is_primary_key;
     }
 
     // Helper to stop propagation
@@ -298,12 +256,12 @@
     }
 </script>
 
-{#if !connectionId || !database}
+{#if !driver}
     <div class="p-4 text-muted-foreground text-sm">No database selected</div>
-{:else if isLoadingSchemas}
+{:else if isLoadingRoots}
     <div class="p-4 flex items-center gap-2 text-muted-foreground text-sm">
         <IconLoader2 class="w-4 h-4 animate-spin" />
-        Loading schemas...
+        Loading...
     </div>
 {:else if errorMessage}
     <div class="p-4 text-destructive text-sm">
@@ -312,29 +270,23 @@
 {:else}
     <LazyTree
         nodes={treeNodes}
-        {expanded}
         {selected}
-        {loadingNodes}
         onExpand={handleExpand}
         onSelect={handleSelect}
         class="text-[13px]"
     >
-        {#snippet renderNode(ctx: NodeContext<ExplorerNodeData>)}
+        {#snippet renderNode(ctx: NodeContext<ExplorerNode>)}
             {@const Icon = getIcon(ctx.node.data)}
             {@const contextMenuNode = {
                 id: ctx.node.id,
-                name: ctx.node.data.name,
+                name: ctx.node.data.label,
                 type: ctx.node.data.type,
                 metadata: {
-                    dbName: database,
-                    schemaName:
-                        ctx.node.data.schema?.name ||
-                        ctx.node.data.parentSchema,
-                    tableName:
-                        ctx.node.data.table?.table_name ||
-                        ctx.node.data.parentTable,
+                    dbName: ctx.node.data.metadata.database,
+                    schemaName: ctx.node.data.metadata.schema,
+                    tableName: ctx.node.data.metadata.tableName,
                 },
-            }}
+            } as FileTreeNode}
 
             <ContextMenu.Root>
                 <ContextMenu.Trigger>
@@ -346,6 +298,7 @@
                         )}
                         style="padding-left: {ctx.node.level * 16 + 8}px"
                         role="treeitem"
+                        tabindex="0"
                         aria-expanded={ctx.node.hasChildren
                             ? ctx.isExpanded
                             : undefined}
@@ -379,18 +332,18 @@
                         <Icon
                             class={cn(
                                 "w-4 h-4 shrink-0 text-muted-foreground",
-                                ctx.node.data.column?.is_primary_key &&
+                                isPrimaryKey(ctx.node.data) &&
                                     "text-yellow-500",
                             )}
                         />
 
-                        <!-- Name -->
+                        <!-- Label -->
                         <span class="flex-1 min-w-0 truncate">
-                            {ctx.node.data.name}
-                            {#if ctx.node.data.type === "column" && ctx.node.data.column}
+                            {ctx.node.data.label}
+                            {#if ctx.node.data.secondaryLabel}
                                 <span
                                     class="ml-2 text-[10px] text-muted-foreground/60"
-                                    >{ctx.node.data.column.logical_type}</span
+                                    >{ctx.node.data.secondaryLabel}</span
                                 >
                             {/if}
                         </span>

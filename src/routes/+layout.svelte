@@ -13,8 +13,6 @@
 	import ErrorIcon from "$lib/svg/ErrorMark.svelte";
 	import InfoIcon from "$lib/svg/InfoMark.svelte";
 	import WarnIcon from "$lib/svg/WarnMark.svelte";
-	import { QueryClientProvider } from "@tanstack/svelte-query";
-	import { queryClient } from "$lib/query/queryClient";
 
 	const appWindow = getCurrentWindow();
 
@@ -48,31 +46,27 @@
 
 <svelte:window onkeydown={(e) => windowState.handleKeydown(e)} />
 
-<QueryClientProvider client={queryClient}>
-	<ThemeProvider>
-		<LoadingOverlay />
-		<div
-			class="flex h-screen w-full flex-col overflow-hidden bg-background"
-		>
-			<Titlebar {isFullScreen} />
-			<div class="h-8 shrink-0" aria-hidden="true"></div>
-			<div class="flex-1 w-full min-h-0 overflow-hidden">
-				{@render children()}
-			</div>
+<ThemeProvider>
+	<LoadingOverlay />
+	<div class="flex h-screen w-full flex-col overflow-hidden bg-background">
+		<Titlebar {isFullScreen} />
+		<div class="h-8 shrink-0" aria-hidden="true"></div>
+		<div class="flex-1 w-full min-h-0 overflow-hidden">
+			{@render children()}
 		</div>
-		<Toaster position="bottom-right" visibleToasts={40} expand={true}>
-			{#snippet successIcon()}
-				<SuccessIcon />
-			{/snippet}
-			{#snippet errorIcon()}
-				<ErrorIcon />
-			{/snippet}
-			{#snippet infoIcon()}
-				<InfoIcon />
-			{/snippet}
-			{#snippet warningIcon()}
-				<WarnIcon />
-			{/snippet}
-		</Toaster>
-	</ThemeProvider>
-</QueryClientProvider>
+	</div>
+	<Toaster position="bottom-right" visibleToasts={40} expand={true}>
+		{#snippet successIcon()}
+			<SuccessIcon />
+		{/snippet}
+		{#snippet errorIcon()}
+			<ErrorIcon />
+		{/snippet}
+		{#snippet infoIcon()}
+			<InfoIcon />
+		{/snippet}
+		{#snippet warningIcon()}
+			<WarnIcon />
+		{/snippet}
+	</Toaster>
+</ThemeProvider>

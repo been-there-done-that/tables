@@ -34,12 +34,13 @@
 <script lang="ts" generics="T">
     import type { Snippet } from "svelte";
     import { cn } from "$lib/utils";
+    import { explorerStateStore } from "$lib/stores/explorerState.svelte";
 
     // Props
     let {
         nodes = [],
         renderNode,
-        expanded = $bindable(new Set<string>()),
+        expanded = new Set<string>(),
         selected = $bindable<string | null>(null),
         loadingNodes = new Set<string>(),
         onExpand,
@@ -58,16 +59,22 @@
         class?: string;
     } = $props();
 
-    // Toggle expansion
+    // Toggle expansion - uses global store for proper reactivity
     function toggle(node: TreeNode<T>) {
-        if (expanded.has(node.id)) {
-            expanded.delete(node.id);
-            expanded = new Set(expanded); // Trigger reactivity
-            onCollapse?.(node);
-        } else {
-            expanded.add(node.id);
-            expanded = new Set(expanded);
+        console.log(
+            "[LazyTree] Toggle called for node:",
+            node.id,
+            "currently expanded:",
+            explorerStateStore.isExpanded(node.id),
+        );
+
+        const wasExpanded = explorerStateStore.isExpanded(node.id);
+        const isNowExpanded = explorerStateStore.toggle(node.id);
+
+        if (isNowExpanded) {
             onExpand?.(node);
+        } else {
+            onCollapse?.(node);
         }
     }
 
@@ -77,13 +84,13 @@
         onSelect?.(node);
     }
 
-    // Build context for each node
+    // Build context for each node - reads from global store
     function buildContext(node: TreeNode<T>): NodeContext<T> {
         return {
             node,
-            isExpanded: expanded.has(node.id),
+            isExpanded: explorerStateStore.isExpanded(node.id),
             isSelected: selected === node.id,
-            isLoading: loadingNodes.has(node.id),
+            isLoading: explorerStateStore.isLoading(node.id),
             toggle: () => toggle(node),
             select: () => select(node),
         };

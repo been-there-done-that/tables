@@ -1,9 +1,12 @@
 <script lang="ts">
   import ResizableSplitPane from "$lib/components/ResizableSplitPane.svelte";
   import SystemMetricsWidget from "$lib/components/SystemMetricsWidget.svelte";
-  import DatabaseExplorer, {
-    type ExplorerNodeData,
-  } from "$lib/components/explorer/DatabaseExplorer.svelte";
+  import DatabaseExplorer from "$lib/components/explorer/DatabaseExplorer.svelte";
+  import {
+    type ExplorerNode,
+    type DatabaseDriver,
+    createDriver,
+  } from "$lib/components/explorer/drivers";
   import EditorTabs from "$lib/components/EditorTabs.svelte";
   import EditorHome from "$lib/components/EditorHome.svelte";
   import { windowState } from "$lib/stores/window.svelte";
@@ -19,6 +22,20 @@
 
   import SqlTestingEditor from "$lib/components/SqlTestingEditor.svelte";
   import SchemaVisualizer from "$lib/components/visualizer/SchemaVisualizer.svelte";
+
+  // Create driver reactively based on active connection and database
+  let explorerDriver = $derived.by(() => {
+    const conn = schemaStore.activeConnection;
+    const db = schemaStore.selectedDatabase;
+    if (!conn || !db) return null;
+
+    try {
+      return createDriver(conn.engine, conn.id, db);
+    } catch (e) {
+      console.warn(`[Driver] Unsupported engine: ${conn.engine}`);
+      return null;
+    }
+  });
 
   let explorer = $state<any>(null);
   let showSqlEditor = $state(false);
@@ -36,20 +53,20 @@
     }
   });
 
-  function handleNodeSelect(data: ExplorerNodeData) {
-    if (data.schema) {
-      schemaStore.activeSchema = data.schema.name;
+  function handleNodeSelect(node: ExplorerNode) {
+    if (node.type === "schema" && node.metadata.schema) {
+      schemaStore.activeSchema = node.metadata.schema;
     }
 
     if (!activeSession) return;
 
-    if (data.type === "table" && data.table) {
-      activeSession.openView("table", data.name, { tableName: data.name });
-    } else if (data.type === "column" && data.column) {
-      const tableRef = `${data.parentSchema}.${data.parentTable}`;
+    if (node.type === "table" && node.metadata.tableName) {
+      activeSession.openView("table", node.label, { tableName: node.label });
+    } else if (node.type === "column" && node.metadata.columnName) {
+      const tableRef = `${node.metadata.schema}.${node.metadata.tableName}`;
 
-      activeSession.openView("editor", `Query: ${data.name}`, {
-        initialValue: `SELECT * FROM ${tableRef} WHERE ${data.name} = ...`,
+      activeSession.openView("editor", `Query: ${node.label}`, {
+        initialValue: `SELECT * FROM ${tableRef} WHERE ${node.label} = ...`,
       });
     }
   }
@@ -220,8 +237,7 @@
                 class="animate-in fade-in slide-in-from-left-2 duration-300 h-full"
               >
                 <DatabaseExplorer
-                  connectionId={schemaStore.activeConnection.id}
-                  database={schemaStore.selectedDatabase}
+                  driver={explorerDriver}
                   bind:expanded={activeSession.explorerState.expanded}
                   onNodeSelect={handleNodeSelect}
                   onContextMenuAction={handleContextMenuAction}
@@ -232,8 +248,7 @@
                 class="animate-in fade-in slide-in-from-left-2 duration-300 h-full"
               >
                 <DatabaseExplorer
-                  connectionId={schemaStore.activeConnection.id}
-                  database={schemaStore.selectedDatabase}
+                  driver={explorerDriver}
                   onNodeSelect={handleNodeSelect}
                   onContextMenuAction={handleContextMenuAction}
                 />
