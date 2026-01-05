@@ -494,6 +494,24 @@ export class SchemaStore {
         this.lastRefreshed = new Date();
     }
 
+    async selectDatabase(dbName: string | null) {
+        if (this.selectedDatabase === dbName) return;
+
+        console.log(`[SchemaStore] selectDatabase: ${dbName}`);
+        this.selectedDatabase = dbName;
+
+        if (dbName && this.activeConnection) {
+            await this.fetchSchemas(dbName);
+
+            // Update completion engine focus
+            await invoke("update_completion_schema", {
+                connectionId: this.activeConnection.id,
+                databases: $state.snapshot(this.databases),
+                selectedDatabase: dbName
+            });
+        }
+    }
+
     async refresh(databaseName?: string, schemaName?: string) {
         if (!this.activeConnection) return;
 
