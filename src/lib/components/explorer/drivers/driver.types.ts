@@ -11,15 +11,19 @@ import type { MetaColumn, MetaForeignKey, MetaIndex, MetaTable, MetaTrigger } fr
 // Node Types
 // ============================================================================
 
-export type NodeType = 'root' | 'database' | 'schema' | 'table' | 'column';
+export type NodeType = 'root' | 'database' | 'schema' | 'folder' | 'table' | 'view' | 'column' | 'foreign_key' | 'index' | 'trigger';
 
 export type IconType =
     | 'database'
     | 'schema'
     | 'table'
+    | 'view'
     | 'column'
     | 'key'
     | 'folder'
+    | 'foreign_key'
+    | 'index'
+    | 'trigger'
     | 'file';
 
 /**
@@ -119,10 +123,20 @@ export function getIconForNodeType(type: NodeType, metadata?: ExplorerNodeMetada
             return 'database';
         case 'schema':
             return 'schema';
+        case 'folder':
+            return 'folder';
         case 'table':
             return 'table';
+        case 'view':
+            return 'view';
         case 'column':
             return 'column';
+        case 'foreign_key':
+            return 'foreign_key';
+        case 'index':
+            return 'index';
+        case 'trigger':
+            return 'trigger';
         default:
             return 'folder';
     }

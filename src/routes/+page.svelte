@@ -238,7 +238,6 @@
               >
                 <DatabaseExplorer
                   driver={explorerDriver}
-                  bind:expanded={activeSession.explorerState.expanded}
                   onNodeSelect={handleNodeSelect}
                   onContextMenuAction={handleContextMenuAction}
                 />

@@ -32,6 +32,10 @@
         IconKey,
         IconDatabase,
         IconFolder,
+        IconEye,
+        IconLink,
+        IconListDetails,
+        IconBolt,
     } from "@tabler/icons-svelte";
     import { schemaStore } from "$lib/stores/schema.svelte";
     import { explorerStateStore } from "$lib/stores/explorerState.svelte";
@@ -92,8 +96,13 @@
     // Get node type from ID prefix
     function getNodeTypeFromId(id: string): NodeType | null {
         if (id.startsWith("schema:")) return "schema";
+        if (id.startsWith("folder:")) return "folder";
         if (id.startsWith("table:")) return "table";
+        if (id.startsWith("view:")) return "view";
         if (id.startsWith("column:")) return "column";
+        if (id.startsWith("foreign_key:")) return "foreign_key";
+        if (id.startsWith("index:")) return "index";
+        if (id.startsWith("trigger:")) return "trigger";
         if (id.startsWith("database:")) return "database";
         return null;
     }
@@ -231,12 +240,20 @@
                 return IconSchema;
             case "table":
                 return IconTable;
+            case "view":
+                return IconEye;
             case "column":
                 return IconColumns;
             case "key":
                 return IconKey;
             case "folder":
                 return IconFolder;
+            case "foreign_key":
+                return IconLink;
+            case "index":
+                return IconListDetails;
+            case "trigger":
+                return IconBolt;
             default:
                 return IconFolder;
         }
