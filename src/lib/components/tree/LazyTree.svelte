@@ -33,6 +33,7 @@
 
 <script lang="ts" generics="T">
     import type { Snippet } from "svelte";
+    import { cn } from "$lib/utils";
 
     // Props
     let {
@@ -137,7 +138,10 @@
 </script>
 
 <div
-    class="lazy-tree {className}"
+    class={cn(
+        "outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset",
+        className,
+    )}
     role="tree"
     tabindex="0"
     onkeydown={handleKeydown}
@@ -146,14 +150,3 @@
         {@render renderNode(buildContext(node))}
     {/each}
 </div>
-
-<style>
-    .lazy-tree {
-        outline: none;
-    }
-
-    .lazy-tree:focus-visible {
-        outline: 2px solid var(--accent);
-        outline-offset: -2px;
-    }
-</style>

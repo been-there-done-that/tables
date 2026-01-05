@@ -14,6 +14,7 @@
         type TreeNode,
         type NodeContext,
     } from "../tree/LazyTree.svelte";
+    import { cn } from "$lib/utils";
     import {
         useDatabases,
         useSchemas,
@@ -236,13 +237,15 @@
         {loadingNodes}
         onExpand={handleExpand}
         onSelect={handleSelect}
-        class="database-explorer"
+        class="text-[13px]"
     >
         {#snippet renderNode(ctx: NodeContext<ExplorerNodeData>)}
             {@const Icon = getIcon(ctx.node.data.type)}
             <div
-                class="tree-node"
-                class:selected={ctx.isSelected}
+                class={cn(
+                    "flex items-center gap-1 px-2 py-1 cursor-pointer rounded transition-colors hover:bg-hover",
+                    ctx.isSelected && "bg-accent text-accent-foreground",
+                )}
                 style="padding-left: {ctx.node.level * 16 + 8}px"
                 role="treeitem"
                 aria-expanded={ctx.node.hasChildren
@@ -255,7 +258,7 @@
                 <!-- Expansion arrow -->
                 {#if ctx.node.hasChildren}
                     <button
-                        class="expand-button"
+                        class="flex items-center justify-center w-4 h-4 p-0 bg-transparent border-none cursor-pointer opacity-60 hover:opacity-100 text-inherit"
                         onclick={(e) => handleToggleClick(e, ctx.toggle)}
                         aria-label={ctx.isExpanded ? "Collapse" : "Expand"}
                     >
@@ -268,68 +271,16 @@
                         {/if}
                     </button>
                 {:else}
-                    <span class="expand-spacer"></span>
+                    <span class="w-4 h-4"></span>
                 {/if}
 
                 <!-- Icon -->
                 <Icon class="w-4 h-4 shrink-0 text-muted-foreground" />
 
                 <!-- Name -->
-                <span class="node-name truncate">{ctx.node.data.name}</span>
+                <span class="flex-1 min-w-0 truncate">{ctx.node.data.name}</span
+                >
             </div>
         {/snippet}
     </LazyTree>
 {/if}
-
-<style>
-    .database-explorer {
-        font-size: 13px;
-    }
-
-    .tree-node {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-        padding: 4px 8px;
-        cursor: pointer;
-        border-radius: 4px;
-        transition: background-color 0.1s;
-    }
-
-    .tree-node:hover {
-        background-color: var(--accent);
-    }
-
-    .tree-node.selected {
-        background-color: var(--accent);
-        color: var(--accent-foreground);
-    }
-
-    .expand-button {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 16px;
-        height: 16px;
-        padding: 0;
-        background: none;
-        border: none;
-        cursor: pointer;
-        opacity: 0.6;
-        color: inherit;
-    }
-
-    .expand-button:hover {
-        opacity: 1;
-    }
-
-    .expand-spacer {
-        width: 16px;
-        height: 16px;
-    }
-
-    .node-name {
-        flex: 1;
-        min-width: 0;
-    }
-</style>
