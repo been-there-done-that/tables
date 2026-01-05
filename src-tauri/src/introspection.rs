@@ -970,6 +970,52 @@ impl Introspector {
         Ok(tables)
     }
 
+    // =========================================================================
+    // PUBLIC SAVE METHODS - For lazy loading commands
+    // =========================================================================
+
+    /// Save a database to cache (public wrapper)
+    pub fn save_database_public(&self, connection_id: &str, name: &str) -> Result<(), String> {
+        let conn = self.app_db.lock().unwrap();
+        self.save_database(&conn, connection_id, name)?;
+        Ok(())
+    }
+
+    /// Save a schema to cache (public wrapper)
+    pub fn save_schema_public(&self, connection_id: &str, database: &str, name: &str, schema_type: &str) -> Result<(), String> {
+        let conn = self.app_db.lock().unwrap();
+        // Ensure database exists first
+        self.save_database(&conn, connection_id, database)?;
+        self.save_schema(&conn, connection_id, database, name, schema_type)?;
+        Ok(())
+    }
+
+    /// Save a table to cache (public wrapper)
+    pub fn save_table_public(&self, connection_id: &str, database: &str, schema: &str, table: &MetaTable) -> Result<(), String> {
+        let conn = self.app_db.lock().unwrap();
+        // Ensure database and schema exist first
+        self.save_database(&conn, connection_id, database)?;
+        self.save_schema(&conn, connection_id, database, schema, "user")?;
+        
+        // Create a clone with the correct IDs
+        let table_to_save = MetaTable {
+            connection_id: connection_id.to_string(),
+            database: database.to_string(),
+            schema: schema.to_string(),
+            table_name: table.table_name.clone(),
+            table_type: table.table_type.clone(),
+            classification: table.classification.clone(),
+            last_introspected_at: table.last_introspected_at,
+            columns: table.columns.clone(),
+            foreign_keys: table.foreign_keys.clone(),
+            indexes: table.indexes.clone(),
+            triggers: table.triggers.clone(),
+        };
+        
+        self.save_table(&conn, table_to_save)?;
+        Ok(())
+    }
+
     pub fn get_schema(&self, connection_id: &str) -> Result<Vec<MetaDatabase>, String> {
         // Optimized to only fetch databases and their nested structure if small,
         // but for lazy loading, we might want to just call get_databases.

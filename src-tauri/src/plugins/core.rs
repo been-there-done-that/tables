@@ -252,6 +252,10 @@ macro_rules! aggregate_plugin_commands {
             get_connection_capabilities,
             introspect_database,
             run_db_contention_test,
+            // Lazy loading commands (new architecture)
+            get_databases_lazy,
+            get_schemas_lazy,
+            get_tables_lazy,
             
             // Completion commands
             request_completions,

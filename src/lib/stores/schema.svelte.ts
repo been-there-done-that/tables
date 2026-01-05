@@ -379,7 +379,7 @@ export class SchemaStore {
         }
     }
 
-    async fetchTables(dbName: string, schemaName: string) {
+    async fetchTables(dbName: string, schemaName: string): Promise<void> {
         if (!this.activeConnection) return;
         const dbIndex = this.databases.findIndex(d => d.name === dbName);
         if (dbIndex === -1) return;
@@ -549,6 +549,14 @@ export class SchemaStore {
                 break;
             }
             await new Promise(r => setTimeout(r, 100));
+        }
+    }
+
+    selectDatabase(name: string) {
+        if (this.databases.find(d => d.name === name)) {
+            this.selectedDatabase = name;
+            // Trigger load if needed (optional, or rely on tree expansion)
+            this.loadDatabase(name);
         }
     }
 }
