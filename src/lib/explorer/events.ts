@@ -56,13 +56,13 @@ export async function initExplorerEvents() {
 
         // Based on scope, mark things ready
         const scope = payload.scope;
-        if (scope.type === 'database') {
+        if (scope && scope.type === 'database') {
             updateNodeStateByMeta(
                 { database: scope.name },
                 'database',
                 { loadState: 'ready' }
             );
-        } else if (scope.type === 'schema') {
+        } else if (scope && scope.type === 'schema') {
             updateNodeStateByMeta(
                 { database: scope.database, schema: scope.schema },
                 'schema',

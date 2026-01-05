@@ -50,6 +50,9 @@ importers:
       tailwindcss:
         specifier: ^4.1.18
         version: 4.1.18
+      tauri-plugin-dev-invoke-api:
+        specifier: ^0.2.0
+        version: 0.2.0(@tauri-apps/api@2.9.1)
     devDependencies:
       '@iconify-json/akar-icons':
         specifier: ^1.2.7
@@ -1397,6 +1400,11 @@ packages:
     resolution: {integrity: sha512-g9ljZiwki/LfxmQADO3dEY1CbpmXT5Hm2fJ+QaGKwSXUylMybePR7/67YW7jOrrvjEgL1Fmz5kzyAjWVWLlucg==}
     engines: {node: '>=6'}
 
+  tauri-plugin-dev-invoke-api@0.2.0:
+    resolution: {integrity: sha512-WKUcfSc3Q/cOAvRoI4L5d4NCOCIdYUu7Gdg0rMrEY/hlqwmsK+OcXctqJdcD60Px/eVWWBSCsJiqhx32Dfs1Ow==}
+    peerDependencies:
+      '@tauri-apps/api': ^2.0.0
+
   tinyexec@1.0.2:
     resolution: {integrity: sha512-W/KYk+NFhkmsYpuHq5JykngiOCnxeVL8v8dFnqxSD8qEEdRfXk1SDM6JzNqcERbcGYj9tMrDQBYV9cjgnunFIg==}
     engines: {node: '>=18'}
@@ -2685,6 +2693,10 @@ snapshots:
   tailwindcss@4.1.18: {}
 
   tapable@2.3.0: {}
+
+  tauri-plugin-dev-invoke-api@0.2.0(@tauri-apps/api@2.9.1):
+    dependencies:
+      '@tauri-apps/api': 2.9.1
 
   tinyexec@1.0.2: {}
 

@@ -10,6 +10,7 @@
     import { PostgresProvider } from "$lib/explorer/providers/postgres";
     import type { ExplorerNode } from "$lib/explorer/types";
     import { toast } from "svelte-sonner";
+    import { schemaStore } from "$lib/stores/schema.svelte";
 
     // --- State ---
     let expanded = $state(new Set<string>());
@@ -202,29 +203,68 @@
         }
     }
 
-    // Initialize with a connection for testing if empty
+    // --- Data Sync ---
+    // Sync schemas from the selected database to our flat nodes store
     $effect(() => {
-        if (nodes.getAll().length === 0) {
-            // Check if schemaStore has an active connection (Legacy Bridge)
-            // Ideally we shouldn't depend on legacy schemaStore directly here to avoid circular dep,
-            // but we need a bridge during migration.
-            // For now, let's look at `activeConnection` if imported.
-            // Dynamic import to avoid strict dependency loop at module level?
-            import("$lib/stores/schema.svelte").then(({ schemaStore }) => {
-                if (schemaStore.activeConnection) {
-                    const conn = schemaStore.activeConnection;
-                    nodes.upsert({
-                        id: conn.id,
-                        parentId: null,
-                        provider: "postgres", // Assume postgres for now
-                        connectionId: conn.id,
-                        kind: "connection",
-                        label: conn.name,
-                        loadState: "ready",
-                        meta: { database: conn.database },
-                    });
+        const conn = schemaStore.activeConnection;
+        const selectedDbName = schemaStore.selectedDatabase;
+        const allDbs = schemaStore.databases; // reactive dependency
+
+        if (!conn || !selectedDbName) {
+            if (nodes.getAll().length > 0) nodes.clear();
+            return;
+        }
+
+        const db = allDbs.find((d) => d.name === selectedDbName);
+        if (!db) {
+            // Selected DB not found?
+            if (nodes.getAll().length > 0) nodes.clear();
+            return;
+        }
+
+        // Sync Schemas
+        // We probably want to clear if we switched databases
+        // Simple check: check if any root node belongs to a different DB?
+        // Or just clear() if db.name !== currently_rendered_db (we don't track that easily without extra state).
+        // Let's just blindly upsert/sync.
+        // Logic: Iterate db.schemas and upsert.
+        // What about removals? If schema list shrinks?
+        // For now, simpler is better.
+        // Also note: we need to handle the "loading" state of the database itself.
+
+        const newSchemaIds = new Set<string>();
+
+        // If schemas exist, map them
+        if (db.schemas.length > 0) {
+            for (const s of db.schemas) {
+                const id = `${conn.id}/${db.name}/${s.name}`;
+                newSchemaIds.add(id);
+
+                nodes.upsert({
+                    id,
+                    parentId: null, // Root level now
+                    provider: "postgres",
+                    connectionId: conn.id,
+                    kind: "schema",
+                    label: s.name,
+                    loadState: s.is_introspected ? "partial" : "idle",
+                    meta: { database: db.name, schema: s.name },
+                    childCount: s.tables?.length || undefined,
+                });
+            }
+        }
+
+        // Cleanup stale roots (e.g. if we switched DBs)
+        // This is expensive if we do it every time, but for N=50 schemas it's fine.
+        const allNodes = nodes.getAll();
+        for (const n of allNodes) {
+            if (!n.parentId) {
+                // It's a root. Check if it should exist.
+                if (!newSchemaIds.has(n.id)) {
+                    // It's stale (different DB or deleted schema)
+                    nodes.removeSubtree(n.id);
                 }
-            });
+            }
         }
     });
 </script>
@@ -251,7 +291,17 @@
             <div
                 class="flex items-center justify-center h-20 text-muted-foreground text-sm"
             >
-                No active connection
+                {#if schemaStore.selectedDatabase}
+                    {#if schemaStore.status === "refreshing"}
+                        <span class="flex items-center gap-2">
+                            Loading...
+                        </span>
+                    {:else}
+                        No schemas found
+                    {/if}
+                {:else}
+                    No database selected
+                {/if}
             </div>
         {/if}
     </div>
