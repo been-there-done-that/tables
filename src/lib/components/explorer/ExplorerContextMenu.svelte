@@ -5,28 +5,29 @@
     import IconListSearch from "@tabler/icons-svelte/icons/list-search";
     import IconInfoCircle from "@tabler/icons-svelte/icons/info-circle";
     import ColumnIcon from "$lib/components/icons/ColumnIcon.svelte";
-    import type { TreeNode } from "./FileTree.svelte";
+    import type { ExplorerNode } from "$lib/explorer/types";
 
     let {
         node,
-        onAction = (action: string, node: TreeNode) => {},
+        onAction = (action: string, node: ExplorerNode) => {},
     }: {
-        node: TreeNode;
-        onAction?: (action: string, node: TreeNode) => void;
+        node: ExplorerNode;
+        onAction?: (action: string, node: ExplorerNode) => void;
     } = $props();
 
-    const isTable = $derived(node.type === "table");
-    const isGroup = $derived(node.type === "group");
-    const isSchema = $derived(node.type === "schema");
+    const isTable = $derived(node.kind === "table");
+    const isGroup = $derived(node.kind === "group");
+    const isSchema = $derived(node.kind === "schema");
+    const isDatabase = $derived(node.kind === "database");
 </script>
 
 <ContextMenu.Content class="w-56">
     <ContextMenu.Item
         onclick={() => {
             console.log("[ExplorerContextMenu] Query Console clicked", {
-                name: node.name,
+                label: node.label,
                 id: node.id,
-                type: node.type,
+                kind: node.kind,
             });
             onAction("query_console", node);
         }}
@@ -40,7 +41,7 @@
 
     <ContextMenu.Item
         onclick={() => onAction("view_diagram", node)}
-        disabled={!isSchema && !isTable && node.type !== "column"}
+        disabled={!isSchema && !isTable && node.kind !== "column"}
     >
         <IconTable class="mr-2 size-4 text-purple-500" />
         <span>View Diagram</span>
@@ -78,7 +79,7 @@
 
     <ContextMenu.Item
         onclick={() => onAction("refresh", node)}
-        disabled={!isSchema && node.type !== "database"}
+        disabled={!isSchema && node.kind !== "database"}
     >
         <IconListSearch class="mr-2 size-4 text-green-500" />
         <span>Refresh</span>
