@@ -29,6 +29,7 @@
   // Cache for lazily-loaded table details
   let tableDetailsCache = $state<Map<string, any>>(new Map());
   let loadingTables = $state<Set<string>>(new Set());
+  let fetchedSchemas = new Set<string>(); // Non-reactive set to track auto-fetches per session
 
   // Ensure a session exists when schemaStore has an active connection
   $effect(() => {
@@ -239,11 +240,16 @@
         if (parts.length >= 3) {
           const dbName = parts[1];
           const schemaName = parts[2];
-          console.log(
-            `[Effect] Pre-expanded schema detected: ${schemaName} in ${dbName}. Fetching tables...`,
-          );
-          // We can safely call this repeated times as the store handles dedup/caching
-          schemaStore.fetchTables(dbName, schemaName);
+
+          const schemaKey = `schema-load:${dbName}:${schemaName}`;
+
+          if (!fetchedSchemas.has(schemaKey)) {
+            console.log(
+              `[Effect] Pre-expanded schema detected: ${schemaName} in ${dbName}. Fetching tables...`,
+            );
+            fetchedSchemas.add(schemaKey);
+            schemaStore.fetchTables(dbName, schemaName);
+          }
         }
       }
     }

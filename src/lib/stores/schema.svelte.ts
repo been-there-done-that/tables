@@ -392,15 +392,21 @@ export class SchemaStore {
         console.log(`[SchemaStore] fetchTables(${dbName}, ${schemaName}) - is_introspected: ${schema.is_introspected}`);
 
         // If not cached, trigger a specific refresh
+        // If not cached, trigger a specific refresh
         if (!schema.is_introspected) {
+            // Guard: If busy, wait instead of dropping
             if (this.status !== "idle" || this.databases[dbIndex].is_loading) {
-                console.log(`[SchemaStore] fetchTables: Schema ${schemaName} not cached, but store is busy (${this.status}) or db is loading. Skipping auto-trigger.`);
-                return;
+                console.log(`[SchemaStore] fetchTables: Store is busy. Waiting for idle...`);
+                // Simple poll
+                await this.waitForIdle();
+                // Recursively retry once
+                return this.fetchTables(dbName, schemaName);
             }
+
             console.log(`[SchemaStore] Schema ${schemaName} not cached, triggering remote fetch.`);
 
             this.status = "refreshing";
-
+            // ... remote fetch logic ...
             try {
                 this.statusMessage = `Introspecting ${schemaName}...`;
                 await invoke("refresh_schema_unified", {
@@ -409,29 +415,17 @@ export class SchemaStore {
                         scope: { type: 'schema', database: dbName, schema: schemaName }
                     }
                 });
-                // After refresh, sync from cache for this schema
-                const tables = await invoke<any[]>("get_cached_tables", {
-                    connectionId: this.activeConnection.id,
-                    database: dbName,
-                    schema: schemaName
-                });
-
-                // Re-find schema in case array was mutated by background event
-                const dIdx = this.databases.findIndex(d => d.name === dbName);
-                if (dIdx !== -1) {
-                    const sIdx = this.databases[dIdx].schemas.findIndex(s => s.name === schemaName);
-                    if (sIdx !== -1) {
-                        this.databases[dIdx].schemas[sIdx].tables = tables;
-                        this.databases[dIdx].schemas[sIdx].is_introspected = true;
-                    }
-                }
+                // ... rest of logic
             } catch (e) {
                 console.error(`Failed to refresh schema ${schemaName}:`, e);
                 toast.error(`Failed to load ${schemaName}`, { description: String(e) });
+                this.status = "idle"; // Ensure reset
+                return;
             } finally {
                 this.status = "idle";
             }
-            return;
+
+            // Fall through to fetch from cache
         }
 
         console.log(`[SchemaStore] Schema cached, fetching from local cache.`);
@@ -547,11 +541,14 @@ export class SchemaStore {
         }
     }
 
-    selectDatabase(name: string) {
-        if (this.databases.find(d => d.name === name)) {
-            this.selectedDatabase = name;
-            // Trigger load if needed (optional, or rely on tree expansion)
-            this.loadDatabase(name);
+    async waitForIdle(timeout = 10000) {
+        const start = Date.now();
+        while (this.status !== "idle") {
+            if (Date.now() - start > timeout) {
+                console.warn("[SchemaStore] Timed out waiting for idle state.");
+                break;
+            }
+            await new Promise(r => setTimeout(r, 100));
         }
     }
 }
