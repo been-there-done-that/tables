@@ -1,5 +1,4 @@
 use serde_json::Value;
-use crate::configs::{RuntimeConnection, PostgresConfig, SqliteConfig};
 
 /// Validates that a config JSON follows the expected contract
 pub fn validate_config_json(json: &str, engine: &str) -> Result<(), String> {
@@ -113,7 +112,7 @@ fn validate_sqlite_config(parsed: &Value) -> Result<(), String> {
     
     // Validate options if present
     if let Some(options) = parsed.get("options") {
-        if let Some(read_only) = options.get("read_only").and_then(|v| v.as_bool()) {
+        if let Some(_read_only) = options.get("read_only").and_then(|v| v.as_bool()) {
             // read_only is boolean, valid as-is
         }
         

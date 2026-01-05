@@ -23,9 +23,9 @@ impl PluginDiscovery {
         // Register all built-in plugins
         reg.register(create_theme_plugin());
         reg.register(create_connection_plugin());
-        reg.register(create_aws_plugin());
-        reg.register(create_redis_plugin());
-        reg.register(create_athena_plugin());
+        // reg.register(create_aws_plugin());
+        // reg.register(create_redis_plugin());
+        // reg.register(create_athena_plugin());
         
         Ok(())
     }

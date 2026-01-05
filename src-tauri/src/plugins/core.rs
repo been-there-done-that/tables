@@ -199,34 +199,6 @@ macro_rules! aggregate_plugin_commands {
             get_window_session,
             delete_window_session,
             
-            // AWS plugin commands
-            get_available_aws_profiles,
-            get_aws_profile_by_name,
-            test_aws_profile,
-            list_s3_buckets,
-            list_s3_objects,
-            upload_s3_file,
-            download_s3_file,
-            delete_s3_object,
-            get_s3_bucket_info,
-            
-            // Redis plugin commands
-            get_redis_info,
-            list_redis_databases,
-            list_redis_keys,
-            get_redis_key,
-            execute_redis_command,
-            delete_redis_key,
-            
-            // Athena plugin commands
-            execute_athena_query,
-            get_athena_query_status,
-            list_athena_databases,
-            list_athena_tables,
-            get_athena_table_schema,
-            cancel_athena_query,
-            list_athena_workgroups,
-            
             // Window commands
             open_datasource_window,
             open_appearance_window,
@@ -270,9 +242,6 @@ macro_rules! register_all_plugins {
             // Register all built-in plugins
             reg.register($crate::plugins::builtin::create_theme_plugin());
             reg.register($crate::plugins::builtin::create_connection_plugin());
-            reg.register($crate::plugins::builtin::create_aws_plugin());
-            reg.register($crate::plugins::builtin::create_redis_plugin());
-            reg.register($crate::plugins::builtin::create_athena_plugin());
         }
     };
 }

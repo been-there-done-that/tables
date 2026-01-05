@@ -171,7 +171,7 @@ pub async fn refresh_schema_unified(
     match options.scope {
         IntrospectionScope::Global => {
             let orchestrator = Arc::new(orchestrator);
-            let dbs = orchestrator.introspect_foreground().await
+            let _dbs = orchestrator.introspect_foreground().await
                 .map_err(|e| format!("Introspection failed: {:?}", e))?;
             
             // Background the rest - DISABLED for Lazy Introspection
@@ -192,7 +192,7 @@ pub async fn refresh_schema_unified(
                 .map_err(|e| format!("Introspection failed: {:?}", e))?;
             // Cache saving is now handled progressively by the orchestrator
         },
-        IntrospectionScope::Schema { database, schema } => {
+        IntrospectionScope::Schema { database, schema: _ } => {
             orchestrator.introspect_database(&database).await
                 .map_err(|e| format!("Introspection failed: {:?}", e))?;
             // Cache saving is now handled progressively by the orchestrator

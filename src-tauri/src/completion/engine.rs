@@ -659,7 +659,7 @@ impl CompletionEngine {
     fn complete_generic(
         semantic: &SemanticModel,
         context: &Context,
-        schema: &SchemaGraph,
+        _schema: &SchemaGraph,
     ) -> Vec<CompletionItem> {
         let mut items = Vec::new();
         // Generic Keywords (broad fallback, no functions - too noisy)

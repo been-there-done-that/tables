@@ -2,7 +2,7 @@ use crate::connection::{Connection as DatabaseConnection, SecureCredentials, Con
 use crate::connection_manager::{ConnectionManager, ConnectionManagerState};
 use crate::DatabaseState;
 use tauri::State;
-use log::{info, debug, warn, error, trace};
+use log::{info, debug, trace};
 
 /// Create a new database connection
 #[tauri::command]

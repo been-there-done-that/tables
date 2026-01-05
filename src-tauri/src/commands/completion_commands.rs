@@ -13,7 +13,7 @@ use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 use serde::Serialize;
 
-use crate::introspection::{MetaDatabase, MetaSchema, MetaTable, MetaColumn, MetaForeignKey, MetaIndex};
+use crate::introspection::MetaDatabase;
 use crate::completion::schema::graph::{SchemaGraph, TableInfo, ColumnInfo, ForeignKey};
 use crate::completion::parsing::parse_sql;
 use crate::completion::context::Context;
@@ -98,13 +98,6 @@ pub fn schema_graph_from_meta(databases: &[MetaDatabase], selected_database: Opt
         
         for schema in &db.schemas {
             for table in &schema.tables {
-            // Collect indexed columns
-            for index in &table.indexes {
-                // For each index, we need to mark columns as indexed
-                // Since MetaIndex doesn't include column names directly,
-                // we assume all columns with matching table are potentially indexed
-                // (This is a simplification - you may need to enhance MetaIndex)
-            }
             
             // Add table with columns
             let columns: Vec<ColumnInfo> = table.columns.iter().map(|col| {
@@ -200,8 +193,6 @@ pub async fn request_completions(
     };
     
     // 3. Off-thread execution
-    let text_clone = text.clone();
-    let default_schema_clone = default_schema.clone();
     let result = tokio::task::spawn_blocking(move || {
         // Parse SQL
         let tree = parse_sql(&text, None);

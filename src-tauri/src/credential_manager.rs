@@ -3,7 +3,7 @@ use crate::crypto::{self, MasterKey, MasterKeyManager};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use rusqlite::{params, Connection, OptionalExtension};
-use log::{info, debug, warn, error, trace};
+use log::{debug, error, trace};
 
 pub struct CredentialManager {
     db: Arc<Mutex<Connection>>,

@@ -20,7 +20,7 @@ pub mod adapter_registry;
 mod dci_tests;
 
 use tauri::{Manager, PhysicalPosition, PhysicalSize, Size, Emitter, Listener};
-use std::{path::PathBuf, sync::{Arc, Mutex}, time::SystemTime, collections::{HashMap, HashSet}};
+use std::{path::PathBuf, sync::{Arc, Mutex}, time::SystemTime, collections::HashMap};
 use rusqlite::{Connection, OptionalExtension};
 use serde::Serialize;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
@@ -28,9 +28,6 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilte
 use log::{info, debug, warn, error, trace};
 use commands::theme_commands::*;
 use commands::connection_commands::*;
-use commands::aws_commands::*;
-use commands::redis_commands::*;
-use commands::athena_commands::*;
 use commands::window_commands::*;
 // use commands::introspection_commands::*; legacy
 use commands::test_commands::*;

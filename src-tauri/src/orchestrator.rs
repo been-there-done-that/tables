@@ -18,7 +18,7 @@ use serde::Serialize;
 
 use crate::adapter::{AdapterError, DatabaseAdapter, DatabaseCapabilities, TableRef};
 use crate::introspection::{
-    MetaColumn, MetaDatabase, MetaForeignKey, MetaIndex, MetaSchema, MetaTable, MetaTrigger,
+    MetaDatabase, MetaSchema, MetaTable,
 };
 
 // =============================================================================
