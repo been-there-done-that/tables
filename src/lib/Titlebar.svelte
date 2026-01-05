@@ -114,7 +114,10 @@
                     >{schemaStore.selectedDatabase || "Select DB"}</span
                   >
                   {#if schemaStore.status === "connecting" || schemaStore.status === "refreshing" || schemaStore.databases.find((d) => d.name === schemaStore.selectedDatabase)?.is_loading}
-                    <IconLoader2 class="size-3 animate-spin opacity-50" />
+                    <IconRefresh
+                      class="size-3.5 animate-spin text-primary"
+                      style="animation-direction: reverse;"
+                    />
                   {/if}
                   <IconChevronDown
                     class={cn(
@@ -164,6 +167,9 @@
                   schemaStore.status === "refreshing" &&
                     "animate-spin text-primary",
                 )}
+                style={schemaStore.status === "refreshing"
+                  ? "animation-direction: reverse;"
+                  : ""}
               />
             </button>
           {/if}

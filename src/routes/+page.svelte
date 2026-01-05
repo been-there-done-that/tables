@@ -482,18 +482,18 @@
               >
                 <IconRefresh
                   class={cn(
-                    "size-4",
-                    schemaStore.status === "refreshing" && "animate-spin",
+                    "size-5 opacity-70 transition-all group-hover:opacity-100",
+                    schemaStore.status === "refreshing" &&
+                      "animate-spin-reverse text-primary",
                   )}
+                  style={schemaStore.status === "refreshing"
+                    ? "animation-direction: reverse;"
+                    : ""}
                 />
               </button>
             </div>
           </div>
-          {#if schemaStore.status === "refreshing"}
-            <div class="absolute top-0 right-0 p-2 z-50">
-              <IconLoader2 class="size-4 animate-spin text-muted-foreground" />
-            </div>
-          {/if}
+
           <div
             class={cn(
               "flex-1 overflow-auto p-2 transition-all duration-300",
