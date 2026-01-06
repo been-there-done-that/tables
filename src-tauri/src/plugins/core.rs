@@ -261,7 +261,11 @@ macro_rules! aggregate_plugin_commands {
             request_diagnostics,
 
             // Font commands
-            get_system_fonts
+            get_system_fonts,
+
+            // Settings commands
+            get_app_settings,
+            update_app_setting
         ]
     };
 }

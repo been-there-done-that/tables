@@ -59,7 +59,20 @@
             console.error("Failed to open datasource window:", e);
         }
     };
+
+    function handleKeydown(e: KeyboardEvent) {
+        if (
+            (e.metaKey || e.ctrlKey) &&
+            e.shiftKey &&
+            e.key.toLowerCase() === "c"
+        ) {
+            e.preventDefault();
+            isOpen = !isOpen;
+        }
+    }
 </script>
+
+<svelte:window onkeydown={handleKeydown} />
 
 <div class="relative flex justify-center">
     <Menu.Root bind:open={isOpen}>
