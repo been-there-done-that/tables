@@ -236,7 +236,7 @@
                     </span>
 
                     <!-- Loader (New) -->
-                    {#if node.isLoading && node.type === "database"}
+                    {#if node.isLoading && (node.type === "database" || node.type === "schema")}
                         <LoaderIcon
                             class="size-2.5 ml-1 animate-spin text-muted-foreground/70 shrink-0"
                         />
