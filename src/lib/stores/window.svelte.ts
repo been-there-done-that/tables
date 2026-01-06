@@ -70,7 +70,8 @@ class WindowStateStore {
     layout = $state({
         left: true,
         right: false,
-        bottom: false
+        bottom: false,
+        showSqlEditor: false
     });
 
     // Session Management
