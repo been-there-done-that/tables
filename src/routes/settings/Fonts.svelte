@@ -10,9 +10,8 @@
     let fonts = $state<string[]>([]);
     let loading = $state(true);
     let searchQuery = $state("");
-    let previewText = $state(
-        "The quick brown fox jumps over the lazy dog\n0123456789\n!@#$%^&*()_+{}[]",
-    );
+    import FontPreviewEditor from "./FontPreviewEditor.svelte";
+    import FontPreviewTable from "./FontPreviewTable.svelte";
 
     const filteredFonts = $derived(
         fonts.filter((f) =>
@@ -70,8 +69,8 @@
                         class={cn(
                             "w-full text-left px-3 py-2 text-sm rounded-md flex items-center justify-between group transition-colors",
                             isSelected
-                                ? "bg-accent text-accent-foreground"
-                                : "hover:bg-muted text-foreground",
+                                ? "bg-primary/10 text-foreground"
+                                : "hover:bg-muted/50 text-foreground/80 hover:text-foreground",
                         )}
                         onclick={() => selectFont(font)}
                     >
@@ -79,7 +78,9 @@
                             >{font}</span
                         >
                         {#if isSelected}
-                            <IconCheck class="size-4 shrink-0 text-primary" />
+                            <IconCheck
+                                class="size-4 shrink-0 text-primary opacity-60"
+                            />
                         {/if}
                     </button>
                 {/each}
@@ -88,9 +89,9 @@
     </div>
 
     <!-- Right: Preview -->
-    <div class="flex-1 flex flex-col h-full bg-muted/10">
+    <div class="flex-1 flex flex-col h-full bg-muted/10 overflow-hidden">
         <div
-            class="p-6 flex-col border-b border-border bg-background flex items-center justify-between gap-4"
+            class="p-6 flex-col border-b border-border bg-background flex items-center justify-between gap-4 shrink-0"
         >
             <div class="flex justify-start items-center gap-2 w-full">
                 <h2 class="text-lg font-medium">Font Preview:</h2>
@@ -107,8 +108,8 @@
                 <input
                     id="font-size"
                     type="range"
-                    min="8"
-                    max="32"
+                    min="10"
+                    max="24"
                     step="1"
                     bind:value={settingsStore.editorFontSize}
                     class="w-full"
@@ -119,24 +120,25 @@
             </div>
         </div>
 
-        <div class="flex-1 p-2 overflow-auto flex items-center justify-center">
-            <div
-                class="w-full max-w-3xl border border-border rounded-lg bg-background shadow-sm overflow-hidden flex flex-col"
-            >
+        <div class="flex-1 p-6 overflow-hidden flex flex-col gap-6">
+            <!-- Code Editor Preview -->
+            <div class="flex-1 min-h-[300px] flex flex-col gap-2">
                 <div
-                    class="bg-muted/30 border-b border-border px-4 py-2 text-xs text-muted-foreground font-mono flex gap-2"
+                    class="text-xs font-medium text-muted-foreground uppercase tracking-wider px-1"
                 >
-                    <span class="w-3 h-3 rounded-full bg-red-400/80"></span>
-                    <span class="w-3 h-3 rounded-full bg-yellow-400/80"></span>
-                    <span class="w-3 h-3 rounded-full bg-green-400/80"></span>
+                    Editor Preview
                 </div>
-                <textarea
-                    bind:value={previewText}
-                    class="w-full h-96 p-6 resize-none outline-none bg-transparent"
-                    style:font-family={settingsStore.editorFontFamily}
-                    style:font-size="{settingsStore.editorFontSize}px"
-                    spellcheck="false"
-                ></textarea>
+                <FontPreviewEditor />
+            </div>
+
+            <!-- Table Preview -->
+            <div class="flex-1 min-h-[300px] flex flex-col gap-2">
+                <div
+                    class="text-xs font-medium text-muted-foreground uppercase tracking-wider px-1"
+                >
+                    Table Preview
+                </div>
+                <FontPreviewTable />
             </div>
         </div>
     </div>

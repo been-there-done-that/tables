@@ -17,7 +17,7 @@
     let { context = {} } = $props<{ context?: any }>();
 
     let editorContainer: HTMLElement;
-    let editorHandle: EditorHandle | null = null;
+    let editorHandle = $state<EditorHandle | null>(null);
     let logs: string[] = $state([]);
 
     // Toolbar state
@@ -32,8 +32,12 @@
     // Reactive font settings
     $effect(() => {
         if (editorHandle?.editor) {
+            const family = settingsStore.editorFontFamily.includes(" ")
+                ? `"${settingsStore.editorFontFamily}"`
+                : settingsStore.editorFontFamily;
+
             editorHandle.editor.updateOptions({
-                fontFamily: settingsStore.editorFontFamily,
+                fontFamily: family,
                 fontSize: settingsStore.editorFontSize,
             });
         }
