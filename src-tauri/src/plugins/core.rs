@@ -258,7 +258,10 @@ macro_rules! aggregate_plugin_commands {
             update_completion_schema,
             clear_completion_schema,
             get_current_statement,
-            request_diagnostics
+            request_diagnostics,
+
+            // Font commands
+            get_system_fonts
         ]
     };
 }

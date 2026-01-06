@@ -19,3 +19,5 @@ pub use introspection_commands::*;
 pub use test_commands::*;
 pub use completion_commands::*;
 pub use unified_introspection::*;
+pub mod font_commands;
+pub use font_commands::*;

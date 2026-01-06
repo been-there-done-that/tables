@@ -38,6 +38,7 @@ use commands::introspection_commands::*;
 use commands::test_commands::*;
 use commands::completion_commands::*;
 use commands::unified_introspection::*;
+use commands::font_commands::*;
 use plugins::{PluginDiscovery, get_available_plugins, enable_plugin, disable_plugin, get_plugin_info, initialize_all_plugins};
 use credential_manager::CredentialManager;
 use metrics::{MetricsRegistry, SystemMonitor, start_metrics_emitter};
