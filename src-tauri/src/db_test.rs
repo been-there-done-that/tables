@@ -141,14 +141,14 @@ mod tests {
     #[test]
     fn test_sqlite_contention() {
         // Init in-memory DB
-        let conn = Connection::open_in_memory().unwrap();
+        let mut conn = Connection::open_in_memory().unwrap();
         
         // Setup WAL and busy timeout
         conn.pragma_update(None, "journal_mode", "WAL").unwrap();
         conn.pragma_update(None, "busy_timeout", 5000).unwrap();
         
         // Apply migrations
-        migrations::apply(&conn, || 0).unwrap();
+        migrations::apply(&mut conn, || 0).unwrap();
         
         let db = Arc::new(Mutex::new(conn));
         let report = run_lock_contention_test(db);

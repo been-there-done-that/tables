@@ -12,6 +12,14 @@ mod metrics;
 mod introspection;
 mod db_test;
 mod completion;
+pub mod constants;
+pub mod schema_types;
+pub mod adapter;
+pub mod adapters;
+pub mod orchestrator;
+pub mod adapter_registry;
+#[cfg(test)]
+mod dci_tests;
 
 use tauri::{Manager, PhysicalPosition, PhysicalSize, Size, Emitter, Listener};
 use std::{path::PathBuf, sync::{Arc, Mutex}, time::SystemTime, collections::{HashMap, HashSet}};
@@ -29,6 +37,7 @@ use commands::window_commands::*;
 use commands::introspection_commands::*;
 use commands::test_commands::*;
 use commands::completion_commands::*;
+use commands::unified_introspection::*;
 use plugins::{PluginDiscovery, get_available_plugins, enable_plugin, disable_plugin, get_plugin_info, initialize_all_plugins};
 use credential_manager::CredentialManager;
 use metrics::{MetricsRegistry, SystemMonitor, start_metrics_emitter};
@@ -110,7 +119,7 @@ fn init_connection(db_path: &PathBuf) -> Result<Connection, String> {
             })?;
     }
     debug!("Opening database connection");
-    let conn = Connection::open(db_path)
+    let mut conn = Connection::open(db_path)
         .map_err(|e| {
             error!("Failed to open database {}: {}", db_path.display(), e);
             format!("Failed to open database {}: {e}", db_path.display())
@@ -134,7 +143,7 @@ fn init_connection(db_path: &PathBuf) -> Result<Connection, String> {
             format!("Failed to enable foreign keys: {e}")
         })?;
     debug!("Applying database migrations");
-    migrations::apply(&conn, now_ts)?;
+    migrations::apply(&mut conn, now_ts)?;
     info!("Database connection initialized successfully");
     Ok(conn)
 }
@@ -183,6 +192,9 @@ pub fn run() {
                 credential_manager: credential_manager.clone(),
                 active_connections: Arc::new(Mutex::new(HashMap::new())),
             });
+
+            debug!("Initializing adapter registry");
+            adapter_registry::init_builtins();
 
             debug!("Initializing completion engine");
             // Initialize completion state for SQL auto-completion
