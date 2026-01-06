@@ -9,6 +9,9 @@
   import TypographyIcon from "@tabler/icons-svelte/icons/typography";
   import FontsComponent from "./Fonts.svelte";
 
+  import AlertTriangleIcon from "@tabler/icons-svelte/icons/alert-triangle";
+  import DangerousComponent from "./Dangerous.svelte";
+
   let themes = $state<ThemeRecord[]>([]);
   let activeId = $state<string>("");
 
@@ -40,6 +43,10 @@
     {
       name: "fonts",
       icon: TypographyIcon,
+    },
+    {
+      name: "dangerous",
+      icon: AlertTriangleIcon,
     },
   ];
 </script>
@@ -77,6 +84,8 @@
         <ShortcutsComponent />
       {:else if selectedSection === "fonts"}
         <FontsComponent />
+      {:else if selectedSection === "dangerous"}
+        <DangerousComponent />
       {/if}
     </div>
   </div>

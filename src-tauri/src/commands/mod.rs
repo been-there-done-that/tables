@@ -23,3 +23,4 @@ pub mod font_commands;
 pub use font_commands::*;
 pub mod settings_commands;
 pub use settings_commands::*;
+pub mod debug_commands;

@@ -265,7 +265,11 @@ macro_rules! aggregate_plugin_commands {
 
             // Settings commands
             get_app_settings,
-            update_app_setting
+            update_app_setting,
+
+            // Debug/Dangerous commands
+            reset_app_state,
+            open_internal_db
         ]
     };
 }
