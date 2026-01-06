@@ -52,7 +52,18 @@
       console.error("Failed to open appearance window:", e);
     }
   };
+
+  function handleKeydown(e: KeyboardEvent) {
+    if (schemaStore.activeConnection?.engine === "postgres") {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "p") {
+        e.preventDefault();
+        isDbPickerOpen = !isDbPickerOpen;
+      }
+    }
+  }
 </script>
+
+<svelte:window onkeydown={handleKeydown} />
 
 {#if !isFullScreen}
   <div

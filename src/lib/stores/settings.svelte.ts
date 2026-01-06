@@ -1,4 +1,5 @@
 import { browser } from "$app/environment";
+import { commandClient } from "$lib/commands/client";
 
 export interface Settings {
     editorFontFamily: string;
@@ -13,20 +14,15 @@ const DEFAULT_SETTINGS: Settings = {
 function createSettingsStore() {
     let settings = $state<Settings>(DEFAULT_SETTINGS);
 
-    if (browser) {
-        const stored = localStorage.getItem("app_settings");
-        if (stored) {
-            try {
-                settings = { ...DEFAULT_SETTINGS, ...JSON.parse(stored) };
-            } catch (e) {
-                console.error("Failed to parse settings:", e);
-            }
-        }
-    }
-
-    // Effect to sync with localStorage not strictly needed if we update manually,
-    // but useful. However, in .svelte.ts module, $effect is tricky outside component context.
-    // We'll update persistent storage in the setters.
+    const apply = () => {
+        const family = settings.editorFontFamily;
+        const safeFamily = family.includes(" ") ? `"${family}"` : family;
+        console.log("[Settings] Applying font variable --font-user-mono:", safeFamily);
+        // Update the font variable that Tailwind uses for 'font-mono'
+        document.documentElement.style.setProperty("--font-user-mono", safeFamily);
+        // Also update main UI font as requested
+        document.documentElement.style.setProperty("--font-user-ui", safeFamily);
+    };
 
     return {
         get editorFontFamily() {
@@ -34,37 +30,60 @@ function createSettingsStore() {
         },
         set editorFontFamily(v: string) {
             settings.editorFontFamily = v;
-            if (browser) localStorage.setItem("app_settings", JSON.stringify(settings));
+            if (browser) {
+                apply();
+                commandClient.updateAppSetting("editor_font_family", v);
+            }
         },
         get editorFontSize() {
             return settings.editorFontSize;
         },
         set editorFontSize(v: number) {
             settings.editorFontSize = v;
-            if (browser) localStorage.setItem("app_settings", JSON.stringify(settings));
+            if (browser) {
+                commandClient.updateAppSetting("editor_font_size", v.toString());
+            }
         },
         reset() {
             settings = DEFAULT_SETTINGS;
-            if (browser) localStorage.setItem("app_settings", JSON.stringify(settings));
+            apply();
+            if (browser) {
+                commandClient.updateAppSetting("editor_font_family", DEFAULT_SETTINGS.editorFontFamily);
+                commandClient.updateAppSetting("editor_font_size", DEFAULT_SETTINGS.editorFontSize.toString());
+            }
         },
         init() {
             if (!browser) return () => { };
 
-            // Initial application
-            const apply = () => {
-                const family = settings.editorFontFamily;
-                const safeFamily = family.includes(" ") ? `"${family}"` : family;
-                document.body.style.fontFamily = safeFamily;
-            };
+            // Fetch initial settings from backend
+            commandClient.getAppSettings().then((res) => {
+                console.log("[Settings] Backend response:", res);
+                if (res.success && res.data) {
+                    console.log("[Settings] Applying backend settings:", res.data);
+                    settings = { ...DEFAULT_SETTINGS, ...res.data };
+                    apply();
+                } else {
+                    console.error("[Settings] Failed to load settings:", res.error);
+                }
+            }).catch(err => {
+                console.error("[Settings] Error fetching settings:", err);
+            });
+
+            // Initial application of default/current state
             apply();
 
-            // Listen for font changes from other windows
+            // Listen for settings changes from other windows
             let unlisten: () => void;
             import("@tauri-apps/api/event").then(async ({ listen }) => {
-                unlisten = await listen<string>("font-changed", (event) => {
-                    console.log("Font changed event received:", event.payload);
-                    settings.editorFontFamily = event.payload;
-                    apply();
+                unlisten = await listen<[string, string]>("settings-changed", (event) => {
+                    console.log("[Settings] Remote change event:", event);
+                    const [key, value] = event.payload;
+                    if (key === "editor_font_family") {
+                        settings.editorFontFamily = value;
+                        apply();
+                    } else if (key === "editor_font_size") {
+                        settings.editorFontSize = parseInt(value);
+                    }
                 });
             });
 
