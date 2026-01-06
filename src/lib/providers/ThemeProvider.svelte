@@ -6,11 +6,12 @@
   import { setThemeContext } from "$lib/theme/context";
   import { onDestroy } from "svelte";
   import type { ThemeState } from "$lib/theme/context";
-  import { themeStore, DELAYS } from '$lib/commands/stores.svelte';
+  import { themeStore, DELAYS } from "$lib/commands/stores.svelte";
 
   let { children } = $props();
 
-  const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+  const delay = (ms: number) =>
+    new Promise((resolve) => setTimeout(resolve, ms));
 
   // Track current theme state to detect changes
   let currentThemeState = $state({
@@ -35,7 +36,10 @@
     try {
       await themeStore.refresh();
       const active = themeStore.state.active;
-      applyTheme(active ?? themeStore.state.themes.find((t: ThemeRecord) => t.is_active), false);
+      applyTheme(
+        active ?? themeStore.state.themes.find((t: ThemeRecord) => t.is_active),
+        false,
+      );
       // Additional delay after theme application for smooth transition
       await delay(DELAYS.THEME_TRANSITION);
     } catch (e) {
@@ -58,23 +62,23 @@
     subscribe: (fn) => {
       // Subscribe to reactive state changes
       let unsubscribe: (() => void) | undefined;
-      
+
       const updateSubscriber = () => {
         fn(currentThemeState);
       };
-      
+
       // Initial call
       updateSubscriber();
-      
+
       // Use $effect to track changes
       $effect(() => {
         updateSubscriber();
       });
-      
+
       unsubscribe = () => {
         // No cleanup needed for $effect
       };
-      
+
       return unsubscribe;
     },
     setActive,
@@ -82,23 +86,7 @@
 
   loadThemes();
 
-  const unlisten = listen<Theme>("current-theme", (event) => {
-    console.log("Theme change event received:", event.payload);
-    const theme = event.payload;
-    console.log("Applying theme:", theme);
-    applyTheme(theme);
-    // Update the store state when theme changes via backend
-    const storeState = themeStore.state;
-    if (storeState.activeId !== theme.id) {
-      console.log("Syncing store with backend theme:", theme.id);
-      // Force refresh to sync with backend
-      themeStore.loadActiveTheme();
-    }
-  });
-
-  onDestroy(() => {
-    unlisten.then((off) => off());
-  });
+  loadThemes();
 </script>
 
 {@render children()}

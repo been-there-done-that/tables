@@ -47,6 +47,31 @@ function createSettingsStore() {
             settings = DEFAULT_SETTINGS;
             if (browser) localStorage.setItem("app_settings", JSON.stringify(settings));
         },
+        init() {
+            if (!browser) return () => { };
+
+            // Initial application
+            const apply = () => {
+                const family = settings.editorFontFamily;
+                const safeFamily = family.includes(" ") ? `"${family}"` : family;
+                document.body.style.fontFamily = safeFamily;
+            };
+            apply();
+
+            // Listen for font changes from other windows
+            let unlisten: () => void;
+            import("@tauri-apps/api/event").then(async ({ listen }) => {
+                unlisten = await listen<string>("font-changed", (event) => {
+                    console.log("Font changed event received:", event.payload);
+                    settings.editorFontFamily = event.payload;
+                    apply();
+                });
+            });
+
+            return () => {
+                if (unlisten) unlisten();
+            };
+        }
     };
 }
 
