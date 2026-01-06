@@ -161,6 +161,8 @@ mod invariant_tests {
             nullable: false,
             default_value: None,
             is_primary_key: true,
+            engine_type: None,
+            normalized_type: None,
         };
 
         // Invariant: Column knows its full table context

@@ -122,6 +122,7 @@ impl DatabaseAdapter for SqliteAdapter {
         Ok(vec![MetaSchema {
             name: "main".to_string(),
             schema_type: "user".to_string(),
+            kind: crate::schema_types::NamespaceKind::LogicalGroup,
             is_introspected: false,
             tables: vec![],
         }])
