@@ -241,11 +241,6 @@
 
     function selectNode(id: string) {
         selectedNodeId = id;
-        // Scroll into view
-        // We need a stable way to find the element. Using data-node-id.
-        // requestAnimationFrame to wait for render if we just expanded?
-        // Svelte 5 sync rendering might be fast enough or use tick?
-        // Let's try direct access after a small delay or trust DOM.
         setTimeout(() => {
             const el = document.querySelector(
                 `[data-node-id="${CSS.escape(id)}"]`,
