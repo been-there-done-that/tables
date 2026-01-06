@@ -157,6 +157,10 @@ impl Introspector {
         
         let now = chrono::Utc::now().timestamp_millis();
         
+        // Initialize "main" database and schema
+        self.save_database(&tx, connection_id, "main")?;
+        self.save_schema(&tx, connection_id, "main", "main", "user", NamespaceKind::LogicalGroup)?;
+
         for table_result in table_iter {
             let (name, ttype) = table_result.map_err(|e| e.to_string())?;
             let classification = "user"; // simple classification
@@ -183,7 +187,7 @@ impl Introspector {
             };
 
             // Save everything to DB (Cache)
-            self.save_database(&tx, connection_id, "main")?;
+            // self.save_database(&tx, connection_id, "main")?; // Moved up
             self.save_table_full(&tx, &meta_table)?;
             
             tables.push(meta_table);
