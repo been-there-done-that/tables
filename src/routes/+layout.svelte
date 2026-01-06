@@ -44,34 +44,6 @@
 			windowState.cleanup();
 		};
 	});
-
-	// Apply selected font globally to the body
-	$effect(() => {
-		const family = settingsStore.editorFontFamily;
-		const safeFamily = family.includes(" ") ? `"${family}"` : family;
-		// Override body font to ensure it applies everywhere (EditorHome, Sidebar, etc.)
-		document.body.style.fontFamily = safeFamily;
-	});
-
-	// Listen for font changes from other windows (e.g. settings window)
-	onMount(() => {
-		let unlisten: () => void;
-
-		const setup = async () => {
-			unlisten = await listen<string>("font-changed", (event) => {
-				console.log("Font changed event received:", event.payload);
-				// Update the store so the effect above runs and updates the body style
-				settingsStore.editorFontFamily = event.payload;
-			});
-		};
-		setup();
-
-		return () => {
-			if (unlisten) {
-				unlisten();
-			}
-		};
-	});
 </script>
 
 <svelte:window onkeydown={(e) => windowState.handleKeydown(e)} />

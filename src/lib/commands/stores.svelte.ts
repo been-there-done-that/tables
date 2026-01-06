@@ -1,10 +1,10 @@
 import { commandClient } from './client';
-import type { 
-  Theme, 
-  Connection, 
-  AwsProfile, 
+import type {
+  Theme,
+  Connection,
+  AwsProfile,
   PluginInfo,
-  CommandResponse 
+  CommandResponse
 } from './types';
 
 /**
@@ -44,10 +44,10 @@ class ThemeStore {
   async loadThemes() {
     this.loading = true;
     this.error = '';
-    
+
     // Add artificial delay for smooth UX
     await new Promise(resolve => setTimeout(resolve, DELAYS.THEME_LOAD));
-    
+
     const response = await commandClient.getAllThemes();
     if (response.success && response.data) {
       this.themes = response.data;
@@ -60,7 +60,7 @@ class ThemeStore {
   async loadActiveTheme() {
     // Add artificial delay for smooth UX
     await new Promise(resolve => setTimeout(resolve, DELAYS.THEME_ACTIVE));
-    
+
     const response = await commandClient.getActiveTheme();
     if (response.success && response.data) {
       this.activeId = response.data.id;
@@ -69,7 +69,7 @@ class ThemeStore {
 
   async setActiveTheme(themeId: string) {
     if (themeId === this.activeId) return;
-    
+
     const response = await commandClient.setActiveTheme(themeId);
     if (response.success) {
       this.activeId = themeId;
@@ -81,6 +81,36 @@ class ThemeStore {
 
   async refresh() {
     await Promise.all([this.loadThemes(), this.loadActiveTheme()]);
+  }
+
+  init() {
+    if (typeof window === "undefined") return () => { };
+
+    let unlisten: () => void;
+
+    // Initial load is handled by refresh(), but we set up the listener here
+    import("@tauri-apps/api/event").then(async ({ listen }) => {
+      // Need to import applyTheme dynamically or ensure it's imported at top
+      const { applyTheme } = await import("$lib/theme/applyTheme");
+
+      unlisten = await listen<Theme>("current-theme", (event) => {
+        console.log("[ThemeStore] Theme change event received:", event.payload);
+        const theme = event.payload;
+
+        // Update local state if needed
+        if (this.activeId !== theme.id) {
+          console.log("[ThemeStore] Syncing store with backend theme:", theme.id);
+          this.activeId = theme.id;
+          // If the theme is not in our list, we might need to reload themes, but usually it is.
+        }
+
+        applyTheme(theme);
+      });
+    });
+
+    return () => {
+      if (unlisten) unlisten();
+    };
   }
 }
 
@@ -105,10 +135,10 @@ class ConnectionStore {
   async loadConnections() {
     this.loading = true;
     this.error = '';
-    
+
     // Add artificial delay for smooth UX
     await new Promise(resolve => setTimeout(resolve, DELAYS.CONNECTION_LOAD));
-    
+
     const response = await commandClient.listConnections();
     if (response.success && response.data) {
       this.connections = response.data;
@@ -194,10 +224,10 @@ class AwsStore {
   async loadProfiles() {
     this.loading = true;
     this.error = '';
-    
+
     // Add artificial delay for smooth UX
     await new Promise(resolve => setTimeout(resolve, DELAYS.AWS_LOAD));
-    
+
     const response = await commandClient.getAvailableAwsProfiles();
     if (response.success && response.data) {
       this.profiles = response.data;
@@ -245,10 +275,10 @@ class PluginStore {
   async loadPlugins() {
     this.loading = true;
     this.error = '';
-    
+
     // Add artificial delay for smooth UX
     await new Promise(resolve => setTimeout(resolve, DELAYS.PLUGIN_LOAD));
-    
+
     const response = await commandClient.getAvailablePlugins();
     if (response.success && response.data) {
       this.plugins = response.data;
