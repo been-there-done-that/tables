@@ -78,13 +78,15 @@
             columns,
         };
     };
+
+    let { fontFamily } = $props<{ fontFamily: string }>();
 </script>
 
 <div
     class="w-full h-full border border-border rounded-md overflow-hidden bg-background"
-    style:font-family={settingsStore.editorFontFamily.includes(" ")
-        ? `"${settingsStore.editorFontFamily}"`
-        : settingsStore.editorFontFamily}
+    style:font-family={fontFamily.includes(" ")
+        ? `"${fontFamily}"`
+        : fontFamily}
     style:font-size="{settingsStore.editorFontSize}px"
 >
     <Table {columns} {dataFetcher} class="h-full w-full" />

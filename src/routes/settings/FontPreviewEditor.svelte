@@ -7,6 +7,7 @@
 
     let editorContainer: HTMLElement;
     let editorHandle = $state<EditorHandle | null>(null);
+    let { fontFamily } = $props<{ fontFamily: string }>();
 
     // Static preview content
     const PREVIEW_CONTENT = `-- SQL Font Preview
@@ -25,9 +26,9 @@ LIMIT 10;`;
     // React to font changes
     $effect(() => {
         if (editorHandle?.editor) {
-            const family = settingsStore.editorFontFamily.includes(" ")
-                ? `"${settingsStore.editorFontFamily}"`
-                : settingsStore.editorFontFamily;
+            const family = fontFamily.includes(" ")
+                ? `"${fontFamily}"`
+                : fontFamily;
 
             editorHandle.editor.updateOptions({
                 fontFamily: family,
@@ -49,9 +50,9 @@ LIMIT 10;`;
                 lineNumbers: "on",
                 scrollBeyondLastLine: false,
                 automaticLayout: true,
-                fontFamily: settingsStore.editorFontFamily,
+                fontFamily: fontFamily,
                 fontSize: settingsStore.editorFontSize,
-                readOnly: true,
+                readOnly: false,
                 contextmenu: false,
             },
         },

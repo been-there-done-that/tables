@@ -4,12 +4,16 @@
     import { settingsStore } from "$lib/stores/settings.svelte";
     import SearchInput from "$lib/components/SearchInput.svelte";
     import { cn } from "$lib/utils";
+    import IconDeviceFloppy from "@tabler/icons-svelte/icons/device-floppy";
+    import IconRotate from "@tabler/icons-svelte/icons/rotate";
     import IconCheck from "@tabler/icons-svelte/icons/check";
     import IconLoader from "@tabler/icons-svelte/icons/loader-2";
 
     let fonts = $state<string[]>([]);
     let loading = $state(true);
     let searchQuery = $state("");
+    let previewFont = $state(settingsStore.editorFontFamily);
+
     import FontPreviewEditor from "./FontPreviewEditor.svelte";
     import FontPreviewTable from "./FontPreviewTable.svelte";
 
@@ -22,6 +26,8 @@
     onMount(async () => {
         try {
             loading = true;
+            // Ensure preview starts with saved value
+            previewFont = settingsStore.editorFontFamily;
             const systemFonts = await invoke<string[]>("get_system_fonts");
             fonts = systemFonts;
         } catch (e) {
@@ -32,7 +38,15 @@
     });
 
     function selectFont(font: string) {
-        settingsStore.editorFontFamily = font;
+        previewFont = font;
+    }
+
+    function saveFont() {
+        settingsStore.editorFontFamily = previewFont;
+    }
+
+    function resetFont() {
+        previewFont = settingsStore.editorFontFamily;
     }
 </script>
 
@@ -63,8 +77,8 @@
                 </div>
             {:else}
                 {#each filteredFonts as font}
-                    {@const isSelected =
-                        settingsStore.editorFontFamily === font}
+                    {@const isSelected = previewFont === font}
+                    {@const isSaved = settingsStore.editorFontFamily === font}
                     <button
                         class={cn(
                             "w-full text-left px-3 py-2 text-sm rounded-md flex items-center justify-between group transition-colors",
@@ -77,11 +91,20 @@
                         <span class="truncate pr-2" style:font-family={font}
                             >{font}</span
                         >
-                        {#if isSelected}
-                            <IconCheck
-                                class="size-4 shrink-0 text-primary opacity-60"
-                            />
-                        {/if}
+                        <div class="flex items-center gap-2">
+                            {#if isSaved}
+                                <span
+                                    class="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded border border-border"
+                                >
+                                    Current
+                                </span>
+                            {/if}
+                            {#if isSelected}
+                                <IconCheck
+                                    class="size-4 shrink-0 text-primary opacity-60"
+                                />
+                            {/if}
+                        </div>
                     </button>
                 {/each}
             {/if}
@@ -90,55 +113,63 @@
 
     <!-- Right: Preview -->
     <div class="flex-1 flex flex-col h-full bg-muted/10 overflow-hidden">
-        <div
-            class="p-6 flex-col border-b border-border bg-background flex items-center justify-between gap-4 shrink-0"
-        >
-            <div class="flex justify-start items-center gap-2 w-full">
-                <h2 class="text-lg font-medium">Font Preview:</h2>
-                <p class="text-sm text-muted-foreground">
-                    {settingsStore.editorFontFamily}
-                </p>
-            </div>
-
-            <div class="flex items-center gap-2 w-full">
-                <label
-                    for="font-size"
-                    class="text-sm font-medium whitespace-nowrap">Size:</label
-                >
-                <input
-                    id="font-size"
-                    type="range"
-                    min="10"
-                    max="24"
-                    step="1"
-                    bind:value={settingsStore.editorFontSize}
-                    class="w-full"
-                />
-                <span class="text-sm font-mono w-8 text-right"
-                    >{settingsStore.editorFontSize}</span
-                >
-            </div>
-        </div>
-
         <div class="flex-1 p-6 overflow-hidden flex flex-col gap-6">
             <!-- Code Editor Preview -->
-            <div class="flex-1 min-h-[300px] flex flex-col gap-2">
+            <div class="flex-1 min-h-0 flex flex-col gap-2">
                 <div
                     class="text-xs font-medium text-muted-foreground uppercase tracking-wider px-1"
                 >
                     Editor Preview
                 </div>
-                <FontPreviewEditor />
+                <FontPreviewEditor fontFamily={previewFont} />
             </div>
 
-            <!-- Table Preview -->
-            <div class="flex-1 min-h-[300px] flex flex-col gap-2">
+            <!-- Table Preview (Reduced Size) -->
+            <div class="flex-none flex flex-col gap-2">
                 <div
                     class="text-xs font-medium text-muted-foreground uppercase tracking-wider px-1"
                 >
                     Table Preview
                 </div>
-                <FontPreviewTable />
+                <FontPreviewTable fontFamily={previewFont} />
+            </div>
+        </div>
+
+        <!-- Footer Actions -->
+        <div
+            class="p-4 border-t border-border bg-background flex items-center justify-between"
+        >
+            <div class="flex items-center gap-2 text-sm text-muted-foreground">
+                <span class="font-medium text-foreground">{previewFont}</span>
+                {#if previewFont !== settingsStore.editorFontFamily}
+                    <span class="text-xs text-amber-500 font-medium"
+                        >(Unsaved)</span
+                    >
+                {/if}
+            </div>
+
+            <div class="flex items-center gap-3">
+                <button
+                    class="flex items-center gap-2 px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
+                    onclick={resetFont}
+                    disabled={previewFont === settingsStore.editorFontFamily}
+                    class:opacity-50={previewFont ===
+                        settingsStore.editorFontFamily}
+                >
+                    <IconRotate class="size-4" />
+                    Reset
+                </button>
+
+                <button
+                    class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 rounded-md transition-colors shadow-sm"
+                    onclick={saveFont}
+                    disabled={previewFont === settingsStore.editorFontFamily}
+                    class:opacity-50={previewFont ===
+                        settingsStore.editorFontFamily}
+                >
+                    <IconDeviceFloppy class="size-4" />
+                    Save & Apply
+                </button>
             </div>
         </div>
     </div>

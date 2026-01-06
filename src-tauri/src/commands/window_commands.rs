@@ -2,6 +2,18 @@ use tauri::{Manager, WebviewWindowBuilder, TitleBarStyle, Emitter};
 use log::{info, debug, error, trace};
 use crate::constants::ENABLE_WINDOW_EVENTS;
 
+fn get_preferred_window_size(app: &tauri::AppHandle) -> (f64, f64) {
+    if let Ok(Some(monitor)) = app.primary_monitor() {
+        let size = monitor.size();
+        let scale_factor = monitor.scale_factor();
+        let logical_width = size.width as f64 / scale_factor;
+        let logical_height = size.height as f64 / scale_factor;
+        (logical_width * 0.8, logical_height * 0.8)
+    } else {
+        (960.0, 640.0)
+    }
+}
+
 #[tauri::command]
 pub async fn open_datasource_window(app: tauri::AppHandle) -> Result<(), String> {
     const LABEL: &str = "datasource-window";
@@ -16,9 +28,11 @@ pub async fn open_datasource_window(app: tauri::AppHandle) -> Result<(), String>
     }
 
     debug!("Creating new datasource window");
+    let (width, height) = get_preferred_window_size(&app);
+
     let mut builder = WebviewWindowBuilder::new(&app, LABEL, tauri::WebviewUrl::App("/datasource".into()))
         .title("Datasource")
-        .inner_size(960.0, 640.0)
+        .inner_size(width, height)
         .resizable(true)
         .decorations(cfg!(target_os = "macos"));
 
@@ -63,9 +77,13 @@ pub async fn open_appearance_window(app: tauri::AppHandle) -> Result<(), String>
     }
 
     debug!("Creating new appearance window");
+
+    // Calculate dynamic size (70% of primary monitor)
+    let (width, height) = get_preferred_window_size(&app);
+
     let mut builder = WebviewWindowBuilder::new(&app, LABEL, tauri::WebviewUrl::App("/settings".into()))
         .title("Appearance")
-        .inner_size(960.0, 640.0)
+        .inner_size(width, height)
         .resizable(true)
         .decorations(cfg!(target_os = "macos"));
 
