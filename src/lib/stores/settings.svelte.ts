@@ -16,12 +16,17 @@ function createSettingsStore() {
 
     const apply = () => {
         const family = settings.editorFontFamily;
+        // Ensure strictly quoted string for CSS variable to handle spaces safely
+        // e.g. "Fira Code" -> '"Fira Code"' so var(--font) resolves to "Fira Code"
         const safeFamily = family.includes(" ") ? `"${family}"` : family;
-        console.log("[Settings] Applying font variable --font-user-mono:", safeFamily);
-        // Update the font variable that Tailwind uses for 'font-mono'
+
+        // Update root and body to ensure visibility everywhere
         document.documentElement.style.setProperty("--font-user-mono", safeFamily);
+        document.body.style.setProperty("--font-user-mono", safeFamily);
+
         // Also update main UI font as requested
         document.documentElement.style.setProperty("--font-user-ui", safeFamily);
+        document.body.style.setProperty("--font-user-ui", safeFamily);
     };
 
     return {

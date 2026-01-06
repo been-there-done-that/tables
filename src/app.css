@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+@layer utilities {
+
+  .font-mono {
+    font-family: var(--font-user-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace) !important;
+  }
+}
+
 @theme {
   --color-background: var(--theme-bg-primary);
   --color-foreground: var(--theme-fg-primary);
