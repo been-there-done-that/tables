@@ -335,24 +335,19 @@
                     }}
                     role="none"
                 >
-                    <!--
-                    Arrow
-                    --
-                >
                     <span
                         class="flex items-center justify-center w-4 shrink-0 text-muted-foreground/60"
                     >
                         {#if isFolder && (node.type === "database" || (node.children && node.children.length > 0))}
                             <ChevronRight
                                 class={cn(
-                                    "size-3.5 transition-transform duration-200",
+                                    "size-4 transition-transform duration-200",
                                     isOpen && "rotate-90",
                                 )}
                             />
                         {/if}
                     </span>
 
-                    <!-- Icon -->
                     <span
                         class="flex items-center justify-center size-4 shrink-0 text-muted-foreground"
                     >
@@ -402,20 +397,6 @@
                             class="ml-2 text-xs text-muted-foreground truncate"
                             >{node.detail}</span
                         >
-                    {/if}
-
-                    <!-- Action Icon (Visible on Hover) -->
-                    {#if node.type === "table" || node.type === "column" || node.type === "primary_key" || node.type === "foreign_key"}
-                        <button
-                            class="ml-auto p-1 rounded-sm opacity-0 group-hover:opacity-100 hover:bg-accent text-muted-foreground hover:text-foreground transition-all duration-200"
-                            onclick={(e) => {
-                                e.stopPropagation();
-                                onAction(node);
-                            }}
-                            title="Open in new tab"
-                        >
-                            <SqlIcon class="size-4" />
-                        </button>
                     {/if}
                 </div>
             </ContextMenu.Trigger>
