@@ -6,7 +6,9 @@
 	import Titlebar from "$lib/Titlebar.svelte";
 	import { windowState } from "$lib/stores/window.svelte";
 	import { schemaStore } from "$lib/stores/schema.svelte";
+	import { settingsStore } from "$lib/stores/settings.svelte";
 	import { onMount } from "svelte";
+	import { listen } from "@tauri-apps/api/event";
 	import LoadingOverlay from "$lib/LoadingOverlay.svelte";
 	import { Toaster } from "svelte-sonner";
 	import SuccessIcon from "$lib/svg/SuccessMark.svelte";
@@ -40,6 +42,34 @@
 				unlisten();
 			}
 			windowState.cleanup();
+		};
+	});
+
+	// Apply selected font globally to the body
+	$effect(() => {
+		const family = settingsStore.editorFontFamily;
+		const safeFamily = family.includes(" ") ? `"${family}"` : family;
+		// Override body font to ensure it applies everywhere (EditorHome, Sidebar, etc.)
+		document.body.style.fontFamily = safeFamily;
+	});
+
+	// Listen for font changes from other windows (e.g. settings window)
+	onMount(() => {
+		let unlisten: () => void;
+
+		const setup = async () => {
+			unlisten = await listen<string>("font-changed", (event) => {
+				console.log("Font changed event received:", event.payload);
+				// Update the store so the effect above runs and updates the body style
+				settingsStore.editorFontFamily = event.payload;
+			});
+		};
+		setup();
+
+		return () => {
+			if (unlisten) {
+				unlisten();
+			}
 		};
 	});
 </script>

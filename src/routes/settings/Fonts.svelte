@@ -8,6 +8,7 @@
     import IconRotate from "@tabler/icons-svelte/icons/rotate";
     import IconCheck from "@tabler/icons-svelte/icons/check";
     import IconLoader from "@tabler/icons-svelte/icons/loader-2";
+    import { emit } from "@tauri-apps/api/event";
 
     let fonts = $state<string[]>([]);
     let loading = $state(true);
@@ -41,8 +42,10 @@
         previewFont = font;
     }
 
-    function saveFont() {
+    async function saveFont() {
         settingsStore.editorFontFamily = previewFont;
+        // Emit event to notify other windows (e.g. main window) to update immediately
+        await emit("font-changed", previewFont);
     }
 
     function resetFont() {
