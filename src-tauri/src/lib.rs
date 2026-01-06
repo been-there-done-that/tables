@@ -258,23 +258,27 @@ pub fn run() {
             let registry = Arc::new(MetricsRegistry::new());
             app.manage(registry.clone()); // Optional: Allow commands to access registry via state
             
-            // Start self-registering system monitor
-            let monitor = SystemMonitor::new(&registry);
-            monitor.run();
+            if constants::ENABLE_METRICS_EMISSION {
+                // Start self-registering system monitor
+                let monitor = SystemMonitor::new(&registry);
+                monitor.run();
 
-            // Start emitter thread
-            start_metrics_emitter(app.handle().clone(), registry.clone());
+                // Start emitter thread
+                start_metrics_emitter(app.handle().clone(), registry.clone());
 
-            // "Welcome Push": Listen for new windows and immediately emit current snapshot
-            let handle = app.handle().clone();
-            let reg_clone = registry.clone();
-            app.listen("window-created", move |_| {
-                info!("Window created, emitting welcome metrics snapshot");
-                let snapshot = reg_clone.snapshot();
-                if let Err(e) = handle.emit("metrics:snapshot", &snapshot) {
-                    error!("Failed to emit welcome metrics snapshot: {}", e);
-                }
-            });
+                // "Welcome Push": Listen for new windows and immediately emit current snapshot
+                let handle = app.handle().clone();
+                let reg_clone = registry.clone();
+                app.listen("window-created", move |_| {
+                    info!("Window created, emitting welcome metrics snapshot");
+                    let snapshot = reg_clone.snapshot();
+                    if let Err(e) = handle.emit("metrics:snapshot", &snapshot) {
+                        error!("Failed to emit welcome metrics snapshot: {}", e);
+                    }
+                });
+            } else {
+                debug!("Metrics emission disabled, skipping system monitor and emitter");
+            }
 
             info!("Application setup complete");
             Ok(())

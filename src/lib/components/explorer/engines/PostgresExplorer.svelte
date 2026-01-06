@@ -301,7 +301,7 @@
     <div
         class="flex h-8 flex-none items-center border-b border-border bg-background/50 px-4"
     >
-        <h2 class="text-sm font-semibold">Explorer (Postgres)</h2>
+        <h2 class="text-sm font-semibold">Explorer</h2>
         <div class="ml-auto flex items-center gap-1">
             <button
                 class="p-1 hover:bg-accent rounded-sm text-muted-foreground hover:text-foreground transition-colors"
