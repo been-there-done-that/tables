@@ -117,7 +117,7 @@
                   {/if}
                   <IconChevronDown
                     class={cn(
-                      "size-3 opacity-50 transition-transform duration-200",
+                      "size-4 opacity-50 transition-transform duration-200",
                       isDbPickerOpen && "rotate-180",
                     )}
                   />

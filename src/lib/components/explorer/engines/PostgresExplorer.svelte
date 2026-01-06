@@ -345,7 +345,7 @@
         </div>
     </div>
 
-    <div class="flex-1 overflow-auto p-2 transition-all duration-300">
+    <div class="flex-1 overflow-auto p-2">
         {#if schemaStore.status === "connecting"}
             <div class="flex flex-col items-center justify-center h-40 gap-3">
                 <IconLoader2
