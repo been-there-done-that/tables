@@ -61,6 +61,7 @@
         onContextMenuAction?: (action: string, node: TreeNode) => void;
         onExpand?: (node: TreeNode, isOpen: boolean) => void;
         expanded?: Set<string>;
+        selectedNodeId?: string | null;
     }
 
     let {
@@ -73,11 +74,10 @@
         onContextMenuAction = (action: string, node: TreeNode) => {},
         onExpand = (node: TreeNode, isOpen: boolean) => {},
         expanded = $bindable(new Set()),
+        selectedNodeId = $bindable<string | null>(null),
     }: Props = $props();
 
     // Helper to generate a unique key if id is missing
-    // NOTE: For streaming data, ensure each node has a stable unique 'id'.
-    // Relying on name+index fallback may cause issues if items are inserted/reordered.
     const getKey = (node: TreeNode, index: number) =>
         node.id || `${node.name}-${index}`;
 
@@ -85,10 +85,10 @@
         folder: Folder,
         group: Folder,
         file: FileText,
-        database: Database, // uses Server now
+        database: Database,
         key: Key,
-        schema: Cube, // uses BoxSeam now
-        table: TableIcon, // Custom SVG!
+        schema: Cube,
+        table: TableIcon,
         view: ViewIcon, // New!
         column: ColumnIcon,
         primary_key: PrimaryKeyIcon,
@@ -124,13 +124,143 @@
     export function collapseAll() {
         expanded = new Set();
     }
+
+    // --- Keyboard Navigation ---
+
+    type FlatNode = {
+        id: string;
+        node: TreeNode;
+        parentId: string | null;
+        depth: number;
+    };
+
+    function getVisibleNodes(): FlatNode[] {
+        const result: FlatNode[] = [];
+
+        const traverse = (
+            nodes: TreeNode[],
+            depth: number,
+            parentId: string | null,
+        ) => {
+            for (let i = 0; i < nodes.length; i++) {
+                const node = nodes[i];
+                const id = getKey(node, i); // This index reuse might be buggy for global uniqueness if names clash.
+                // Assuming getKey uses node.id which is globally unique.
+
+                result.push({ id, node, parentId, depth });
+
+                if (expanded.has(id) && node.children?.length) {
+                    traverse(node.children, depth + 1, id); // Recurse
+                }
+            }
+        };
+
+        traverse(items, 0, null);
+        return result;
+    }
+
+    function handleKeyDown(e: KeyboardEvent) {
+        // Only handle if focused within the tree container
+        // Using currentTarget ensures we caught it on the div
+        if (!items.length) return;
+
+        const visible = getVisibleNodes();
+        const currentIndex = visible.findIndex((n) => n.id === selectedNodeId);
+
+        switch (e.key) {
+            case "ArrowDown": {
+                e.preventDefault();
+                const nextIndex =
+                    currentIndex < visible.length - 1
+                        ? currentIndex + 1
+                        : currentIndex;
+                if (nextIndex !== -1) selectNode(visible[nextIndex].id);
+                else if (visible.length > 0) selectNode(visible[0].id);
+                break;
+            }
+            case "ArrowUp": {
+                e.preventDefault();
+                const prevIndex = currentIndex > 0 ? currentIndex - 1 : 0;
+                if (prevIndex !== -1) selectNode(visible[prevIndex].id);
+                else if (visible.length > 0) selectNode(visible[0].id);
+                break;
+            }
+            case "ArrowRight": {
+                e.preventDefault();
+                if (currentIndex === -1) return;
+                const current = visible[currentIndex];
+                const hasChildren =
+                    current.node.children && current.node.children.length > 0;
+
+                if (hasChildren) {
+                    if (expanded.has(current.id)) {
+                        // Move to first child
+                        const nextIndex = currentIndex + 1;
+                        if (nextIndex < visible.length)
+                            selectNode(visible[nextIndex].id);
+                    } else {
+                        // Expand
+                        toggle(current.id, current.node);
+                    }
+                }
+                break;
+            }
+            case "ArrowLeft": {
+                e.preventDefault();
+                if (currentIndex === -1) return;
+                const current = visible[currentIndex];
+
+                if (expanded.has(current.id)) {
+                    // Collapse
+                    toggle(current.id, current.node);
+                } else if (current.parentId) {
+                    // Move to parent
+                    selectNode(current.parentId);
+                }
+                break;
+            }
+            case "Enter": {
+                e.preventDefault();
+                if (currentIndex === -1) return;
+                const current = visible[currentIndex];
+                // If folder, toggle; else action
+                if (current.node.children && current.node.children.length > 0) {
+                    toggle(current.id, current.node);
+                } else {
+                    onAction(current.node);
+                }
+                break;
+            }
+        }
+    }
+
+    function selectNode(id: string) {
+        selectedNodeId = id;
+        // Scroll into view
+        // We need a stable way to find the element. Using data-node-id.
+        // requestAnimationFrame to wait for render if we just expanded?
+        // Svelte 5 sync rendering might be fast enough or use tick?
+        // Let's try direct access after a small delay or trust DOM.
+        setTimeout(() => {
+            const el = document.querySelector(
+                `[data-node-id="${CSS.escape(id)}"]`,
+            );
+            if (el) {
+                el.scrollIntoView({ block: "nearest", inline: "nearest" });
+            }
+        }, 0);
+    }
 </script>
 
+<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div
     class={cn(
-        "font-mono text-[13px] select-none flex flex-col h-full",
+        "font-mono text-[13px] select-none flex flex-col h-full outline-none",
         className,
     )}
+    tabindex="0"
+    onkeydown={handleKeyDown}
+    role="tree"
 >
     <!-- Tree -->
     <ul class="flex flex-col gap-0 overflow-auto flex-1">
@@ -166,19 +296,25 @@
         node.type === "table" ||
         node.type === "view"}
 
+    {@const isSelected = selectedNodeId === key}
     <li class="relative">
         <ContextMenu.Root>
             <ContextMenu.Trigger>
                 <div
                     class={cn(
                         "group flex items-center gap-1.5 rounded-sm cursor-default transition-colors border border-transparent",
-                        isCompact
-                            ? "h-6 hover:bg-accent/40 text-foreground/90 hover:text-foreground"
-                            : "h-6 hover:bg-accent/40 text-foreground hover:text-foreground",
+                        isSelected
+                            ? "bg-accent text-accent-foreground"
+                            : isCompact
+                              ? "h-6 hover:bg-accent/40 text-foreground/90 hover:text-foreground"
+                              : "h-6 hover:bg-accent/40 text-foreground hover:text-foreground",
                     )}
+                    data-node-id={key}
                     style="padding-left: calc({indent}px * {depth} + 4px);"
                     onclick={(e) => {
                         e.stopPropagation();
+                        // Select on click
+                        selectNode(key);
                         if (isFolder) {
                             toggle(key, node);
                         }
