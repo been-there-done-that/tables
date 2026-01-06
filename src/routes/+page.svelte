@@ -86,6 +86,7 @@
         name: schema.name,
         type: "schema" as NodeType,
         children,
+        isLoading: db.is_loading,
         metadata: { dbName: db.name, schemaName: schema.name },
       };
     });
@@ -376,20 +377,8 @@
               </button>
             </div>
           </div>
-          {#if schemaStore.status === "refreshing"}
-            <div
-              class="absolute inset-0 z-50 flex items-center justify-center bg-background/50 backdrop-blur-[1px]"
-            >
-              <IconLoader2 class="size-5 animate-spin text-muted-foreground" />
-            </div>
-          {/if}
-          <div
-            class={cn(
-              "flex-1 overflow-auto p-2 transition-all duration-300",
-              schemaStore.status === "refreshing" &&
-                "opacity-50 pointer-events-none grayscale-[0.5]",
-            )}
-          >
+          <!-- Removed blocking loader -->
+          <div class="flex-1 overflow-auto p-2 transition-all duration-300">
             {#if schemaStore.status === "connecting"}
               <div class="flex flex-col items-center justify-center h-40 gap-3">
                 <IconLoader2

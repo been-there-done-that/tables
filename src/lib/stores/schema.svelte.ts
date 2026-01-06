@@ -228,7 +228,9 @@ export class SchemaStore {
     async refresh() {
         if (!this.activeConnection) return;
 
-        this.status = "refreshing";
+        // Optimistic update: mark all as loading
+        this.databases = this.databases.map(d => ({ ...d, is_loading: true }));
+        this.status = "refreshing"; // Keep this for titlebar spinner
         this.error = null;
 
         try {
