@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { onMount, tick } from "svelte";
+    import { onMount } from "svelte";
     import { listConnections } from "$lib/commands/client";
     import type { Connection } from "$lib/commands/types";
     import IconChevronDown from "@tabler/icons-svelte/icons/chevron-down";
@@ -77,12 +77,9 @@
                     {#if schemaStore.activeConnection}
                         <div class="flex items-center gap-2">
                             <div
-                                class={cn(
-                                    "w-2 h-2 rounded-full shadow-sm",
-                                    schemaStore.activeConnection.color_tag
-                                        ? `bg-[${schemaStore.activeConnection.color_tag}]`
-                                        : "bg-emerald-500",
-                                )}
+                                class="w-2 h-2 rounded-full shadow-sm"
+                                style="background-color: {schemaStore
+                                    .activeConnection.color_tag || '#10b981'}"
                             ></div>
                             <span class="font-medium text-(--theme-fg-primary)"
                                 >{schemaStore.activeConnection.name}</span
@@ -103,7 +100,7 @@
                     {:else}
                         <IconChevronDown
                             class={cn(
-                                "size-3 opacity-50 transition-transform duration-200",
+                                "size-4 opacity-50 transition-transform duration-200",
                                 isOpen && "rotate-180",
                             )}
                         />
@@ -133,7 +130,7 @@
                             class={cn(
                                 "w-full flex items-center gap-3 px-3 py-1.5 text-left transition-colors",
                                 schemaStore.activeConnection?.id === conn.id &&
-                                    "bg-(--theme-bg-tertiary)",
+                                    "bg-accent/10 ring-1 ring-inset ring-accent/20",
                             )}
                             onclick={() => selectConnection(conn)}
                         >
@@ -171,10 +168,10 @@
 
             <!-- Footer Actions -->
             <div
-                class="p-1 border-t border-(--theme-border-default) bg-(--theme-bg-primary) flex flex-col gap-0.5"
+                class="p-1 border-t border-border bg-muted/30 flex flex-col gap-0.5"
             >
                 <Menu.Item
-                    class="flex items-center gap-2 w-full px-3 py-1.5 text-xs font-medium text-(--theme-fg-secondary) hover:text-(--theme-fg-primary) rounded-md transition-colors"
+                    class="flex items-center gap-2 w-full px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent/10 rounded-md transition-colors cursor-pointer"
                     onclick={openNewConnection}
                 >
                     <IconPlus class="size-3.5 opacity-60" />
@@ -183,7 +180,7 @@
 
                 {#if schemaStore.activeConnection}
                     <Menu.Item
-                        class="flex items-center gap-2 w-full px-3 py-1.5 text-xs font-medium text-red-500/80 hover:text-red-500 hover:bg-red-500/5 rounded-md transition-colors"
+                        class="flex items-center gap-2 w-full px-3 py-1.5 text-xs font-medium text-red-500/80 hover:text-red-600 hover:bg-red-500/10 rounded-md transition-colors cursor-pointer"
                         onclick={disconnectConnection}
                     >
                         <IconLogout class="size-3.5 opacity-80" />
