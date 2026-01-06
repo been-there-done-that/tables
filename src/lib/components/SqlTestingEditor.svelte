@@ -12,6 +12,8 @@
     import IconSchema from "@tabler/icons-svelte/icons/table";
     import IconChevronDown from "@tabler/icons-svelte/icons/chevron-down";
 
+    import { settingsStore } from "$lib/stores/settings.svelte";
+
     let { context = {} } = $props<{ context?: any }>();
 
     let editorContainer: HTMLElement;
@@ -24,6 +26,16 @@
     $effect(() => {
         if (context?.schemaName) {
             schemaStore.activeSchema = context.schemaName;
+        }
+    });
+
+    // Reactive font settings
+    $effect(() => {
+        if (editorHandle?.editor) {
+            editorHandle.editor.updateOptions({
+                fontFamily: settingsStore.editorFontFamily,
+                fontSize: settingsStore.editorFontSize,
+            });
         }
     });
 
@@ -99,8 +111,8 @@
                 theme: MONACO_THEME_NAME,
                 minimap: { enabled: false },
                 automaticLayout: true,
-                fontSize: 14,
-                fontFamily: "Fira Code, monospace",
+                fontSize: settingsStore.editorFontSize,
+                fontFamily: settingsStore.editorFontFamily,
             },
         },
         (handle) => {
