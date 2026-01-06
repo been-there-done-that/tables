@@ -159,10 +159,15 @@
         return result;
     }
 
+    let treeContainer: HTMLDivElement;
+    let interactionMode = $state<"mouse" | "keyboard">("mouse");
+
     function handleKeyDown(e: KeyboardEvent) {
         // Only handle if focused within the tree container
         // Using currentTarget ensures we caught it on the div
         if (!items.length) return;
+
+        interactionMode = "keyboard";
 
         const visible = getVisibleNodes();
         const currentIndex = visible.findIndex((n) => n.id === selectedNodeId);
@@ -254,12 +259,14 @@
 
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div
+    bind:this={treeContainer}
     class={cn(
         "font-mono text-[13px] select-none flex flex-col h-full outline-none",
         className,
     )}
     tabindex="0"
     onkeydown={handleKeyDown}
+    onmousemove={() => (interactionMode = "mouse")}
     role="tree"
 >
     <!-- Tree -->
@@ -300,34 +307,38 @@
     <li class="relative">
         <ContextMenu.Root>
             <ContextMenu.Trigger>
+                <!-- svelte-ignore a11y_click_events_have_key_events -->
                 <div
                     class={cn(
-                        "group flex items-center gap-1.5 rounded-sm cursor-default transition-colors border border-transparent",
+                        "group flex items-center gap-1.5 rounded-sm cursor-default transition-colors border border-transparent h-6",
                         isSelected
-                            ? "bg-accent text-accent-foreground"
-                            : isCompact
-                              ? "h-6 hover:bg-accent/40 text-foreground/90 hover:text-foreground"
-                              : "h-6 hover:bg-accent/40 text-foreground hover:text-foreground",
+                            ? "bg-primary/20 text-foreground"
+                            : interactionMode === "mouse"
+                              ? isCompact
+                                  ? "hover:bg-accent/40 text-foreground/90 hover:text-foreground"
+                                  : "hover:bg-accent/40 text-foreground hover:text-foreground"
+                              : isCompact
+                                ? "text-foreground/90"
+                                : "text-foreground",
                     )}
                     data-node-id={key}
                     style="padding-left: calc({indent}px * {depth} + 4px);"
                     onclick={(e) => {
                         e.stopPropagation();
-                        // Select on click
+                        // Select on click and focus container
                         selectNode(key);
+                        treeContainer?.focus();
                         if (isFolder) {
                             toggle(key, node);
                         }
                         onNodeClick(node);
                     }}
-                    onkeydown={(e) =>
-                        (e.key === "Enter" || e.key === " ") &&
-                        isFolder &&
-                        toggle(key, node)}
-                    role="button"
-                    tabindex="0"
+                    role="none"
                 >
-                    <!-- Arrow -->
+                    <!--
+                    Arrow
+                    --
+                >
                     <span
                         class="flex items-center justify-center w-4 shrink-0 text-muted-foreground/60"
                     >
