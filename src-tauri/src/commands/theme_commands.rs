@@ -1,5 +1,6 @@
 use crate::{Theme, DatabaseState, load_theme, fetch_active_theme, now_ts};
 use tauri::{AppHandle, State, Emitter};
+use crate::constants::ENABLE_THEME_EVENTS;
 use log::{info, debug, warn, error, trace};
 
 /// Get all available themes
@@ -116,8 +117,10 @@ pub fn set_active_theme(
     debug!("Theme '{}' activated successfully", theme_id);
     // Broadcast change
     if let Ok(Some(theme)) = fetch_active_theme(&conn) {
-        trace!("Broadcasting theme change event");
-        let _ = app.emit("current-theme", theme);
+        if ENABLE_THEME_EVENTS {
+            trace!("Broadcasting theme change event");
+            let _ = app.emit("current-theme", theme);
+        }
     }
     Ok(())
 }

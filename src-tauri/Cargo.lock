@@ -5134,6 +5134,7 @@ name = "tables"
 version = "0.1.0"
 dependencies = [
  "aes-gcm",
+ "async-trait",
  "chrono",
  "dashmap",
  "dirs",

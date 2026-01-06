@@ -42,7 +42,7 @@ fn complete_with_details(sql: &str) -> Vec<CompletionItem> {
     
     let context = Context::analyze(&source, tree.as_ref(), cursor);
     
-    CompletionEngine::complete(&semantic, &context, &schema, None)
+    CompletionEngine::complete(&semantic, &context, &schema, None, None)
 }
 
 // =============================================================================
@@ -654,7 +654,7 @@ fn complete_with_schema(sql: &str, default_schema: &str) -> Vec<CompletionItem> 
     
     let context = Context::analyze(&source, tree.as_ref(), cursor);
     
-    CompletionEngine::complete(&semantic, &context, &schema, Some(default_schema))
+    CompletionEngine::complete(&semantic, &context, &schema, Some(default_schema), None)
 }
 
 /// T27. Non-public schema qualification

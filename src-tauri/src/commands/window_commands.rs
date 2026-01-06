@@ -1,5 +1,6 @@
 use tauri::{Manager, WebviewWindowBuilder, TitleBarStyle, Emitter};
 use log::{info, debug, error, trace};
+use crate::constants::ENABLE_WINDOW_EVENTS;
 
 #[tauri::command]
 pub async fn open_datasource_window(app: tauri::AppHandle) -> Result<(), String> {
@@ -40,7 +41,9 @@ pub async fn open_datasource_window(app: tauri::AppHandle) -> Result<(), String>
         })?;
 
     trace!("Emitting window-created event for datasource");
-    let _ = app.emit("window-created", window.label());
+    if ENABLE_WINDOW_EVENTS {
+        let _ = app.emit("window-created", window.label());
+    }
 
     info!("Datasource window opened successfully");
     Ok(())
@@ -85,7 +88,9 @@ pub async fn open_appearance_window(app: tauri::AppHandle) -> Result<(), String>
         })?;
 
     trace!("Emitting window-created event for appearance");
-    let _ = app.emit("window-created", window.label());
+    if ENABLE_WINDOW_EVENTS {
+        let _ = app.emit("window-created", window.label());
+    }
 
     info!("Appearance window opened successfully");
     Ok(())
@@ -129,7 +134,9 @@ pub async fn create_new_window(app: tauri::AppHandle) -> Result<(), String> {
     // Emit event just in case we need to track it, though our current logic 
     // mainly tracks specialized windows.
     trace!("Emitting window-created event for {}", label);
-    let _ = app.emit("window-created", window.label());
+    if ENABLE_WINDOW_EVENTS {
+        let _ = app.emit("window-created", window.label());
+    }
 
     info!("New window {} created successfully", label);
     Ok(())
