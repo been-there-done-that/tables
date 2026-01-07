@@ -6,6 +6,7 @@ use tauri::{AppHandle, Emitter};
 use serde::Serialize;
 use sysinfo::{Pid, System};
 use log::{error, info};
+use crate::constants::ENABLE_METRICS_EMISSION;
 
 // --- Core Registry Implementation ---
 
@@ -136,28 +137,30 @@ pub struct MetricsSnapshot {
 
 pub fn start_metrics_emitter(app: AppHandle, registry: Arc<MetricsRegistry>) {
     info!("Starting metrics snapshot emitter (push-only)");
-    std::thread::spawn(move || {
-        let mut last = None;
+    // std::thread::spawn(move || {
+    //     let mut last = None;
 
-        loop {
-            // Emit independent of change to ensure liveness? 
-            // The user wanted "only if modified". 
-            // But if we want the "Welcome" push to work, that's orthogonal.
-            // Let's stick to change detection, but wait... 
-            // If the user's "Welcome push" is handled in lib.rs, this loop can stay effecient.
+    //     loop {
+    //         // Emit independent of change to ensure liveness? 
+    //         // The user wanted "only if modified". 
+    //         // But if we want the "Welcome" push to work, that's orthogonal.
+    //         // Let's stick to change detection, but wait... 
+    //         // If the user's "Welcome push" is handled in lib.rs, this loop can stay effecient.
             
-            std::thread::sleep(Duration::from_millis(1000)); // 1Hz
+    //         std::thread::sleep(Duration::from_millis(1000)); // 1Hz
 
-            let snapshot = registry.snapshot();
+    //         let snapshot = registry.snapshot();
 
-            if last.as_ref() != Some(&snapshot) {
-                if let Err(e) = app.emit("metrics:snapshot", &snapshot) {
-                    error!("Failed to emit metrics snapshot: {}", e);
-                }
-                last = Some(snapshot);
-            }
-        }
-    });
+    //         if last.as_ref() != Some(&snapshot) {
+    //             if ENABLE_METRICS_EMISSION {
+    //                 if let Err(e) = app.emit("metrics:snapshot", &snapshot) {
+    //                     error!("Failed to emit metrics snapshot: {}", e);
+    //                 }
+    //             }
+    //             last = Some(snapshot);
+    //         }
+    //     }
+    // });
 }
 
 // --- System Monitor Feature (Internal) ---

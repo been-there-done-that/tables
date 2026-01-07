@@ -4,9 +4,11 @@
 //! - Semantic model (scopes, aliases)
 //! - Schema graph (tables, columns, FKs)
 //! - Cursor context (what kind of completion)
+//! - Database capabilities (engine-specific behavior)
 //!
 //! Produces ranked completion items.
 
+use crate::adapter::DatabaseCapabilities;
 use crate::completion::analysis::{SemanticModel, SymbolKind};
 use crate::completion::context::{Context, CursorContext};
 use crate::completion::schema::SchemaGraph;
@@ -118,35 +120,48 @@ const GENERIC_KEYWORDS: &[&str] = &[
 
 impl CompletionEngine {
     /// Generate completions for the given context.
+    ///
+    /// # Arguments
+    /// * `semantic` - The semantic model containing aliases and scopes
+    /// * `context` - The cursor context and prefix
+    /// * `schema` - The schema graph with tables and columns
+    /// * `default_schema` - Optional default schema name (falls back to capabilities or "public")
+    /// * `capabilities` - Optional database capabilities for engine-specific behavior
     pub fn complete(
         semantic: &SemanticModel,
         context: &Context,
         schema: &SchemaGraph,
         default_schema: Option<&str>,
+        capabilities: Option<&DatabaseCapabilities>,
     ) -> Vec<CompletionItem> {
+        // Resolve effective default schema from capabilities if not provided
+        let effective_schema = default_schema
+            .map(|s| s.to_string())
+            .or_else(|| capabilities.and_then(|c| c.default_schema.clone()))
+            .unwrap_or_else(|| "public".to_string());
+        
         match &context.context_type {
             CursorContext::AfterDot { alias } => {
                 Self::complete_after_dot(alias, semantic, context, schema)
             }
             CursorContext::SelectClause | CursorContext::AfterSelectList => {
-                Self::complete_select_clause(semantic, context, schema)
+                Self::complete_select_clause(semantic, context, schema, capabilities)
             }
             CursorContext::RootContext => {
                 Self::complete_root_context(context)
             }
             CursorContext::FromClause | CursorContext::JoinTable => {
-                Self::complete_table_names(schema, semantic, context, default_schema)
+                Self::complete_table_names(schema, semantic, context, Some(&effective_schema))
             }
             CursorContext::JoinCondition { left_table, right_table } => {
-                Self::complete_join_condition(left_table, right_table, semantic, schema)
+                Self::complete_join_condition(left_table, right_table, semantic, schema, capabilities)
             }
             CursorContext::JoinConditionRhs { .. } => {
                 // For RHS, just suggest columns from visible tables
-                // Similar to WHERE clause
-                Self::complete_where_clause(semantic, context, schema)
+                Self::complete_where_clause(semantic, context, schema, capabilities)
             }
             CursorContext::WhereClause => {
-                Self::complete_where_clause(semantic, context, schema)
+                Self::complete_where_clause(semantic, context, schema, capabilities)
             }
             CursorContext::FunctionArgument { function_name } => {
                 Self::complete_function_argument(function_name, semantic, context, schema)
@@ -253,6 +268,7 @@ impl CompletionEngine {
         semantic: &SemanticModel,
         context: &Context,
         schema: &SchemaGraph,
+        _capabilities: Option<&DatabaseCapabilities>,
     ) -> Vec<CompletionItem> {
         let mut items = Vec::new();
         let mut seen_labels = std::collections::HashSet::new();
@@ -461,6 +477,7 @@ impl CompletionEngine {
         right_table: &Option<String>,
         semantic: &SemanticModel,
         schema: &SchemaGraph,
+        _capabilities: Option<&DatabaseCapabilities>,
     ) -> Vec<CompletionItem> {
         let mut items = Vec::new();
         
@@ -512,6 +529,7 @@ impl CompletionEngine {
         semantic: &SemanticModel,
         context: &Context,
         schema: &SchemaGraph,
+        _capabilities: Option<&DatabaseCapabilities>,
     ) -> Vec<CompletionItem> {
         let mut items = Vec::new();
         
@@ -757,7 +775,7 @@ mod tests {
             scope_depth: 0,
         };
         
-        let items = CompletionEngine::complete(&semantic, &context, &schema, None);
+        let items = CompletionEngine::complete(&semantic, &context, &schema, None, None);
         
         // Should return columns of users table
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
@@ -798,6 +816,7 @@ mod tests {
             &Some("orders".to_string()),
             &semantic,
             &schema,
+            None,
         );
         
         // Should suggest the FK-based join condition with high score
@@ -819,7 +838,7 @@ mod tests {
             scope_depth: 0,
         };
         
-        let items = CompletionEngine::complete(&semantic, &context, &schema, None);
+        let items = CompletionEngine::complete(&semantic, &context, &schema, None, None);
         
         // user_id (indexed) should rank higher than description (not indexed)
         let user_id_pos = items.iter().position(|i| i.label == "user_id");

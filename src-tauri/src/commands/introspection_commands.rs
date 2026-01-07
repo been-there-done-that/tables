@@ -3,6 +3,7 @@ use crate::DatabaseState;
 use crate::introspection::{Introspector, MetaTable, MetaDatabase, MetaSchema};
 use crate::connection_manager::{ConnectionManager, ConnectionManagerState};
 use log::{debug, info};
+use crate::constants::ENABLE_INTROSPECTION_EVENTS;
 
 #[tauri::command]
 pub async fn refresh_schema(
@@ -201,11 +202,13 @@ pub async fn refresh_schema_progressive(
             // For SQLite, we do all-at-once but still emit events for each level
             introspector.introspect_sqlite(&connection_id, sqlite_path)?;
             // Emit completion event for all levels
-            for level in 1..=4 {
-                let _ = app.emit("schema:level-complete", serde_json::json!({
-                    "level": level,
-                    "connection_id": &connection_id,
-                }));
+            if ENABLE_INTROSPECTION_EVENTS {
+                for level in 1..=4 {
+                    let _ = app.emit("schema:level-complete", serde_json::json!({
+                        "level": level,
+                        "connection_id": &connection_id,
+                    }));
+                }
             }
         },
         _ => {

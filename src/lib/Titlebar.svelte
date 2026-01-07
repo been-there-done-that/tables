@@ -135,7 +135,9 @@
                 >
                 <Menu.Separator class="my-1 h-px bg-border" />
                 <Menu.RadioGroup
-                  value={schemaStore.selectedDatabase ?? undefined}
+                  value={schemaStore.selectedDatabase ??
+                    schemaStore.activeConnection?.database ??
+                    ""}
                   onValueChange={(val) => schemaStore.selectDatabase(val)}
                 >
                   {#each schemaStore.databases as db (db.name)}
