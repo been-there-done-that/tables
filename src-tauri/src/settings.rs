@@ -12,6 +12,7 @@ pub struct WindowLayout {
     pub sidebar_bottom_visible: bool,
     pub sidebar_bottom_ratio: f64,
     pub selected_database: Option<String>,
+    pub expanded_nodes: HashMap<String, Vec<String>>,
 }
 
 impl Default for WindowLayout {
@@ -24,6 +25,7 @@ impl Default for WindowLayout {
             sidebar_bottom_visible: false,
             sidebar_bottom_ratio: 0.7,
             selected_database: None,
+            expanded_nodes: HashMap::new(),
         }
     }
 }
@@ -65,39 +67,45 @@ pub fn get_settings(conn: &Connection) -> Result<AppSettings> {
                     }
                 }
                 k if k.starts_with("window:") => {
-                    // Format: window:{label}:{property}
+                    // Format: window:{label}:{property} OR window:{label}:conn:{id}:expanded
                     let parts: Vec<&str> = k.split(':').collect();
-                    if parts.len() == 3 {
+                    if parts.len() >= 3 {
                         let label = parts[1].to_string();
                         let property = parts[2];
                         
                         let layout = settings.window_layouts.entry(label).or_insert_with(WindowLayout::default);
                         
-                        match property {
-                            "sidebar_left_visible" => layout.sidebar_left_visible = value == "true",
-                            "sidebar_left_ratio" => {
-                                if let Ok(ratio) = value.parse() {
-                                    layout.sidebar_left_ratio = ratio;
+                        if parts.len() == 5 && property == "conn" && parts[4] == "expanded" {
+                            let conn_id = parts[3].to_string();
+                            let nodes = value.split(',').map(|s| s.to_string()).filter(|s| !s.is_empty()).collect();
+                            layout.expanded_nodes.insert(conn_id, nodes);
+                        } else if parts.len() == 3 {
+                            match property {
+                                "sidebar_left_visible" => layout.sidebar_left_visible = value == "true",
+                                "sidebar_left_ratio" => {
+                                    if let Ok(ratio) = value.parse() {
+                                        layout.sidebar_left_ratio = ratio;
+                                    }
                                 }
-                            }
-                            "sidebar_right_visible" => layout.sidebar_right_visible = value == "true",
-                            "sidebar_right_ratio" => {
-                                if let Ok(ratio) = value.parse() {
-                                    layout.sidebar_right_ratio = ratio;
+                                "sidebar_right_visible" => layout.sidebar_right_visible = value == "true",
+                                "sidebar_right_ratio" => {
+                                    if let Ok(ratio) = value.parse() {
+                                        layout.sidebar_right_ratio = ratio;
+                                    }
                                 }
-                            }
-                            "sidebar_bottom_visible" => layout.sidebar_bottom_visible = value == "true",
-                            "sidebar_bottom_ratio" => {
-                                if let Ok(ratio) = value.parse() {
-                                    layout.sidebar_bottom_ratio = ratio;
+                                "sidebar_bottom_visible" => layout.sidebar_bottom_visible = value == "true",
+                                "sidebar_bottom_ratio" => {
+                                    if let Ok(ratio) = value.parse() {
+                                        layout.sidebar_bottom_ratio = ratio;
+                                    }
                                 }
-                            }
-                            "selected_database" => {
-                                if !value.is_empty() {
-                                    layout.selected_database = Some(value);
+                                "selected_database" => {
+                                    if !value.is_empty() {
+                                        layout.selected_database = Some(value);
+                                    }
                                 }
+                                _ => {}
                             }
-                            _ => {}
                         }
                     }
                 }
