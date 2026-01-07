@@ -10,6 +10,7 @@ export const APP = {
 } as const;
 
 export const METRICS = {
+    DISABLED: true,
     /** Number of historical samples to keep for sparklines */
     HISTORY_SIZE: 20,
     /** Default height for the sparkline in pixels */
