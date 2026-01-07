@@ -5,6 +5,8 @@ import { METRICS } from "$lib/constants";
 import { listConnections } from "$lib/commands/client";
 import type { Connection } from "$lib/commands/types";
 import { schemaStore } from "./schema.svelte";
+import { settingsStore } from "./settings.svelte";
+import { themeStore } from "$lib/commands/stores.svelte";
 import { Session } from "./session.svelte";
 
 export interface CommandConfig {
@@ -70,7 +72,8 @@ class WindowStateStore {
     layout = $state({
         left: true,
         right: false,
-        bottom: false
+        bottom: false,
+        showSqlEditor: false
     });
 
     // Session Management
@@ -253,6 +256,10 @@ class WindowStateStore {
 
             // Listen for system metrics - Handled by metrics.svelte.ts now
             // const unlistenMetrics = await listen("metrics:update", (event) => { ... });
+
+            // Initialize global settings/theme listeners
+            this.unlistenFunctions.push(settingsStore.init());
+            this.unlistenFunctions.push(themeStore.init());
 
         } catch (e) {
             console.error("[WindowStateStore] Failed to setup window listeners:", e);

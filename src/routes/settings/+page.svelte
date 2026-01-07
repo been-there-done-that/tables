@@ -6,6 +6,12 @@
   import ShortcutsComponent from "./Shortcuts.svelte";
   import KeyboardIcon from "@tabler/icons-svelte/icons/keyboard";
 
+  import TypographyIcon from "@tabler/icons-svelte/icons/typography";
+  import FontsComponent from "./Fonts.svelte";
+
+  import AlertTriangleIcon from "@tabler/icons-svelte/icons/alert-triangle";
+  import DangerousComponent from "./Dangerous.svelte";
+
   let themes = $state<ThemeRecord[]>([]);
   let activeId = $state<string>("");
 
@@ -33,6 +39,14 @@
     {
       name: "shortcuts",
       icon: KeyboardIcon,
+    },
+    {
+      name: "fonts",
+      icon: TypographyIcon,
+    },
+    {
+      name: "dangerous",
+      icon: AlertTriangleIcon,
     },
   ];
 </script>
@@ -68,6 +82,10 @@
         <ThemeComponent />
       {:else if selectedSection === "shortcuts"}
         <ShortcutsComponent />
+      {:else if selectedSection === "fonts"}
+        <FontsComponent />
+      {:else if selectedSection === "dangerous"}
+        <DangerousComponent />
       {/if}
     </div>
   </div>

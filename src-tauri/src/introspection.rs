@@ -21,6 +21,7 @@ pub struct MetaDatabase {
 pub struct MetaSchema {
     pub name: String,
     pub schema_type: String, // "user" or "system"
+    pub kind: NamespaceKind, // New Flexible Hierarchy
     pub is_introspected: bool,
     pub tables: Vec<MetaTable>,
 }
@@ -40,7 +41,7 @@ pub struct MetaTable {
     pub triggers: Vec<MetaTrigger>,
 }
 
-use crate::schema_types::{EngineType, NormalizedType};
+use crate::schema_types::{EngineType, NormalizedType, NamespaceKind, IntegerSize, FloatPrecision};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MetaColumn {
@@ -156,6 +157,10 @@ impl Introspector {
         
         let now = chrono::Utc::now().timestamp_millis();
         
+        // Initialize "main" database and schema
+        self.save_database(&tx, connection_id, "main")?;
+        self.save_schema(&tx, connection_id, "main", "main", "user", NamespaceKind::LogicalGroup)?;
+
         for table_result in table_iter {
             let (name, ttype) = table_result.map_err(|e| e.to_string())?;
             let classification = "user"; // simple classification
@@ -182,7 +187,7 @@ impl Introspector {
             };
 
             // Save everything to DB (Cache)
-            self.save_database(&tx, connection_id, "main")?;
+            // self.save_database(&tx, connection_id, "main")?; // Moved up
             self.save_table_full(&tx, &meta_table)?;
             
             tables.push(meta_table);
@@ -196,7 +201,8 @@ impl Introspector {
             is_introspected: true,
             schemas: vec![MetaSchema {
                 name: "main".to_string(),
-                schema_type: "user".to_string(),
+                schema_type: "user".to_string(), // Keep for backward compat
+                kind: NamespaceKind::LogicalGroup,
                 is_introspected: true,
                 tables,
             }],
@@ -213,7 +219,7 @@ impl Introspector {
         info!("[INTRO_DEBUG] saving database {} with {} schemas", database.name, database.schemas.len());
 
         for schema in &database.schemas {
-            self.save_schema(&conn, connection_id, &database.name, &schema.name, &schema.schema_type)?;
+            self.save_schema(&conn, connection_id, &database.name, &schema.name, &schema.schema_type, schema.kind)?;
             
             for table in &schema.tables {
                 // Clone and set connection_id since adapters return empty connection_id
@@ -332,7 +338,7 @@ impl Introspector {
                 } else {
                     "user"
                 };
-                self.save_schema(&tx, connection_id, database_name, s_name, schema_type)?;
+                self.save_schema(&tx, connection_id, database_name, s_name, schema_type, NamespaceKind::Schema)?;
             }
             tx.commit().map_err(|e| e.to_string())?;
         }
@@ -464,6 +470,7 @@ impl Introspector {
             schema_vec.push(MetaSchema {
                 name: s_name,
                 schema_type: schema_type.to_string(),
+                kind: NamespaceKind::Schema,
                 is_introspected: true,
                 tables: s_tables,
             });
@@ -500,13 +507,13 @@ impl Introspector {
                 table_name: table_name.to_string(),
                 ordinal_position: cid,
                 column_name: name,
-                raw_type,
+                raw_type: raw_type.clone(),
                 logical_type,
                 nullable: notnull == 0,
                 default_value: dflt_value,
                 is_primary_key: pk > 0,
                 engine_type: None,
-                normalized_type: None,
+                normalized_type: Some(self.map_sqlite_type(&raw_type)),
             })
         }).map_err(|e| e.to_string())?;
 
@@ -531,6 +538,25 @@ impl Introspector {
             "text".to_string()
         } else {
             "text".to_string()
+        }
+    }
+
+    fn map_sqlite_type(&self, raw_type: &str) -> NormalizedType {
+        let rt = raw_type.to_uppercase();
+        if rt.contains("INT") {
+            NormalizedType::Integer { size: IntegerSize::Unbounded, unsigned: rt.contains("UNSIGNED") }
+        } else if rt.contains("REAL") || rt.contains("FLOAT") || rt.contains("DOUBLE") {
+            NormalizedType::Float { precision: FloatPrecision::Double }
+        } else if rt.contains("BOOL") {
+            NormalizedType::Boolean
+        } else if rt.contains("JSON") {
+            NormalizedType::Json
+        } else if rt.contains("DATE") {
+            NormalizedType::Date
+        } else if rt.contains("TIME") {
+            NormalizedType::Time
+        } else {
+             NormalizedType::Text
         }
     }
 
@@ -635,18 +661,24 @@ impl Introspector {
         Ok(database_id)
     }
 
-    fn save_schema(&self, conn: &SqliteConnection, connection_id: &str, database: &str, name: &str, schema_type: &str) -> Result<i64, String> {
+    fn save_schema(&self, conn: &SqliteConnection, connection_id: &str, database: &str, name: &str, schema_type: &str, kind: NamespaceKind) -> Result<i64, String> {
         let database_id: i64 = conn.query_row(
             "SELECT database_id FROM meta_databases WHERE connection_id = ?1 AND name = ?2",
             params![connection_id, database],
             |row| row.get(0)
         ).map_err(|e| format!("Database '{}' not found for schema '{}': {}", database, name, e))?;
         
+        let kind_str = match kind {
+            NamespaceKind::Database => "database",
+            NamespaceKind::Schema => "schema",
+            NamespaceKind::LogicalGroup => "logical_group",
+        };
+
         conn.execute(
-            "INSERT INTO meta_schemas (database_id, connection_id, database, name, schema_type) 
-             VALUES (?1, ?2, ?3, ?4, ?5)
-             ON CONFLICT(database_id, name) DO UPDATE SET schema_type = excluded.schema_type",
-            params![database_id, connection_id, database, name, schema_type]
+            "INSERT INTO meta_schemas (database_id, connection_id, database, name, schema_type, kind) 
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+             ON CONFLICT(database_id, name) DO UPDATE SET schema_type = excluded.schema_type, kind = excluded.kind",
+            params![database_id, connection_id, database, name, schema_type, kind_str]
         ).map_err(|e| format!("Failed to save schema '{}.{}' to local cache: {}", database, name, e))?;
         
         // Get the schema_id
@@ -973,7 +1005,7 @@ impl Introspector {
     pub fn get_schemas(&self, connection_id: &str, database: &str) -> Result<Vec<MetaSchema>, String> {
         let conn = self.app_db.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT s.name, s.schema_type, 
+            "SELECT s.name, s.schema_type, s.kind,
              EXISTS(SELECT 1 FROM meta_tables t WHERE t.connection_id = s.connection_id AND t.database = s.database AND t.schema = s.name) as introspected
              FROM meta_schemas s 
              WHERE s.connection_id = ?1 AND s.database = ?2 
@@ -982,10 +1014,17 @@ impl Introspector {
         ).map_err(|e| e.to_string())?;
 
         let rows = stmt.query_map(params![connection_id, database], |row| {
+             let kind_str: Option<String> = row.get(2)?;
+             let kind = match kind_str.as_deref() {
+                 Some("database") => NamespaceKind::Database,
+                 Some("logical_group") => NamespaceKind::LogicalGroup,
+                 _ => NamespaceKind::Schema,
+             };
             Ok(MetaSchema {
                 name: row.get(0)?,
                 schema_type: row.get(1)?,
-                is_introspected: row.get(2)?,
+                kind,
+                is_introspected: row.get(3)?,
                 tables: vec![],
             })
         }).map_err(|e| e.to_string())?;
@@ -1286,7 +1325,7 @@ impl Introspector {
                 } else {
                     "user"
                 };
-                self.save_schema(&tx, connection_id, current_database, schema_name, schema_type)?;
+                self.save_schema(&tx, connection_id, current_database, schema_name, schema_type, NamespaceKind::Schema)?;
             }
             
             for t in &tables {
@@ -1314,6 +1353,7 @@ impl Introspector {
                     schemas.push(MetaSchema { 
                         name: s_name, 
                         schema_type: schema_type.to_string(), 
+                        kind: NamespaceKind::Schema,
                         is_introspected: true,
                         tables: s_tables 
                     });
@@ -1376,13 +1416,13 @@ impl Introspector {
                 table_name: table_name.to_string(),
                 ordinal_position: ordinal,
                 column_name: name,
-                raw_type,
+                raw_type: raw_type.clone(),
                 logical_type,
                 nullable: is_nullable_str == "YES",
                 default_value: default_val,
                 is_primary_key,
                 engine_type: None,
-                normalized_type: None,
+                normalized_type: Some(self.map_postgres_type(&raw_type)),
             });
         }
 
@@ -1407,6 +1447,26 @@ impl Introspector {
             "text".to_string()
         } else {
             "text".to_string()
+        }
+    }
+
+    fn map_postgres_type(&self, raw_type: &str) -> NormalizedType {
+        match raw_type {
+            "int2" | "smallint" => NormalizedType::Integer { size: IntegerSize::Small, unsigned: false },
+            "int4" | "integer" => NormalizedType::Integer { size: IntegerSize::Normal, unsigned: false },
+            "int8" | "bigint" => NormalizedType::Integer { size: IntegerSize::Big, unsigned: false },
+            "numeric" | "decimal" => NormalizedType::Decimal,
+            "float4" | "real" => NormalizedType::Float { precision: FloatPrecision::Single },
+            "float8" | "double precision" => NormalizedType::Float { precision: FloatPrecision::Double },
+            "bool" | "boolean" => NormalizedType::Boolean,
+            "text" | "varchar" | "char" | "bpchar" => NormalizedType::Text,
+            "json" | "jsonb" => NormalizedType::Json,
+            "date" => NormalizedType::Date,
+            "time" | "timetz" => NormalizedType::Time,
+            "timestamp" | "timestamptz" => NormalizedType::DateTime { timezone: raw_type.contains("tz") },
+            "uuid" => NormalizedType::Uuid,
+            "bytea" => NormalizedType::Binary,
+            _ => NormalizedType::Unknown,
         }
     }
 
@@ -1532,18 +1592,19 @@ impl Introspector {
             col_map.entry((schema.clone(), table.clone())).or_default().push(MetaColumn {
                 connection_id: connection_id.to_string(),
                 database: database.to_string(),
-                schema,
-                table_name: table,
+                schema: schema.to_string(),
+                table_name: table.to_string(),
                 ordinal_position: ordinal,
                 column_name: name,
-                raw_type,
+                raw_type: raw_type.clone(),
                 logical_type,
                 nullable: is_nullable_str == "YES",
                 default_value: default_val,
                 is_primary_key,
                 engine_type: None,
-                normalized_type: None,
+                normalized_type: Some(self.map_postgres_type(&raw_type)),
             });
+
         }
 
         Ok(col_map)
@@ -1770,7 +1831,7 @@ impl Introspector {
                 } else {
                     "user"
                 };
-                self.save_schema(&tx, connection_id, &effective_database, s_name, schema_type)?;
+                self.save_schema(&tx, connection_id, &effective_database, s_name, schema_type, NamespaceKind::Schema)?;
             }
             tx.commit().map_err(|e| format!("Failed to commit transaction for schema level: {}", e))?;
         }
@@ -2013,7 +2074,7 @@ impl Introspector {
             } else {
                 "user"
             };
-            self.save_schema(&app_db, connection_id, database, schema, schema_type)?;
+            self.save_schema(&app_db, connection_id, database, schema, schema_type, NamespaceKind::Schema)?;
         }
 
         let table_rows = client.query(

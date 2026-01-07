@@ -258,7 +258,18 @@ macro_rules! aggregate_plugin_commands {
             update_completion_schema,
             clear_completion_schema,
             get_current_statement,
-            request_diagnostics
+            request_diagnostics,
+
+            // Font commands
+            get_system_fonts,
+
+            // Settings commands
+            get_app_settings,
+            update_app_setting,
+
+            // Debug/Dangerous commands
+            reset_app_state,
+            open_internal_db
         ]
     };
 }

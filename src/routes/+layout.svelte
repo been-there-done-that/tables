@@ -6,7 +6,9 @@
 	import Titlebar from "$lib/Titlebar.svelte";
 	import { windowState } from "$lib/stores/window.svelte";
 	import { schemaStore } from "$lib/stores/schema.svelte";
+	import { settingsStore } from "$lib/stores/settings.svelte";
 	import { onMount } from "svelte";
+	import { listen } from "@tauri-apps/api/event";
 	import LoadingOverlay from "$lib/LoadingOverlay.svelte";
 	import { Toaster } from "svelte-sonner";
 	import SuccessIcon from "$lib/svg/SuccessMark.svelte";

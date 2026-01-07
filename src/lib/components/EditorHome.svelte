@@ -34,7 +34,7 @@
 </script>
 
 <div
-    class="flex flex-col items-center justify-center h-full w-full bg-background overflow-y-auto p-8"
+    class="flex flex-col items-center justify-center h-full w-full bg-background overflow-y-auto p-8 animate-fade-in"
 >
     <div class="max-w-2xl w-full space-y-12">
         <!-- Hero Section -->
@@ -140,8 +140,8 @@
 
 <style>
     /* Subtle fade-in animation for the whole container */
-    div {
-        animation: fadeIn 0.5s ease-out;
+    .animate-fade-in {
+        animation: fadeIn 0.5s ease-out forwards;
     }
 
     @keyframes fadeIn {

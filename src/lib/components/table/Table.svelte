@@ -25,7 +25,6 @@
         NULL_TOKEN,
         commitBooleanValue,
     } from "./valueUtils";
-
     interface Props {
         columns: Column[];
         dataFetcher: DataFetcher;
@@ -1766,7 +1765,10 @@
 >
     <!-- Header -->
     <div bind:this={headerContainer} class="flex-none overflow-hidden">
-        <div class="border-b border-border bg-surface" style="width: {totalWidth + 60}px;">
+        <div
+            class="border-b border-border bg-surface"
+            style="width: {totalWidth + 60}px;"
+        >
             <TableHeader
                 columns={visibleColumns}
                 {sortState}

@@ -20,6 +20,7 @@ use crate::adapter::{AdapterError, DatabaseAdapter, DatabaseCapabilities, TableR
 use crate::introspection::{
     MetaColumn, MetaDatabase, MetaForeignKey, MetaIndex, MetaSchema, MetaTable, MetaTrigger,
 };
+use crate::schema_types::NamespaceKind;
 
 // =============================================================================
 // Event Types
@@ -298,6 +299,7 @@ impl<A: DatabaseAdapter> ProgressiveIntrospector<A> {
             vec![MetaSchema {
                 name: caps.effective_schema(None),
                 schema_type: "user".to_string(),
+                kind: NamespaceKind::LogicalGroup,
                 is_introspected: false,
                 tables: vec![],
             }]
@@ -441,6 +443,7 @@ impl<A: DatabaseAdapter> ProgressiveIntrospector<A> {
             vec![MetaSchema {
                 name: caps.effective_schema(None),
                 schema_type: "user".to_string(),
+                kind: NamespaceKind::LogicalGroup,
                 is_introspected: false,
                 tables: vec![],
             }]

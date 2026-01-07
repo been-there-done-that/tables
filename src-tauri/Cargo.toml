@@ -53,6 +53,7 @@ dashmap = "6"
 petgraph = "0.8"
 tree-sitter-sequel = "0.3.11"
 tokio-util = { version = "0.7", features = ["rt"] }
+font-kit = "0.14.3"
 [profile.release]
 strip = true
 lto = true

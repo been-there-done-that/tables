@@ -211,6 +211,14 @@ export class CommandClient {
   async getSystemMetrics(): Promise<CommandResponse<SystemMetrics>> {
     return this.invokeCommand('get_system_metrics');
   }
+  // Settings Commands
+  async getAppSettings(): Promise<CommandResponse<any>> {
+    return this.invokeCommand('get_app_settings');
+  }
+
+  async updateAppSetting(key: string, value: string): Promise<CommandResponse<void>> {
+    return this.invokeCommand('update_app_setting', { key, value });
+  }
 }
 
 // Create singleton instance

@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+@layer utilities {
+
+  .font-mono {
+    font-family: var(--font-user-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace) !important;
+  }
+}
+
 @theme {
   --color-background: var(--theme-bg-primary);
   --color-foreground: var(--theme-fg-primary);
@@ -23,6 +30,13 @@
   --radius-lg: 0.5rem;
   --radius-md: calc(0.5rem - 2px);
   --radius-sm: calc(0.5rem - 4px);
+
+  /* Fonts mapped to user settings */
+  --font-sans: var(--font-user-ui), "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-user-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+
+  /* Override default font family to use our sans stack */
+  --default-font-family: var(--font-sans);
 }
 
 * {
@@ -52,7 +66,6 @@
   --anim-overlay-out: 160ms ease-in;
   color: var(--theme-fg-primary);
   background: var(--theme-bg-primary);
-  font-family: "Inter", system-ui, -apple-system, sans-serif;
 }
 
 @layer base {
@@ -66,6 +79,7 @@
 
   body {
     color: var(--theme-fg-primary) !important;
+    font-family: var(--font-sans);
     margin: 0;
     height: 100%;
     overflow: hidden;

@@ -10,6 +10,14 @@ pub enum DatabaseEngine {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+pub enum NamespaceKind {
+    Database,       // Normal database (Postgres)
+    Schema,         // Normal schema (Postgres, SQL Standard)
+    LogicalGroup,   // Grouping for engines without strict schemas (MySQL, SQLite main)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum IntegerSize {
     Small,      // 2 bytes (int2, smallint)
     Normal,     // 4 bytes (int4, int)

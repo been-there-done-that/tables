@@ -53,7 +53,18 @@
       console.error("Failed to open appearance window:", e);
     }
   };
+
+  function handleKeydown(e: KeyboardEvent) {
+    if (schemaStore.activeConnection?.engine === "postgres") {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "p") {
+        e.preventDefault();
+        isDbPickerOpen = !isDbPickerOpen;
+      }
+    }
+  }
 </script>
+
+<svelte:window onkeydown={handleKeydown} />
 
 {#if !isFullScreen}
   <div
@@ -118,7 +129,7 @@
                   {/if}
                   <IconChevronDown
                     class={cn(
-                      "size-3 opacity-50 transition-transform duration-200",
+                      "size-4 opacity-50 transition-transform duration-200",
                       isDbPickerOpen && "rotate-180",
                     )}
                   />

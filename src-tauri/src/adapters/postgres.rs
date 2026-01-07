@@ -316,6 +316,7 @@ impl DatabaseAdapter for PostgresAdapter {
             MetaSchema { 
                 name, 
                 schema_type, 
+                kind: crate::schema_types::NamespaceKind::Schema,
                 is_introspected: false, 
                 tables: vec![] 
             }

@@ -12,6 +12,7 @@ mod metrics;
 mod introspection;
 mod db_test;
 mod completion;
+mod settings;
 pub mod constants;
 pub mod schema_types;
 pub mod adapter;
@@ -38,6 +39,9 @@ use commands::introspection_commands::*;
 use commands::test_commands::*;
 use commands::completion_commands::*;
 use commands::unified_introspection::*;
+use commands::font_commands::*;
+use commands::settings_commands::*;
+use commands::debug_commands::*;
 use plugins::{PluginDiscovery, get_available_plugins, enable_plugin, disable_plugin, get_plugin_info, initialize_all_plugins};
 use credential_manager::CredentialManager;
 use metrics::{MetricsRegistry, SystemMonitor, start_metrics_emitter};
@@ -257,23 +261,27 @@ pub fn run() {
             let registry = Arc::new(MetricsRegistry::new());
             app.manage(registry.clone()); // Optional: Allow commands to access registry via state
             
-            // Start self-registering system monitor
-            let monitor = SystemMonitor::new(&registry);
-            monitor.run();
+            if constants::ENABLE_METRICS_EMISSION {
+                // Start self-registering system monitor
+                let monitor = SystemMonitor::new(&registry);
+                monitor.run();
 
-            // Start emitter thread
-            start_metrics_emitter(app.handle().clone(), registry.clone());
+                // Start emitter thread
+                start_metrics_emitter(app.handle().clone(), registry.clone());
 
-            // "Welcome Push": Listen for new windows and immediately emit current snapshot
-            let handle = app.handle().clone();
-            let reg_clone = registry.clone();
-            app.listen("window-created", move |_| {
-                info!("Window created, emitting welcome metrics snapshot");
-                let snapshot = reg_clone.snapshot();
-                if let Err(e) = handle.emit("metrics:snapshot", &snapshot) {
-                    error!("Failed to emit welcome metrics snapshot: {}", e);
-                }
-            });
+                // "Welcome Push": Listen for new windows and immediately emit current snapshot
+                let handle = app.handle().clone();
+                let reg_clone = registry.clone();
+                app.listen("window-created", move |_| {
+                    info!("Window created, emitting welcome metrics snapshot");
+                    let snapshot = reg_clone.snapshot();
+                    if let Err(e) = handle.emit("metrics:snapshot", &snapshot) {
+                        error!("Failed to emit welcome metrics snapshot: {}", e);
+                    }
+                });
+            } else {
+                debug!("Metrics emission disabled, skipping system monitor and emitter");
+            }
 
             info!("Application setup complete");
             Ok(())
