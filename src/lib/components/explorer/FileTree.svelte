@@ -224,12 +224,22 @@
                 }
                 break;
             }
-            case "Enter": {
+            case "Enter":
+            case " ": {
+                // Space key - same behavior as Enter
                 e.preventDefault();
                 if (currentIndex === -1) return;
                 const current = visible[currentIndex];
-                // If folder, toggle; else action
-                if (current.node.children && current.node.children.length > 0) {
+                // Tables/views trigger action, other expandables toggle
+                const isActionable =
+                    current.node.type === "table" ||
+                    current.node.type === "view";
+                if (isActionable) {
+                    onAction(current.node);
+                } else if (
+                    current.node.children &&
+                    current.node.children.length > 0
+                ) {
                     toggle(current.id, current.node);
                 } else {
                     onAction(current.node);
@@ -323,15 +333,29 @@
                         // Select on click and focus container
                         selectNode(key);
                         treeContainer?.focus();
-                        if (isFolder) {
+                        // Tables and views trigger action on click, other folders toggle
+                        const isActionable =
+                            node.type === "table" || node.type === "view";
+                        if (isActionable) {
+                            onAction(node);
+                        } else if (isFolder) {
                             toggle(key, node);
                         }
                         onNodeClick(node);
                     }}
                     role="none"
                 >
+                    <!-- svelte-ignore a11y_click_events_have_key_events -->
                     <span
-                        class="flex items-center justify-center w-4 shrink-0 text-muted-foreground/60"
+                        class="flex items-center justify-center w-4 shrink-0 text-muted-foreground/60 cursor-pointer"
+                        onclick={(e) => {
+                            e.stopPropagation();
+                            if (node.children && node.children.length > 0) {
+                                toggle(key, node);
+                            }
+                        }}
+                        role="button"
+                        tabindex="-1"
                     >
                         {#if isFolder && (node.type === "database" || (node.children && node.children.length > 0))}
                             <ChevronRight

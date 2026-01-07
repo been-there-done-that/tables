@@ -232,20 +232,46 @@
     function handleExplorerAction(node: TreeNode) {
         if (!activeSession) return;
 
-        if (node.type === "table") {
+        if (node.type === "table" || node.type === "view") {
+            // Open table preview with full metadata
+            const metadata = node.metadata as
+                | { dbName: string; schemaName: string; tableName: string }
+                | undefined;
             activeSession.openView("table", node.name, {
                 tableName: node.name,
+                schemaName: metadata?.schemaName,
+                databaseName: metadata?.dbName,
             });
         } else if (
             node.type === "column" ||
             node.type === "primary_key" ||
             node.type === "foreign_key"
         ) {
-            // id format: col:table:db:schema.table.column
-            const parts = node.id?.split(":");
-            const dbSchemaTable = parts?.[parts.length - 1] || "";
-            const tableRef = dbSchemaTable.split(".").slice(0, 2).join("."); // schema.table
+            // For column clicks, open the parent table's data preview
+            // id format: col:table:db:schema.table.column or similar
+            const parts = node.id?.split(":") || [];
+            // Try to extract table info from the id - format varies
+            // e.g., "col:table:mydb:public.users.id"
+            const tableIdPart = parts.find((p) => p.includes("."));
+            if (tableIdPart) {
+                const tableParts = tableIdPart.split(".");
+                if (tableParts.length >= 2) {
+                    const schemaName = tableParts[0];
+                    const tableName = tableParts[1];
+                    const dbName = schemaStore.selectedDatabase || "main";
 
+                    activeSession.openView("table", tableName, {
+                        tableName,
+                        schemaName,
+                        databaseName: dbName,
+                    });
+                    return;
+                }
+            }
+
+            // Fallback: open query editor if we can't parse table info
+            const dbSchemaTable = parts?.[parts.length - 1] || "";
+            const tableRef = dbSchemaTable.split(".").slice(0, 2).join(".");
             activeSession.openView("editor", `Query: ${node.name}`, {
                 initialValue: `SELECT * FROM ${tableRef} WHERE ${node.name} = ...`,
             });
