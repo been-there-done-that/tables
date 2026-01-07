@@ -90,18 +90,30 @@ fn map_completion_kind(kind: CompletionKind) -> u8 {
 pub fn schema_graph_from_meta(databases: &[MetaDatabase], selected_database: Option<&str>) -> SchemaGraph {
     let mut graph = SchemaGraph::new();
     
+    log::info!("[schema_graph_from_meta] Building schema graph from {} databases, selected: {:?}", 
+        databases.len(), selected_database);
+    
     // Collect all indexed columns for lookup
     let mut _indexed_columns: HashMap<(String, String), bool> = HashMap::new();
+    let mut total_tables = 0;
+    let mut total_columns = 0;
     
     for db in databases {
         // Filter by selected database if specified
         if let Some(selected) = selected_database {
             if db.name != selected {
+                log::debug!("[schema_graph_from_meta] Skipping database '{}' (selected='{}')", db.name, selected);
                 continue;
             }
         }
         
+        log::debug!("[schema_graph_from_meta] Processing database '{}' with {} schemas", 
+            db.name, db.schemas.len());
+        
         for schema in &db.schemas {
+            log::debug!("[schema_graph_from_meta] Processing schema '{}' with {} tables", 
+                schema.name, schema.tables.len());
+            
             for table in &schema.tables {
             // Collect indexed columns
             for index in &table.indexes {
@@ -122,6 +134,14 @@ pub fn schema_graph_from_meta(databases: &[MetaDatabase], selected_database: Opt
                 }
             }).collect();
             
+            total_tables += 1;
+            total_columns += columns.len();
+            
+            if total_tables <= 5 {
+                log::debug!("[schema_graph_from_meta] Adding table '{}.{}' with {} columns", 
+                    schema.name, table.table_name, columns.len());
+            }
+            
             graph.add_table(TableInfo {
                 name: table.table_name.clone(),
                 schema: schema.name.clone(),
@@ -141,19 +161,85 @@ pub fn schema_graph_from_meta(databases: &[MetaDatabase], selected_database: Opt
     }
 }
 
+    log::info!("[schema_graph_from_meta] Built schema graph: {} tables, {} total columns, {} tables in graph", 
+        total_tables, total_columns, graph.tables.len());
+
+    graph
+}
+
+/// Build a SchemaGraph directly from the app database using Introspector.
+/// This fetches tables WITH their columns, foreign keys, and indexes.
+fn schema_graph_from_introspector(connection_id: &str, app_db: &std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>) -> SchemaGraph {
+    use crate::introspection::Introspector;
+    
+    let mut graph = SchemaGraph::new();
+    let introspector = Introspector::new(app_db.clone());
+    
+    // get_tables() returns tables WITH columns populated
+    match introspector.get_tables(connection_id) {
+        Ok(tables) => {
+            log::info!("[Completion] Fetched {} tables from introspector for connection {}", 
+                tables.len(), connection_id);
+            
+            for table in &tables {
+                let columns: Vec<ColumnInfo> = table.columns.iter().map(|col| {
+                    ColumnInfo {
+                        name: col.column_name.clone(),
+                        data_type: col.raw_type.clone(),
+                        is_nullable: col.nullable,
+                        is_primary_key: col.is_primary_key,
+                        is_indexed: false,
+                    }
+                }).collect();
+                
+                if tables.len() <= 30 || graph.tables.len() < 5 {
+                    log::debug!("[Completion] Adding table '{}.{}' with {} columns", 
+                        table.schema, table.table_name, columns.len());
+                }
+                
+                graph.add_table(TableInfo {
+                    name: table.table_name.clone(),
+                    schema: table.schema.clone(),
+                    columns,
+                });
+                
+                for fk in &table.foreign_keys {
+                    graph.add_foreign_key(ForeignKey {
+                        from_table: table.table_name.clone(),
+                        from_column: fk.column_name.clone(),
+                        to_table: fk.ref_table.clone(),
+                        to_column: fk.ref_column.clone(),
+                    });
+                }
+            }
+            
+            let total_columns: usize = tables.iter().map(|t| t.columns.len()).sum();
+            log::info!("[Completion] Built schema graph: {} tables, {} total columns", 
+                graph.tables.len(), total_columns);
+        }
+        Err(e) => {
+            log::error!("[Completion] Failed to fetch tables from introspector: {}", e);
+        }
+    }
+    
     graph
 }
 
 /// Update the schema cache for a connection.
+/// This fetches tables+columns directly from the app database (not from frontend).
 #[tauri::command]
 pub async fn update_completion_schema(
     state: State<'_, CompletionState>,
+    db_state: State<'_, crate::DatabaseState>,
     connection_id: String,
-    databases: Vec<MetaDatabase>,
-    selected_database: Option<String>,
+    #[allow(unused_variables)]
+    databases: Vec<MetaDatabase>,  // Kept for API compatibility, but ignored
+    #[allow(unused_variables)]
+    selected_database: Option<String>,  // Kept for API compatibility, but ignored  
     engine_type: Option<String>,
 ) -> Result<(), String> {
-    let schema_graph = schema_graph_from_meta(&databases, selected_database.as_deref());
+    // Fetch tables WITH columns directly from the introspector
+    let schema_graph = schema_graph_from_introspector(&connection_id, &db_state.conn);
     
     // Parse engine type to Dialect
     let dialect = match engine_type.as_deref().map(|s| s.to_lowercase()).as_deref() {
@@ -163,8 +249,8 @@ pub async fn update_completion_schema(
         _ => Dialect::Postgres, // Default to Postgres for compatibility
     };
     
-    log::debug!("[Completion] Caching schema for connection {} with dialect {:?}, {} databases", 
-        connection_id, dialect, databases.len());
+    log::debug!("[Completion] Caching schema for connection {} with dialect {:?}, {} tables", 
+        connection_id, dialect, schema_graph.tables.len());
     
     let mut cache = state.schema_cache.lock().await;
     cache.insert(connection_id.clone(), Arc::new(schema_graph));
@@ -225,6 +311,10 @@ pub async fn request_completions(
     };
     
     // 3. Off-thread execution with dialect-specific engine
+    let schema_tables_count = schema.tables.len();
+    log::info!("[request_completions] connection={}, dialect={:?}, schema_tables={}, default_schema={:?}", 
+        connection_id, dialect, schema_tables_count, default_schema);
+    
     let result = tokio::task::spawn_blocking(move || {
         // Parse SQL
         let tree = parse_sql(&text, None);
@@ -242,6 +332,9 @@ pub async fn request_completions(
         // Analyze cursor context
         let context = Context::analyze(&text, tree.as_ref(), cursor_offset);
         
+        log::debug!("[request_completions] context_type={:?}, prefix='{}', cursor_offset={}", 
+            context.context_type, context.prefix, context.cursor_offset);
+        
         // Check cancellation before completion
         if cancel_token.is_cancelled() {
             return vec![];
@@ -250,6 +343,8 @@ pub async fn request_completions(
         // Create dialect-specific engine and run completion
         let engine = create_engine(dialect);
         let items = engine.complete(&semantic, &context, &schema, default_schema.as_deref(), None);
+        
+        log::debug!("[request_completions] completion returned {} items", items.len());
         
         // Convert to DTOs
         items.into_iter().map(CompletionItemDto::from).collect()

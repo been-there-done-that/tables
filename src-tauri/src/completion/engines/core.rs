@@ -139,6 +139,9 @@ impl CoreCompletionEngine {
         let mut seen_schemas = HashSet::new();
         
         let ui_schema = default_schema.unwrap_or("public");
+        
+        log::debug!("[complete_table_names] Called with default_schema={:?}, ui_schema={}, prefix='{}', schema.tables.len()={}", 
+            default_schema, ui_schema, context.prefix, schema.tables.len());
 
         // 1. Add schema suggestions first
         for table_info in schema.tables.values() {
@@ -153,17 +156,22 @@ impl CoreCompletionEngine {
                 });
             }
         }
+        
+        log::debug!("[complete_table_names] Found {} unique schemas", seen_schemas.len());
 
         // 2. Schema tables with explicit qualification
+        let mut table_count = 0;
         for table_info in schema.tables.values() {
             let is_ui_schema = table_info.schema == ui_schema;
             let is_public = table_info.schema == "public";
+            let is_main = table_info.schema == "main";  // SQLite default
             
             let mut score: i32 = SCORE_CURSOR_RELEVANCE as i32;
             
+            // For SQLite, treat "main" like "public" for scoring
             if is_ui_schema {
                 score += SCORE_UI_SCHEMA_HINT as i32;
-            } else if is_public {
+            } else if is_public || is_main {
                 score += SCORE_PUBLIC_SCHEMA as i32;
             } else {
                 score += PENALTY_CROSS_SCHEMA;
@@ -175,11 +183,18 @@ impl CoreCompletionEngine {
                 ui_schema
             );
             
-            let label = if is_ui_schema || is_public {
+            // For SQLite/main schema, don't show "(main)" suffix - it's the default
+            let label = if is_ui_schema || is_public || is_main {
                 table_info.name.clone()
             } else {
                 format!("{} ({})", table_info.name, table_info.schema)
             };
+            
+            table_count += 1;
+            if table_count <= 3 {
+                log::debug!("[complete_table_names] Adding table: label='{}', schema='{}', score={}", 
+                    label, table_info.schema, score);
+            }
 
             items.push(CompletionItem {
                 label,
@@ -189,6 +204,8 @@ impl CoreCompletionEngine {
                 score: score.max(0) as u32,
             });
         }
+        
+        log::debug!("[complete_table_names] Added {} tables", table_count);
 
         // 3. CTEs from current scope
         for sym in semantic.visible_symbols_at(context.cursor_offset) {
@@ -214,8 +231,13 @@ impl CoreCompletionEngine {
             });
         }
         
+        log::debug!("[complete_table_names] Total items before filter: {}", items.len());
+        
         Self::filter_by_prefix(&mut items, &context.prefix);
         items.sort_by(|a, b| b.score.cmp(&a.score));
+        
+        log::debug!("[complete_table_names] Total items after filter: {}", items.len());
+        
         items
     }
 
@@ -546,9 +568,10 @@ impl CoreCompletionEngine {
         score
     }
     
-    /// Qualify a table name with schema if not in default/public schema.
+    /// Qualify a table name with schema if not in default/public/main schema.
     pub fn qualify_table_name(schema: &str, table: &str, default_schema: &str) -> String {
-        if schema == default_schema || schema == "public" {
+        // Don't qualify for default schema, "public" (PostgreSQL), or "main" (SQLite)
+        if schema == default_schema || schema == "public" || schema == "main" {
             table.to_string()
         } else {
             format!("{}.{}", schema, table)

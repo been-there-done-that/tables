@@ -118,17 +118,31 @@ export class SchemaStore {
             }
 
             // 5. Update Completion Engine Cache
+            // For SQLite, conn.database is the file path, not the database name
+            // SQLite uses "main" as the default database name, so pass null to include all
+            const engineLower = conn.engine?.toLowerCase() ?? "postgres";
+            const selectedDbForCompletion = engineLower === "sqlite" ? null : conn.database;
+
             console.time("[SchemaStore] update_completion_schema");
             await invoke("update_completion_schema", {
                 connectionId: conn.id,
                 databases: data,
-                selectedDatabase: conn.database,  // Filter by configured database
+                selectedDatabase: selectedDbForCompletion,
                 engineType: conn.engine  // Pass engine for dialect-specific completions
             });
             console.timeEnd("[SchemaStore] update_completion_schema");
 
             console.time("[SchemaStore] state update");
             this.databases = data;
+
+            // Set default schema based on engine type (reuse engineLower from above)
+            if (engineLower === "sqlite") {
+                this.activeSchema = "main";
+                console.log(`[SchemaStore] SQLite detected, activeSchema set to: main`);
+            } else {
+                this.activeSchema = "public";
+                console.log(`[SchemaStore] PostgreSQL detected, activeSchema set to: public`);
+            }
 
             // Auto-select database
             if (this.databases.length > 0) {
@@ -151,6 +165,19 @@ export class SchemaStore {
                     // 3. Fallback to first available
                     this.selectedDatabase = this.databases[0].name;
                     console.log(`[SchemaStore] Fallback to first database: ${this.selectedDatabase}`);
+                }
+            }
+
+            // DEBUG: Log schema structure for troubleshooting
+            if (data.length > 0) {
+                const firstDb = data[0];
+                console.log(`[SchemaStore] DEBUG - First database: ${firstDb.name}, schemas: ${firstDb.schemas?.length || 0}`);
+                if (firstDb.schemas && firstDb.schemas.length > 0) {
+                    const firstSchema = firstDb.schemas[0];
+                    console.log(`[SchemaStore] DEBUG - First schema: ${firstSchema.name}, tables: ${firstSchema.tables?.length || 0}`);
+                    if (firstSchema.tables && firstSchema.tables.length > 0) {
+                        console.log(`[SchemaStore] DEBUG - First 5 tables: ${firstSchema.tables.slice(0, 5).map(t => t.table_name).join(', ')}`);
+                    }
                 }
             }
 
@@ -226,11 +253,12 @@ export class SchemaStore {
                 this.databases[index] = { ...updatedDb, is_loading: false };
             }
 
-            // Sync completion cache - use the just-loaded database
+            // Sync completion cache - for SQLite, don't filter by database name
+            const isSqlite = this.activeConnection.engine?.toLowerCase() === "sqlite";
             await invoke("update_completion_schema", {
                 connectionId: this.activeConnection.id,
                 databases: this.databases,
-                selectedDatabase: dbName,
+                selectedDatabase: isSqlite ? null : dbName,
                 engineType: this.activeConnection.engine
             });
 
@@ -263,11 +291,12 @@ export class SchemaStore {
             await invoke("refresh_schema", { connectionId: this.activeConnection.id });
             const data = await invoke<MetaDatabase[]>("get_schema", { connectionId: this.activeConnection.id });
 
-            // Sync completion cache
+            // Sync completion cache - for SQLite, don't filter by database name
+            const isSqlite = this.activeConnection.engine?.toLowerCase() === "sqlite";
             await invoke<void>("update_completion_schema", {
                 connectionId: this.activeConnection.id,
                 databases: data,
-                selectedDatabase: this.selectedDatabase,
+                selectedDatabase: isSqlite ? null : this.selectedDatabase,
                 engineType: this.activeConnection.engine
             });
 
