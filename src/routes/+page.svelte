@@ -5,6 +5,7 @@
   import EditorHome from "$lib/components/EditorHome.svelte";
   import { windowState } from "$lib/stores/window.svelte"; // layout.showSqlEditor used here
   import SqlTestingEditor from "$lib/components/SqlTestingEditor.svelte";
+  import TablePreview from "$lib/components/table/TablePreview.svelte";
 
   const activeSession = $derived(windowState.activeSession);
 </script>
@@ -73,11 +74,11 @@
                           {#if activeView?.type === "editor"}
                             <SqlTestingEditor context={activeView.data} />
                           {:else if activeView?.type === "table"}
-                            <div
-                              class="flex items-center justify-center h-full text-muted-foreground italic text-sm"
-                            >
-                              Table Browser: {activeView.title} (Coming Soon)
-                            </div>
+                            <TablePreview
+                              tableName={activeView.data?.tableName}
+                              schemaName={activeView.data?.schemaName}
+                              databaseName={activeView.data?.databaseName}
+                            />
                           {:else}
                             <!-- Default Fallback -->
                             <div class="flex-1 overflow-auto p-4 space-y-4">
