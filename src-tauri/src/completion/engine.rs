@@ -773,6 +773,7 @@ mod tests {
             cursor_offset: 20,
             context_type: CursorContext::AfterDot { alias: "u".to_string() },
             prefix: String::new(),
+            previous_word: String::new(),
             scope_depth: 0,
         };
         
@@ -796,6 +797,7 @@ mod tests {
             cursor_offset: 0,
             context_type: CursorContext::FromClause,
             prefix: "".to_string(),
+            previous_word: String::new(),
             scope_depth: 0,
         };
         
@@ -836,6 +838,7 @@ mod tests {
             cursor_offset: 20,
             context_type: CursorContext::AfterDot { alias: "o".to_string() },
             prefix: String::new(),
+            previous_word: String::new(),
             scope_depth: 0,
         };
         
