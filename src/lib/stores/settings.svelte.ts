@@ -4,15 +4,35 @@ import { commandClient } from "$lib/commands/client";
 export interface Settings {
     editorFontFamily: string;
     editorFontSize: number;
+    // Layout settings
+    sidebarLeftVisible: boolean;
+    sidebarLeftRatio: number;
+    sidebarRightVisible: boolean;
+    sidebarRightRatio: number;
+    sidebarBottomVisible: boolean;
+    sidebarBottomRatio: number;
+    // Selected database
+    selectedDatabase: string | null;
 }
 
 const DEFAULT_SETTINGS: Settings = {
     editorFontFamily: "Fira Code, monospace",
     editorFontSize: 14,
+    // Layout defaults
+    sidebarLeftVisible: true,
+    sidebarLeftRatio: 0.2,
+    sidebarRightVisible: false,
+    sidebarRightRatio: 0.75,
+    sidebarBottomVisible: false,
+    sidebarBottomRatio: 0.7,
+    // No database selected by default
+    selectedDatabase: null,
 };
 
 function createSettingsStore() {
     let settings = $state<Settings>(DEFAULT_SETTINGS);
+    let initialized = $state(false);
+    let initPromise: Promise<void> | null = null;
 
     const apply = () => {
         const family = settings.editorFontFamily;
@@ -30,6 +50,7 @@ function createSettingsStore() {
     };
 
     return {
+        // Font settings
         get editorFontFamily() {
             return settings.editorFontFamily;
         },
@@ -49,19 +70,105 @@ function createSettingsStore() {
                 commandClient.updateAppSetting("editor_font_size", v.toString());
             }
         },
+
+        // Layout settings - left sidebar
+        get sidebarLeftVisible() {
+            return settings.sidebarLeftVisible;
+        },
+        set sidebarLeftVisible(v: boolean) {
+            settings.sidebarLeftVisible = v;
+            if (browser) {
+                commandClient.updateAppSetting("sidebar_left_visible", v.toString());
+            }
+        },
+        get sidebarLeftRatio() {
+            return settings.sidebarLeftRatio;
+        },
+        set sidebarLeftRatio(v: number) {
+            settings.sidebarLeftRatio = v;
+            if (browser) {
+                commandClient.updateAppSetting("sidebar_left_ratio", v.toString());
+            }
+        },
+
+        // Layout settings - right sidebar
+        get sidebarRightVisible() {
+            return settings.sidebarRightVisible;
+        },
+        set sidebarRightVisible(v: boolean) {
+            settings.sidebarRightVisible = v;
+            if (browser) {
+                commandClient.updateAppSetting("sidebar_right_visible", v.toString());
+            }
+        },
+        get sidebarRightRatio() {
+            return settings.sidebarRightRatio;
+        },
+        set sidebarRightRatio(v: number) {
+            settings.sidebarRightRatio = v;
+            if (browser) {
+                commandClient.updateAppSetting("sidebar_right_ratio", v.toString());
+            }
+        },
+
+        // Layout settings - bottom panel
+        get sidebarBottomVisible() {
+            return settings.sidebarBottomVisible;
+        },
+        set sidebarBottomVisible(v: boolean) {
+            settings.sidebarBottomVisible = v;
+            if (browser) {
+                commandClient.updateAppSetting("sidebar_bottom_visible", v.toString());
+            }
+        },
+        get sidebarBottomRatio() {
+            return settings.sidebarBottomRatio;
+        },
+        set sidebarBottomRatio(v: number) {
+            settings.sidebarBottomRatio = v;
+            if (browser) {
+                commandClient.updateAppSetting("sidebar_bottom_ratio", v.toString());
+            }
+        },
+
+        // Selected database
+        get selectedDatabase() {
+            return settings.selectedDatabase;
+        },
+        set selectedDatabase(v: string | null) {
+            settings.selectedDatabase = v;
+            if (browser) {
+                commandClient.updateAppSetting("selected_database", v || "");
+            }
+        },
+
+        // Utility
+        get initialized() {
+            return initialized;
+        },
+
         reset() {
-            settings = DEFAULT_SETTINGS;
+            settings = { ...DEFAULT_SETTINGS };
             apply();
             if (browser) {
                 commandClient.updateAppSetting("editor_font_family", DEFAULT_SETTINGS.editorFontFamily);
                 commandClient.updateAppSetting("editor_font_size", DEFAULT_SETTINGS.editorFontSize.toString());
             }
         },
+
+        /** Wait for settings to be loaded from backend */
+        async waitForInit(): Promise<void> {
+            if (initialized) return;
+            if (initPromise) return initPromise;
+            // If not initialized and no promise, just wait a bit
+            return new Promise((resolve) => setTimeout(resolve, 100));
+        },
+
         init() {
             if (!browser) return () => { };
 
             // Fetch initial settings from backend
-            commandClient.getAppSettings().then((res) => {
+            initPromise = commandClient.getAppSettings().then((res) => {
                 console.log("[Settings] Backend response:", res);
                 if (res.success && res.data) {
                     console.log("[Settings] Applying backend settings:", res.data);
@@ -70,8 +177,10 @@ function createSettingsStore() {
                 } else {
                     console.error("[Settings] Failed to load settings:", res.error);
                 }
+                initialized = true;
             }).catch(err => {
                 console.error("[Settings] Error fetching settings:", err);
+                initialized = true;
             });
 
             // Initial application of default/current state
@@ -83,11 +192,35 @@ function createSettingsStore() {
                 unlisten = await listen<[string, string]>("settings-changed", (event) => {
                     console.log("[Settings] Remote change event:", event);
                     const [key, value] = event.payload;
-                    if (key === "editor_font_family") {
-                        settings.editorFontFamily = value;
-                        apply();
-                    } else if (key === "editor_font_size") {
-                        settings.editorFontSize = parseInt(value);
+                    switch (key) {
+                        case "editor_font_family":
+                            settings.editorFontFamily = value;
+                            apply();
+                            break;
+                        case "editor_font_size":
+                            settings.editorFontSize = parseInt(value);
+                            break;
+                        case "sidebar_left_visible":
+                            settings.sidebarLeftVisible = value === "true";
+                            break;
+                        case "sidebar_left_ratio":
+                            settings.sidebarLeftRatio = parseFloat(value);
+                            break;
+                        case "sidebar_right_visible":
+                            settings.sidebarRightVisible = value === "true";
+                            break;
+                        case "sidebar_right_ratio":
+                            settings.sidebarRightRatio = parseFloat(value);
+                            break;
+                        case "sidebar_bottom_visible":
+                            settings.sidebarBottomVisible = value === "true";
+                            break;
+                        case "sidebar_bottom_ratio":
+                            settings.sidebarBottomRatio = parseFloat(value);
+                            break;
+                        case "selected_database":
+                            settings.selectedDatabase = value || null;
+                            break;
                     }
                 });
             });

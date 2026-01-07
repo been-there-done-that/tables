@@ -3,6 +3,8 @@
 
     let {
         defaultRatio = 0.2,
+        controlledRatio,
+        onRatioChange,
         minLeft = "100px",
         minRight = "100px",
         gapSize = 1,
@@ -15,6 +17,8 @@
         right,
     }: {
         defaultRatio?: number;
+        controlledRatio?: number;
+        onRatioChange?: (ratio: number) => void;
         minLeft?: string;
         minRight?: string;
         gapSize?: number;
@@ -30,8 +34,18 @@
     let container = $state<HTMLElement>();
     let isDragging = $state(false);
 
-    // Fix: unwrap defaultRatio to avoid reactive dependency warning if intended to be initial only
-    let ratio = $state(untrack(() => defaultRatio));
+    // Internal ratio state, syncs with controlled value if provided
+    let internalRatio = $state(untrack(() => controlledRatio ?? defaultRatio));
+
+    // Use controlled ratio if provided, otherwise use internal
+    const ratio = $derived(controlledRatio ?? internalRatio);
+
+    // Sync internal ratio when controlled ratio changes
+    $effect(() => {
+        if (controlledRatio !== undefined) {
+            internalRatio = controlledRatio;
+        }
+    });
 
     const isVertical = $derived(orientation === "vertical");
     const axis = $derived(isVertical ? "height" : "width");
@@ -78,7 +92,8 @@
 
         e.preventDefault();
         const step = 0.02;
-        const delta = e.key === "ArrowLeft" || e.key === "ArrowUp" ? -step : step;
+        const delta =
+            e.key === "ArrowLeft" || e.key === "ArrowUp" ? -step : step;
         clampRatio(ratio + delta);
     }
 
@@ -93,7 +108,9 @@
 
         const minStart = parse(minLeft) / total;
         const minEnd = 1 - parse(minRight) / total;
-        ratio = Math.max(minStart, Math.min(next, minEnd));
+        const clamped = Math.max(minStart, Math.min(next, minEnd));
+        internalRatio = clamped;
+        onRatioChange?.(clamped);
     };
 
     function onDrag(e: MouseEvent) {
@@ -118,7 +135,7 @@
 
     $effect(() => {
         if (!resizable && resetOnDisable) {
-            ratio = defaultRatio;
+            internalRatio = defaultRatio;
         }
     });
 </script>
