@@ -1,4 +1,5 @@
 import type { Connection, MetaSchema } from "$lib/commands/types";
+import { settingsStore } from "./settings.svelte";
 
 export type ViewType = "editor" | "table" | "custom";
 
@@ -16,6 +17,7 @@ export interface ExplorerState {
 export class Session {
     id = $state("");
     connectionId = $state("");
+    windowLabel = $state("");
     // We might want to store the full connection object for easy access
     connection = $state<Connection | null>(null);
 
@@ -28,10 +30,24 @@ export class Session {
     views = $state<ViewState[]>([]);
     activeViewId = $state<string | null>(null);
 
-    constructor(id: string, connection: Connection) {
+    private cleanup: (() => void) | null = null;
+
+    constructor(id: string, connection: Connection, windowLabel: string = "main") {
         this.id = id;
         this.connectionId = connection.id;
         this.connection = connection;
+        this.windowLabel = windowLabel;
+
+        // Load persisted expansion state
+        const persistedExpanded = settingsStore.getExpandedNodes(connection.id);
+        if (persistedExpanded.length > 0) {
+            this.explorerState.expanded = new Set(persistedExpanded);
+        }
+    }
+
+    persistExpandedNodes() {
+        const nodes = Array.from(this.explorerState.expanded);
+        settingsStore.setExpandedNodes(this.connectionId, nodes);
     }
 
     addView(view: ViewState) {

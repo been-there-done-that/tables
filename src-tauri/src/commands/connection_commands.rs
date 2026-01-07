@@ -204,9 +204,11 @@ pub async fn get_active_connections(
 pub async fn mark_connection_active(
     id: String,
     window_label: Option<String>,
+    app: tauri::AppHandle,
     db_state: State<'_, DatabaseState>,
     conn_state: State<'_, ConnectionManagerState>,
 ) -> Result<(), String> {
+    use tauri::Emitter;
     debug!("Marking connection '{}' as active", id);
     let manager = ConnectionManager::from_state(&db_state, &conn_state);
     
@@ -217,6 +219,9 @@ pub async fn mark_connection_active(
     if let Some(label) = window_label {
         manager.save_window_session(&label, &id)?;
     }
+
+    // Emit global event with updated active IDs
+    let _ = app.emit("active-connections-changed", manager.get_active_connection_ids());
     
     Ok(())
 }
@@ -226,9 +231,11 @@ pub async fn mark_connection_active(
 pub async fn mark_connection_inactive(
     id: String,
     window_label: Option<String>,
+    app: tauri::AppHandle,
     db_state: State<'_, DatabaseState>,
     conn_state: State<'_, ConnectionManagerState>,
 ) -> Result<(), String> {
+    use tauri::Emitter;
     debug!("Marking connection '{}' as inactive", id);
     let manager = ConnectionManager::from_state(&db_state, &conn_state);
     
@@ -243,6 +250,9 @@ pub async fn mark_connection_inactive(
             }
         }
     }
+
+    // Emit global event with updated active IDs
+    let _ = app.emit("active-connections-changed", manager.get_active_connection_ids());
     
     Ok(())
 }
