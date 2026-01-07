@@ -39,6 +39,7 @@ pub enum CompletionKind {
     Function = 4,
     JoinCondition = 5,
     Schema = 6,
+    Operator = 7,
 }
 
 // ============================================================================

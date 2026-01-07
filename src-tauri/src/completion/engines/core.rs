@@ -291,49 +291,80 @@ impl CoreCompletionEngine {
         items
     }
 
-    /// Complete in WHERE clause: columns from visible tables.
+    /// Complete in WHERE clause: columns + operators conditional on previous token.
     pub fn complete_where_clause(
         semantic: &SemanticModel,
         context: &Context,
         schema: &SchemaGraph,
         where_keywords: &[&str],
         where_functions: &[&str],
+        operators: &[(&str, &str, u32)], // Label, Detail, Score
     ) -> Vec<CompletionItem> {
         let mut items = Vec::new();
         
-        for sym in semantic.visible_symbols_at(context.cursor_offset) {
-            if let Some(table_name) = sym.resolve_table_name() {
-                for col in schema.get_columns(table_name) {
-                    let qualified_name = format!("{}.{}", sym.name, col.name);
-                    items.push(CompletionItem {
-                        label: qualified_name.clone(),
-                        kind: CompletionKind::Column,
-                        detail: Some(col.data_type.clone()),
-                        insert_text: qualified_name,
-                        score: Self::column_score(col.is_primary_key, col.is_indexed),
-                    });
-                }
+        let prev = context.previous_word.to_uppercase();
+        let prev_is_keyword = ["WHERE", "AND", "OR", "NOT", "(", ","].contains(&prev.as_str());
+        
+        // Check if previous word is an operator (simple check against common ones, or use the passed list?)
+        // Using the passed list to check:
+        let prev_is_operator = operators.iter().any(|(op, _, _)| op.eq_ignore_ascii_case(&prev));
+        
+        // 1. Suggest Operators: Only if we are NOT after a keyword or operator
+        //    (i.e., we are likely after a column or value)
+        if !prev_is_keyword && !prev_is_operator && !prev.is_empty() {
+            for (op, detail, score) in operators {
+                 items.push(CompletionItem {
+                    label: op.to_string(),
+                    kind: CompletionKind::Operator,
+                    detail: Some(detail.to_string()),
+                    insert_text: op.to_string(),
+                    score: *score,
+                });
             }
         }
+        
+        // 2. Suggest Columns/Functions: If we are after a keyword, operator, or at start
+        //    Also suggest if user is actively typing a prefix (might be filtering columns)
+        //    even if after a column (e.g. "col1 AND" -> typed "AN" -> want AND)
+        //    But operators are handled above.
+        
+        let show_columns = prev_is_keyword || prev_is_operator || prev.is_empty() || !context.prefix.is_empty();
 
-        for func in where_functions {
-            items.push(CompletionItem {
-                label: func.to_string(),
-                kind: CompletionKind::Function,
-                detail: Some("function".to_string()),
-                insert_text: format!("{}()", func),
-                score: 60,
-            });
-        }
+        if show_columns {
+            for sym in semantic.visible_symbols_at(context.cursor_offset) {
+                if let Some(table_name) = sym.resolve_table_name() {
+                    for col in schema.get_columns(table_name) {
+                        let qualified_name = format!("{}.{}", sym.name, col.name);
+                        items.push(CompletionItem {
+                            label: qualified_name.clone(),
+                            kind: CompletionKind::Column,
+                            detail: Some(col.data_type.clone()),
+                            insert_text: qualified_name,
+                            score: Self::column_score(col.is_primary_key, col.is_indexed),
+                        });
+                    }
+                }
+            }
 
-        for kw in where_keywords {
-            items.push(CompletionItem {
-                label: kw.to_string(),
-                kind: CompletionKind::Keyword,
-                detail: None,
-                insert_text: kw.to_string(),
-                score: 50,
-            });
+            for func in where_functions {
+                items.push(CompletionItem {
+                    label: func.to_string(),
+                    kind: CompletionKind::Function,
+                    detail: Some("function".to_string()),
+                    insert_text: format!("{}()", func),
+                    score: 60,
+                });
+            }
+            
+            for kw in where_keywords {
+                 items.push(CompletionItem {
+                    label: kw.to_string(),
+                    kind: CompletionKind::Keyword,
+                    detail: None,
+                    insert_text: kw.to_string(),
+                    score: 50,
+                });
+            }
         }
         
         Self::filter_by_prefix(&mut items, &context.prefix);
@@ -494,7 +525,7 @@ impl CoreCompletionEngine {
         let mut items = Vec::new();
         
         let statement_starters = [
-            ("SELECT", "Query data", 100),
+            ("SELECT", "Query data", 200), // Boosted score
             ("WITH", "Common Table Expression", 90),
             ("INSERT", "Insert data", 80),
             ("UPDATE", "Update data", 80),
@@ -528,12 +559,20 @@ impl CoreCompletionEngine {
         let mut items = Vec::new();
         
         for kw in generic_keywords {
+            // Boost score for common statement starters in generic contexts
+            let score = match *kw {
+                "SELECT" => 200,
+                "INSERT" | "UPDATE" | "DELETE" => 90,
+                "WHERE" | "FROM" | "JOIN" => 80,
+                _ => 50,
+            };
+
             items.push(CompletionItem {
                 label: kw.to_string(),
                 kind: CompletionKind::Keyword,
                 detail: None,
                 insert_text: kw.to_string(),
-                score: 50,
+                score,
             });
         }
         

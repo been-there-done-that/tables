@@ -133,6 +133,28 @@ impl CompletionEngineVariant for PostgresEngine {
         "public"
     }
     
+    fn operators(&self) -> Vec<(&'static str, &'static str, u32)> {
+        vec![
+            ("=", "Equal", 90),
+            ("<>", "Not equal", 90),
+            (">", "Greater than", 90),
+            ("<", "Less than", 90),
+            (">=", "Greater or equal", 90),
+            ("<=", "Less or equal", 90),
+            ("LIKE", "Pattern match", 85),
+            ("ILIKE", "Case-insensitive match", 85), // Postgres specific
+            ("SIMILAR TO", "Regex match", 80),      // Postgres specific
+            ("IN", "List presence", 85),
+            ("IS", "Identity check", 85),
+            ("IS NULL", "Null check", 85),
+            ("IS NOT", "Negated identity", 85),
+            ("BETWEEN", "Range check", 85),
+            ("AND", "Logical AND", 80),
+            ("OR", "Logical OR", 80),
+            ("NOT", "Logical NOT", 80),
+        ]
+    }
+    
     fn complete(
         &self,
         semantic: &SemanticModel,
@@ -170,13 +192,15 @@ impl CompletionEngineVariant for PostgresEngine {
                 CoreCompletionEngine::complete_join_condition(left_table, right_table, semantic, schema)
             }
             CursorContext::JoinConditionRhs { .. } => {
+                let operators = self.operators();
                 CoreCompletionEngine::complete_where_clause(
-                    semantic, context, schema, WHERE_KEYWORDS, WHERE_FUNCTIONS
+                    semantic, context, schema, WHERE_KEYWORDS, WHERE_FUNCTIONS, &operators
                 )
             }
             CursorContext::WhereClause => {
+                let operators = self.operators();
                 CoreCompletionEngine::complete_where_clause(
-                    semantic, context, schema, WHERE_KEYWORDS, WHERE_FUNCTIONS
+                    semantic, context, schema, WHERE_KEYWORDS, WHERE_FUNCTIONS, &operators
                 )
             }
             CursorContext::FunctionArgument { function_name } => {

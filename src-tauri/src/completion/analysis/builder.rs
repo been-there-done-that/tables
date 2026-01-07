@@ -460,6 +460,15 @@ impl<'a> ModelBuilder<'a> {
                 "alias" => {
                     alias_name = Some(self.node_text(child));
                 }
+                "table_alias" => {
+                    // Extract alias from table_alias node
+                    let mut inner = child.walk();
+                    for sub in child.children(&mut inner) {
+                        if sub.kind() == "identifier" {
+                            alias_name = Some(self.node_text(&sub));
+                        }
+                    }
+                }
                 _ => {}
             }
         }

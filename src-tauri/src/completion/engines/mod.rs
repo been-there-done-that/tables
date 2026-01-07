@@ -34,6 +34,9 @@ pub trait CompletionEngineVariant: Send + Sync {
     
     /// Get the default schema name for this database.
     fn default_schema(&self) -> &str;
+
+    /// Get database-specific operators (label, detail, score).
+    fn operators(&self) -> Vec<(&'static str, &'static str, u32)>;
     
     /// Generate completions using this engine's specific behavior.
     fn complete(
