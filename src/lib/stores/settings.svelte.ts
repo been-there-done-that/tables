@@ -33,6 +33,7 @@ const DEFAULT_SETTINGS: Settings = {
 
 function createSettingsStore() {
     let settings = $state<Settings>(DEFAULT_SETTINGS);
+    let windowLabel = $state("main");
     let initialized = $state(false);
     let initPromise: Promise<void> | null = null;
 
@@ -53,13 +54,13 @@ function createSettingsStore() {
 
     // Debounced persistence for ratio changes (avoid excessive API calls during drag)
     const persistLeftRatio = debounce((v: number) => {
-        commandClient.updateAppSetting("sidebar_left_ratio", v.toString());
+        commandClient.updateAppSetting(`window:${windowLabel}:sidebar_left_ratio`, v.toString());
     }, 300);
     const persistRightRatio = debounce((v: number) => {
-        commandClient.updateAppSetting("sidebar_right_ratio", v.toString());
+        commandClient.updateAppSetting(`window:${windowLabel}:sidebar_right_ratio`, v.toString());
     }, 300);
     const persistBottomRatio = debounce((v: number) => {
-        commandClient.updateAppSetting("sidebar_bottom_ratio", v.toString());
+        commandClient.updateAppSetting(`window:${windowLabel}:sidebar_bottom_ratio`, v.toString());
     }, 300);
 
     return {
@@ -91,7 +92,7 @@ function createSettingsStore() {
         set sidebarLeftVisible(v: boolean) {
             settings.sidebarLeftVisible = v;
             if (browser) {
-                commandClient.updateAppSetting("sidebar_left_visible", v.toString());
+                commandClient.updateAppSetting(`window:${windowLabel}:sidebar_left_visible`, v.toString());
             }
         },
         get sidebarLeftRatio() {
@@ -111,7 +112,7 @@ function createSettingsStore() {
         set sidebarRightVisible(v: boolean) {
             settings.sidebarRightVisible = v;
             if (browser) {
-                commandClient.updateAppSetting("sidebar_right_visible", v.toString());
+                commandClient.updateAppSetting(`window:${windowLabel}:sidebar_right_visible`, v.toString());
             }
         },
         get sidebarRightRatio() {
@@ -131,7 +132,7 @@ function createSettingsStore() {
         set sidebarBottomVisible(v: boolean) {
             settings.sidebarBottomVisible = v;
             if (browser) {
-                commandClient.updateAppSetting("sidebar_bottom_visible", v.toString());
+                commandClient.updateAppSetting(`window:${windowLabel}:sidebar_bottom_visible`, v.toString());
             }
         },
         get sidebarBottomRatio() {
@@ -151,7 +152,7 @@ function createSettingsStore() {
         set selectedDatabase(v: string | null) {
             settings.selectedDatabase = v;
             if (browser) {
-                commandClient.updateAppSetting("selected_database", v || "");
+                commandClient.updateAppSetting(`window:${windowLabel}:selected_database`, v || "");
             }
         },
 
@@ -177,15 +178,27 @@ function createSettingsStore() {
             return new Promise((resolve) => setTimeout(resolve, 100));
         },
 
-        init() {
+        init(label: string = "main") {
             if (!browser) return () => { };
+            windowLabel = label;
 
             // Fetch initial settings from backend
             initPromise = commandClient.getAppSettings().then((res) => {
                 console.log("[Settings] Backend response:", res);
                 if (res.success && res.data) {
                     console.log("[Settings] Applying backend settings:", res.data);
-                    settings = { ...DEFAULT_SETTINGS, ...res.data };
+
+                    const { windowLayouts, ...globalSettings } = res.data as any;
+
+                    // Merge global settings first
+                    settings = { ...DEFAULT_SETTINGS, ...globalSettings };
+
+                    // Then merge window-specific layout if available
+                    if (windowLayouts && windowLayouts[windowLabel]) {
+                        console.log(`[Settings] Applying layout for window: ${windowLabel}`, windowLayouts[windowLabel]);
+                        settings = { ...settings, ...windowLayouts[windowLabel] };
+                    }
+
                     apply();
                 } else {
                     console.error("[Settings] Failed to load settings:", res.error);
@@ -204,35 +217,44 @@ function createSettingsStore() {
             listen<[string, string]>("settings-changed", (event) => {
                 console.log("[Settings] Remote change event:", event);
                 const [key, value] = event.payload;
+
+                // Handle global settings
                 switch (key) {
                     case "editor_font_family":
                         settings.editorFontFamily = value;
                         apply();
-                        break;
+                        return;
                     case "editor_font_size":
                         settings.editorFontSize = parseInt(value);
-                        break;
-                    case "sidebar_left_visible":
-                        settings.sidebarLeftVisible = value === "true";
-                        break;
-                    case "sidebar_left_ratio":
-                        settings.sidebarLeftRatio = parseFloat(value);
-                        break;
-                    case "sidebar_right_visible":
-                        settings.sidebarRightVisible = value === "true";
-                        break;
-                    case "sidebar_right_ratio":
-                        settings.sidebarRightRatio = parseFloat(value);
-                        break;
-                    case "sidebar_bottom_visible":
-                        settings.sidebarBottomVisible = value === "true";
-                        break;
-                    case "sidebar_bottom_ratio":
-                        settings.sidebarBottomRatio = parseFloat(value);
-                        break;
+                        return;
                     case "selected_database":
                         settings.selectedDatabase = value || null;
-                        break;
+                        return;
+                }
+
+                // Handle window-specific settings
+                if (key.startsWith(`window:${windowLabel}:`)) {
+                    const prop = key.replace(`window:${windowLabel}:`, "");
+                    switch (prop) {
+                        case "sidebar_left_visible":
+                            settings.sidebarLeftVisible = value === "true";
+                            break;
+                        case "sidebar_left_ratio":
+                            settings.sidebarLeftRatio = parseFloat(value);
+                            break;
+                        case "sidebar_right_visible":
+                            settings.sidebarRightVisible = value === "true";
+                            break;
+                        case "sidebar_right_ratio":
+                            settings.sidebarRightRatio = parseFloat(value);
+                            break;
+                        case "sidebar_bottom_visible":
+                            settings.sidebarBottomVisible = value === "true";
+                            break;
+                        case "sidebar_bottom_ratio":
+                            settings.sidebarBottomRatio = parseFloat(value);
+                            break;
+                    }
                 }
             }).then(fn => unlisten = fn);
 

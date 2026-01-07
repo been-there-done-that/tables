@@ -301,7 +301,7 @@ class WindowStateStore {
             // const unlistenMetrics = await listen("metrics:update", (event) => { ... });
 
             // Initialize global settings/theme listeners
-            this.unlistenFunctions.push(settingsStore.init());
+            this.unlistenFunctions.push(settingsStore.init(this.label));
             this.unlistenFunctions.push(themeStore.init());
 
             // Wait for settings to load
