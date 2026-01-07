@@ -19,55 +19,69 @@
         databaseName || schemaStore.selectedDatabase || "main",
     );
 
-    // Data fetcher implementation that calls our backend command
-    const dataFetcher: DataFetcher = async (params) => {
-        const { offset, limit } = params;
+    // Unique key for forcing Table remount when table changes
+    const tableKey = $derived(
+        `${connectionId}:${effectiveDatabase}:${effectiveSchema}:${tableName}`,
+    );
 
-        if (!connectionId) {
-            return { rows: [], total: 0, columns: [] };
-        }
+    // Create a reactive dataFetcher that uses current prop values
+    // This function is recreated when dependencies change
+    const dataFetcher: DataFetcher = $derived.by(() => {
+        // Capture current values in closure
+        const currentConnectionId = connectionId;
+        const currentDatabase = effectiveDatabase;
+        const currentSchema = effectiveSchema;
+        const currentTable = tableName;
 
-        try {
-            const result = await invoke<{
-                rows: any[];
-                columns: { name: string; type: string }[];
-                total: number;
-            }>("fetch_table_preview", {
-                connectionId,
-                database: effectiveDatabase,
-                schema: effectiveSchema,
-                tableName,
-                offset: offset ?? 0,
-                limit: limit ?? 100,
-            });
+        return async (params) => {
+            const { offset, limit } = params;
 
-            // Convert backend column info to Table component format
-            const columns: Column[] = result.columns.map((col, idx) => ({
-                id: col.name,
-                label: col.name,
-                type: inferColumnType(col.type),
-                sortable: true,
-                filterable: true,
-                pinnable: true,
-                editable: false, // Read-only preview
-            }));
+            if (!currentConnectionId) {
+                return { rows: [], total: 0, columns: [] };
+            }
 
-            // Add _rowId to each row for the Table component
-            const rowsWithId = result.rows.map((row, idx) => ({
-                ...row,
-                _rowId: (offset ?? 0) + idx,
-            }));
+            try {
+                const result = await invoke<{
+                    rows: any[];
+                    columns: { name: string; type: string }[];
+                    total: number;
+                }>("fetch_table_preview", {
+                    connectionId: currentConnectionId,
+                    database: currentDatabase,
+                    schema: currentSchema,
+                    tableName: currentTable,
+                    offset: offset ?? 0,
+                    limit: limit ?? 100,
+                });
 
-            return {
-                rows: rowsWithId,
-                total: result.total,
-                columns,
-            };
-        } catch (error) {
-            console.error("[TablePreview] Failed to fetch data:", error);
-            return { rows: [], total: 0, columns: [] };
-        }
-    };
+                // Convert backend column info to Table component format
+                const columns: Column[] = result.columns.map((col, idx) => ({
+                    id: col.name,
+                    label: col.name,
+                    type: inferColumnType(col.type),
+                    sortable: true,
+                    filterable: true,
+                    pinnable: true,
+                    editable: true,
+                }));
+
+                // Add _rowId to each row for the Table component
+                const rowsWithId = result.rows.map((row, idx) => ({
+                    ...row,
+                    _rowId: (offset ?? 0) + idx,
+                }));
+
+                return {
+                    rows: rowsWithId,
+                    total: result.total,
+                    columns,
+                };
+            } catch (error) {
+                console.error("[TablePreview] Failed to fetch data:", error);
+                return { rows: [], total: 0, columns: [] };
+            }
+        };
+    });
 
     // Infer Table component column type from PostgreSQL/SQLite type strings
     function inferColumnType(
@@ -90,28 +104,19 @@
             return "datetime";
         if (t.includes("date")) return "date";
         if (t.includes("time")) return "time";
-        if (t.includes("uuid")) return "text"; // UUID rendered as text
+        if (t.includes("uuid")) return "text";
 
         return "text";
     }
 </script>
 
-<div class="h-full w-full flex flex-col">
-    <div class="flex-none px-4 py-2 border-b border-border bg-muted/30">
-        <h3 class="text-sm font-medium">
-            {effectiveSchema}.{tableName}
-        </h3>
-        <p class="text-xs text-muted-foreground">
-            {effectiveDatabase} • Read-only preview
-        </p>
-    </div>
-
-    <div class="flex-1 min-h-0">
+<div class="h-full w-full">
+    {#key tableKey}
         <Table
             columns={[]}
             {dataFetcher}
             {tableName}
             tableSchema={effectiveSchema}
         />
-    </div>
+    {/key}
 </div>
