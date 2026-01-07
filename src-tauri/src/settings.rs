@@ -6,7 +6,15 @@ use serde::{Deserialize, Serialize};
 pub struct AppSettings {
     pub editor_font_family: String,
     pub editor_font_size: u32,
-    // Add other settings here as needed
+    // Layout settings
+    pub sidebar_left_visible: bool,
+    pub sidebar_left_ratio: f64,
+    pub sidebar_right_visible: bool,
+    pub sidebar_right_ratio: f64,
+    pub sidebar_bottom_visible: bool,
+    pub sidebar_bottom_ratio: f64,
+    // Last selected database (for postgres connections)
+    pub selected_database: Option<String>,
 }
 
 impl Default for AppSettings {
@@ -14,6 +22,15 @@ impl Default for AppSettings {
         Self {
             editor_font_family: "\"Fira Code\", monospace".to_string(),
             editor_font_size: 14,
+            // Layout defaults
+            sidebar_left_visible: true,
+            sidebar_left_ratio: 0.2,
+            sidebar_right_visible: false,
+            sidebar_right_ratio: 0.75,
+            sidebar_bottom_visible: false,
+            sidebar_bottom_ratio: 0.7,
+            // No database selected by default
+            selected_database: None,
         }
     }
 }
@@ -33,6 +50,29 @@ pub fn get_settings(conn: &Connection) -> Result<AppSettings> {
                 "editor_font_size" => {
                     if let Ok(size) = value.parse() {
                         settings.editor_font_size = size;
+                    }
+                }
+                "sidebar_left_visible" => settings.sidebar_left_visible = value == "true",
+                "sidebar_left_ratio" => {
+                    if let Ok(ratio) = value.parse() {
+                        settings.sidebar_left_ratio = ratio;
+                    }
+                }
+                "sidebar_right_visible" => settings.sidebar_right_visible = value == "true",
+                "sidebar_right_ratio" => {
+                    if let Ok(ratio) = value.parse() {
+                        settings.sidebar_right_ratio = ratio;
+                    }
+                }
+                "sidebar_bottom_visible" => settings.sidebar_bottom_visible = value == "true",
+                "sidebar_bottom_ratio" => {
+                    if let Ok(ratio) = value.parse() {
+                        settings.sidebar_bottom_ratio = ratio;
+                    }
+                }
+                "selected_database" => {
+                    if !value.is_empty() {
+                        settings.selected_database = Some(value);
                     }
                 }
                 _ => {}

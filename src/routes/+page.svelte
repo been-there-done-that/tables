@@ -14,6 +14,8 @@
     <!-- Level 1: Left Sidebar vs Everything Else -->
     <ResizableSplitPane
       defaultRatio={0.2}
+      controlledRatio={windowState.layoutRatios.left}
+      onRatioChange={(r) => windowState.setLeftRatio(r)}
       minLeft="200px"
       minRight="300px"
       leftVisible={windowState.layout.left}
@@ -29,6 +31,8 @@
           <!-- Level 2: Center Area vs Right Sidebar -->
           <ResizableSplitPane
             defaultRatio={0.75}
+            controlledRatio={windowState.layoutRatios.right}
+            onRatioChange={(r) => windowState.setRightRatio(r)}
             minLeft="300px"
             minRight="200px"
             rightVisible={windowState.layout.right}
@@ -40,6 +44,8 @@
                 <ResizableSplitPane
                   orientation="vertical"
                   defaultRatio={0.7}
+                  controlledRatio={windowState.layoutRatios.bottom}
+                  onRatioChange={(r) => windowState.setBottomRatio(r)}
                   minLeft="100px"
                   minRight="50px"
                   rightVisible={windowState.layout.bottom}

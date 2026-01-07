@@ -24,19 +24,28 @@ const COMMANDS: CommandConfig[] = [
         id: "workbench.action.toggleSidebarLeft",
         label: "Toggle Left Sidebar",
         defaultKeybinding: { mac: "Meta+j", win: "Control+j" },
-        execute: (s) => { s.layout.left = !s.layout.left; }
+        execute: (s) => {
+            s.layout.left = !s.layout.left;
+            settingsStore.sidebarLeftVisible = s.layout.left;
+        }
     },
     {
         id: "workbench.action.toggleSidebarRight",
         label: "Toggle Right Sidebar",
         defaultKeybinding: { mac: "Meta+k", win: "Control+k" },
-        execute: (s) => { s.layout.right = !s.layout.right; }
+        execute: (s) => {
+            s.layout.right = !s.layout.right;
+            settingsStore.sidebarRightVisible = s.layout.right;
+        }
     },
     {
         id: "workbench.action.togglePanel",
         label: "Toggle Bottom Panel",
         defaultKeybinding: { mac: "Meta+n", win: "Control+n" },
-        execute: (s) => { s.layout.bottom = !s.layout.bottom; }
+        execute: (s) => {
+            s.layout.bottom = !s.layout.bottom;
+            settingsStore.sidebarBottomVisible = s.layout.bottom;
+        }
     },
     {
         id: "workbench.action.newWindow",
@@ -68,12 +77,19 @@ class WindowStateStore {
     label = $state("main");
     settingsWindowOpen = $state(false);
     datasourceWindowOpen = $state(false);
-    // Layout State
+    // Layout State (visibility)
     layout = $state({
         left: true,
         right: false,
         bottom: false,
         showSqlEditor: false
+    });
+
+    // Layout Ratios (persisted separately)
+    layoutRatios = $state({
+        left: 0.2,
+        right: 0.75,
+        bottom: 0.7
     });
 
     // Session Management
@@ -127,6 +143,22 @@ class WindowStateStore {
                 schemaStore.disconnect();
             }
         }
+    }
+
+    // Layout ratio update methods (with persistence)
+    setLeftRatio(ratio: number) {
+        this.layoutRatios.left = ratio;
+        settingsStore.sidebarLeftRatio = ratio;
+    }
+
+    setRightRatio(ratio: number) {
+        this.layoutRatios.right = ratio;
+        settingsStore.sidebarRightRatio = ratio;
+    }
+
+    setBottomRatio(ratio: number) {
+        this.layoutRatios.bottom = ratio;
+        settingsStore.sidebarBottomRatio = ratio;
     }
 
     // Metrics (Moved to metrics.svelte.ts)
@@ -260,6 +292,16 @@ class WindowStateStore {
             // Initialize global settings/theme listeners
             this.unlistenFunctions.push(settingsStore.init());
             this.unlistenFunctions.push(themeStore.init());
+
+            // Wait for settings to load, then apply layout
+            await settingsStore.waitForInit();
+            this.layout.left = settingsStore.sidebarLeftVisible;
+            this.layout.right = settingsStore.sidebarRightVisible;
+            this.layout.bottom = settingsStore.sidebarBottomVisible;
+            this.layoutRatios.left = settingsStore.sidebarLeftRatio;
+            this.layoutRatios.right = settingsStore.sidebarRightRatio;
+            this.layoutRatios.bottom = settingsStore.sidebarBottomRatio;
+            console.log("[WindowStateStore] Layout restored from settings:", this.layout, this.layoutRatios);
 
         } catch (e) {
             console.error("[WindowStateStore] Failed to setup window listeners:", e);
