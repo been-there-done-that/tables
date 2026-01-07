@@ -56,8 +56,20 @@ export class Session {
     }
 
     openView(type: ViewType, title: string, data?: any) {
-        // Find existing view if it matches type/title/data to avoid duplicates?
-        // For now, just create a new one
+        // For table views, check if one already exists for the same table
+        if (type === "table" && data?.tableName) {
+            const existing = this.views.find(
+                v => v.type === "table" &&
+                    v.data?.tableName === data.tableName &&
+                    v.data?.schemaName === data.schemaName &&
+                    v.data?.databaseName === data.databaseName
+            );
+            if (existing) {
+                this.activeViewId = existing.id;
+                return existing.id;
+            }
+        }
+
         const id = crypto.randomUUID();
         const newView: ViewState = { id, type, title, data };
         this.addView(newView);
