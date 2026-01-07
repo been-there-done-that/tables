@@ -26,7 +26,6 @@ const COMMANDS: CommandConfig[] = [
         defaultKeybinding: { mac: "Meta+j", win: "Control+j" },
         execute: (s) => {
             s.layout.left = !s.layout.left;
-            settingsStore.sidebarLeftVisible = s.layout.left;
         }
     },
     {
@@ -35,7 +34,6 @@ const COMMANDS: CommandConfig[] = [
         defaultKeybinding: { mac: "Meta+k", win: "Control+k" },
         execute: (s) => {
             s.layout.right = !s.layout.right;
-            settingsStore.sidebarRightVisible = s.layout.right;
         }
     },
     {
@@ -44,7 +42,6 @@ const COMMANDS: CommandConfig[] = [
         defaultKeybinding: { mac: "Meta+n", win: "Control+n" },
         execute: (s) => {
             s.layout.bottom = !s.layout.bottom;
-            settingsStore.sidebarBottomVisible = s.layout.bottom;
         }
     },
     {
@@ -77,20 +74,37 @@ class WindowStateStore {
     label = $state("main");
     settingsWindowOpen = $state(false);
     datasourceWindowOpen = $state(false);
+    initialized = $state(false); // Track if settings have been loaded and applied
     // Layout State (visibility)
-    layout = $state({
-        left: true,
-        right: false,
-        bottom: false,
-        showSqlEditor: false
-    });
+    // We use a getter/setter proxy pattern to settingsStore for automatic persistence
+    get layout() {
+        const self = this;
+        return {
+            get left() { return settingsStore.sidebarLeftVisible; },
+            set left(v: boolean) { settingsStore.sidebarLeftVisible = v; },
+            get right() { return settingsStore.sidebarRightVisible; },
+            set right(v: boolean) { settingsStore.sidebarRightVisible = v; },
+            get bottom() { return settingsStore.sidebarBottomVisible; },
+            set bottom(v: boolean) { settingsStore.sidebarBottomVisible = v; },
+            get showSqlEditor() { return self._showSqlEditor; },
+            set showSqlEditor(v: boolean) { self._showSqlEditor = v; }
+        };
+    }
 
-    // Layout Ratios (persisted separately)
-    layoutRatios = $state({
-        left: 0.2,
-        right: 0.75,
-        bottom: 0.7
-    });
+    // internal state for non-persisted layout flags
+    private _showSqlEditor = $state(false);
+
+    // Layout Ratios (proxied to settingsStore for debounced persistence)
+    get layoutRatios() {
+        return {
+            get left() { return settingsStore.sidebarLeftRatio; },
+            set left(v: number) { settingsStore.sidebarLeftRatio = v; },
+            get right() { return settingsStore.sidebarRightRatio; },
+            set right(v: number) { settingsStore.sidebarRightRatio = v; },
+            get bottom() { return settingsStore.sidebarBottomRatio; },
+            set bottom(v: number) { settingsStore.sidebarBottomRatio = v; }
+        };
+    }
 
     // Session Management
     sessions = $state<Session[]>([]);
@@ -145,20 +159,17 @@ class WindowStateStore {
         }
     }
 
-    // Layout ratio update methods (with persistence)
+    // Layout ratio update methods (proxies to layoutRatios setters)
     setLeftRatio(ratio: number) {
         this.layoutRatios.left = ratio;
-        settingsStore.sidebarLeftRatio = ratio;
     }
 
     setRightRatio(ratio: number) {
         this.layoutRatios.right = ratio;
-        settingsStore.sidebarRightRatio = ratio;
     }
 
     setBottomRatio(ratio: number) {
         this.layoutRatios.bottom = ratio;
-        settingsStore.sidebarBottomRatio = ratio;
     }
 
     // Metrics (Moved to metrics.svelte.ts)
@@ -293,15 +304,10 @@ class WindowStateStore {
             this.unlistenFunctions.push(settingsStore.init());
             this.unlistenFunctions.push(themeStore.init());
 
-            // Wait for settings to load, then apply layout
+            // Wait for settings to load
             await settingsStore.waitForInit();
-            this.layout.left = settingsStore.sidebarLeftVisible;
-            this.layout.right = settingsStore.sidebarRightVisible;
-            this.layout.bottom = settingsStore.sidebarBottomVisible;
-            this.layoutRatios.left = settingsStore.sidebarLeftRatio;
-            this.layoutRatios.right = settingsStore.sidebarRightRatio;
-            this.layoutRatios.bottom = settingsStore.sidebarBottomRatio;
-            console.log("[WindowStateStore] Layout restored from settings:", this.layout, this.layoutRatios);
+            this.initialized = true;
+            console.log("[WindowStateStore] Layout initialized from settings");
 
         } catch (e) {
             console.error("[WindowStateStore] Failed to setup window listeners:", e);

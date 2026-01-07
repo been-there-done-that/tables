@@ -4,6 +4,7 @@ import LoaderIcon from "@tabler/icons-svelte/icons/loader-2";
 import CheckIcon from "@tabler/icons-svelte/icons/check";
 import XIcon from "@tabler/icons-svelte/icons/x";
 import type { Connection, MetaDatabase } from "$lib/commands/types";
+import { settingsStore } from "./settings.svelte";
 
 export class SchemaStore {
     activeConnection = $state<Connection | null>(null);
@@ -118,15 +119,26 @@ export class SchemaStore {
 
             // Auto-select database
             if (this.databases.length > 0) {
-                // 1. Try configured database
+                // Wait for settings if they are still loading to ensure we have the persisted choice
+                await settingsStore.waitForInit();
+
+                // 1. Try persisted database from settings
+                const persistedDb = settingsStore.selectedDatabase ? this.databases.find(d => d.name === settingsStore.selectedDatabase) : null;
+
+                // 2. Try configured database from connection
                 const configuredDb = this.databases.find(d => d.name === conn.database);
-                if (configuredDb) {
+
+                if (persistedDb) {
+                    this.selectedDatabase = persistedDb.name;
+                    console.log(`[SchemaStore] Restored persisted database: ${this.selectedDatabase}`);
+                } else if (configuredDb) {
                     this.selectedDatabase = configuredDb.name;
+                    console.log(`[SchemaStore] Selected configured database: ${this.selectedDatabase}`);
                 } else {
-                    // 2. Fallback to first available
+                    // 3. Fallback to first available
                     this.selectedDatabase = this.databases[0].name;
+                    console.log(`[SchemaStore] Fallback to first database: ${this.selectedDatabase}`);
                 }
-                console.log(`[SchemaStore] Auto-selected database: ${this.selectedDatabase}`);
             }
 
             this.status = "idle";
@@ -258,6 +270,8 @@ export class SchemaStore {
     selectDatabase(name: string) {
         if (this.databases.find(d => d.name === name)) {
             this.selectedDatabase = name;
+            // Persist choice to settings
+            settingsStore.selectedDatabase = name;
             // Trigger load if needed (optional, or rely on tree expansion)
             this.loadDatabase(name);
         }
