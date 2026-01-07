@@ -40,10 +40,19 @@
     });
 
     const selectConnection = async (conn: Connection) => {
+        if (isDisabled(conn)) return;
         isOpen = false;
         // Start a new session for this connection
         windowState.startSession(conn);
         await schemaStore.connect(conn);
+    };
+
+    const isBusy = (id: string) => schemaStore.isConnectionBusy(id);
+
+    const isDisabled = (conn: Connection) => {
+        if (!isBusy(conn.id)) return false;
+        // Only disable SQLite if busy ( Postgres can be multi-window)
+        return conn.engine === "sqlite";
     };
 
     const disconnectConnection = async () => {
@@ -139,12 +148,16 @@
                     {#each connections as conn}
                         {@const DriverIcon =
                             resolveDriverIcon(conn.engine) || IconDatabase}
+                        {@const busy = isBusy(conn.id)}
+                        {@const disabled = isDisabled(conn)}
                         <Menu.Item
                             class={cn(
                                 "w-full flex items-center gap-3 px-3 py-1.5 text-left transition-colors",
                                 schemaStore.activeConnection?.id === conn.id &&
                                     "bg-accent/10 ring-1 ring-inset ring-accent/20",
+                                disabled && "opacity-50 cursor-not-allowed",
                             )}
+                            {disabled}
                             onclick={() => selectConnection(conn)}
                         >
                             <DriverIcon
@@ -169,7 +182,13 @@
                                 </span>
                             </div>
 
-                            {#if schemaStore.activeConnection?.id === conn.id}
+                            {#if busy}
+                                <div
+                                    class="ml-auto px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-500 text-[9px] font-bold uppercase tracking-wider border border-amber-500/20"
+                                >
+                                    Busy
+                                </div>
+                            {:else if schemaStore.activeConnection?.id === conn.id}
                                 <div
                                     class="ml-auto w-1.5 h-1.5 rounded-full bg-(--theme-accent-primary)"
                                 ></div>

@@ -15,6 +15,7 @@ export interface Settings {
     sidebarBottomRatio: number;
     // Selected database
     selectedDatabase: string | null;
+    expandedNodes: Record<string, string[]>;
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -29,6 +30,7 @@ const DEFAULT_SETTINGS: Settings = {
     sidebarBottomRatio: 0.7,
     // No database selected by default
     selectedDatabase: null,
+    expandedNodes: {},
 };
 
 function createSettingsStore() {
@@ -156,6 +158,23 @@ function createSettingsStore() {
             }
         },
 
+        getExpandedNodes(connId: string): string[] {
+            return settings.expandedNodes[connId] || [];
+        },
+
+        setExpandedNodes(connId: string, nodes: string[]) {
+            // Ensure we don't trigger unnecessary updates if nodes haven't changed
+            const current = settings.expandedNodes[connId] || [];
+            if (current.length === nodes.length && current.every((n, i) => n === nodes[i])) {
+                return;
+            }
+
+            settings.expandedNodes[connId] = [...nodes];
+            if (browser) {
+                commandClient.updateAppSetting(`window:${windowLabel}:conn:${connId}:expanded`, nodes.join(","));
+            }
+        },
+
         // Utility
         get initialized() {
             return initialized;
@@ -196,7 +215,14 @@ function createSettingsStore() {
                     // Then merge window-specific layout if available
                     if (windowLayouts && windowLayouts[windowLabel]) {
                         console.log(`[Settings] Applying layout for window: ${windowLabel}`, windowLayouts[windowLabel]);
-                        settings = { ...settings, ...windowLayouts[windowLabel] };
+                        const layout = windowLayouts[windowLabel];
+                        settings = {
+                            ...settings,
+                            ...layout,
+                            // Ensure expandedNodes is merged correctly if needed, 
+                            // though spread usually handles it if names match.
+                            expandedNodes: layout.expandedNodes || {}
+                        };
                     }
 
                     apply();
@@ -254,6 +280,12 @@ function createSettingsStore() {
                         case "sidebar_bottom_ratio":
                             settings.sidebarBottomRatio = parseFloat(value);
                             break;
+                    }
+
+                    // Handle connection-specific expanded nodes: window:{label}:conn:{id}:expanded
+                    if (prop.startsWith("conn:") && prop.endsWith(":expanded")) {
+                        const connId = prop.split(":")[1];
+                        settings.expandedNodes[connId] = value.split(",").filter(s => s !== "");
                     }
                 }
             }).then(fn => unlisten = fn);
