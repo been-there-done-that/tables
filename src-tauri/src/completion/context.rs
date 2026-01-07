@@ -276,22 +276,6 @@ fn determine_context(source: &str, node: &Node, cursor_offset: usize) -> CursorC
         return CursorContext::WhereClause;
     }
     
-    // Heuristic: If we are in a SELECT statement, past 'FROM', and haven't hit WHERE/GROUP/ORDER yet,
-    // we are likely in the FROM clause (expecting aliases, joins, or WHERE).
-    if upper.contains("SELECT ") && upper.contains(" FROM ") {
-        let from_idx = upper.rfind(" FROM ").unwrap() + 6;
-        if cursor_offset >= from_idx {
-            let after_from = &upper[from_idx..];
-            if !after_from.contains(" WHERE ") 
-               && !after_from.contains(" GROUP BY ") 
-               && !after_from.contains(" ORDER BY ") 
-               && !after_from.contains(" LIMIT ")
-            {
-                return CursorContext::FromClause;
-            }
-        }
-    }
-    
     if upper.contains(" ON ") {
         let (left, right) = extract_join_tables(before_cursor);
         
@@ -307,6 +291,22 @@ fn determine_context(source: &str, node: &Node, cursor_offset: usize) -> CursorC
             left_table: left,
             right_table: right,
         };
+    }
+
+    // Heuristic: If we are in a SELECT statement, past 'FROM', and haven't hit WHERE/GROUP/ORDER yet,
+    // we are likely in the FROM clause (expecting aliases, joins, or WHERE).
+    if upper.contains("SELECT ") && upper.contains(" FROM ") {
+        let from_idx = upper.rfind(" FROM ").unwrap() + 6;
+        if cursor_offset >= from_idx {
+            let after_from = &upper[from_idx..];
+            if !after_from.contains(" WHERE ") 
+               && !after_from.contains(" GROUP BY ") 
+               && !after_from.contains(" ORDER BY ") 
+               && !after_from.contains(" LIMIT ")
+            {
+                return CursorContext::FromClause;
+            }
+        }
     }
     
     CursorContext::Unknown
