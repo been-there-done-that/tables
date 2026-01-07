@@ -13,12 +13,14 @@ use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 use serde::Serialize;
 
-use crate::introspection::{MetaDatabase, MetaSchema, MetaTable, MetaColumn, MetaForeignKey, MetaIndex};
+use crate::introspection::MetaDatabase;
 use crate::completion::schema::graph::{SchemaGraph, TableInfo, ColumnInfo, ForeignKey};
 use crate::completion::parsing::parse_sql;
 use crate::completion::context::Context;
 use crate::completion::analysis::build_semantic_model;
-use crate::completion::engine::{CompletionEngine, CompletionItem, CompletionKind};
+use crate::completion::engine::{CompletionItem, CompletionKind};
+use crate::completion::document::Dialect;
+use crate::completion::engines::create_engine;
 use crate::completion::ranges::{find_current_statement_range, StatementRange};
 use crate::completion::diagnostics::{Diagnostic, DiagnosticEngine};
 
@@ -26,6 +28,8 @@ use crate::completion::diagnostics::{Diagnostic, DiagnosticEngine};
 pub struct CompletionState {
     /// Cached SchemaGraph per connection (connection_id → SchemaGraph)
     pub schema_cache: Arc<Mutex<HashMap<String, Arc<SchemaGraph>>>>,
+    /// Cached Dialect per connection (connection_id → Dialect)
+    pub dialect_cache: Arc<Mutex<HashMap<String, Dialect>>>,
     /// Cancellation token for the current active request
     pub active_job: Mutex<Option<CancellationToken>>,
 }
@@ -34,6 +38,7 @@ impl Default for CompletionState {
     fn default() -> Self {
         Self {
             schema_cache: Arc::new(Mutex::new(HashMap::new())),
+            dialect_cache: Arc::new(Mutex::new(HashMap::new())),
             active_job: Mutex::new(None),
         }
     }
@@ -146,11 +151,26 @@ pub async fn update_completion_schema(
     connection_id: String,
     databases: Vec<MetaDatabase>,
     selected_database: Option<String>,
+    engine_type: Option<String>,
 ) -> Result<(), String> {
     let schema_graph = schema_graph_from_meta(&databases, selected_database.as_deref());
     
+    // Parse engine type to Dialect
+    let dialect = match engine_type.as_deref().map(|s| s.to_lowercase()).as_deref() {
+        Some("sqlite") => Dialect::SQLite,
+        Some("postgres") | Some("postgresql") => Dialect::Postgres,
+        Some("mysql") => Dialect::MySQL,
+        _ => Dialect::Postgres, // Default to Postgres for compatibility
+    };
+    
+    log::debug!("[Completion] Caching schema for connection {} with dialect {:?}, {} databases", 
+        connection_id, dialect, databases.len());
+    
     let mut cache = state.schema_cache.lock().await;
-    cache.insert(connection_id, Arc::new(schema_graph));
+    cache.insert(connection_id.clone(), Arc::new(schema_graph));
+    
+    let mut dialect_cache = state.dialect_cache.lock().await;
+    dialect_cache.insert(connection_id, dialect);
     
     Ok(())
 }
@@ -185,10 +205,15 @@ pub async fn request_completions(
         *job_guard = Some(cancel_token.clone());
     }
     
-    // 2. Get schema from cache
+    // 2. Get schema and dialect from cache
     let schema_opt = {
         let cache = state.schema_cache.lock().await;
         cache.get(&connection_id).cloned()
+    };
+    
+    let dialect = {
+        let dialect_cache = state.dialect_cache.lock().await;
+        dialect_cache.get(&connection_id).copied().unwrap_or(Dialect::Postgres)
     };
     
     let schema = match schema_opt {
@@ -199,9 +224,7 @@ pub async fn request_completions(
         }
     };
     
-    // 3. Off-thread execution
-    let text_clone = text.clone();
-    let default_schema_clone = default_schema.clone();
+    // 3. Off-thread execution with dialect-specific engine
     let result = tokio::task::spawn_blocking(move || {
         // Parse SQL
         let tree = parse_sql(&text, None);
@@ -224,8 +247,9 @@ pub async fn request_completions(
             return vec![];
         }
         
-        // Run completion engine
-        let items = CompletionEngine::complete(&semantic, &context, &schema, default_schema.as_deref(), None);
+        // Create dialect-specific engine and run completion
+        let engine = create_engine(dialect);
+        let items = engine.complete(&semantic, &context, &schema, default_schema.as_deref(), None);
         
         // Convert to DTOs
         items.into_iter().map(CompletionItemDto::from).collect()

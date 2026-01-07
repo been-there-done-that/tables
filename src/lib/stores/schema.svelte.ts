@@ -122,7 +122,8 @@ export class SchemaStore {
             await invoke("update_completion_schema", {
                 connectionId: conn.id,
                 databases: data,
-                selectedDatabase: conn.database  // Filter by configured database
+                selectedDatabase: conn.database,  // Filter by configured database
+                engineType: conn.engine  // Pass engine for dialect-specific completions
             });
             console.timeEnd("[SchemaStore] update_completion_schema");
 
@@ -229,7 +230,8 @@ export class SchemaStore {
             await invoke("update_completion_schema", {
                 connectionId: this.activeConnection.id,
                 databases: this.databases,
-                selectedDatabase: dbName
+                selectedDatabase: dbName,
+                engineType: this.activeConnection.engine
             });
 
             toast.success(`Database Loaded`, {
@@ -265,7 +267,8 @@ export class SchemaStore {
             await invoke<void>("update_completion_schema", {
                 connectionId: this.activeConnection.id,
                 databases: data,
-                selectedDatabase: this.selectedDatabase
+                selectedDatabase: this.selectedDatabase,
+                engineType: this.activeConnection.engine
             });
 
             this.databases = data;
