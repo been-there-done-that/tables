@@ -15,6 +15,8 @@ export class SchemaStore {
     lastRefreshed = $state<Date | null>(null);
     windowLabel = $state<string | null>(null);
     activeSchema = $state<string | null>("public");
+    activeConnectionIds = $state<string[]>([]);
+    private unlistenActive: (() => void) | null = null;
 
     async initialize(label: string) {
         this.windowLabel = label;
@@ -34,6 +36,16 @@ export class SchemaStore {
         } catch (e) {
             console.error("[SchemaStore] Failed to restore session:", e);
         }
+
+        // Listen for active connection changes from backend
+        import("@tauri-apps/api/event").then(({ listen }) => {
+            listen<string[]>("active-connections-changed", (event) => {
+                this.activeConnectionIds = event.payload;
+            }).then(un => this.unlistenActive = un);
+        });
+
+        // Initial fetch
+        this.refreshActiveConnections();
     }
 
     async connect(conn: Connection) {
@@ -274,6 +286,27 @@ export class SchemaStore {
             settingsStore.selectedDatabase = name;
             // Trigger load if needed (optional, or rely on tree expansion)
             this.loadDatabase(name);
+        }
+    }
+
+    async refreshActiveConnections() {
+        try {
+            this.activeConnectionIds = await invoke<string[]>("get_active_connections");
+        } catch (e) {
+            console.error("[SchemaStore] Failed to fetch active connections:", e);
+        }
+    }
+
+    isConnectionBusy(connId: string) {
+        // A connection is busy if it's active in another window
+        // (i.e. it's in the global active list but isn't our window's active connection)
+        return this.activeConnectionIds.includes(connId) && this.activeConnection?.id !== connId;
+    }
+
+    cleanup() {
+        if (this.unlistenActive) {
+            this.unlistenActive();
+            this.unlistenActive = null;
         }
     }
 }

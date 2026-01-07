@@ -123,7 +123,7 @@ class WindowStateStore {
             return;
         }
 
-        const newSession = new Session(crypto.randomUUID(), connection);
+        const newSession = new Session(crypto.randomUUID(), connection, this.label);
         this.sessions.push(newSession);
         this.activateSession(newSession.id);
     }

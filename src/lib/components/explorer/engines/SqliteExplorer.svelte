@@ -263,6 +263,10 @@
             };
             loadTableDetails(dbName, schemaName, tableName);
         }
+
+        if (activeSession) {
+            activeSession.persistExpandedNodes();
+        }
     }
 </script>
 
