@@ -1,5 +1,7 @@
 import { browser } from "$app/environment";
 import { commandClient } from "$lib/commands/client";
+import { debounce } from "$lib/utils";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 export interface Settings {
     editorFontFamily: string;
@@ -49,6 +51,17 @@ function createSettingsStore() {
         document.body.style.setProperty("--font-user-ui", safeFamily);
     };
 
+    // Debounced persistence for ratio changes (avoid excessive API calls during drag)
+    const persistLeftRatio = debounce((v: number) => {
+        commandClient.updateAppSetting("sidebar_left_ratio", v.toString());
+    }, 300);
+    const persistRightRatio = debounce((v: number) => {
+        commandClient.updateAppSetting("sidebar_right_ratio", v.toString());
+    }, 300);
+    const persistBottomRatio = debounce((v: number) => {
+        commandClient.updateAppSetting("sidebar_bottom_ratio", v.toString());
+    }, 300);
+
     return {
         // Font settings
         get editorFontFamily() {
@@ -87,7 +100,7 @@ function createSettingsStore() {
         set sidebarLeftRatio(v: number) {
             settings.sidebarLeftRatio = v;
             if (browser) {
-                commandClient.updateAppSetting("sidebar_left_ratio", v.toString());
+                persistLeftRatio(v);
             }
         },
 
@@ -107,7 +120,7 @@ function createSettingsStore() {
         set sidebarRightRatio(v: number) {
             settings.sidebarRightRatio = v;
             if (browser) {
-                commandClient.updateAppSetting("sidebar_right_ratio", v.toString());
+                persistRightRatio(v);
             }
         },
 
@@ -127,7 +140,7 @@ function createSettingsStore() {
         set sidebarBottomRatio(v: number) {
             settings.sidebarBottomRatio = v;
             if (browser) {
-                commandClient.updateAppSetting("sidebar_bottom_ratio", v.toString());
+                persistBottomRatio(v);
             }
         },
 
@@ -187,43 +200,41 @@ function createSettingsStore() {
             apply();
 
             // Listen for settings changes from other windows
-            let unlisten: () => void;
-            import("@tauri-apps/api/event").then(async ({ listen }) => {
-                unlisten = await listen<[string, string]>("settings-changed", (event) => {
-                    console.log("[Settings] Remote change event:", event);
-                    const [key, value] = event.payload;
-                    switch (key) {
-                        case "editor_font_family":
-                            settings.editorFontFamily = value;
-                            apply();
-                            break;
-                        case "editor_font_size":
-                            settings.editorFontSize = parseInt(value);
-                            break;
-                        case "sidebar_left_visible":
-                            settings.sidebarLeftVisible = value === "true";
-                            break;
-                        case "sidebar_left_ratio":
-                            settings.sidebarLeftRatio = parseFloat(value);
-                            break;
-                        case "sidebar_right_visible":
-                            settings.sidebarRightVisible = value === "true";
-                            break;
-                        case "sidebar_right_ratio":
-                            settings.sidebarRightRatio = parseFloat(value);
-                            break;
-                        case "sidebar_bottom_visible":
-                            settings.sidebarBottomVisible = value === "true";
-                            break;
-                        case "sidebar_bottom_ratio":
-                            settings.sidebarBottomRatio = parseFloat(value);
-                            break;
-                        case "selected_database":
-                            settings.selectedDatabase = value || null;
-                            break;
-                    }
-                });
-            });
+            let unlisten: UnlistenFn | undefined;
+            listen<[string, string]>("settings-changed", (event) => {
+                console.log("[Settings] Remote change event:", event);
+                const [key, value] = event.payload;
+                switch (key) {
+                    case "editor_font_family":
+                        settings.editorFontFamily = value;
+                        apply();
+                        break;
+                    case "editor_font_size":
+                        settings.editorFontSize = parseInt(value);
+                        break;
+                    case "sidebar_left_visible":
+                        settings.sidebarLeftVisible = value === "true";
+                        break;
+                    case "sidebar_left_ratio":
+                        settings.sidebarLeftRatio = parseFloat(value);
+                        break;
+                    case "sidebar_right_visible":
+                        settings.sidebarRightVisible = value === "true";
+                        break;
+                    case "sidebar_right_ratio":
+                        settings.sidebarRightRatio = parseFloat(value);
+                        break;
+                    case "sidebar_bottom_visible":
+                        settings.sidebarBottomVisible = value === "true";
+                        break;
+                    case "sidebar_bottom_ratio":
+                        settings.sidebarBottomRatio = parseFloat(value);
+                        break;
+                    case "selected_database":
+                        settings.selectedDatabase = value || null;
+                        break;
+                }
+            }).then(fn => unlisten = fn);
 
             return () => {
                 if (unlisten) unlisten();
