@@ -23,7 +23,7 @@
   import DataSource from "./components/datasource/DataSource.svelte";
   import ConnectionPicker from "$lib/components/ConnectionPicker.svelte";
   import * as Menu from "$lib/components/ui/dropdown-menu";
-  import IconDatabase from "@tabler/icons-svelte/icons/database";
+  import IconDatabaseAlt from "$lib/svg/IconDatabaseAlt.svelte";
   import IconChevronDown from "@tabler/icons-svelte/icons/chevron-down";
   import IconLoader2 from "@tabler/icons-svelte/icons/loader-2";
 
@@ -114,7 +114,7 @@
                 )}
               >
                 <div class="flex items-center gap-2 px-2">
-                  <IconDatabase
+                  <IconDatabaseAlt
                     class={cn(
                       "size-3.5 opacity-70 transition-opacity",
                       isDbPickerOpen &&
