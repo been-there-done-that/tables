@@ -22,16 +22,36 @@
         e.stopPropagation();
         activeSession?.closeView(viewId);
     }
+
+    let scrollContainer = $state<HTMLElement | null>(null);
+
+    $effect(() => {
+        if (!activeViewId || !scrollContainer) return;
+        console.log("scrollContainer", scrollContainer);
+        // Wait for DOM update (though effects usually run after)
+        const activeTab = scrollContainer.querySelector(
+            `[data-view-id="${activeViewId}"]`,
+        );
+        if (activeTab) {
+            activeTab.scrollIntoView({
+                behavior: "smooth",
+                block: "nearest",
+                inline: "center",
+            });
+        }
+    });
 </script>
 
 {#if views.length > 0}
     <div
+        bind:this={scrollContainer}
         class="flex items-center gap-px border-b border-border bg-muted/20 h-8 px-2 overflow-x-auto scrollbar-hide"
     >
         {#each views as view (view.id)}
             <ContextMenu.Root>
                 <ContextMenu.Trigger>
                     <button
+                        data-view-id={view.id}
                         class={cn(
                             "flex items-center gap-2 px-3 h-full text-xs font-medium whitespace-nowrap transition-all duration-150 select-none",
                             "border-r border-border/50 relative group outline-none focus:outline-none",
