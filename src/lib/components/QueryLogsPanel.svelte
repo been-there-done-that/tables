@@ -49,9 +49,7 @@
 </script>
 
 {#if logsStore.isOpen}
-    <div
-        class="fixed pt-[30px] right-0 top-0 bottom-0 w-[400px] bg-background border-l border-border z-20 flex flex-col shadow-xl"
-    >
+    <div class="flex h-full w-full flex-col bg-background">
         <div
             class="h-10 border-b border-border flex items-center justify-between px-3 bg-muted/30"
         >
