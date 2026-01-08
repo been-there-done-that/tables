@@ -34,6 +34,7 @@
         tableSchema?: string;
         onOpenInQueryEditor?: (ctx: TableQueryContext) => void;
         onOpenNewQueryTab?: (ctx: TableQueryContext) => void;
+        viewState?: Record<string, any>;
     }
 
     let {
@@ -45,6 +46,7 @@
         tableSchema,
         onOpenInQueryEditor,
         onOpenNewQueryTab,
+        viewState,
     }: Props = $props();
 
     type ClipboardApi = {
@@ -105,14 +107,21 @@
     }
 
     // State
-    let tableColumns = $state<Column[]>([]);
+    // Initialize from viewState if available to prevent re-fetching
+    let tableColumns = $state<Column[]>(viewState?.tableColumns || []);
 
     // Keep tableColumns in sync with incoming prop
     $effect(() => {
-        tableColumns = columns.map((c) => ({ ...c }));
+        if (columns && columns.length > 0) {
+            tableColumns = columns.map((c) => ({ ...c }));
+        }
     });
-    let hiddenColumnIds = $state<Set<string>>(new Set());
-    let pinnedColumnIds = $state<string[]>([]);
+    let hiddenColumnIds = $state<Set<string>>(
+        viewState?.hiddenColumnIds
+            ? new Set(viewState.hiddenColumnIds)
+            : new Set(),
+    );
+    let pinnedColumnIds = $state<string[]>(viewState?.pinnedColumnIds || []);
 
     let visibleColumns = $derived.by(() => {
         const visible = tableColumns.filter((c) => !hiddenColumnIds.has(c.id));
@@ -121,16 +130,16 @@
         return [...pinned, ...unpinned];
     });
 
-    let rows = $state<any[]>([]);
+    let rows = $state<any[]>(viewState?.rows || []);
     let baselineRows = $state<Map<number, any>>(new Map());
-    let totalRows = $state(0);
+    let totalRows = $state(viewState?.totalRows || 0);
     let columnStats = $state<Record<string, { value: any; count: number }[]>>(
-        {},
+        viewState?.columnStats || {},
     );
     let loading = $state(false);
     let loadingMore = $state(false);
-    let sortState = $state<SortState[]>([]);
-    let filters = $state<Record<string, any>>({});
+    let sortState = $state<SortState[]>(viewState?.sortState || []);
+    let filters = $state<Record<string, any>>(viewState?.filters || {});
     let selectedRows = $state<RowSelection>({});
     let selectedCells = $state<CellSelection[]>([]);
     let selectionHead = $state<SelectionAnchor | null>(null);
@@ -168,8 +177,8 @@
     let containerHeight = $state(0);
 
     // Pagination state (for server-side pagination)
-    let offset = $state(0);
-    let limit = $state(500); // Initial batch size to handle large datasets without huge payloads
+    let offset = $state(viewState?.offset || 0);
+    let limit = $state(viewState?.limit || 500); // Initial batch size to handle large datasets without huge payloads
 
     let totalWidth = $derived(
         visibleColumns.reduce((acc, col) => acc + (col.width || 150), 0),
@@ -822,6 +831,22 @@
         debouncedSaveViewState();
     });
 
+    // Sync state back to viewState (in-memory cache for tab switching)
+    $effect(() => {
+        if (viewState) {
+            viewState.rows = rows;
+            viewState.tableColumns = tableColumns;
+            viewState.hiddenColumnIds = Array.from(hiddenColumnIds);
+            viewState.pinnedColumnIds = pinnedColumnIds;
+            viewState.totalRows = totalRows;
+            viewState.columnStats = columnStats;
+            viewState.sortState = sortState;
+            viewState.filters = filters;
+            viewState.offset = offset;
+            viewState.limit = limit;
+        }
+    });
+
     function handleResetColumnWidth(columnId: string) {
         tableColumns = tableColumns.map((c) => {
             if (c.id === columnId) {
@@ -880,7 +905,14 @@
 
     onMount(() => {
         // Note: loadViewState is called inside loadData after columns arrive
-        loadData();
+        if (viewState && viewState.rows && viewState.rows.length > 0) {
+            console.info("[Table] Restored state from cache, skipping fetch");
+            // If we have persisted baseline rows, we might want to restore them too
+            // For now, simpler reconstruction:
+            baselineRows = new Map(rows.map((row) => [row._rowId, { ...row }]));
+        } else {
+            loadData();
+        }
 
         // Prevent Cmd+A from selecting page text (desktop app behavior)
         const handleGlobalKeydown = (e: KeyboardEvent) => {

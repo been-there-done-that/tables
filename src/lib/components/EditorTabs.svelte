@@ -21,7 +21,7 @@
 
 {#if views.length > 0}
     <div
-        class="flex items-center gap-px border-b border-border bg-muted/20 h-9 px-2 overflow-x-auto scrollbar-hide"
+        class="flex items-center gap-px border-b border-border bg-muted/20 h-8 px-2 overflow-x-auto scrollbar-hide"
     >
         {#each views as view (view.id)}
             <button

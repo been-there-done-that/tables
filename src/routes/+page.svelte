@@ -76,11 +76,7 @@
                           {#if activeView?.type === "editor"}
                             <SqlTestingEditor context={activeView.data} />
                           {:else if activeView?.type === "table"}
-                            <TablePreview
-                              tableName={activeView.data?.tableName}
-                              schemaName={activeView.data?.schemaName}
-                              databaseName={activeView.data?.databaseName}
-                            />
+                            <TablePreview context={activeView.data} />
                           {:else}
                             <!-- Default Fallback -->
                             <div class="flex-1 overflow-auto p-4 space-y-4">

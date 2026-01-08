@@ -51,7 +51,7 @@
 {#if logsStore.isOpen}
     <div class="flex h-full w-full flex-col bg-background">
         <div
-            class="h-10 border-b border-border flex items-center justify-between px-3 bg-muted/30"
+            class="h-8 border-b border-border flex items-center justify-between px-3 bg-muted/30"
         >
             <span class="text-xs font-semibold text-muted-foreground"
                 >Query History</span
