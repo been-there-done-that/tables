@@ -155,7 +155,7 @@
                                 class="p-1 rounded bg-background/50 border border-border/50 text-xs overflow-x-auto relative group/code"
                             >
                                 <button
-                                    class="absolute right-1 top-1 p-1 opacity-0 group-hover/code:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
+                                    class="absolute bg-background cursor-pointer rounded-md right-1 top-1 p-1 opacity-0 group-hover/code:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
                                     onclick={(e) => {
                                         e.stopPropagation();
                                         navigator.clipboard.writeText(
