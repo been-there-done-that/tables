@@ -6,6 +6,8 @@
   import { windowState } from "$lib/stores/window.svelte"; // layout.showSqlEditor used here
   import SqlTestingEditor from "$lib/components/SqlTestingEditor.svelte";
   import TablePreview from "$lib/components/table/TablePreview.svelte";
+  import QueryLogsPanel from "$lib/components/QueryLogsPanel.svelte";
+  import { logsStore } from "$lib/stores/logs.svelte";
 
   const activeSession = $derived(windowState.activeSession);
 </script>
@@ -105,16 +107,20 @@
 
             <!-- Right Sidebar -->
             {#snippet right()}
-              <div class="flex h-full flex-col bg-muted/10">
-                <div
-                  class="flex h-8 flex-none items-center border-b border-border px-4"
-                >
-                  <h2 class="text-sm font-semibold">Properties</h2>
+              {#if logsStore.isOpen}
+                <QueryLogsPanel />
+              {:else}
+                <div class="flex h-full flex-col bg-muted/10">
+                  <div
+                    class="flex h-8 flex-none items-center border-b border-border px-4"
+                  >
+                    <h2 class="text-sm font-semibold">Properties</h2>
+                  </div>
+                  <div class="flex-1 overflow-auto p-4">
+                    <p class="text-xs">Property details...</p>
+                  </div>
                 </div>
-                <div class="flex-1 overflow-auto p-4">
-                  <p class="text-xs">Property details...</p>
-                </div>
-              </div>
+              {/if}
             {/snippet}
           </ResizableSplitPane>
         </div>

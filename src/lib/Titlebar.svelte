@@ -18,6 +18,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { windowState } from "$lib/stores/window.svelte";
   import { schemaStore } from "$lib/stores/schema.svelte";
+  import { logsStore } from "$lib/stores/logs.svelte";
   import { cn } from "$lib/utils";
   import DataSource from "./components/datasource/DataSource.svelte";
   import ConnectionPicker from "$lib/components/ConnectionPicker.svelte";
@@ -249,6 +250,24 @@
             {:else}
               <IconLayoutBottombar class="size-5" />
             {/if}
+          </button>
+
+          <button
+            class={cn(
+              "h-6 w-6 flex items-center justify-center rounded-md border transition-all",
+              logsStore.isOpen
+                ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
+                : "hover:bg-(--theme-bg-hover) border-transparent",
+            )}
+            onclick={() => {
+              logsStore.toggle();
+              if (logsStore.isOpen) {
+                windowState.layout.right = true;
+              }
+            }}
+            title="Toggle Query Logs"
+          >
+            <Logs class="size-5" />
           </button>
 
           <button

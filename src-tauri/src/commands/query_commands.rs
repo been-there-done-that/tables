@@ -1,7 +1,17 @@
-use tauri::State;
+use tauri::{State, AppHandle, Emitter, Manager};
 use serde::{Deserialize, Serialize};
 use log::{debug, error, info};
 use crate::{DatabaseState, ConnectionManager, ConnectionManagerState};
+use std::time::Instant;
+
+/// Result of a general query execution
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QueryResult {
+    pub rows: Vec<serde_json::Value>,
+    pub columns: Vec<ColumnInfo>,
+    pub affected_rows: Option<u64>,
+    pub duration_ms: u64,
+}
 
 /// Result of a table preview query
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -9,6 +19,66 @@ pub struct TablePreviewResult {
     pub rows: Vec<serde_json::Value>,
     pub columns: Vec<ColumnInfo>,
     pub total: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QueryLogEntry {
+    pub id: i64,
+    pub timestamp: i64,
+    #[serde(rename = "connectionId")]
+    pub connection_id: String,
+    pub database: String,
+    pub query: String,
+    #[serde(rename = "durationMs")]
+    pub duration_ms: i64,
+    pub status: String,
+    pub error: Option<String>,
+    #[serde(rename = "rows")]
+    pub row_count: Option<i64>,
+}
+
+/// Fetches recent query logs
+#[tauri::command]
+pub fn fetch_query_logs(
+    limit: i64,
+    db_state: State<'_, DatabaseState>,
+) -> Result<Vec<QueryLogEntry>, String> {
+    let conn = db_state.conn.lock().map_err(|e| e.to_string())?;
+    
+    let mut stmt = conn.prepare(
+        "SELECT id, timestamp, connection_id, database_name, query_text, duration_ms, status, error_message, row_count 
+         FROM query_logs 
+         ORDER BY timestamp DESC 
+         LIMIT ?",
+    ).map_err(|e| e.to_string())?;
+
+    let rows = stmt.query_map([limit], |row| {
+        Ok(QueryLogEntry {
+            id: row.get(0)?,
+            timestamp: row.get(1)?,
+            connection_id: row.get(2)?,
+            database: row.get::<_, Option<String>>(3)?.unwrap_or_default(),
+            query: row.get(4)?,
+            duration_ms: row.get(5)?,
+            status: row.get(6)?,
+            error: row.get(7)?,
+            row_count: row.get(8)?,
+        })
+    }).map_err(|e| e.to_string())?;
+
+    let mut logs = Vec::new();
+    for row in rows {
+        logs.push(row.map_err(|e| e.to_string())?);
+    }
+    
+    // Reverse to show oldest first if we want top-to-bottom feel, 
+    // but usually logs are newest at bottom? 
+    // The user requested "latest 100", and typical log view appends.
+    // So if we fetch DESC (newest first), we should reverse to get chronological order [old ... new]
+    // so they are appended correctly in the store.
+    logs.reverse();
+
+    Ok(logs)
 }
 
 /// Column metadata from query result
@@ -31,6 +101,7 @@ pub async fn fetch_table_preview(
     limit: i64,
     db_state: State<'_, DatabaseState>,
     conn_state: State<'_, ConnectionManagerState>,
+    app: AppHandle,
 ) -> Result<TablePreviewResult, String> {
     info!(
         "Fetching table preview for {}.{}.{} (offset={}, limit={})",
@@ -45,13 +116,73 @@ pub async fn fetch_table_preview(
 
     match connection.engine.as_str() {
         "postgres" | "postgresql" => {
-            fetch_postgres_preview(&config, &credentials, &database, &schema, &table_name, offset, limit).await
+            let start = Instant::now();
+            let result = fetch_postgres_preview(&config, &credentials, &database, &schema, &table_name, offset, limit).await;
+            let duration = start.elapsed().as_millis() as u64;
+            
+            let status = if result.is_ok() { "success" } else { "error" };
+            let error = result.as_ref().err().map(|e| e.as_str());
+            let row_count = result.as_ref().map(|r| r.rows.len()).ok();
+            
+            log_query_event(&app, &connection_id, &database, &format!("SELECT * FROM {}.{} LIMIT {} OFFSET {}", schema, table_name, limit, offset), duration, status, error, row_count);
+            
+            result
         }
         "sqlite" => {
-            fetch_sqlite_preview(&config, &table_name, offset, limit)
+            let start = Instant::now();
+            let result = fetch_sqlite_preview(&config, &table_name, offset, limit);
+            let duration = start.elapsed().as_millis() as u64;
+             
+            let status = if result.is_ok() { "success" } else { "error" };
+            let error = result.as_ref().err().map(|e| e.as_str());
+            let row_count = result.as_ref().map(|r| r.rows.len()).ok();
+            
+            log_query_event(&app, &connection_id, &database, &format!("SELECT * FROM {} LIMIT {} OFFSET {}", table_name, limit, offset), duration, status, error, row_count);
+            
+            result
         }
         _ => Err(format!("Engine '{}' is not supported for table preview", connection.engine)),
     }
+}
+
+/// Executes a generic SQL query
+#[tauri::command]
+pub async fn execute_query(
+    connection_id: String,
+    database: String,
+    schema: String, // Context, used for search path or logging
+    query: String,
+    db_state: State<'_, DatabaseState>,
+    conn_state: State<'_, ConnectionManagerState>,
+    app: AppHandle,
+) -> Result<QueryResult, String> {
+    info!("Executing query on {}: {}", database, query);
+    
+    let manager = ConnectionManager::from_state(&db_state, &conn_state);
+    let (connection, credentials) = manager.get_connection(&connection_id)?;
+
+    let config: serde_json::Value = serde_json::from_str(&connection.config_json)
+        .map_err(|e| format!("Failed to parse connection config: {}", e))?;
+
+    let start = Instant::now();
+    let result = match connection.engine.as_str() {
+        "postgres" | "postgresql" => {
+            execute_postgres_query(&config, &credentials, &database, &schema, &query).await
+        }
+        "sqlite" => {
+            execute_sqlite_query(&config, &query)
+        }
+        _ => Err(format!("Engine '{}' is not supported for query execution", connection.engine)),
+    };
+    let duration = start.elapsed().as_millis() as u64;
+
+    let status = if result.is_ok() { "success" } else { "error" };
+    let error = result.as_ref().err().map(|e| e.as_str());
+    let row_count = result.as_ref().map(|r| r.rows.len()).ok();
+
+    log_query_event(&app, &connection_id, &database, &query, duration, status, error, row_count);
+
+    result
 }
 
 async fn fetch_postgres_preview(
@@ -335,4 +466,176 @@ fn sqlite_value_to_json(row: &rusqlite::Row, idx: usize) -> serde_json::Value {
         }
     }
     serde_json::Value::Null
+}
+
+async fn execute_postgres_query(
+    config: &serde_json::Value,
+    credentials: &crate::connection::SecureCredentials,
+    database: &str,
+    schema: &str,
+    query: &str,
+) -> Result<QueryResult, String> {
+    let db = config.get("db").ok_or("Missing 'db' config")?;
+    let host = db.get("host").and_then(|v| v.as_str()).ok_or("Missing host")?;
+    let port = db.get("port").and_then(|v| v.as_u64()).unwrap_or(5432) as u16;
+    let user = db.get("username").and_then(|v| v.as_str()).ok_or("Missing username")?;
+    let password = credentials.password.as_ref()
+        .map(|p| p.expose().to_string())
+        .or_else(|| db.get("password").and_then(|v| v.as_str()).map(|s| s.to_string()))
+        .unwrap_or_default();
+
+    let tls_enabled = config.get("tls")
+        .and_then(|t| t.get("enabled"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
+    let conn_str = format!("postgres://{}:{}@{}:{}/{}", user, password, host, port, database);
+
+    let client: tokio_postgres::Client = if tls_enabled {
+        let tls_connector = native_tls::TlsConnector::builder()
+            .danger_accept_invalid_certs(true)
+            .build()
+            .map_err(|e| format!("Failed to build TLS connector: {}", e))?;
+        let connector = postgres_native_tls::MakeTlsConnector::new(tls_connector);
+        let (client, connection) = tokio_postgres::connect(&conn_str, connector).await
+            .map_err(|e| format!("Connection error: {}", e))?;
+        tokio::spawn(async move {
+            if let Err(e) = connection.await {
+                error!("Postgres connection error: {}", e);
+            }
+        });
+        client
+    } else {
+        let (client, connection) = tokio_postgres::connect(&conn_str, tokio_postgres::NoTls).await
+            .map_err(|e| format!("Connection error: {}", e))?;
+        tokio::spawn(async move {
+            if let Err(e) = connection.await {
+                error!("Postgres connection error: {}", e);
+            }
+        });
+        client
+    };
+
+    if !schema.is_empty() && schema != "public" {
+        let _ = client.execute(&format!("SET search_path TO \"{}\"", schema), &[]).await;
+    }
+
+    let rows = client.query(query, &[]).await
+        .map_err(|e| format!("Query failed: {}", e))?;
+
+    let columns: Vec<ColumnInfo> = if !rows.is_empty() {
+        rows[0].columns().iter().map(|col| {
+            ColumnInfo {
+                name: col.name().to_string(),
+                column_type: format!("{:?}", col.type_()),
+            }
+        }).collect()
+    } else {
+        vec![]
+    };
+
+    let json_rows: Vec<serde_json::Value> = rows.iter().map(|row| {
+        let mut obj = serde_json::Map::new();
+        for (i, col) in row.columns().iter().enumerate() {
+            let value = postgres_value_to_json(row, i);
+            obj.insert(col.name().to_string(), value);
+        }
+        serde_json::Value::Object(obj)
+    }).collect();
+
+    Ok(QueryResult {
+        rows: json_rows,
+        columns,
+        affected_rows: None, // explicit query returns rows
+        duration_ms: 0, // calculated by caller
+    })
+}
+
+fn execute_sqlite_query(
+    config: &serde_json::Value,
+    query: &str,
+) -> Result<QueryResult, String> {
+    let sqlite_path = config.get("file")
+        .and_then(|v| v.as_str())
+        .ok_or("Missing SQLite file path in config")?;
+
+    let conn = rusqlite::Connection::open(sqlite_path)
+        .map_err(|e| format!("Failed to open SQLite database: {}", e))?;
+
+    let mut stmt = conn.prepare(query)
+        .map_err(|e| format!("Failed to prepare query: {}", e))?;
+
+    let column_count = stmt.column_count();
+    let column_names: Vec<String> = stmt.column_names().into_iter().map(|s| s.to_string()).collect();
+    
+    // SQLite doesn't give types easily in dynamic query without PRAGMA or parsing
+    // using placeholder types
+    let columns: Vec<ColumnInfo> = column_names.iter().map(|name| ColumnInfo {
+        name: name.clone(),
+        column_type: "UNKNOWN".to_string()
+    }).collect();
+
+    let rows: Vec<serde_json::Value> = stmt.query_map([], |row| {
+        let mut obj = serde_json::Map::new();
+        for (i, name) in column_names.iter().enumerate() {
+            let value = sqlite_value_to_json(row, i);
+            obj.insert(name.clone(), value);
+        }
+        Ok(serde_json::Value::Object(obj))
+    }).map_err(|e| format!("Failed to query rows: {}", e))?
+      .filter_map(|r| r.ok())
+      .collect();
+
+    Ok(QueryResult {
+        rows,
+        columns,
+        affected_rows: None,
+        duration_ms: 0,
+    })
+}
+
+fn log_query_event(
+    app: &AppHandle,
+    connection_id: &str,
+    database: &str,
+    query: &str,
+    duration_ms: u64,
+    status: &str,
+    error: Option<&str>,
+    row_count: Option<usize>,
+) {
+    let timestamp = crate::now_ts() * 1000;
+    
+    // Emit event
+    let _ = app.emit("query-log", serde_json::json!({
+        "timestamp": timestamp,
+        "connectionId": connection_id,
+        "database": database,
+        "query": query,
+        "durationMs": duration_ms,
+        "status": status,
+        "error": error,
+        "rows": row_count
+    }));
+
+    // Persist to internal DB
+    if let Some(db_state) = app.try_state::<DatabaseState>() {
+        if let Ok(conn) = db_state.conn.lock() {
+            let _ = conn.execute(
+                "INSERT INTO query_logs (connection_id, connection_name, database_name, timestamp, query_text, duration_ms, row_count, status, error_message)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                rusqlite::params![
+                    connection_id,
+                    "unknown", // TODO: Fetch connection name if possible
+                    database,
+                    timestamp,
+                    query,
+                    duration_ms as i64,
+                    row_count.map(|r| r as i64),
+                    status,
+                    error
+                ]
+            );
+        }
+    }
 }

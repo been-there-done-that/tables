@@ -272,7 +272,9 @@ macro_rules! aggregate_plugin_commands {
             open_internal_db,
 
             // Query commands
-            fetch_table_preview
+            fetch_table_preview,
+            execute_query,
+            fetch_query_logs
         ]
     };
 }

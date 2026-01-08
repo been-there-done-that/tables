@@ -14,6 +14,8 @@
 
     import { settingsStore } from "$lib/stores/settings.svelte";
 
+    import { invoke } from "@tauri-apps/api/core";
+
     let { context = {} } = $props<{ context?: any }>();
 
     let editorContainer: HTMLElement;
@@ -95,6 +97,25 @@
             log(
                 `Executing (${source}) in ${schemaStore.selectedDatabase}.${schemaStore.activeSchema}:\n${query}`,
             );
+
+            if (!schemaStore.activeConnection) {
+                log("No active connection selected.");
+                return;
+            }
+
+            try {
+                const result = await invoke("execute_query", {
+                    connectionId: schemaStore.activeConnection.id,
+                    database: schemaStore.selectedDatabase,
+                    schema: schemaStore.activeSchema || "public",
+                    query: query,
+                });
+                console.log("Query Result:", result);
+                log("Query completed successfully.");
+            } catch (e) {
+                console.error("Query execution failed:", e);
+                log(`Query failed: ${e}`);
+            }
         } else {
             log("No query to execute");
         }
@@ -146,7 +167,7 @@
 <div class="flex h-full w-full flex-col bg-background">
     <!-- Toolbar -->
     <div
-        class="flex h-10 items-center justify-between border-b border-border bg-muted/20 px-2 gap-2"
+        class="flex h-8 items-center justify-between border-b border-border bg-muted/20 px-2 gap-2"
     >
         <div class="flex items-center gap-2">
             <button
