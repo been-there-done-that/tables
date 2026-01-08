@@ -95,7 +95,13 @@ export interface EditResult {
     conflicts?: any[];
 }
 
-export type OnApplyEdits = (editedRows: Record<string, any>) => Promise<EditResult>;
+export interface RowEdit {
+    rowId: number;
+    originalRow: any;
+    changes: Record<string, any>;
+}
+
+export type OnApplyEdits = (edits: RowEdit[]) => Promise<EditResult>;
 
 export interface RowSelection {
     [rowId: number]: boolean;

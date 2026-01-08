@@ -1297,7 +1297,20 @@
         if (Object.keys(pendingEdits).length === 0) return;
         if (onApplyEdits) {
             try {
-                const result = await onApplyEdits(pendingEdits);
+                // Construct RowEdit objects
+                const edits = Object.entries(pendingEdits).map(
+                    ([rowIdStr, changes]) => {
+                        const rowId = Number(rowIdStr);
+                        const originalRow = baselineRows.get(rowId) || {};
+                        return {
+                            rowId,
+                            originalRow,
+                            changes,
+                        };
+                    },
+                );
+
+                const result = await onApplyEdits(edits);
                 if (result.success) {
                     pendingEdits = {};
                     // Optionally reload data
