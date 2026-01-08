@@ -1,6 +1,7 @@
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { settingsStore } from "$lib/stores/settings.svelte";
+import { schemaStore } from "$lib/stores/schema.svelte";
 
 export interface LogEntry {
     id?: number;
@@ -27,29 +28,53 @@ class LogsStore {
     }
 
     constructor() {
-        // Listen for query completion
+        // Listen for log events
         listen<LogEntry>("query-log", (event) => {
-            this.handleLogEvent(event.payload);
+            if (this.shouldIncludeLog(event.payload)) {
+                this.handleLogEvent(event.payload);
+            }
         });
 
-        // Listen for query start
+        // Listen for query start events
         listen<LogEntry>("query-started", (event) => {
-            this.addLog(event.payload);
+            if (this.shouldIncludeLog(event.payload)) {
+                this.addLog(event.payload);
+            }
         });
-
-        // Initial load
-        this.init();
     }
 
-    async init() {
+    async init(connectionId?: string) {
         try {
-            const history = await invoke<LogEntry[]>("fetch_query_logs", { limit: 100 });
+            // Preserve running logs for this connection
+            const running = this.logs.filter(l =>
+                l.status === 'running' &&
+                (!connectionId || l.connectionId === connectionId)
+            );
+
+            const history = await invoke<LogEntry[]>("fetch_query_logs", {
+                limit: 100,
+                connectionId: connectionId || null
+            });
+
             if (history && Array.isArray(history)) {
-                this.logs = history;
+                // Determine the set of logs to show.
+                // If we switched connections, we only want logs for the new connection.
+                // 'running' filter above handles this.
+                // 'history' from backend is already filtered by connectionId.
+
+                // Merge: running queries should be at the top (newest)
+                this.logs = [...running, ...history];
             }
         } catch (e) {
             console.error("Failed to fetch query logs:", e);
         }
+    }
+
+    shouldIncludeLog(entry: LogEntry): boolean {
+        // Access schemaStore directly to check active connection
+        const activeId = schemaStore.activeConnection?.id;
+        if (!activeId) return true;
+        return entry.connectionId === activeId;
     }
 
     handleLogEvent(entry: LogEntry) {
@@ -59,7 +84,6 @@ class LogsStore {
             // Update in place
             this.logs[existingIndex] = { ...entry };
         } else {
-            // New entry (or missed start event)
             this.addLog(entry);
         }
     }

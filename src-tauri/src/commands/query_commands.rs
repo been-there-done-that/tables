@@ -43,6 +43,7 @@ pub struct QueryLogEntry {
 #[tauri::command]
 pub fn fetch_query_logs(
     limit: i64,
+    connection_id: Option<String>,
     db_state: State<'_, DatabaseState>,
 ) -> Result<Vec<QueryLogEntry>, String> {
     let conn = db_state.conn.lock().map_err(|e| e.to_string())?;
@@ -50,11 +51,12 @@ pub fn fetch_query_logs(
     let mut stmt = conn.prepare(
         "SELECT id, timestamp, connection_id, database_name, query_text, duration_ms, status, error_message, row_count 
          FROM query_logs 
+         WHERE (?1 IS NULL OR connection_id = ?1)
          ORDER BY timestamp DESC 
-         LIMIT ?",
+         LIMIT ?2",
     ).map_err(|e| e.to_string())?;
 
-    let rows = stmt.query_map([limit], |row| {
+    let rows = stmt.query_map(rusqlite::params![connection_id, limit], |row| {
         Ok(QueryLogEntry {
             id: Some(row.get(0)?),
             timestamp: row.get(1)?,
