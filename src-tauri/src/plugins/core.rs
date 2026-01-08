@@ -269,7 +269,12 @@ macro_rules! aggregate_plugin_commands {
 
             // Debug/Dangerous commands
             reset_app_state,
-            open_internal_db
+            open_internal_db,
+
+            // Query commands
+            fetch_table_preview,
+            execute_query,
+            fetch_query_logs
         ]
     };
 }

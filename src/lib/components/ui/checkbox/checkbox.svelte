@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Checkbox as CheckboxPrimitive } from "bits-ui";
-	import { Check as CheckIcon, Minus as MinusIcon } from "lucide-svelte";
+	import IconCheck from "@tabler/icons-svelte/icons/check";
+	import IconMinus from "@tabler/icons-svelte/icons/minus";
 	import { cn, type WithoutChildrenOrChild } from "$lib/utils.js";
 
 	let {
@@ -29,9 +30,9 @@
 			class="text-current transition-none"
 		>
 			{#if checked}
-				<CheckIcon class="size-3.5" />
+				<IconCheck class="size-3.5" />
 			{:else if indeterminate}
-				<MinusIcon class="size-3.5" />
+				<IconMinus class="size-3.5" />
 			{/if}
 		</div>
 	{/snippet}

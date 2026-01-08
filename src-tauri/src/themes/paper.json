@@ -17,9 +17,9 @@
       "tertiary": "#4b5563"
     },
     "accent": {
-      "primary": "#0f172a",
-      "hover": "#111827",
-      "active": "#1f2937"
+      "primary": "#2563eb",
+      "hover": "#1d4ed8",
+      "active": "#1e40af"
     },
     "border": {
       "default": "#d5d9df",

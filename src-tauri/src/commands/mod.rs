@@ -8,6 +8,7 @@ pub mod introspection_commands;
 pub mod test_commands;
 pub mod completion_commands;
 pub mod unified_introspection;
+pub mod query_commands;
 
 pub use theme_commands::*;
 pub use connection_commands::*;
@@ -19,6 +20,7 @@ pub use introspection_commands::*;
 pub use test_commands::*;
 pub use completion_commands::*;
 pub use unified_introspection::*;
+pub use query_commands::*;
 pub mod font_commands;
 pub use font_commands::*;
 pub mod settings_commands;

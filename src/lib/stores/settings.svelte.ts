@@ -16,6 +16,8 @@ export interface Settings {
     // Selected database
     selectedDatabase: string | null;
     expandedNodes: Record<string, string[]>;
+    // Logs panel
+    logsPanelVisible: boolean;
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -31,6 +33,7 @@ const DEFAULT_SETTINGS: Settings = {
     // No database selected by default
     selectedDatabase: null,
     expandedNodes: {},
+    logsPanelVisible: false,
 };
 
 function createSettingsStore() {
@@ -144,6 +147,21 @@ function createSettingsStore() {
             settings.sidebarBottomRatio = v;
             if (browser) {
                 persistBottomRatio(v);
+            }
+        },
+
+        // Logs Panel (triggers sidebarRightVisible if true)
+        get logsPanelVisible() {
+            return settings.logsPanelVisible;
+        },
+        set logsPanelVisible(v: boolean) {
+            settings.logsPanelVisible = v;
+            if (v && !settings.sidebarRightVisible) {
+                settings.sidebarRightVisible = true; // Auto open sidebar
+                if (browser) commandClient.updateAppSetting(`window:${windowLabel}:sidebar_right_visible`, "true");
+            }
+            if (browser) {
+                commandClient.updateAppSetting(`window:${windowLabel}:logs_panel_visible`, v.toString());
             }
         },
 
@@ -279,6 +297,9 @@ function createSettingsStore() {
                             break;
                         case "sidebar_bottom_ratio":
                             settings.sidebarBottomRatio = parseFloat(value);
+                            break;
+                        case "logs_panel_visible":
+                            settings.logsPanelVisible = value === "true";
                             break;
                     }
 

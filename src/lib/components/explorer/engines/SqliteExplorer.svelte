@@ -22,6 +22,104 @@
     let tableDetailsCache = $state<Map<string, any>>(new Map());
     let loadingTables = $state<Set<string>>(new Set());
 
+    // Progressive expand/collapse state
+    // Level 0 = nothing expanded, 1 = folders only, 2 = tables, 3 = all
+    let currentExpandLevel = $state(0);
+    const MAX_EXPAND_LEVEL = 3;
+
+    /**
+     * Get all node IDs at a specific depth level from the tree
+     */
+    function getNodeIdsAtLevel(
+        nodes: TreeNode[],
+        targetLevel: number,
+        currentLevel: number = 0,
+    ): string[] {
+        const ids: string[] = [];
+        for (const node of nodes) {
+            if (currentLevel === targetLevel) {
+                if (node.id && node.children?.length) {
+                    ids.push(node.id);
+                }
+            } else if (currentLevel < targetLevel && node.children?.length) {
+                ids.push(
+                    ...getNodeIdsAtLevel(
+                        node.children,
+                        targetLevel,
+                        currentLevel + 1,
+                    ),
+                );
+            }
+        }
+        return ids;
+    }
+
+    /**
+     * Progressive expand - each click expands one more level
+     */
+    function progressiveExpand() {
+        if (!activeSession) return;
+
+        const nextLevel = Math.min(currentExpandLevel + 1, MAX_EXPAND_LEVEL);
+        const expanded =
+            activeSession.explorerState?.expanded || new Set<string>();
+        const newExpanded = new Set(expanded);
+
+        // Expand all nodes up to the next level
+        for (let level = 0; level < nextLevel; level++) {
+            const idsAtLevel = getNodeIdsAtLevel(treeData, level);
+            for (const id of idsAtLevel) {
+                newExpanded.add(id);
+            }
+        }
+
+        if (activeSession.explorerState) {
+            activeSession.explorerState.expanded = newExpanded;
+        }
+        currentExpandLevel = nextLevel;
+
+        // If we've reached max, wrap around to 0 for next click
+        if (currentExpandLevel >= MAX_EXPAND_LEVEL) {
+            // On next click, fileTree.expandAll() won't do anything new
+        }
+    }
+
+    /**
+     * Progressive collapse - each click collapses one level (deepest first)
+     */
+    function progressiveCollapse() {
+        if (!activeSession) return;
+
+        const expanded =
+            activeSession.explorerState?.expanded || new Set<string>();
+        if (expanded.size === 0) {
+            currentExpandLevel = 0;
+            return;
+        }
+
+        // Find the deepest level that has expanded nodes
+        let deepestLevel = 0;
+        for (let level = MAX_EXPAND_LEVEL; level >= 0; level--) {
+            const idsAtLevel = getNodeIdsAtLevel(treeData, level);
+            if (idsAtLevel.some((id) => expanded.has(id))) {
+                deepestLevel = level;
+                break;
+            }
+        }
+
+        // Remove all nodes at the deepest level
+        const newExpanded = new Set(expanded);
+        const idsToRemove = getNodeIdsAtLevel(treeData, deepestLevel);
+        for (const id of idsToRemove) {
+            newExpanded.delete(id);
+        }
+
+        if (activeSession.explorerState) {
+            activeSession.explorerState.expanded = newExpanded;
+        }
+        currentExpandLevel = Math.max(0, deepestLevel);
+    }
+
     // Ensure a session exists when schemaStore has an active connection
     $effect(() => {
         const conn = schemaStore.activeConnection;
@@ -102,14 +200,35 @@
                     name: "Columns",
                     type: "group" as NodeType,
                     count: cachedDetails.columns?.length || 0,
-                    children: (cachedDetails.columns || []).map((col: any) => ({
-                        id: `col:${tableId}.${col.column_name}`,
-                        name: col.column_name,
-                        type: (col.is_primary_key
-                            ? "primary_key"
-                            : "column") as NodeType,
-                        detail: col.logical_type,
-                    })),
+                    children: (cachedDetails.columns || []).map((col: any) => {
+                        // Build rich detail string with semantic hints
+                        let detail = col.logical_type;
+
+                        // Check for semantic hints from engine_type
+                        const meta = col.engine_type?.metadata;
+                        if (meta?.engine === "sqlite" && meta.meta) {
+                            const hint = meta.meta.semantic_hint;
+                            if (hint && hint.kind !== "none") {
+                                // Show semantic hint as a badge, e.g., "text [UUID]"
+                                detail = `${col.logical_type} [${hint.kind.toUpperCase()}]`;
+                            }
+                            if (meta.meta.is_generated) {
+                                detail += " (gen)";
+                            }
+                            if (meta.meta.is_strict_table) {
+                                detail += " ⚡"; // STRICT indicator
+                            }
+                        }
+
+                        return {
+                            id: `col:${tableId}.${col.column_name}`,
+                            name: col.column_name,
+                            type: (col.is_primary_key
+                                ? "primary_key"
+                                : "column") as NodeType,
+                            detail,
+                        };
+                    }),
                 },
                 // Squeezing indexes/fks could be optionally hidden for "Simple" sqlite view?
                 // Let's keep them for now.
@@ -214,16 +333,43 @@
 
     function handleExplorerAction(node: TreeNode) {
         if (!activeSession) return;
-        if (node.type === "table") {
+
+        if (node.type === "table" || node.type === "view") {
+            // Open table preview with full metadata
+            const metadata = node.metadata as
+                | { dbName: string; schemaName: string; tableName: string }
+                | undefined;
             activeSession.openView("table", node.name, {
                 tableName: node.name,
+                schemaName: metadata?.schemaName || "main",
+                databaseName:
+                    metadata?.dbName || schemaStore.selectedDatabase || "main",
             });
         } else if (
             node.type === "column" ||
             node.type === "primary_key" ||
             node.type === "foreign_key"
         ) {
-            const parts = node.id?.split(":");
+            // For column clicks, open the parent table's data preview
+            const parts = node.id?.split(":") || [];
+            const tableIdPart = parts.find((p) => p.includes("."));
+            if (tableIdPart) {
+                const tableParts = tableIdPart.split(".");
+                if (tableParts.length >= 2) {
+                    const schemaName = tableParts[0];
+                    const tableName = tableParts[1];
+                    const dbName = schemaStore.selectedDatabase || "main";
+
+                    activeSession.openView("table", tableName, {
+                        tableName,
+                        schemaName,
+                        databaseName: dbName,
+                    });
+                    return;
+                }
+            }
+
+            // Fallback: open query editor
             const dbSchemaTable = parts?.[parts.length - 1] || "";
             const tableRef = dbSchemaTable.split(".").slice(0, 2).join(".");
             activeSession.openView("editor", `Query: ${node.name}`, {
@@ -278,15 +424,15 @@
         <div class="ml-auto flex items-center gap-1">
             <button
                 class="p-1 hover:bg-accent rounded-sm text-muted-foreground hover:text-foreground transition-colors"
-                title="Expand All"
-                onclick={() => fileTree?.expandAll()}
+                title="Expand Level"
+                onclick={progressiveExpand}
             >
                 <Expand />
             </button>
             <button
                 class="p-1 hover:bg-accent rounded-sm text-muted-foreground hover:text-foreground transition-colors"
-                title="Collapse All"
-                onclick={() => fileTree?.collapseAll()}
+                title="Collapse Level"
+                onclick={progressiveCollapse}
             >
                 <Compact />
             </button>
@@ -360,3 +506,15 @@
         {/if}
     </div>
 </div>
+
+<style>
+    /* Auto-hide scrollbar: transparent by default, visible on hover */
+    .explorer-scroll::-webkit-scrollbar-thumb {
+        background-color: transparent;
+        border-color: transparent;
+    }
+
+    .explorer-scroll:hover::-webkit-scrollbar-thumb {
+        background-color: var(--theme-border-default);
+    }
+</style>

@@ -5,9 +5,23 @@
   import EditorHome from "$lib/components/EditorHome.svelte";
   import { windowState } from "$lib/stores/window.svelte"; // layout.showSqlEditor used here
   import SqlTestingEditor from "$lib/components/SqlTestingEditor.svelte";
+  import TablePreview from "$lib/components/table/TablePreview.svelte";
+  import QueryLogsPanel from "$lib/components/QueryLogsPanel.svelte";
+  import { logsStore } from "$lib/stores/logs.svelte";
 
   const activeSession = $derived(windowState.activeSession);
+
+  function handleKeydown(e: KeyboardEvent) {
+    if ((e.metaKey || e.ctrlKey) && e.key === "w") {
+      e.preventDefault();
+      if (activeSession && activeSession.activeViewId) {
+        activeSession.closeView(activeSession.activeViewId);
+      }
+    }
+  }
 </script>
+
+<svelte:window onkeydown={handleKeydown} />
 
 <div class="flex h-full w-full flex-col bg-background text-foreground">
   <div class="relative flex-1 overflow-hidden">
@@ -59,33 +73,30 @@
                         <EditorHome />
                       {:else if windowState.layout.showSqlEditor}
                         <div class="flex-1 relative overflow-hidden">
-                          <SqlTestingEditor
-                            context={activeSession.views.find(
-                              (v) => v.id === activeSession.activeViewId,
-                            )?.data}
-                          />
+                          {#each activeSession.views as view (view.id)}
+                            {#if view.id === activeSession.activeViewId}
+                              <SqlTestingEditor bind:context={view.data} />
+                            {/if}
+                          {/each}
                         </div>
                       {:else}
-                        {@const activeView = activeSession.views.find(
-                          (v) => v.id === activeSession.activeViewId,
-                        )}
-                        <div class="flex-1 overflow-hidden relative">
-                          {#if activeView?.type === "editor"}
-                            <SqlTestingEditor context={activeView.data} />
-                          {:else if activeView?.type === "table"}
-                            <div
-                              class="flex items-center justify-center h-full text-muted-foreground italic text-sm"
-                            >
-                              Table Browser: {activeView.title} (Coming Soon)
-                            </div>
-                          {:else}
-                            <!-- Default Fallback -->
-                            <div class="flex-1 overflow-auto p-4 space-y-4">
-                              <pre
-                                class="p-4 bg-muted/30 rounded border border-border text-xs">View ID: {activeSession.activeViewId}</pre>
+                        {#each activeSession.views as view (view.id)}
+                          {#if view.id === activeSession.activeViewId}
+                            <div class="flex-1 overflow-hidden relative">
+                              {#if view.type === "editor"}
+                                <SqlTestingEditor context={view.data} />
+                              {:else if view.type === "table"}
+                                <TablePreview bind:context={view.data} />
+                              {:else}
+                                <!-- Default Fallback -->
+                                <div class="flex-1 overflow-auto p-4 space-y-4">
+                                  <pre
+                                    class="p-4 bg-muted/30 rounded border border-border text-xs">View ID: {view.id}</pre>
+                                </div>
+                              {/if}
                             </div>
                           {/if}
-                        </div>
+                        {/each}
                       {/if}
                     </div>
                   {/snippet}
@@ -104,16 +115,20 @@
 
             <!-- Right Sidebar -->
             {#snippet right()}
-              <div class="flex h-full flex-col bg-muted/10">
-                <div
-                  class="flex h-8 flex-none items-center border-b border-border px-4"
-                >
-                  <h2 class="text-sm font-semibold">Properties</h2>
+              {#if logsStore.isOpen}
+                <QueryLogsPanel />
+              {:else}
+                <div class="flex h-full flex-col bg-muted/10">
+                  <div
+                    class="flex h-8 flex-none items-center border-b border-border px-4"
+                  >
+                    <h2 class="text-sm font-semibold">Properties</h2>
+                  </div>
+                  <div class="flex-1 overflow-auto p-4">
+                    <p class="text-xs">Property details...</p>
+                  </div>
                 </div>
-                <div class="flex-1 overflow-auto p-4">
-                  <p class="text-xs">Property details...</p>
-                </div>
-              </div>
+              {/if}
             {/snippet}
           </ResizableSplitPane>
         </div>

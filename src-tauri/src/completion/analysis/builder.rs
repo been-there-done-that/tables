@@ -13,9 +13,9 @@ pub fn build_semantic_model(source: &str, tree: &Tree) -> SemanticModel {
     let mut builder = ModelBuilder::new(source, &mut model);
     builder.visit(tree.root_node());
     
-    // Fallback: if AST parsing didn't find any symbols, try text-based extraction
+    // Fallback: if AST parsing encountered errors or didn't find any symbols, try text-based extraction
     // This handles cases where tree-sitter's error recovery confuses the AST structure
-    if model.scopes.iter().all(|s| s.symbols.is_empty()) {
+    if builder.has_error || model.scopes.iter().all(|s| s.symbols.is_empty()) {
         extract_tables_from_text(source, &mut model);
     }
     
@@ -25,10 +25,16 @@ pub fn build_semantic_model(source: &str, tree: &Tree) -> SemanticModel {
 /// Fallback text-based extraction for broken SQL.
 /// Scans for FROM/JOIN patterns and extracts table aliases.
 fn extract_tables_from_text(source: &str, model: &mut SemanticModel) {
-    // Ensure we have at least one scope
-    if model.scopes.is_empty() {
-        model.scopes.push(Scope::new(0, None, 0..source.len()));
-    }
+    // Find or create a global scope (covering entire source)
+    let global_scope_idx = model.scopes.iter().position(|s| s.range.len() == source.len());
+    
+    let target_idx = if let Some(idx) = global_scope_idx {
+        idx
+    } else {
+        let id = model.scopes.len();
+        model.scopes.push(Scope::new(id, None, 0..source.len()));
+        id
+    };
     
     let source_upper = source.to_uppercase();
     
@@ -37,7 +43,7 @@ fn extract_tables_from_text(source: &str, model: &mut SemanticModel) {
         let after_from = &source[from_pos + 6..];
         if let Some((table, alias)) = extract_table_alias(after_from) {
             let range = from_pos..(from_pos + 6 + table.len());
-            model.scopes[0].symbols.push(
+            model.scopes[target_idx].symbols.push(
                 if let Some(a) = alias {
                     Symbol::table_alias(&a, &table, range)
                 } else {
@@ -54,7 +60,7 @@ fn extract_tables_from_text(source: &str, model: &mut SemanticModel) {
         let after_join = &source[abs_join_pos + 6..];
         if let Some((table, alias)) = extract_table_alias(after_join) {
             let range = abs_join_pos..(abs_join_pos + 6 + table.len());
-            model.scopes[0].symbols.push(
+            model.scopes[target_idx].symbols.push(
                 if let Some(a) = alias {
                     Symbol::table_alias(&a, &table, range)
                 } else {
@@ -96,6 +102,7 @@ struct ModelBuilder<'a> {
     source: &'a str,
     model: &'a mut SemanticModel,
     current_scope_id: Option<usize>,
+    has_error: bool,
 }
 
 impl<'a> ModelBuilder<'a> {
@@ -104,52 +111,36 @@ impl<'a> ModelBuilder<'a> {
             source,
             model,
             current_scope_id: None,
+            has_error: false,
         }
     }
 
     fn visit(&mut self, node: Node) {
         let kind = node.kind();
         
-        // Handle scopes first
+        // Scope handling
         match kind {
-            // Top-level or query scope - many possible names
-            "program" | "source_file" | "statement" | "select_statement" | 
-            "select" | "query" | "sql_stmt" | "sql_stmt_list" => {
-                if self.current_scope_id.is_none() || kind == "subquery" {
+            "program" | "statement_list" | "source_file" => {
+                // Root scope - ensure we have one
+                if self.current_scope_id.is_none() {
                     self.enter_scope(node);
-                    self.visit_children(node);
-                    self.exit_scope();
-                    return;
                 }
             }
-            
-            // Subqueries create nested scopes
-            "subquery" | "scalar_subquery" | "parenthesized_expression" => {
-                // Only create scope if this contains a SELECT
-                let has_select = node.children(&mut node.walk())
-                    .any(|c| c.kind().contains("select"));
-                if has_select {
-                    self.enter_scope(node);
-                    self.visit_children(node);
-                    self.exit_scope();
-                    return;
-                }
+            "select_statement" | "subquery" => {
+                self.enter_scope(node);
+            }
+            "cte" | "common_table_expression" => {
+                // Determine if this is definition or usage scope...
+                // Handled in handle_cte
             }
             _ => {}
         }
         
-        // Handle table references - try many variations
         match kind {
             // FROM/JOIN table references
             "from_clause" | "from" | "FROM" | 
             "from_item" | "from_items" => {
                 self.visit_from_clause(node);
-                return;
-            }
-            
-            "join_clause" | "join" | "JOIN" | 
-            "join_item" | "joined_table" => {
-                self.visit_join_clause(node);
                 return;
             }
             
@@ -177,8 +168,36 @@ impl<'a> ModelBuilder<'a> {
             _ => {}
         }
         
+        match kind {
+            "program" | "statement_list" | "source_file" => {
+                self.visit_children(node);
+                self.exit_scope();
+                return;
+            }
+
+            "select_statement" | "select_clause" | "from_clause" | 
+            "where_clause" | "group_by_clause" | "order_by_clause" |
+            "having_clause" | "limit_clause" | "subquery" => {
+                self.visit_children(node);
+                
+                // Exit scope after select statement/subquery
+                if kind == "select_statement" || kind == "subquery" {
+                    self.exit_scope();
+                }
+                return;
+            }
+            
+            "join_clause" | "join" | "JOIN" | 
+            "join_item" | "joined_table" => {
+                self.visit_join_clause(node);
+                return;
+            }
+            _ => {}
+        }
+        
         // Always traverse ERROR nodes to find valid children inside
         if kind == "ERROR" {
+            self.has_error = true;
             self.visit_children(node);
             return;
         }
@@ -460,6 +479,15 @@ impl<'a> ModelBuilder<'a> {
                 "alias" => {
                     alias_name = Some(self.node_text(child));
                 }
+                "table_alias" => {
+                    // Extract alias from table_alias node
+                    let mut inner = child.walk();
+                    for sub in child.children(&mut inner) {
+                        if sub.kind() == "identifier" {
+                            alias_name = Some(self.node_text(&sub));
+                        }
+                    }
+                }
                 _ => {}
             }
         }
@@ -612,7 +640,7 @@ mod tests {
     #[test]
     fn test_debug_broken_sql() {
         // This is what the tests see - incomplete SQL after removing cursor marker
-        let source = "SELECT u. FROM users u";
+        let source = "SELECT *,  FROM actor a where a.actor_id = NULL";
         let tree = parse_sql(source, None).unwrap();
         
         fn print_tree(node: tree_sitter::Node, source: &str, indent: usize) {

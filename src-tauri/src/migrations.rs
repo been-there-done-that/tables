@@ -8,6 +8,7 @@ const MIGRATIONS: &[(&str, &str)] = &[
     ("002_add_type_system", include_str!("../migrations/002_add_type_system.sql")),
     ("003_add_namespace_kind", include_str!("../migrations/003_add_namespace_kind.sql")),
     ("004_create_settings_table", include_str!("../migrations/004_create_settings_table.sql")),
+    ("005_create_query_logs_table", include_str!("../migrations/005_create_query_logs_table.sql")),
 ];
 
 #[derive(Debug, Deserialize)]

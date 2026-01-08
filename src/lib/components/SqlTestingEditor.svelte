@@ -13,8 +13,11 @@
     import IconChevronDown from "@tabler/icons-svelte/icons/chevron-down";
 
     import { settingsStore } from "$lib/stores/settings.svelte";
+    import { windowState } from "$lib/stores/window.svelte";
 
-    let { context = {} } = $props<{ context?: any }>();
+    import { invoke } from "@tauri-apps/api/core";
+
+    let { context = $bindable({}) } = $props<{ context?: any }>();
 
     let editorContainer: HTMLElement;
     let editorHandle = $state<EditorHandle | null>(null);
@@ -95,6 +98,25 @@
             log(
                 `Executing (${source}) in ${schemaStore.selectedDatabase}.${schemaStore.activeSchema}:\n${query}`,
             );
+
+            if (!schemaStore.activeConnection) {
+                log("No active connection selected.");
+                return;
+            }
+
+            try {
+                const result = await invoke("execute_query", {
+                    connectionId: schemaStore.activeConnection.id,
+                    database: schemaStore.selectedDatabase,
+                    schema: schemaStore.activeSchema || "public",
+                    query: query,
+                });
+                console.log("Query Result:", result);
+                log("Query completed successfully.");
+            } catch (e) {
+                console.error("Query execution failed:", e);
+                log(`Query failed: ${e}`);
+            }
         } else {
             log("No query to execute");
         }
@@ -133,11 +155,34 @@
 
             // Only set value if empty
             if (!handle.editor.getValue()) {
-                handle.editor.setValue(
-                    `-- SQL Auto-Completion Playground\n-- Context: ${schemaStore.selectedDatabase}.${schemaStore.activeSchema}\n-- Type 'SELECT' or table names from your active connection\n\nSELECT * FROM `,
-                );
-                handle.editor.setPosition({ lineNumber: 4, column: 15 });
+                if (context?.content) {
+                    handle.editor.setValue(context.content);
+                } else {
+                    handle.editor.setValue(
+                        `-- SQL Auto-Completion Playground\n-- Context: ${schemaStore.selectedDatabase}.${schemaStore.activeSchema}\n-- Type 'SELECT' or table names from your active connection\n\nSELECT * FROM `,
+                    );
+                    handle.editor.setPosition({ lineNumber: 4, column: 15 });
+                }
+            } else if (
+                context?.content &&
+                handle.editor.getValue() !== context.content
+            ) {
+                // Should we overwrite if editor has content? Usually creating new editor starts empty.
+                // But if restoring, it should be empty initially.
+                // Safe to assume we can set it if provided and we are just initing.
+                handle.editor.setValue(context.content);
             }
+
+            // Listen for content changes
+            handle.editor.onDidChangeModelContent(() => {
+                const val = handle.editor.getValue();
+                if (context) {
+                    context.content = val;
+                }
+                // Trigger save
+                windowState.requestSave();
+            });
+
             handle.editor.focus();
         },
     );
@@ -146,7 +191,7 @@
 <div class="flex h-full w-full flex-col bg-background">
     <!-- Toolbar -->
     <div
-        class="flex h-10 items-center justify-between border-b border-border bg-muted/20 px-2 gap-2"
+        class="flex h-8 items-center justify-between border-b border-border bg-muted/20 px-2 gap-2"
     >
         <div class="flex items-center gap-2">
             <button
