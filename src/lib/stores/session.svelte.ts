@@ -97,6 +97,40 @@ export class Session {
         this.triggerSave();
     }
 
+    closeOtherViews(viewId: string) {
+        this.views = this.views.filter(v => v.id === viewId);
+        this.activeViewId = viewId;
+        this.triggerSave();
+    }
+
+    closeViewsToLeft(viewId: string) {
+        const index = this.views.findIndex(v => v.id === viewId);
+        if (index === -1) return;
+
+        this.views = this.views.slice(index);
+        if (this.activeViewId && !this.views.find(v => v.id === this.activeViewId)) {
+            this.activeViewId = viewId;
+        }
+        this.triggerSave();
+    }
+
+    closeViewsToRight(viewId: string) {
+        const index = this.views.findIndex(v => v.id === viewId);
+        if (index === -1) return;
+
+        this.views = this.views.slice(0, index + 1);
+        if (this.activeViewId && !this.views.find(v => v.id === this.activeViewId)) {
+            this.activeViewId = viewId;
+        }
+        this.triggerSave();
+    }
+
+    closeAllViews() {
+        this.views = [];
+        this.activeViewId = null;
+        this.triggerSave();
+    }
+
     activateView(viewId: string) {
         if (this.views.find(v => v.id === viewId)) {
             this.activeViewId = viewId;
