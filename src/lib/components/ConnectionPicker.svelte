@@ -8,6 +8,7 @@
     import { invoke } from "@tauri-apps/api/core";
     import { cn } from "$lib/utils";
     import ListSvg from "$lib/svg/List.svelte";
+    import IconDataSource from "$lib/svg/IconDataSource.svelte";
     import { resolveDriverIcon } from "./datasource/DriverList";
     import * as Menu from "$lib/components/ui/context-menu";
 
@@ -98,11 +99,9 @@
                 <div class="flex items-center gap-2 px-2">
                     {#if schemaStore.activeConnection}
                         <div class="flex items-center gap-2">
-                            <div
-                                class="w-2 h-2 rounded-full shadow-sm"
-                                style="background-color: {schemaStore
-                                    .activeConnection.color_tag || '#10b981'}"
-                            ></div>
+                            <IconDataSource
+                                class="w-4 h-4 text-(--theme-accent-primary)"
+                            />
                             <span class="font-medium text-(--theme-fg-primary)"
                                 >{schemaStore.activeConnection.name}</span
                             >
