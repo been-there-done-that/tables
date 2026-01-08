@@ -117,6 +117,131 @@
 
         return "text";
     }
+
+    import type { RowEdit, EditResult } from "$lib/components/table/types";
+
+    async function handleApplyEdits(edits: RowEdit[]): Promise<EditResult> {
+        if (!connectionId)
+            return { success: false, conflicts: ["No active connection"] };
+
+        const dbName = effectiveDatabase;
+        const schema = effectiveSchema;
+        const table = tableName;
+
+        // Find table metadata to get Primary Keys and Column Types
+        // We look in schemaStore.databases
+        const dbMeta = schemaStore.databases.find((d) => d.name === dbName);
+        const schemaMeta = dbMeta?.schemas.find((s) => s.name === schema);
+        const tableMeta = schemaMeta?.tables.find(
+            (t) => t.table_name === table,
+        );
+
+        if (!tableMeta) {
+            return {
+                success: false,
+                conflicts: ["Table metadata not found. Please refresh schema."],
+            };
+        }
+
+        const pkCols = tableMeta.columns
+            .filter((c) => c.is_primary_key)
+            .sort((a, b) => a.ordinal_position - b.ordinal_position);
+
+        const errs: string[] = [];
+
+        for (const edit of edits) {
+            const { originalRow, changes } = edit;
+
+            // 1. Build SET clause
+            const setClauses: string[] = [];
+            for (const [colName, newValue] of Object.entries(changes)) {
+                // Find column meta for type-aware formatting
+                const colMeta = tableMeta.columns.find(
+                    (c) => c.column_name === colName,
+                );
+                const formattedVal = formatSqlValue(
+                    newValue,
+                    colMeta?.raw_type,
+                );
+                setClauses.push(`"${colName}" = ${formattedVal}`);
+            }
+
+            if (setClauses.length === 0) continue;
+
+            // 2. Build WHERE clause
+            const whereClauses: string[] = [];
+
+            if (pkCols.length > 0) {
+                // Use Primary Keys
+                for (const pk of pkCols) {
+                    const val = originalRow[pk.column_name];
+                    const formattedVal = formatSqlValue(val, pk.raw_type);
+                    whereClauses.push(`"${pk.column_name}" = ${formattedVal}`);
+                }
+            } else {
+                // Fallback: Use all columns (optimistic concurrency match)
+                // We shouldn't use _rowId as it's synthetic
+                for (const [key, val] of Object.entries(originalRow)) {
+                    if (key === "_rowId") continue;
+                    // Skip if value is complex object/array as strict equality might fail in SQL without casting?
+                    // For now, try best effort.
+                    const colMeta = tableMeta.columns.find(
+                        (c) => c.column_name === key,
+                    );
+                    if (val === null) {
+                        whereClauses.push(`"${key}" IS NULL`);
+                    } else {
+                        const formattedVal = formatSqlValue(
+                            val,
+                            colMeta?.raw_type,
+                        );
+                        whereClauses.push(`"${key}" = ${formattedVal}`);
+                    }
+                }
+            }
+
+            if (whereClauses.length === 0) {
+                errs.push(`Cannot determine identity for row ${edit.rowId}`);
+                continue;
+            }
+
+            const sql = `UPDATE "${schema}"."${table}" SET ${setClauses.join(", ")} WHERE ${whereClauses.join(" AND ")}`;
+            console.log("[TablePreview] Executing update:", sql);
+
+            try {
+                const res = await invoke("execute_query", {
+                    connectionId,
+                    database: dbName,
+                    schema,
+                    query: sql,
+                });
+                // Check res? execute_query returns QueryResult.
+                // If it didn't throw, it's likely success.
+            } catch (e: any) {
+                console.error("Update failed", e);
+                errs.push(String(e));
+            }
+        }
+
+        if (errs.length > 0) {
+            return { success: false, conflicts: errs };
+        }
+
+        return { success: true };
+    }
+
+    function formatSqlValue(val: any, rawType?: string): string {
+        if (val === null || val === undefined) return "NULL";
+        if (typeof val === "boolean") return val ? "TRUE" : "FALSE";
+        if (typeof val === "number") return String(val);
+
+        // Handle dates/timestamps if they are objects?
+        // Usually they come as strings from JSON.
+
+        // Escape single quotes
+        const strVal = String(val).replace(/'/g, "''");
+        return `'${strVal}'`;
+    }
 </script>
 
 <div class="h-full w-full">
@@ -126,8 +251,8 @@
             {dataFetcher}
             {tableName}
             tableSchema={effectiveSchema}
-            bind:viewState={context}
             onViewStateChange={() => windowState.requestSave()}
+            onApplyEdits={handleApplyEdits}
         />
     {/key}
 </div>
