@@ -3,6 +3,7 @@
     import type { Column, DataFetcher } from "$lib/components/table/types";
     import { invoke } from "@tauri-apps/api/core";
     import { schemaStore } from "$lib/stores/schema.svelte";
+    import { windowState } from "$lib/stores/window.svelte";
 
     interface Props {
         context: {
@@ -13,7 +14,7 @@
         };
     }
 
-    let { context }: Props = $props();
+    let { context = $bindable() }: Props = $props();
 
     // Derive values from context
     const tableName = $derived(context.tableName);
@@ -125,7 +126,8 @@
             {dataFetcher}
             {tableName}
             tableSchema={effectiveSchema}
-            viewState={context}
+            bind:viewState={context}
+            onViewStateChange={() => windowState.requestSave()}
         />
     {/key}
 </div>

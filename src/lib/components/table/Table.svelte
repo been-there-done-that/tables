@@ -35,6 +35,7 @@
         onOpenInQueryEditor?: (ctx: TableQueryContext) => void;
         onOpenNewQueryTab?: (ctx: TableQueryContext) => void;
         viewState?: Record<string, any>;
+        onViewStateChange?: (state: any) => void;
     }
 
     let {
@@ -46,7 +47,8 @@
         tableSchema,
         onOpenInQueryEditor,
         onOpenNewQueryTab,
-        viewState,
+        viewState = $bindable(),
+        onViewStateChange,
     }: Props = $props();
 
     type ClipboardApi = {
@@ -172,7 +174,34 @@
     } | null>(null);
 
     // Virtualization state (passed to/from Body)
-    let scrollTop = $state(0);
+    let scrollTop = $state(viewState?.scrollTop || 0);
+    // Sync scrollTop back to viewState
+    $effect(() => {
+        if (viewState && viewState.scrollTop !== scrollTop) {
+            viewState.scrollTop = scrollTop;
+            onViewStateChange?.(viewState);
+        }
+    });
+
+    onMount(() => {
+        // Restore scroll position if available
+        if (viewState?.scrollTop && tableBody) {
+            // Use tick to ensure DOM is ready? onMount is usually enough but...
+            // VirtualScroller mounts its container in its own onMount.
+            // We might need to wait for it.
+            setTimeout(() => {
+                const el = tableBody?.getContainer();
+                if (el) {
+                    console.log(
+                        "[Table] Restoring scrollTop",
+                        viewState.scrollTop,
+                    );
+                    el.scrollTop = viewState.scrollTop;
+                }
+            }, 0);
+        }
+    });
+
     let scrollLeft = $state(0);
     let containerHeight = $state(0);
 

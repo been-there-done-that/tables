@@ -62,29 +62,30 @@
                         <EditorHome />
                       {:else if windowState.layout.showSqlEditor}
                         <div class="flex-1 relative overflow-hidden">
-                          <SqlTestingEditor
-                            context={activeSession.views.find(
-                              (v) => v.id === activeSession.activeViewId,
-                            )?.data}
-                          />
+                          {#each activeSession.views as view (view.id)}
+                            {#if view.id === activeSession.activeViewId}
+                              <SqlTestingEditor bind:context={view.data} />
+                            {/if}
+                          {/each}
                         </div>
                       {:else}
-                        {@const activeView = activeSession.views.find(
-                          (v) => v.id === activeSession.activeViewId,
-                        )}
-                        <div class="flex-1 overflow-hidden relative">
-                          {#if activeView?.type === "editor"}
-                            <SqlTestingEditor context={activeView.data} />
-                          {:else if activeView?.type === "table"}
-                            <TablePreview context={activeView.data} />
-                          {:else}
-                            <!-- Default Fallback -->
-                            <div class="flex-1 overflow-auto p-4 space-y-4">
-                              <pre
-                                class="p-4 bg-muted/30 rounded border border-border text-xs">View ID: {activeSession.activeViewId}</pre>
+                        {#each activeSession.views as view (view.id)}
+                          {#if view.id === activeSession.activeViewId}
+                            <div class="flex-1 overflow-hidden relative">
+                              {#if view.type === "editor"}
+                                <SqlTestingEditor context={view.data} />
+                              {:else if view.type === "table"}
+                                <TablePreview bind:context={view.data} />
+                              {:else}
+                                <!-- Default Fallback -->
+                                <div class="flex-1 overflow-auto p-4 space-y-4">
+                                  <pre
+                                    class="p-4 bg-muted/30 rounded border border-border text-xs">View ID: {view.id}</pre>
+                                </div>
+                              {/if}
                             </div>
                           {/if}
-                        </div>
+                        {/each}
                       {/if}
                     </div>
                   {/snippet}

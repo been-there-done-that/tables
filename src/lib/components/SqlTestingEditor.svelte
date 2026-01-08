@@ -13,10 +13,11 @@
     import IconChevronDown from "@tabler/icons-svelte/icons/chevron-down";
 
     import { settingsStore } from "$lib/stores/settings.svelte";
+    import { windowState } from "$lib/stores/window.svelte";
 
     import { invoke } from "@tauri-apps/api/core";
 
-    let { context = {} } = $props<{ context?: any }>();
+    let { context = $bindable({}) } = $props<{ context?: any }>();
 
     let editorContainer: HTMLElement;
     let editorHandle = $state<EditorHandle | null>(null);
@@ -154,11 +155,34 @@
 
             // Only set value if empty
             if (!handle.editor.getValue()) {
-                handle.editor.setValue(
-                    `-- SQL Auto-Completion Playground\n-- Context: ${schemaStore.selectedDatabase}.${schemaStore.activeSchema}\n-- Type 'SELECT' or table names from your active connection\n\nSELECT * FROM `,
-                );
-                handle.editor.setPosition({ lineNumber: 4, column: 15 });
+                if (context?.content) {
+                    handle.editor.setValue(context.content);
+                } else {
+                    handle.editor.setValue(
+                        `-- SQL Auto-Completion Playground\n-- Context: ${schemaStore.selectedDatabase}.${schemaStore.activeSchema}\n-- Type 'SELECT' or table names from your active connection\n\nSELECT * FROM `,
+                    );
+                    handle.editor.setPosition({ lineNumber: 4, column: 15 });
+                }
+            } else if (
+                context?.content &&
+                handle.editor.getValue() !== context.content
+            ) {
+                // Should we overwrite if editor has content? Usually creating new editor starts empty.
+                // But if restoring, it should be empty initially.
+                // Safe to assume we can set it if provided and we are just initing.
+                handle.editor.setValue(context.content);
             }
+
+            // Listen for content changes
+            handle.editor.onDidChangeModelContent(() => {
+                const val = handle.editor.getValue();
+                if (context) {
+                    context.content = val;
+                }
+                // Trigger save
+                windowState.requestSave();
+            });
+
             handle.editor.focus();
         },
     );

@@ -8,6 +8,7 @@ import { schemaStore } from "./schema.svelte";
 import { settingsStore } from "./settings.svelte";
 import { themeStore } from "$lib/commands/stores.svelte";
 import { Session } from "./session.svelte";
+import { persistenceStore } from "./persistence.svelte";
 
 export interface CommandConfig {
     id: string;
@@ -114,6 +115,15 @@ class WindowStateStore {
         return this.sessions.find(s => s.id === this.activeSessionId) || null;
     }
 
+    private saveTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    requestSave() {
+        if (this.saveTimeout) clearTimeout(this.saveTimeout);
+        this.saveTimeout = setTimeout(() => {
+            persistenceStore.saveSessionState(this.sessions, this.activeSessionId);
+        }, 1000); // 1s debounce
+    }
+
     startSession(connection: Connection) {
         // Check if a session for this connection already exists
         const existingSession = this.sessions.find(s => s.connectionId === connection.id);
@@ -123,9 +133,15 @@ class WindowStateStore {
             return;
         }
 
-        const newSession = new Session(crypto.randomUUID(), connection, this.label);
+        const newSession = new Session(
+            crypto.randomUUID(),
+            connection,
+            this.label,
+            () => this.requestSave()
+        );
         this.sessions.push(newSession);
         this.activateSession(newSession.id);
+        this.requestSave();
     }
 
     activateSession(sessionId: string) {
@@ -138,6 +154,7 @@ class WindowStateStore {
                 schemaStore.status !== "connecting") {
                 schemaStore.connect(session.connection);
             }
+            this.requestSave();
         }
     }
 
@@ -306,6 +323,66 @@ class WindowStateStore {
 
             // Wait for settings to load
             await settingsStore.waitForInit();
+
+            // Load persisted sessions
+            const persistedState = await persistenceStore.loadSessionState();
+            if (persistedState && persistedState.sessions.length > 0) {
+                console.log("[WindowStateStore] Hydrating sessions from persistence", persistedState);
+
+                // Reconstruct sessions
+                for (const pSession of persistedState.sessions) {
+                    // Find connection object from loaded connections if possible, or wait?
+                    // Issue: connections might not be loaded yet. 
+                    // Ideally we should wait for connections, but they are async. 
+                    // For now, we'll try to reconstruct essential parts.
+
+                    // Note: We need the full Connection object to create a valid Session.
+                    // If we don't have it, the session might be invalid.
+                    // Let's assume we can lazily match it later or just use ID for now.
+                }
+
+                // Actually, we should wait for connections to be loaded before hydrating sessions 
+                // to ensure we have valid connection objects.
+                if (this.connections.length === 0) {
+                    await this.loadConnections();
+                }
+
+                this.sessions = persistedState.sessions.map(s => {
+                    const conn = this.connections.find(c => c.id === s.connectionId);
+                    if (!conn) {
+                        console.warn(`[WindowStateStore] Could not find connection for persisted session ${s.id}`);
+                        // Create a placeholder connection if needed or skip? 
+                        // Better to skip invalid sessions to avoid errors.
+                        return null;
+                    }
+                    const session = new Session(
+                        s.id,
+                        conn,
+                        s.windowLabel,
+                        () => this.requestSave()
+                    );
+
+                    // Hydrate views
+                    session.views = s.views; // ViewState interfaces match
+                    session.activeViewId = s.activeViewId;
+                    if (s.explorerState?.expanded) {
+                        session.explorerState.expanded = new Set(s.explorerState.expanded);
+                    }
+                    return session;
+                }).filter(s => s !== null) as Session[];
+
+                if (persistedState.lastActiveSessionId) {
+                    this.activeSessionId = persistedState.lastActiveSessionId;
+                    // Connect if active
+                    if (this.activeSession) {
+                        // Don't auto-connect immediately to avoid spamming? 
+                        // Or do we? User expects it.
+                        // Let's activate checking connection status
+                        this.activateSession(this.activeSessionId);
+                    }
+                }
+            }
+
             this.initialized = true;
             console.log("[WindowStateStore] Layout initialized from settings");
 
