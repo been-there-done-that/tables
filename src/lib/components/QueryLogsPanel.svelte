@@ -5,6 +5,7 @@
     import IconX from "@tabler/icons-svelte/icons/x";
     import IconCheck from "@tabler/icons-svelte/icons/check";
     import IconAlertCircle from "@tabler/icons-svelte/icons/alert-circle";
+    import IconLoader2 from "@tabler/icons-svelte/icons/loader-2";
 
     function formatTime(ts: number) {
         return new Date(ts).toLocaleTimeString(undefined, {
@@ -21,6 +22,17 @@
         if (!id) return;
         expandedId = expandedId === id ? undefined : id;
     }
+
+    let scrollContainer: HTMLDivElement;
+
+    $effect(() => {
+        // Dependency tracking
+        logsStore.logs.length;
+        // Scroll to bottom when logs update
+        if (scrollContainer) {
+            scrollContainer.scrollTop = scrollContainer.scrollHeight;
+        }
+    });
 </script>
 
 <div class="flex h-full flex-col bg-muted/10 border-l border-border">
@@ -51,6 +63,7 @@
     </div>
 
     <div
+        bind:this={scrollContainer}
         class="flex-1 overflow-auto font-mono text-[10px] leading-relaxed select-text"
     >
         {#if logsStore.logs.length === 0}
@@ -78,11 +91,15 @@
                             "transition-colors",
                             log.status === "error"
                                 ? "text-red-400"
-                                : "text-emerald-400/80",
+                                : log.status === "running"
+                                  ? "text-blue-400"
+                                  : "text-emerald-400/80",
                         )}
                     >
                         {#if log.status === "error"}
                             <IconAlertCircle class="size-3" />
+                        {:else if log.status === "running"}
+                            <IconLoader2 class="size-3 animate-spin" />
                         {:else}
                             <IconCheck class="size-3" />
                         {/if}
@@ -115,17 +132,21 @@
                     <div
                         class="text-right whitespace-nowrap pl-2 text-muted-foreground opacity-50"
                     >
-                        {log.durationMs}ms
+                        {#if log.status === "running"}
+                            ...
+                        {:else}
+                            {log.durationMs}ms
+                        {/if}
                     </div>
                 </div>
 
                 <!-- Expanded Details -->
                 {#if expandedId === log.timestamp}
                     <div
-                        class="px-3 pb-3 pt-0 animate-in slide-in-from-top-1 duration-200"
+                        class="px-2 pb-3 pt-0 animate-in slide-in-from-top-1 duration-200"
                     >
                         <div
-                            class="p-2 rounded bg-background/50 border border-border/50 text-xs overflow-x-auto"
+                            class="p-1 rounded bg-background/50 border border-border/50 text-xs overflow-x-auto"
                         >
                             <pre
                                 class="whitespace-pre-wrap break-all text-foreground/90">{log.query}</pre>
@@ -138,13 +159,7 @@
                                 </div>
                             {/if}
 
-                            {#if log.rows !== undefined}
-                                <div
-                                    class="mt-1 text-muted-foreground italic border-t border-border/30 pt-1"
-                                >
-                                    {log.rows} rows affected
-                                </div>
-                            {/if}
+                            <!-- Rows info removed as requested -->
                         </div>
                     </div>
                 {/if}

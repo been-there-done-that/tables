@@ -5,11 +5,12 @@ import { settingsStore } from "$lib/stores/settings.svelte";
 export interface LogEntry {
     id?: number;
     timestamp: number;
+    correlationId?: string;
     connectionId: string;
     database: string;
     query: string;
-    durationMs: number;
-    status: "success" | "error";
+    durationMs?: number;
+    status: "success" | "error" | "running";
     error?: string;
     rows?: number;
 }
@@ -26,8 +27,13 @@ class LogsStore {
     }
 
     constructor() {
-        // Listen for log events
+        // Listen for query completion
         listen<LogEntry>("query-log", (event) => {
+            this.handleLogEvent(event.payload);
+        });
+
+        // Listen for query start
+        listen<LogEntry>("query-started", (event) => {
             this.addLog(event.payload);
         });
 
@@ -39,8 +45,6 @@ class LogsStore {
         try {
             const history = await invoke<LogEntry[]>("fetch_query_logs", { limit: 100 });
             if (history && Array.isArray(history)) {
-                // Backend fetched DESC (newest first) then reversed to ASC (oldest first).
-                // So we can assign directly.
                 this.logs = history;
             }
         } catch (e) {
@@ -48,9 +52,20 @@ class LogsStore {
         }
     }
 
+    handleLogEvent(entry: LogEntry) {
+        // Check if we have a running entry with this correlationId
+        const existingIndex = this.logs.findIndex(l => l.correlationId === entry.correlationId && l.status === "running");
+        if (existingIndex !== -1) {
+            // Update in place
+            this.logs[existingIndex] = { ...entry };
+        } else {
+            // New entry (or missed start event)
+            this.addLog(entry);
+        }
+    }
+
     addLog(entry: LogEntry) {
         this.logs.push(entry);
-        // Keep memory usage in check
         if (this.logs.length > 500) {
             this.logs.shift();
         }
