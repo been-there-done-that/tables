@@ -5,12 +5,20 @@
     import { schemaStore } from "$lib/stores/schema.svelte";
 
     interface Props {
-        tableName: string;
-        schemaName?: string;
-        databaseName?: string;
+        context: {
+            tableName: string;
+            schemaName?: string;
+            databaseName?: string;
+            [key: string]: any;
+        };
     }
 
-    let { tableName, schemaName, databaseName }: Props = $props();
+    let { context }: Props = $props();
+
+    // Derive values from context
+    const tableName = $derived(context.tableName);
+    const schemaName = $derived(context.schemaName);
+    const databaseName = $derived(context.databaseName);
 
     // Derive connection ID from schemaStore
     const connectionId = $derived(schemaStore.activeConnection?.id || "");
@@ -117,6 +125,7 @@
             {dataFetcher}
             {tableName}
             tableSchema={effectiveSchema}
+            viewState={context}
         />
     {/key}
 </div>
