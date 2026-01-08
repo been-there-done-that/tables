@@ -10,7 +10,18 @@
   import { logsStore } from "$lib/stores/logs.svelte";
 
   const activeSession = $derived(windowState.activeSession);
+
+  function handleKeydown(e: KeyboardEvent) {
+    if ((e.metaKey || e.ctrlKey) && e.key === "w") {
+      e.preventDefault();
+      if (activeSession && activeSession.activeViewId) {
+        activeSession.closeView(activeSession.activeViewId);
+      }
+    }
+  }
 </script>
+
+<svelte:window onkeydown={handleKeydown} />
 
 <div class="flex h-full w-full flex-col bg-background text-foreground">
   <div class="relative flex-1 overflow-hidden">
