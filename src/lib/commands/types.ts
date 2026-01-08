@@ -279,6 +279,53 @@ export interface MetaTable {
   indexes: MetaIndex[];
 }
 
+// =========================================================================
+// 2026-Grade SQLite Type System
+// =========================================================================
+
+/** SQLite type affinity (how SQLite stores values) */
+export type SqliteAffinity = 'integer' | 'text' | 'blob' | 'real' | 'numeric';
+
+/** Semantic hint inferred from declared type (heuristic, not enforced) */
+export type SemanticHint =
+  | { kind: 'none' }
+  | { kind: 'uuid' }
+  | { kind: 'json' }
+  | { kind: 'datetime' }
+  | { kind: 'date' }
+  | { kind: 'time' }
+  | { kind: 'boolean' }
+  | { kind: 'decimal' }
+  | { kind: 'enum'; values: string[] };
+
+/** Rich SQLite column metadata */
+export interface SqliteTypeMeta {
+  declared_type: string;      // Verbatim from table_xinfo
+  affinity: SqliteAffinity;   // Computed affinity per SQLite rules
+  semantic_hint: SemanticHint; // Heuristic inference (disabled for STRICT)
+  is_strict_table: boolean;   // Table uses STRICT mode (SQLite 3.37+)
+  is_generated: boolean;      // Virtual or stored generated column
+  is_virtual_table: boolean;  // Table is virtual (FTS5, R-Tree, etc.)
+}
+
+/** Engine-specific type metadata tagged union */
+export type EngineTypeMeta =
+  | { engine: 'sqlite'; meta: SqliteTypeMeta }
+  | { engine: 'postgres'; meta: any }
+  | { engine: 'mysql'; meta: any }
+  | { engine: 'none' };
+
+/** Lossless representation of the database type */
+export interface EngineType {
+  engine: 'postgres' | 'mysql' | 'sqlite';
+  raw_type: string;
+  metadata: EngineTypeMeta;
+}
+
+// =========================================================================
+// Column Metadata
+// =========================================================================
+
 export interface MetaColumn {
   connection_id: string;
   database: string;
@@ -291,6 +338,44 @@ export interface MetaColumn {
   nullable: boolean;
   default_value?: string;
   is_primary_key: boolean;
+  engine_type?: EngineType;      // New: Rich engine-specific type info
+  normalized_type?: any;          // New: Cross-database normalized type
+}
+
+// =========================================================================
+// Helper functions for type display
+// =========================================================================
+
+/** Get semantic hint label for display */
+export function getSemanticLabel(col: MetaColumn): string | null {
+  const meta = col.engine_type?.metadata;
+  if (!meta || meta.engine !== 'sqlite') return null;
+
+  const hint = meta.meta.semantic_hint;
+  if (!hint || hint.kind === 'none') return null;
+
+  return hint.kind.toUpperCase();
+}
+
+/** Check if column is from a STRICT table */
+export function isStrictTable(col: MetaColumn): boolean {
+  const meta = col.engine_type?.metadata;
+  if (!meta || meta.engine !== 'sqlite') return false;
+  return meta.meta.is_strict_table;
+}
+
+/** Check if column is generated */
+export function isGeneratedColumn(col: MetaColumn): boolean {
+  const meta = col.engine_type?.metadata;
+  if (!meta || meta.engine !== 'sqlite') return false;
+  return meta.meta.is_generated;
+}
+
+/** Get affinity label for display */
+export function getAffinityLabel(col: MetaColumn): string | null {
+  const meta = col.engine_type?.metadata;
+  if (!meta || meta.engine !== 'sqlite') return null;
+  return meta.meta.affinity.toUpperCase();
 }
 
 export interface MetaForeignKey {
@@ -311,3 +396,4 @@ export interface MetaIndex {
   index_name: string;
   is_unique: boolean;
 }
+
