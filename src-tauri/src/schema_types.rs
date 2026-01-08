@@ -83,10 +83,54 @@ pub struct MySqlTypeMeta {
     pub enum_values: Option<Vec<String>>,
 }
 
+/// SQLite type affinity (how SQLite stores values)
+/// Based on SQLite's affinity determination rules from declared type
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SqliteAffinity {
+    Integer,  // INT, INTEGER, TINYINT, SMALLINT, MEDIUMINT, BIGINT, etc.
+    Text,     // TEXT, VARCHAR, CLOB, CHARACTER, etc.
+    Blob,     // BLOB, no type specified
+    Real,     // REAL, DOUBLE, FLOAT
+    Numeric,  // NUMERIC, DECIMAL, BOOLEAN, DATE, DATETIME, etc.
+}
+
+impl Default for SqliteAffinity {
+    fn default() -> Self {
+        SqliteAffinity::Blob // No type = BLOB affinity per SQLite rules
+    }
+}
+
+/// Semantic hint inferred from declared type (heuristic, not enforced by SQLite)
+/// These hints are disabled for STRICT tables where only standard types are allowed
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SemanticHint {
+    None,                           // No special hint
+    Uuid,                           // UUID, GUID
+    Json,                           // JSON, JSONB
+    DateTime,                       // DATETIME, TIMESTAMP
+    Date,                           // DATE
+    Time,                           // TIME
+    Boolean,                        // BOOL, BOOLEAN
+    Decimal,                        // MONEY, DECIMAL, CURRENCY
+    Enum { values: Vec<String> },   // Detected from CHECK constraints
+}
+
+impl Default for SemanticHint {
+    fn default() -> Self {
+        SemanticHint::None
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SqliteTypeMeta {
-    pub declared_type: String,     // e.g., "INTEGER", "VARCHAR(50)"
-    pub affinity: String,          // e.g., "INTEGER", "TEXT" (Using string for simple serialization for now)
+    pub declared_type: String,          // Verbatim from table_xinfo (e.g., "VARCHAR(36)")
+    pub affinity: SqliteAffinity,       // Computed affinity per SQLite rules
+    pub semantic_hint: SemanticHint,    // Heuristic inference (disabled for STRICT)
+    pub is_strict_table: bool,          // Table uses STRICT mode (SQLite 3.37+)
+    pub is_generated: bool,             // Virtual or stored generated column
+    pub is_virtual_table: bool,         // Table is virtual (FTS5, R-Tree, etc.)
 }
 
 /// Container for engine-specific metadata
