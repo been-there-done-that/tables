@@ -23,14 +23,16 @@ pub struct TablePreviewResult {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QueryLogEntry {
-    pub id: i64,
+    pub id: Option<i64>, // nullable for running events
     pub timestamp: i64,
+    #[serde(rename = "correlationId")]
+    pub correlation_id: String,
     #[serde(rename = "connectionId")]
     pub connection_id: String,
     pub database: String,
     pub query: String,
     #[serde(rename = "durationMs")]
-    pub duration_ms: i64,
+    pub duration_ms: Option<i64>, // nullable for running
     pub status: String,
     pub error: Option<String>,
     #[serde(rename = "rows")]
@@ -54,12 +56,13 @@ pub fn fetch_query_logs(
 
     let rows = stmt.query_map([limit], |row| {
         Ok(QueryLogEntry {
-            id: row.get(0)?,
+            id: Some(row.get(0)?),
             timestamp: row.get(1)?,
+            correlation_id: "historical".to_string(), // Historical logs don't have correlation_id stored yet
             connection_id: row.get(2)?,
             database: row.get::<_, Option<String>>(3)?.unwrap_or_default(),
             query: row.get(4)?,
-            duration_ms: row.get(5)?,
+            duration_ms: Some(row.get(5)?),
             status: row.get(6)?,
             error: row.get(7)?,
             row_count: row.get(8)?,
@@ -71,11 +74,6 @@ pub fn fetch_query_logs(
         logs.push(row.map_err(|e| e.to_string())?);
     }
     
-    // Reverse to show oldest first if we want top-to-bottom feel, 
-    // but usually logs are newest at bottom? 
-    // The user requested "latest 100", and typical log view appends.
-    // So if we fetch DESC (newest first), we should reverse to get chronological order [old ... new]
-    // so they are appended correctly in the store.
     logs.reverse();
 
     Ok(logs)
@@ -107,16 +105,32 @@ pub async fn fetch_table_preview(
         "Fetching table preview for {}.{}.{} (offset={}, limit={})",
         database, schema, table_name, offset, limit
     );
+    
+    let correlation_id = uuid::Uuid::new_v4().to_string();
+    let query_preview = format!("SELECT * FROM {}.{} LIMIT {} OFFSET {}", schema, table_name, limit, offset);
+    
+    emit_query_start(&app, &correlation_id, &connection_id, &database, &query_preview);
 
     let manager = ConnectionManager::from_state(&db_state, &conn_state);
-    let (connection, credentials) = manager.get_connection(&connection_id)?;
+    let (connection, credentials) = match manager.get_connection(&connection_id) {
+        Ok(res) => res,
+        Err(e) => {
+             log_query_end(&app, &correlation_id, &connection_id, &database, &query_preview, 0, "error", Some(&e), None);
+             return Err(e);
+        }
+    };
 
     let config: serde_json::Value = serde_json::from_str(&connection.config_json)
-        .map_err(|e| format!("Failed to parse connection config: {}", e))?;
+        .map_err(|e| {
+            let err_msg = format!("Failed to parse connection config: {}", e);
+            log_query_end(&app, &correlation_id, &connection_id, &database, &query_preview, 0, "error", Some(&err_msg), None);
+            err_msg
+        })?;
 
     match connection.engine.as_str() {
         "postgres" | "postgresql" => {
             let start = Instant::now();
+            let final_query = format!("SELECT * FROM \"{}\".\"{}\" LIMIT {} OFFSET {}", schema, table_name, limit, offset);
             let result = fetch_postgres_preview(&config, &credentials, &database, &schema, &table_name, offset, limit).await;
             let duration = start.elapsed().as_millis() as u64;
             
@@ -124,12 +138,13 @@ pub async fn fetch_table_preview(
             let error = result.as_ref().err().map(|e| e.as_str());
             let row_count = result.as_ref().map(|r| r.rows.len()).ok();
             
-            log_query_event(&app, &connection_id, &database, &format!("SELECT * FROM {}.{} LIMIT {} OFFSET {}", schema, table_name, limit, offset), duration, status, error, row_count);
+            log_query_end(&app, &correlation_id, &connection_id, &database, &final_query, duration, status, error, row_count);
             
             result
         }
         "sqlite" => {
             let start = Instant::now();
+            let final_query = format!("SELECT * FROM \"{}\" LIMIT {} OFFSET {}", table_name, limit, offset);
             let result = fetch_sqlite_preview(&config, &table_name, offset, limit);
             let duration = start.elapsed().as_millis() as u64;
              
@@ -137,11 +152,15 @@ pub async fn fetch_table_preview(
             let error = result.as_ref().err().map(|e| e.as_str());
             let row_count = result.as_ref().map(|r| r.rows.len()).ok();
             
-            log_query_event(&app, &connection_id, &database, &format!("SELECT * FROM {} LIMIT {} OFFSET {}", table_name, limit, offset), duration, status, error, row_count);
+            log_query_end(&app, &correlation_id, &connection_id, &database, &final_query, duration, status, error, row_count);
             
             result
         }
-        _ => Err(format!("Engine '{}' is not supported for table preview", connection.engine)),
+        _ => {
+            let msg = format!("Engine '{}' is not supported for table preview", connection.engine);
+            log_query_end(&app, &correlation_id, &connection_id, &database, &query_preview, 0, "error", Some(&msg), None);
+            Err(msg)
+        },
     }
 }
 
@@ -158,11 +177,24 @@ pub async fn execute_query(
 ) -> Result<QueryResult, String> {
     info!("Executing query on {}: {}", database, query);
     
+    let correlation_id = uuid::Uuid::new_v4().to_string();
+    emit_query_start(&app, &correlation_id, &connection_id, &database, &query);
+
     let manager = ConnectionManager::from_state(&db_state, &conn_state);
-    let (connection, credentials) = manager.get_connection(&connection_id)?;
+    let (connection, credentials) = match manager.get_connection(&connection_id) {
+        Ok(res) => res,
+        Err(e) => {
+             log_query_end(&app, &correlation_id, &connection_id, &database, &query, 0, "error", Some(&e), None);
+             return Err(e);
+        }
+    };
 
     let config: serde_json::Value = serde_json::from_str(&connection.config_json)
-        .map_err(|e| format!("Failed to parse connection config: {}", e))?;
+        .map_err(|e| {
+            let err_msg = format!("Failed to parse connection config: {}", e);
+            log_query_end(&app, &correlation_id, &connection_id, &database, &query, 0, "error", Some(&err_msg), None);
+            err_msg
+        })?;
 
     let start = Instant::now();
     let result = match connection.engine.as_str() {
@@ -180,10 +212,14 @@ pub async fn execute_query(
     let error = result.as_ref().err().map(|e| e.as_str());
     let row_count = result.as_ref().map(|r| r.rows.len()).ok();
 
-    log_query_event(&app, &connection_id, &database, &query, duration, status, error, row_count);
+    log_query_end(&app, &correlation_id, &connection_id, &database, &query, duration, status, error, row_count);
 
     result
 }
+
+// ... helper functions (fetch_postgres_preview, fetch_sqlite_preview, etc.) ...
+// WE NEED TO INCLUDE THE HELPERS HERE OR THE FILE WILL BE INCOMPLETE
+// Since I'm using write_to_file, I must include EVERYTHING.
 
 async fn fetch_postgres_preview(
     config: &serde_json::Value,
@@ -594,8 +630,28 @@ fn execute_sqlite_query(
     })
 }
 
-fn log_query_event(
+fn emit_query_start(
     app: &AppHandle,
+    correlation_id: &str,
+    connection_id: &str,
+    database: &str,
+    query: &str,
+) {
+    let timestamp = crate::now_ts() * 1000;
+    
+    let _ = app.emit("query-started", serde_json::json!({
+        "timestamp": timestamp,
+        "correlationId": correlation_id,
+        "connectionId": connection_id,
+        "database": database,
+        "query": query,
+        "status": "running"
+    }));
+}
+
+fn log_query_end(
+    app: &AppHandle,
+    correlation_id: &str,
     connection_id: &str,
     database: &str,
     query: &str,
@@ -608,7 +664,8 @@ fn log_query_event(
     
     // Emit event
     let _ = app.emit("query-log", serde_json::json!({
-        "timestamp": timestamp,
+        "timestamp": timestamp, // End timestamp? or use original? Used for sorting...
+        "correlationId": correlation_id,
         "connectionId": connection_id,
         "database": database,
         "query": query,
@@ -626,7 +683,7 @@ fn log_query_event(
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                 rusqlite::params![
                     connection_id,
-                    "unknown", // TODO: Fetch connection name if possible
+                    "unknown", 
                     database,
                     timestamp,
                     query,
