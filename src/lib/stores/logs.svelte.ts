@@ -18,6 +18,7 @@ export interface LogEntry {
 
 class LogsStore {
     logs = $state<LogEntry[]>([]);
+    lastRefreshedConnectionId: string | null = null;
 
     get isOpen() {
         return settingsStore.logsPanelVisible;
@@ -43,30 +44,35 @@ class LogsStore {
         });
     }
 
+    private lastConnectionId: string | null = null;
+
     async init(connectionId?: string) {
+        // Prevent duplicate calls for the same connection ID
+        // Note: use undefined for "no connection/global" logic if desired, matching the argument
+        const targetId = connectionId || null;
+        if (this.lastRefreshedConnectionId === targetId) {
+            return;
+        }
+
         try {
-            // Preserve running logs for this connection
-            const running = this.logs.filter(l =>
-                l.status === 'running' &&
-                (!connectionId || l.connectionId === connectionId)
-            );
+            this.lastRefreshedConnectionId = targetId;
+
+            // Simplified: Just fetch fresh history.
+            // User requested "no need to do the safe handling... old data be old data"
+            this.logs = [];
 
             const history = await invoke<LogEntry[]>("fetch_query_logs", {
                 limit: 100,
-                connectionId: connectionId || null
+                connectionId: targetId
             });
 
             if (history && Array.isArray(history)) {
-                // Determine the set of logs to show.
-                // If we switched connections, we only want logs for the new connection.
-                // 'running' filter above handles this.
-                // 'history' from backend is already filtered by connectionId.
-
-                // Merge: running queries should be at the top (newest)
-                this.logs = [...running, ...history];
+                this.logs = history;
             }
         } catch (e) {
             console.error("Failed to fetch query logs:", e);
+            // Reset on error so we can try again potentially?
+            this.lastRefreshedConnectionId = null;
         }
     }
 

@@ -6,6 +6,7 @@
     import IconCheck from "@tabler/icons-svelte/icons/check";
     import IconAlertCircle from "@tabler/icons-svelte/icons/alert-circle";
     import IconLoader2 from "@tabler/icons-svelte/icons/loader-2";
+    import IconCopy from "@tabler/icons-svelte/icons/copy";
 
     function formatTime(ts: number) {
         return new Date(ts).toLocaleTimeString(undefined, {
@@ -15,7 +16,10 @@
         });
     }
 
+    import { untrack } from "svelte";
+
     let expandedId = $state<number | null>(null);
+    let copiedId = $state<number | null>(null);
     let scrollContainer = $state<HTMLElement | null>(null);
 
     // Auto-scroll to bottom when logs change
@@ -27,7 +31,8 @@
 
     // Refresh logs when active connection changes
     $effect(() => {
-        logsStore.init(schemaStore.activeConnection?.id);
+        const connId = schemaStore.activeConnection?.id;
+        untrack(() => logsStore.init(connId));
     });
 
     function toggleExpand(id: number) {
@@ -149,10 +154,33 @@
                             class="px-2 pb-3 pt-0 animate-in slide-in-from-top-1 duration-200"
                         >
                             <div
-                                class="p-1 rounded bg-background/50 border border-border/50 text-xs overflow-x-auto"
+                                class="p-1 rounded bg-background/50 border border-border/50 text-xs overflow-x-auto relative group/code"
                             >
+                                <button
+                                    class="absolute right-1 top-1 p-1 opacity-0 group-hover/code:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
+                                    onclick={(e) => {
+                                        e.stopPropagation();
+                                        navigator.clipboard.writeText(
+                                            log.query,
+                                        );
+                                        copiedId = log.timestamp;
+                                        setTimeout(
+                                            () => (copiedId = null),
+                                            2000,
+                                        );
+                                    }}
+                                    title="Copy Query"
+                                >
+                                    {#if copiedId === log.timestamp}
+                                        <IconCheck
+                                            class="size-3 text-emerald-500"
+                                        />
+                                    {:else}
+                                        <IconCopy class="size-3" />
+                                    {/if}
+                                </button>
                                 <pre
-                                    class="whitespace-pre-wrap break-all text-foreground/90">{log.query}</pre>
+                                    class="whitespace-pre-wrap break-all text-foreground/90 p-1">{log.query}</pre>
 
                                 {#if log.status === "error"}
                                     <div
