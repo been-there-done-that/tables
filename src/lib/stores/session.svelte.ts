@@ -31,12 +31,14 @@ export class Session {
     activeViewId = $state<string | null>(null);
 
     private cleanup: (() => void) | null = null;
+    private onStateChange?: () => void;
 
-    constructor(id: string, connection: Connection, windowLabel: string = "main") {
+    constructor(id: string, connection: Connection, windowLabel: string = "main", onStateChange?: () => void) {
         this.id = id;
         this.connectionId = connection.id;
         this.connection = connection;
         this.windowLabel = windowLabel;
+        this.onStateChange = onStateChange;
 
         // Load persisted expansion state
         const persistedExpanded = settingsStore.getExpandedNodes(connection.id);
@@ -45,14 +47,20 @@ export class Session {
         }
     }
 
+    private triggerSave() {
+        if (this.onStateChange) this.onStateChange();
+    }
+
     persistExpandedNodes() {
         const nodes = Array.from(this.explorerState.expanded);
         settingsStore.setExpandedNodes(this.connectionId, nodes);
+        this.triggerSave();
     }
 
     addView(view: ViewState) {
         this.views.push(view);
         this.activeViewId = view.id;
+        this.triggerSave();
     }
 
     openView(type: ViewType, title: string, data?: any) {
@@ -66,6 +74,7 @@ export class Session {
             );
             if (existing) {
                 this.activeViewId = existing.id;
+                this.triggerSave();
                 return existing.id;
             }
         }
@@ -73,6 +82,7 @@ export class Session {
         const id = crypto.randomUUID();
         const newView: ViewState = { id, type, title, data };
         this.addView(newView);
+        // addView calls triggerSave
         return id;
     }
 
@@ -84,11 +94,13 @@ export class Session {
         if (this.activeViewId === viewId) {
             this.activeViewId = this.views.length > 0 ? this.views[this.views.length - 1].id : null;
         }
+        this.triggerSave();
     }
 
     activateView(viewId: string) {
         if (this.views.find(v => v.id === viewId)) {
             this.activeViewId = viewId;
+            this.triggerSave();
         }
     }
 }
