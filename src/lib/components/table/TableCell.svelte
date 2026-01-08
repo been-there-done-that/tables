@@ -234,9 +234,8 @@
     bind:this={cellEl}
     class={cn(
         "relative flex items-center border-r truncate text-sm select-none text-foreground border-border",
-        isSelected &&
-            "bg-accent/20 text-foreground border-accent/50",
-        isFocused && "ring-2 ring-border-focus ring-inset z-10",
+        isSelected && "bg-accent/20 text-foreground border-accent/50",
+        isFocused && "z-10",
         isPendingEdit && "bg-amber-500/20 text-foreground",
         disabled && "opacity-70",
     )}

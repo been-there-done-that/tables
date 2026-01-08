@@ -59,6 +59,8 @@ pub struct Context {
     pub context_type: CursorContext,
     /// The partial word being typed (for filtering)
     pub prefix: String,
+    /// The word immediately preceding the cursor (skipping current prefix and whitespace)
+    pub previous_word: String,
     /// Enclosing scope depth (for subquery handling)
     pub scope_depth: usize,
 }
@@ -70,6 +72,7 @@ impl Context {
             cursor_offset,
             context_type: CursorContext::Unknown,
             prefix: String::new(),
+            previous_word: String::new(),
             scope_depth: 0,
         };
 
@@ -87,6 +90,9 @@ impl Context {
         // Extract prefix (the partial word being typed)
         let mut prefix = extract_prefix(source, cursor_offset);
         
+        // Extract previous word
+        let previous_word = extract_previous_word(source, cursor_offset, &prefix);
+        
         // Determine context type
         let context_type = determine_context(source, &node, cursor_offset);
         
@@ -103,6 +109,7 @@ impl Context {
             cursor_offset,
             context_type,
             prefix,
+            previous_word,
             scope_depth,
         }
     }
@@ -150,6 +157,40 @@ fn extract_prefix(source: &str, cursor_offset: usize) -> String {
         .unwrap_or(0);
     
     before_cursor[word_start..].to_string()
+}
+
+/// Extract the word preceding the current prefix/cursor.
+fn extract_previous_word(source: &str, cursor_offset: usize, prefix: &str) -> String {
+    let effective_end = cursor_offset.saturating_sub(prefix.len());
+    let before_prefix = &source[..effective_end];
+    let trimmed = before_prefix.trim_end();
+    
+    // If we're at the start, no previous word
+    if trimmed.is_empty() {
+        return String::new();
+    }
+    
+    // If the last char is a symbol like '=', return it
+    if let Some(last_char) = trimmed.chars().last() {
+        if !last_char.is_alphanumeric() && last_char != '_' && last_char != ')' && last_char != '"' && last_char != '`' && last_char != '\'' {
+            // Check for multi-char operators like >=, <=, <>
+            if trimmed.len() >= 2 {
+                let suffix = &trimmed[trimmed.len()-2..];
+                if matches!(suffix, ">=" | "<=" | "<>" | "!=") {
+                    return suffix.to_string();
+                }
+            }
+            return last_char.to_string();
+        }
+    }
+
+    // Otherwise find the start of the word
+    let word_start = trimmed
+        .rfind(|c: char| !c.is_alphanumeric() && c != '_' && c != '.')
+        .map(|i| i + 1)
+        .unwrap_or(0);
+        
+    trimmed[word_start..].to_string()
 }
 
 /// Determine the completion context from cursor position.
@@ -234,6 +275,7 @@ fn determine_context(source: &str, node: &Node, cursor_offset: usize) -> CursorC
     if upper.contains(" WHERE ") {
         return CursorContext::WhereClause;
     }
+    
     if upper.contains(" ON ") {
         let (left, right) = extract_join_tables(before_cursor);
         
@@ -249,6 +291,22 @@ fn determine_context(source: &str, node: &Node, cursor_offset: usize) -> CursorC
             left_table: left,
             right_table: right,
         };
+    }
+
+    // Heuristic: If we are in a SELECT statement, past 'FROM', and haven't hit WHERE/GROUP/ORDER yet,
+    // we are likely in the FROM clause (expecting aliases, joins, or WHERE).
+    if upper.contains("SELECT ") && upper.contains(" FROM ") {
+        let from_idx = upper.rfind(" FROM ").unwrap() + 6;
+        if cursor_offset >= from_idx {
+            let after_from = &upper[from_idx..];
+            if !after_from.contains(" WHERE ") 
+               && !after_from.contains(" GROUP BY ") 
+               && !after_from.contains(" ORDER BY ") 
+               && !after_from.contains(" LIMIT ")
+            {
+                return CursorContext::FromClause;
+            }
+        }
     }
     
     CursorContext::Unknown

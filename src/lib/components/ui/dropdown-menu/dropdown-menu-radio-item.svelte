@@ -1,6 +1,6 @@
 <script lang="ts">
     import { DropdownMenu as DropdownMenuPrimitive } from "bits-ui";
-    import Circle from "lucide-svelte/icons/circle";
+    import IconCircleFilled from "@tabler/icons-svelte/icons/circle-filled";
     import { cn } from "$lib/utils";
     import type { Snippet } from "svelte";
 
@@ -29,7 +29,7 @@
             class="absolute left-2 flex h-3.5 w-3.5 items-center justify-center"
         >
             {#if checked}
-                <Circle class="h-2 w-2 fill-current" />
+                <IconCircleFilled class="h-2 w-2" />
             {/if}
         </span>
         {@render childrenProp?.()}
