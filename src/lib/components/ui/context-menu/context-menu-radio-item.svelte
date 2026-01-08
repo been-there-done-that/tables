@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { ContextMenu as ContextMenuPrimitive } from "bits-ui";
-	import { Circle as CircleIcon } from "lucide-svelte";
+	import IconCircleFilled from "@tabler/icons-svelte/icons/circle-filled";
 	import { cn, type WithoutChild } from "$lib/utils.js";
 
 	let {
@@ -25,7 +25,7 @@
 			class="pointer-events-none absolute start-2 flex size-3.5 items-center justify-center"
 		>
 			{#if checked}
-				<CircleIcon class="size-2 fill-current" />
+				<IconCircleFilled class="size-2" />
 			{/if}
 		</span>
 		{@render childrenProp?.({ checked })}
