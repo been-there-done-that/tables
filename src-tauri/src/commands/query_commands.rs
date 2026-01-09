@@ -1,6 +1,6 @@
 use tauri::{State, AppHandle, Emitter, Manager};
 use serde::{Deserialize, Serialize};
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use crate::{DatabaseState, ConnectionManager, ConnectionManagerState};
 use std::time::Instant;
 
@@ -112,6 +112,7 @@ pub struct ColumnInfo {
 
 /// Fetches a preview of table data using SELECT * with LIMIT/OFFSET
 /// Supports both PostgreSQL and SQLite engines
+/// Uses connection pooling via get_or_create_adapter for connection reuse
 #[tauri::command]
 pub async fn fetch_table_preview(
     connection_id: String,
@@ -133,80 +134,112 @@ pub async fn fetch_table_preview(
     );
     
     let correlation_id = uuid::Uuid::new_v4().to_string();
-    let query_preview = format!("SELECT * FROM {}.{} LIMIT {} OFFSET {}", schema, table_name, limit, offset);
+    let start = std::time::Instant::now();
     
-    emit_query_start(&app, &correlation_id, &connection_id, &database, &query_preview);
+    // Build WHERE and ORDER BY clauses
+    let where_part = match &where_clause {
+        Some(w) if !w.trim().is_empty() => format!(" WHERE {}", w),
+        _ => String::new(),
+    };
+    let order_part = match &order_by_clause {
+        Some(o) if !o.trim().is_empty() => format!(" ORDER BY {}", o),
+        _ => String::new(),
+    };
 
     let manager = ConnectionManager::from_state(&db_state, &conn_state);
-    let (connection, credentials) = match manager.get_connection(&connection_id) {
+    
+    // Get connection metadata to determine engine type (doesn't fetch credentials)
+    let connection = match manager.get_connection_metadata(&connection_id) {
         Ok(res) => res,
         Err(e) => {
-             log_query_end(&app, &correlation_id, &connection_id, &database, &query_preview, 0, "error", Some(&e), None);
              return Err(e);
         }
     };
 
-    let config: serde_json::Value = serde_json::from_str(&connection.config_json)
-        .map_err(|e| {
-            let err_msg = format!("Failed to parse connection config: {}", e);
-            log_query_end(&app, &correlation_id, &connection_id, &database, &query_preview, 0, "error", Some(&err_msg), None);
-            err_msg
-        })?;
+    // Use connection pooling - get or create adapter
+    let adapter = match manager.get_or_create_adapter(&connection_id).await {
+        Ok(a) => a,
+        Err(e) => {
+            error!("Failed to get adapter: {}", e);
+            return Err(e);
+        }
+    };
+
+    // Ensure we're connected to the right database
+    if let Err(e) = adapter.ensure_database(Some(&database)).await {
+        error!("Failed to ensure database: {}", e);
+        return Err(format!("Failed to switch to database '{}': {}", database, e));
+    }
 
     let should_fetch_total = fetch_total.unwrap_or(false);
 
-    match connection.engine.as_str() {
+    // Build query based on engine
+    let (data_query, count_query) = match connection.engine.as_str() {
         "postgres" | "postgresql" => {
-            let start = Instant::now();
-            let final_query = format!("SELECT * FROM \"{}\".\"{}\" LIMIT {} OFFSET {}", schema, table_name, limit, offset);
-            let result = fetch_postgres_preview(
-                &config, &credentials, &database, &schema, &table_name, 
-                offset, limit, where_clause.as_deref(), order_by_clause.as_deref(), should_fetch_total
-            ).await;
-            let duration = start.elapsed().as_millis() as u64;
-            
-            // Add duration_ms to result
-            let result = result.map(|mut r| {
-                r.duration_ms = duration;
-                r
-            });
-            
-            let status = if result.is_ok() { "success" } else { "error" };
-            let error = result.as_ref().err().map(|e| e.as_str());
-            let row_count = result.as_ref().map(|r| r.rows.len()).ok();
-            
-            log_query_end(&app, &correlation_id, &connection_id, &database, &final_query, duration, status, error, row_count);
-            
-            result
+            let dq = format!(
+                "SELECT * FROM \"{}\".\"{}\"{}{} LIMIT {} OFFSET {}",
+                schema, table_name, where_part, order_part, limit, offset
+            );
+            let cq = format!("SELECT COUNT(*) FROM \"{}\".\"{}\"{}",  schema, table_name, where_part);
+            (dq, cq)
         }
         "sqlite" => {
-            let start = Instant::now();
-            let final_query = format!("SELECT * FROM \"{}\" LIMIT {} OFFSET {}", table_name, limit, offset);
-            let result = fetch_sqlite_preview(
-                &config, &table_name, offset, limit, 
-                where_clause.as_deref(), order_by_clause.as_deref(), should_fetch_total
+            let dq = format!(
+                "SELECT * FROM \"{}\"{}{} LIMIT {} OFFSET {}",
+                table_name, where_part, order_part, limit, offset
             );
-            let duration = start.elapsed().as_millis() as u64;
-            
-            // Add duration_ms to result
-            let result = result.map(|mut r| {
-                r.duration_ms = duration;
-                r
-            });
-             
-            let status = if result.is_ok() { "success" } else { "error" };
-            let error = result.as_ref().err().map(|e| e.as_str());
-            let row_count = result.as_ref().map(|r| r.rows.len()).ok();
-            
-            log_query_end(&app, &correlation_id, &connection_id, &database, &final_query, duration, status, error, row_count);
-            
-            result
+            let cq = format!("SELECT COUNT(*) FROM \"{}\"{}",  table_name, where_part);
+            (dq, cq)
         }
-        _ => {
-            let msg = format!("Engine '{}' is not supported for table preview", connection.engine);
-            log_query_end(&app, &correlation_id, &connection_id, &database, &query_preview, 0, "error", Some(&msg), None);
-            Err(msg)
-        },
+        _ => return Err(format!("Unsupported engine: {}", connection.engine)),
+    };
+
+    emit_query_start(&app, &correlation_id, &connection_id, &database, &data_query);
+
+    // Fetch total count if requested
+    let total: Option<i64> = if should_fetch_total {
+        match adapter.query(&count_query).await {
+            Ok(result) => {
+                result.rows.first()
+                    .and_then(|row| row.get("count").or_else(|| row.as_object()?.values().next()))
+                    .and_then(|v| v.as_i64())
+            }
+            Err(e) => {
+                warn!("Failed to fetch count: {}", e);
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    // Execute main query
+    let result = adapter.query(&data_query).await;
+    let duration = start.elapsed().as_millis() as u64;
+
+    match result {
+        Ok(query_result) => {
+            let columns: Vec<ColumnInfo> = query_result.columns.iter().map(|c| {
+                ColumnInfo {
+                    name: c.name.clone(),
+                    column_type: c.column_type.clone(),
+                }
+            }).collect();
+
+            log_query_end(&app, &correlation_id, &connection_id, &database, &data_query, duration, "success", None, Some(query_result.rows.len()));
+
+            Ok(TablePreviewResult {
+                rows: query_result.rows,
+                columns,
+                total,
+                duration_ms: duration,
+            })
+        }
+        Err(e) => {
+            let err_msg = format!("{}", e);
+            log_query_end(&app, &correlation_id, &connection_id, &database, &data_query, duration, "error", Some(&err_msg), None);
+            Err(err_msg)
+        }
     }
 }
 
