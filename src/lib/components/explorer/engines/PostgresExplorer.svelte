@@ -8,11 +8,9 @@
     import { invoke } from "@tauri-apps/api/core";
     import IconLoader2 from "@tabler/icons-svelte/icons/loader-2";
     import { cn } from "$lib/utils";
-    import IconRefresh from "@tabler/icons-svelte/icons/refresh";
     import IconDatabase from "@tabler/icons-svelte/icons/database";
-    import Compact from "$lib/svg/Compact.svelte";
-    import Expand from "$lib/svg/Expand.svelte";
     import PlaylistAdd from "@tabler/icons-svelte/icons/playlist-add";
+    import ExplorerToolbar from "../ExplorerToolbar.svelte";
 
     let fileTree = $state<any>(null);
     let selectedNodeId = $state<string | null>(null);
@@ -26,135 +24,6 @@
     let tableDetailsCache = $state<Map<string, any>>(new Map());
     let loadingTables = $state<Set<string>>(new Set());
 
-    // Progressive expand/collapse state
-    // Level 0 = schemas, 1 = folders, 2 = tables, 3 = detail groups
-    let currentExpandLevel = $state(0);
-    const MAX_EXPAND_LEVEL = 4;
-
-    /**
-     * Get all node IDs at a specific depth level from the tree
-     */
-    function getNodeIdsAtLevel(
-        nodes: TreeNode[],
-        targetLevel: number,
-        currentLevel: number = 0,
-    ): string[] {
-        const ids: string[] = [];
-        if (!nodes) return ids;
-
-        for (const node of nodes) {
-            if (currentLevel === targetLevel) {
-                if (node.id && node.children?.length) {
-                    ids.push(node.id);
-                }
-            } else if (currentLevel < targetLevel && node.children?.length) {
-                ids.push(
-                    ...getNodeIdsAtLevel(
-                        node.children,
-                        targetLevel,
-                        currentLevel + 1,
-                    ),
-                );
-            }
-        }
-        return ids;
-    }
-
-    /**
-     * Get the root nodes for expansion/collapse based on selection
-     */
-    function getScopedNodes(): TreeNode[] {
-        if (selectedNodeId) {
-            // Postgres IDs follow formats like "schema:db:schema", "folder:tables:db:schema", "table:db:schema.table"
-            // We can extract the schema ID from these patterns
-            const parts = selectedNodeId.split(":");
-            let schemaId = "";
-
-            if (selectedNodeId.startsWith("schema:")) {
-                schemaId = selectedNodeId;
-            } else if (
-                selectedNodeId.startsWith("folder:") ||
-                selectedNodeId.startsWith("table:")
-            ) {
-                // folder:type:db:schema or table:db:schema.table
-                const dbName = parts[2];
-                const schemaPart = parts[3]?.split(".")[0];
-                if (dbName && schemaPart) {
-                    schemaId = `schema:${dbName}:${schemaPart}`;
-                }
-            }
-
-            if (schemaId) {
-                const schemaNode = treeData.find((s) => s.id === schemaId);
-                if (schemaNode) return [schemaNode];
-            }
-        }
-        return treeData;
-    }
-
-    /**
-     * Progressive expand - each click expands one more level
-     */
-    function progressiveExpand() {
-        if (!activeSession) return;
-
-        const scopedNodes = getScopedNodes();
-        const nextLevel = Math.min(currentExpandLevel + 1, MAX_EXPAND_LEVEL);
-        const expanded =
-            activeSession.explorerState?.expanded || new Set<string>();
-        const newExpanded = new Set(expanded);
-
-        // Expand all nodes up to the next level within the scope
-        for (let level = 0; level < nextLevel; level++) {
-            const idsAtLevel = getNodeIdsAtLevel(scopedNodes, level);
-            for (const id of idsAtLevel) {
-                newExpanded.add(id);
-            }
-        }
-
-        if (activeSession.explorerState) {
-            activeSession.explorerState.expanded = newExpanded;
-        }
-        currentExpandLevel = nextLevel;
-    }
-
-    /**
-     * Progressive collapse - each click collapses one level (deepest first)
-     */
-    function progressiveCollapse() {
-        if (!activeSession) return;
-
-        const scopedNodes = getScopedNodes();
-        const expanded =
-            activeSession.explorerState?.expanded || new Set<string>();
-        if (expanded.size === 0) {
-            currentExpandLevel = 0;
-            return;
-        }
-
-        // Find the deepest level that has expanded nodes within the scope
-        let deepestLevel = 0;
-        for (let level = MAX_EXPAND_LEVEL - 1; level >= 0; level--) {
-            const idsAtLevel = getNodeIdsAtLevel(scopedNodes, level);
-            if (idsAtLevel.some((id) => expanded.has(id))) {
-                deepestLevel = level;
-                break;
-            }
-        }
-
-        // Remove all nodes at the deepest level within the scope
-        const newExpanded = new Set(expanded);
-        const idsToRemove = getNodeIdsAtLevel(scopedNodes, deepestLevel);
-        for (const id of idsToRemove) {
-            newExpanded.delete(id);
-        }
-
-        if (activeSession.explorerState) {
-            activeSession.explorerState.expanded = newExpanded;
-        }
-        currentExpandLevel = Math.max(0, deepestLevel);
-    }
-
     // Ensure a session exists when schemaStore has an active connection
     $effect(() => {
         const conn = schemaStore.activeConnection;
@@ -165,6 +34,11 @@
                 `[AutoSession] Creating session for connection ${conn.id}`,
             );
             windowState.startSession(conn);
+        }
+
+        // Reset selection when connection changes
+        if (!conn) {
+            selectedNodeId = null;
         }
     });
 
@@ -458,52 +332,7 @@
 </script>
 
 <div class="flex h-full flex-col bg-muted/20">
-    <div
-        class="flex h-8 flex-none items-center border-b border-border bg-background/50 px-4"
-    >
-        <h2 class="text-sm font-semibold">Explorer</h2>
-        <div class="ml-auto flex items-center gap-1">
-            <button
-                class="p-1 hover:bg-accent rounded-sm text-muted-foreground hover:text-foreground transition-colors"
-                title="Expand All"
-                onclick={() => progressiveExpand()}
-            >
-                <Expand />
-            </button>
-            <button
-                class="p-1 hover:bg-accent rounded-sm text-muted-foreground hover:text-foreground transition-colors"
-                title="Collapse Level"
-                onclick={() => progressiveCollapse()}
-            >
-                <Compact />
-            </button>
-            <button
-                class="p-1 hover:bg-accent rounded-sm text-muted-foreground hover:text-foreground transition-colors"
-                class:text-primary={windowState.layout.showSqlEditor}
-                class:bg-accent={windowState.layout.showSqlEditor}
-                title="Toggle SQL Playground"
-                onclick={() =>
-                    (windowState.layout.showSqlEditor =
-                        !windowState.layout.showSqlEditor)}
-            >
-                <IconDatabase class="size-4" />
-            </button>
-            <button
-                class="p-1 hover:bg-accent rounded-sm text-muted-foreground hover:text-foreground transition-colors"
-                title={schemaStore.lastRefreshed
-                    ? `Last refreshed: ${schemaStore.lastRefreshed.toLocaleTimeString()}`
-                    : "Refresh Schema"}
-                onclick={() => schemaStore.refresh()}
-            >
-                <IconRefresh
-                    class={cn(
-                        "size-4",
-                        schemaStore.status === "refreshing" && "animate-spin",
-                    )}
-                />
-            </button>
-        </div>
-    </div>
+    <ExplorerToolbar {treeData} {selectedNodeId} />
 
     <div class="flex-1 overflow-auto p-2">
         {#if schemaStore.status === "connecting"}
