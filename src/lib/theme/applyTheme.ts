@@ -41,18 +41,22 @@ export function applyThemeStyles(themeJson: string): void {
 
 export function applyTheme(theme: ThemeRecord | undefined, useTransition = true) {
   if (!theme) return;
+
   const run = () => applyThemeStyles(theme.theme_data);
 
-  if (useTransition && typeof document !== "undefined" && "startViewTransition" in document) {
-    try {
-      // Call as method to preserve Document context; swallow aborts
-      (document as any)
-        .startViewTransition(() => run())
-        ?.finished?.catch(() => { });
-      return;
-    } catch (err) {
-      console.warn("View transition failed, falling back:", err);
-    }
+  if (useTransition && typeof document !== "undefined") {
+    // Add transition class
+    document.documentElement.classList.add("theme-transitioning");
+
+    run();
+
+    // Remove class after transition completes
+    // Match this with the CSS transition duration (300ms)
+    setTimeout(() => {
+      document.documentElement.classList.remove("theme-transitioning");
+    }, 300);
+
+    return;
   }
 
   run();
