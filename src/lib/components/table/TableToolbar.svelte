@@ -2,62 +2,80 @@
     import { createEventDispatcher } from "svelte";
     import { Button } from "$lib/components/ui/button";
     import {
+        IconPlayerPlay,
+        IconChevronLeft,
+        IconChevronRight,
         IconRefresh,
-        IconClock,
-        IconPlus,
-        IconMinus,
-        IconEye,
         IconDatabase,
-        IconFilter,
-        IconSortAscending,
         IconDownload,
-        IconCopy,
-        IconChartLine,
     } from "@tabler/icons-svelte";
+    import * as Popover from "$lib/components/ui/popover";
     import type { Column, SortState } from "./types";
 
-    type ExportFormat = "csv" | "tsv" | "json";
+    type ExportFormat = "csv" | "tsv" | "json" | "sql";
 
     interface Props {
         tableRef?: any;
+        onExecute?: () => void;
         onRefresh?: () => void;
-        onCopy?: () => void;
         onExport?: (format: ExportFormat) => void;
         onShowDdl?: () => void;
-        exportFormats?: ExportFormat[];
-        contextLabel?: string; // e.g. table name
+        onPageChange?: (offset: number) => void;
         columns?: Column[];
+        // Pagination props
+        currentOffset?: number;
+        totalRows?: number;
+        pageSize?: number;
+        // Filter/sort state
+        whereClause?: string;
+        orderByClause?: string;
+        onWhereChange?: (value: string) => void;
+        onOrderByChange?: (value: string) => void;
     }
 
     const dispatch = createEventDispatcher();
 
     let {
-        tableRef,
+        tableRef = $bindable(),
+        onExecute,
         onRefresh,
-        onCopy,
         onExport,
         onShowDdl,
-        exportFormats = ["csv", "tsv", "json"],
-        contextLabel = "",
+        onPageChange,
         columns = [],
+        currentOffset = 0,
+        totalRows = 0,
+        pageSize = 500,
+        whereClause = "",
+        orderByClause = "",
+        onWhereChange,
+        onOrderByChange,
     }: Props = $props();
 
-    let exportFormat = $state<ExportFormat>("csv");
-    let filterOpen = $state(false);
-    let orderOpen = $state(false);
-    let filterDraft = $state<
-        Record<string, { type: "contains"; value: string }>
-    >({});
-    let sortDraft = $state<SortState[]>([]);
+    let exportOpen = $state(false);
+    let localWhere = $state(whereClause);
+    let localOrderBy = $state(orderByClause);
 
+    // Sync external props to local state
     $effect(() => {
-        exportFormat = exportFormats[0] ?? "csv";
+        localWhere = whereClause;
+    });
+    $effect(() => {
+        localOrderBy = orderByClause;
     });
 
-    function hydrateDrafts() {
-        const state = tableRef?.getState?.();
-        filterDraft = { ...(state?.filters ?? {}) };
-        sortDraft = [...(state?.sortState ?? [])];
+    // Pagination calculations
+    const startRow = $derived(currentOffset + 1);
+    const endRow = $derived(Math.min(currentOffset + pageSize, totalRows));
+    const hasPrev = $derived(currentOffset > 0);
+    const hasNext = $derived(currentOffset + pageSize < totalRows);
+
+    function handleExecute() {
+        if (onWhereChange) onWhereChange(localWhere);
+        if (onOrderByChange) onOrderByChange(localOrderBy);
+        if (onExecute) onExecute();
+        else tableRef?.refresh?.();
+        dispatch("execute");
     }
 
     function handleRefresh() {
@@ -66,313 +84,168 @@
         dispatch("refresh");
     }
 
-    function handleCopy() {
-        if (onCopy) onCopy();
-        else tableRef?.copySelection?.();
-        dispatch("copy");
+    function handlePrev() {
+        if (hasPrev && onPageChange) {
+            onPageChange(Math.max(0, currentOffset - pageSize));
+        }
     }
 
-    function handleExport() {
-        if (onExport) onExport(exportFormat);
-        dispatch("export", { format: exportFormat });
+    function handleNext() {
+        if (hasNext && onPageChange) {
+            onPageChange(currentOffset + pageSize);
+        }
     }
 
-    function applyFilters() {
-        const cleaned = Object.fromEntries(
-            Object.entries(filterDraft).filter(
-                ([, v]) =>
-                    v &&
-                    v.value !== undefined &&
-                    v.value !== null &&
-                    v.value !== "",
-            ),
-        );
-        tableRef?.setFilters?.(cleaned);
-        filterOpen = false;
+    function handleExport(format: ExportFormat) {
+        if (onExport) onExport(format);
+        dispatch("export", { format });
+        exportOpen = false;
     }
 
-    function applySort() {
-        const cleaned = sortDraft.filter((s) => s.columnId && s.direction);
-        tableRef?.setSort?.(cleaned);
-        orderOpen = false;
-    }
-
-    function updateSort(
-        idx: number,
-        columnId: string,
-        direction: "asc" | "desc",
-    ) {
-        const next = [...sortDraft];
-        next[idx] = { columnId, direction };
-        sortDraft = next;
+    function handleKeyDown(e: KeyboardEvent) {
+        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+            handleExecute();
+        }
     }
 </script>
 
-<div
-    class="relative flex items-center gap-2 px-2 py-1 border-b bg-muted/40 text-xs"
->
+<div class="flex items-center gap-2 px-2 h-8 border-b bg-muted/40 text-xs">
+    <!-- Execute Button -->
+    <Button
+        variant="ghost"
+        size="icon"
+        class="h-6 w-6 text-green-500 hover:text-green-600 hover:bg-green-500/10"
+        title="Execute (⌘+Enter)"
+        onclick={handleExecute}
+    >
+        <IconPlayerPlay class="h-4 w-4" />
+    </Button>
+
+    <div class="w-px h-4 bg-border"></div>
+
+    <!-- Pagination -->
     <div class="flex items-center gap-1">
         <Button
             variant="ghost"
             size="icon"
-            class="h-7 w-7"
-            title="Refresh"
-            onclick={handleRefresh}
+            class="h-6 w-6"
+            title="Previous page"
+            disabled={!hasPrev}
+            onclick={handlePrev}
         >
-            <IconRefresh class="h-4 w-4" />
+            <IconChevronLeft class="h-4 w-4" />
         </Button>
-        <Button
-            variant="ghost"
-            size="icon"
-            class="h-7 w-7"
-            title="History (stub)"
-            onclick={() => dispatch("history")}
+        <span
+            class="text-muted-foreground min-w-[80px] text-center tabular-nums"
         >
-            <IconClock class="h-4 w-4" />
-        </Button>
-        <Button
-            variant="ghost"
-            size="icon"
-            class="h-7 w-7"
-            title="Add (stub)"
-            onclick={() => dispatch("add")}
-        >
-            <IconPlus class="h-4 w-4" />
-        </Button>
-        <Button
-            variant="ghost"
-            size="icon"
-            class="h-7 w-7"
-            title="Remove (stub)"
-            onclick={() => dispatch("remove")}
-        >
-            <IconMinus class="h-4 w-4" />
-        </Button>
-        <Button
-            variant="ghost"
-            size="icon"
-            class="h-7 w-7"
-            title="Visibility (stub)"
-            onclick={() => dispatch("visibility")}
-        >
-            <IconEye class="h-4 w-4" />
-        </Button>
-        <div
-            class="flex items-center gap-1 px-2 py-1 rounded border bg-background text-[11px] uppercase tracking-wide"
-        >
-            <span class="text-muted-foreground">Tx:</span>
-            <span>Auto</span>
-        </div>
-        <Button
-            variant="ghost"
-            size="icon"
-            class="h-7 w-7"
-            title="Table DDL"
-            onclick={() => onShowDdl?.()}
-        >
-            <IconDatabase class="h-4 w-4" />
-        </Button>
-    </div>
-
-    <div class="flex items-center gap-2 ml-2">
-        <Button
-            variant="ghost"
-            class="h-7 px-3 rounded-full border border-dashed"
-            onclick={() => {
-                hydrateDrafts();
-                filterOpen = !filterOpen;
-                orderOpen = false;
-            }}
-            title="Edit filters"
-        >
-            <div class="flex items-center gap-1">
-                <IconFilter class="h-4 w-4" />
-                <span>WHERE - {filterOpen}</span>
-            </div>
-        </Button>
-        <Button
-            variant="ghost"
-            class="h-7 px-3 rounded-full border border-dashed"
-            onclick={() => {
-                hydrateDrafts();
-                orderOpen = !orderOpen;
-                filterOpen = false;
-            }}
-            title="Edit sort"
-        >
-            <div class="flex items-center gap-1">
-                <IconSortAscending class="h-4 w-4" />
-                <span>ORDER BY</span>
-            </div>
-        </Button>
-    </div>
-
-    <div class="ml-auto flex items-center gap-2">
-        {#if contextLabel}
-            <span class="text-muted-foreground text-[11px] uppercase"
-                >{contextLabel}</span
-            >
-        {/if}
-        <select
-            class="border rounded px-1 py-[2px] bg-background text-xs"
-            bind:value={exportFormat}
-        >
-            {#each exportFormats as fmt}
-                <option value={fmt}>{fmt.toUpperCase()}</option>
-            {/each}
-        </select>
-        <Button
-            variant="ghost"
-            size="icon"
-            class="h-7 w-7"
-            title="Export"
-            onclick={handleExport}
-        >
-            <IconDownload class="h-4 w-4" />
-        </Button>
-        <Button
-            variant="ghost"
-            size="icon"
-            class="h-7 w-7"
-            title="Copy selection"
-            onclick={handleCopy}
-        >
-            <IconCopy class="h-4 w-4" />
-        </Button>
-        <Button
-            variant="ghost"
-            size="icon"
-            class="h-7 w-7"
-            title="Stats (stub)"
-            onclick={() => dispatch("stats")}
-        >
-            <IconChartLine class="h-4 w-4" />
-        </Button>
-    </div>
-</div>
-
-{#if filterOpen}
-    <div
-        class="absolute left-2 top-full mt-1 z-20 w-[420px] border rounded bg-popover p-3 shadow-lg space-y-2"
-    >
-        <div
-            class="flex items-center justify-between text-xs font-semibold text-muted-foreground"
-        >
-            <span>Filter rows</span>
-            <div class="flex gap-2">
-                <Button
-                    size="sm"
-                    variant="ghost"
-                    class="h-7 px-2"
-                    onclick={() => {
-                        filterDraft = {};
-                        applyFilters();
-                    }}
-                >
-                    Clear
-                </Button>
-                <Button size="sm" class="h-7 px-2" onclick={applyFilters}
-                    >Apply</Button
-                >
-            </div>
-        </div>
-        <div class="max-h-64 overflow-auto space-y-2">
-            {#if columns.length === 0}
-                <div class="text-xs text-muted-foreground">
-                    No columns available
-                </div>
+            {#if totalRows > 0}
+                {startRow}-{endRow} of {totalRows}{totalRows >= pageSize
+                    ? "+"
+                    : ""}
             {:else}
-                {#each columns as col}
-                    <div class="flex items-center gap-2">
-                        <span class="w-32 truncate text-xs"
-                            >{col.label ?? col.id}</span
-                        >
-                        <input
-                            class="flex-1 h-7 px-2 rounded border bg-background text-xs"
-                            placeholder="contains..."
-                            value={filterDraft[col.id]?.value ?? ""}
-                            oninput={(e) => {
-                                filterDraft = {
-                                    ...filterDraft,
-                                    [col.id]: {
-                                        type: "contains",
-                                        value: (e.target as HTMLInputElement)
-                                            .value,
-                                    },
-                                };
-                            }}
-                        />
-                    </div>
-                {/each}
+                0 rows
             {/if}
-        </div>
-    </div>
-{/if}
-
-{#if orderOpen}
-    <div
-        class="absolute left-2 top-full mt-1 z-20 w-[360px] border rounded bg-popover p-3 shadow-lg space-y-3"
-    >
-        <div
-            class="flex items-center justify-between text-xs font-semibold text-muted-foreground"
+        </span>
+        <Button
+            variant="ghost"
+            size="icon"
+            class="h-6 w-6"
+            title="Next page"
+            disabled={!hasNext}
+            onclick={handleNext}
         >
-            <span>Order by</span>
-            <div class="flex gap-2">
-                <Button
-                    size="sm"
-                    variant="ghost"
-                    class="h-7 px-2"
-                    onclick={() => {
-                        sortDraft = [];
-                        applySort();
-                    }}
-                >
-                    Clear
-                </Button>
-                <Button size="sm" class="h-7 px-2" onclick={applySort}
-                    >Apply</Button
-                >
-            </div>
-        </div>
-        <div class="space-y-2">
-            {#each [0, 1] as idx}
-                <div class="flex items-center gap-2">
-                    <select
-                        class="flex-1 h-7 px-2 rounded border bg-background text-xs"
-                        value={sortDraft[idx]?.columnId ?? ""}
-                        oninput={(e) => {
-                            const colId = (e.target as HTMLSelectElement).value;
-                            updateSort(
-                                idx,
-                                colId,
-                                sortDraft[idx]?.direction ?? "asc",
-                            );
-                        }}
-                    >
-                        <option value="">(none)</option>
-                        {#each columns as col}
-                            <option value={col.id}>{col.label ?? col.id}</option
-                            >
-                        {/each}
-                    </select>
-                    <select
-                        class="w-24 h-7 px-2 rounded border bg-background text-xs"
-                        value={sortDraft[idx]?.direction ?? "asc"}
-                        oninput={(e) => {
-                            updateSort(
-                                idx,
-                                sortDraft[idx]?.columnId ?? "",
-                                (e.target as HTMLSelectElement).value as
-                                    | "asc"
-                                    | "desc",
-                            );
-                        }}
-                    >
-                        <option value="asc">ASC</option>
-                        <option value="desc">DESC</option>
-                    </select>
-                </div>
-            {/each}
-        </div>
+            <IconChevronRight class="h-4 w-4" />
+        </Button>
     </div>
-{/if}
+
+    <div class="w-px h-4 bg-border"></div>
+
+    <!-- Refresh -->
+    <Button
+        variant="ghost"
+        size="icon"
+        class="h-6 w-6"
+        title="Refresh"
+        onclick={handleRefresh}
+    >
+        <IconRefresh class="h-4 w-4" />
+    </Button>
+
+    <!-- DDL -->
+    <Button
+        variant="ghost"
+        size="icon"
+        class="h-6 w-6"
+        title="Show DDL"
+        onclick={() => onShowDdl?.()}
+    >
+        <IconDatabase class="h-4 w-4" />
+    </Button>
+
+    <div class="w-px h-4 bg-border"></div>
+
+    <!-- WHERE Input -->
+    <div class="flex items-center gap-1.5">
+        <span class="text-muted-foreground font-medium">WHERE</span>
+        <input
+            type="text"
+            class="h-6 px-2 rounded border bg-background text-xs min-w-[120px] max-w-[200px] focus:outline-none focus:ring-1 focus:ring-primary"
+            placeholder="column = value"
+            bind:value={localWhere}
+            onkeydown={handleKeyDown}
+        />
+    </div>
+
+    <!-- ORDER BY Input -->
+    <div class="flex items-center gap-1.5">
+        <span class="text-muted-foreground font-medium">ORDER BY</span>
+        <input
+            type="text"
+            class="h-6 px-2 rounded border bg-background text-xs min-w-[100px] max-w-[160px] focus:outline-none focus:ring-1 focus:ring-primary"
+            placeholder="column ASC"
+            bind:value={localOrderBy}
+            onkeydown={handleKeyDown}
+        />
+    </div>
+
+    <!-- Spacer -->
+    <div class="flex-1"></div>
+
+    <!-- Export Popover -->
+    <Popover.Root bind:open={exportOpen}>
+        <Popover.Trigger>
+            <Button variant="ghost" size="icon" class="h-6 w-6" title="Export">
+                <IconDownload class="h-4 w-4" />
+            </Button>
+        </Popover.Trigger>
+        <Popover.Content class="w-40 p-1" align="end">
+            <div class="text-xs font-medium text-muted-foreground px-2 py-1">
+                Export As
+            </div>
+            <button
+                class="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted flex items-center gap-2"
+                onclick={() => handleExport("csv")}
+            >
+                <span class="text-muted-foreground">📋</span> CSV
+            </button>
+            <button
+                class="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted flex items-center gap-2"
+                onclick={() => handleExport("tsv")}
+            >
+                <span class="text-muted-foreground">📋</span> TSV
+            </button>
+            <button
+                class="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted flex items-center gap-2"
+                onclick={() => handleExport("json")}
+            >
+                <span class="text-muted-foreground">📋</span> JSON
+            </button>
+            <button
+                class="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted flex items-center gap-2"
+                onclick={() => handleExport("sql")}
+            >
+                <span class="text-muted-foreground">📋</span> SQL INSERT
+            </button>
+        </Popover.Content>
+    </Popover.Root>
+</div>
