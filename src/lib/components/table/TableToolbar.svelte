@@ -14,6 +14,7 @@
         IconPlayerSkipForward,
         IconChevronDown,
         IconCheck,
+        IconStopwatch,
     } from "@tabler/icons-svelte";
     import * as Menu from "$lib/components/ui/dropdown-menu";
     import AutocompleteInput from "./AutocompleteInput.svelte";
@@ -386,9 +387,14 @@
     <div class="w-px h-5 bg-border/50"></div>
 
     <!-- Execution Time -->
-    <span class="text-[10px] text-muted-foreground mr-2 font-mono tabular-nums">
-        {executionTime < 1000
-            ? `${executionTime.toFixed(0)}ms`
-            : `${(executionTime / 1000).toFixed(2)}s`}
+    <span
+        class="text-[10px] text-muted-foreground mr-2 font-mono tabular-nums flex justify-between items-center gap-1"
+    >
+        <IconStopwatch class="size-4 opacity-70" />
+        <span>
+            {executionTime < 1000
+                ? `${executionTime.toFixed(0)}ms`
+                : `${(executionTime / 1000).toFixed(2)}s`}
+        </span>
     </span>
 </div>
