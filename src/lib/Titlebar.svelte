@@ -109,17 +109,13 @@
                 class={cn(
                   "group flex items-center gap-2 p-1 text-xs font-medium rounded-md transition-all duration-200",
                   "hover:bg-(--theme-bg-hover) active:bg-(--theme-bg-active)",
-                  "border border-transparent focus:outline-none focus:ring-1 focus:ring-(--theme-border-active)",
+                  "border border-transparent focus:outline-none",
                   isDbPickerOpen ? "bg-(--theme-bg-active)" : "",
                 )}
               >
                 <div class="flex items-center gap-2 px-2">
                   <IconDatabaseAlt
-                    class={cn(
-                      "size-3.5 opacity-70 transition-opacity",
-                      isDbPickerOpen &&
-                        "opacity-100 text-(--theme-accent-primary)",
-                    )}
+                    class="size-3.5 text-(--theme-accent-primary)"
                   />
                   <span class="text-(--theme-fg-primary)"
                     >{schemaStore.selectedDatabase || "Select DB"}</span
@@ -128,10 +124,7 @@
                     <IconLoader2 class="size-3 animate-spin opacity-50" />
                   {/if}
                   <IconChevronDown
-                    class={cn(
-                      "size-4 opacity-50 transition-transform duration-200",
-                      isDbPickerOpen && "rotate-180",
-                    )}
+                    class="size-4 opacity-50 transition-transform duration-200"
                   />
                 </div>
               </Menu.Trigger>
@@ -139,6 +132,7 @@
                 align="center"
                 sideOffset={8}
                 class="min-w-48 w-max max-w-[400px] max-h-80 overflow-auto z-50 p-1 bg-(--theme-bg-secondary) border border-(--theme-border-default)"
+                onCloseAutoFocus={(e) => e.preventDefault()}
               >
                 <Menu.Label
                   class="px-2 py-1.5 text-xs font-semibold text-muted-foreground"
