@@ -7,8 +7,9 @@ export function applyThemeStyles(themeJson: string): void {
   const data = JSON.parse(themeJson) as ThemeData;
 
   const root = document.documentElement;
-  // Reset inline CSS variables before applying new ones
-  root.style.cssText = "";
+  // Previously we used root.style.cssText = "" which caused transparency issues
+  // Now we just overwrite the variables directly.
+
 
   const bg = data.ui.background;
   const fg = data.ui.foreground;
@@ -37,6 +38,7 @@ export function applyThemeStyles(themeJson: string): void {
   // Sync Monaco theme
   preloadMonaco().then((m) => updateMonacoTheme(m, data));
 }
+
 
 
 export function applyTheme(theme: ThemeRecord | undefined, useTransition = true) {
