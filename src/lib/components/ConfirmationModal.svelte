@@ -11,8 +11,8 @@
         cancelText = "Cancel",
         variant = "danger" as "danger" | "warning" | "info",
         isLoading = false,
-        onConfirm,
-        onCancel,
+        onConfirm = () => {},
+        onCancel = () => {},
     } = $props();
 
     function handleConfirm() {
