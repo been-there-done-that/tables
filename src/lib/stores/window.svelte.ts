@@ -51,7 +51,7 @@ const COMMANDS: CommandConfig[] = [
         defaultKeybinding: { mac: "Meta+Shift+n", win: "Control+Shift+n" },
         execute: async () => {
             try {
-                await invoke("create_new_window");
+                await invoke("create_new_window", { connectionId: null });
             } catch (e) {
                 console.error("Failed to create new window:", e);
             }

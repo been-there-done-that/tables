@@ -1,6 +1,7 @@
-use tauri::{Manager, WebviewWindowBuilder, TitleBarStyle, Emitter};
+use tauri::{Manager, WebviewWindowBuilder, TitleBarStyle, Emitter, State};
 use log::{info, debug, error, trace};
 use crate::constants::ENABLE_WINDOW_EVENTS;
+use crate::{DatabaseState, ConnectionManagerState, ConnectionManager};
 
 fn get_preferred_window_size(app: &tauri::AppHandle) -> (f64, f64) {
     if let Ok(Some(monitor)) = app.primary_monitor() {
@@ -115,10 +116,22 @@ pub async fn open_appearance_window(app: tauri::AppHandle) -> Result<(), String>
 }
 
 #[tauri::command]
-pub async fn create_new_window(app: tauri::AppHandle) -> Result<(), String> {
+pub async fn create_new_window(
+    app: tauri::AppHandle,
+    connection_id: Option<String>,
+    db_state: State<'_, DatabaseState>,
+    conn_state: State<'_, ConnectionManagerState>,
+) -> Result<(), String> {
     let id = uuid::Uuid::new_v4();
     let label = format!("window-{}", id);
     debug!("Creating new independent window: {}", label);
+ 
+    // If a connection ID is provided, pre-save the window session for this new label
+    if let Some(conn_id) = connection_id {
+        let manager = ConnectionManager::from_state(&db_state, &conn_state);
+        manager.save_window_session(&label, &conn_id)?;
+        debug!("Pre-saved session for connection {} in window {}", conn_id, label);
+    }
 
     // Create a new window with the same configuration as the main window
     let mut builder = WebviewWindowBuilder::new(&app, &label, tauri::WebviewUrl::App("/".into()))
