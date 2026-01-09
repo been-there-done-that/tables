@@ -271,9 +271,6 @@ function createSettingsStore() {
                     case "editor_font_size":
                         settings.editorFontSize = parseInt(value);
                         return;
-                    case "selected_database":
-                        settings.selectedDatabase = value || null;
-                        return;
                 }
 
                 // Handle window-specific settings
@@ -300,6 +297,9 @@ function createSettingsStore() {
                             break;
                         case "logs_panel_visible":
                             settings.logsPanelVisible = value === "true";
+                            break;
+                        case "selected_database":
+                            settings.selectedDatabase = value || null;
                             break;
                     }
 
