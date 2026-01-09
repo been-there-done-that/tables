@@ -80,6 +80,7 @@
 
     const disconnectConnection = async () => {
         isOpen = false;
+        windowState.reset();
         await schemaStore.disconnect();
     };
 
