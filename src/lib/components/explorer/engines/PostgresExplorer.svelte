@@ -6,7 +6,7 @@
     import { windowState } from "$lib/stores/window.svelte";
     import { schemaStore } from "$lib/stores/schema.svelte";
     import { invoke } from "@tauri-apps/api/core";
-    import IconLoader2 from "@tabler/icons-svelte/icons/loader-2";
+    import IconLoader from "@tabler/icons-svelte/icons/loader";
     import { cn } from "$lib/utils";
     import IconDatabase from "@tabler/icons-svelte/icons/database";
     import PlaylistAdd from "@tabler/icons-svelte/icons/playlist-add";
@@ -337,7 +337,7 @@
     <div class="flex-1 overflow-auto p-2">
         {#if schemaStore.status === "connecting"}
             <div class="flex flex-col items-center justify-center h-40 gap-3">
-                <IconLoader2
+                <IconLoader
                     class="size-6 animate-spin text-(--theme-accent-primary)"
                 />
                 <p

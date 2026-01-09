@@ -25,7 +25,7 @@
   import * as Menu from "$lib/components/ui/dropdown-menu";
   import IconDatabaseAlt from "$lib/svg/IconDatabaseAlt.svelte";
   import IconChevronDown from "@tabler/icons-svelte/icons/chevron-down";
-  import IconLoader2 from "@tabler/icons-svelte/icons/loader-2";
+  import IconLoader from "@tabler/icons-svelte/icons/loader";
 
   import WindowControls from "$lib/components/WindowControls.svelte";
 
@@ -121,7 +121,9 @@
                     >{schemaStore.selectedDatabase || "Select DB"}</span
                   >
                   {#if schemaStore.status === "connecting" || schemaStore.status === "refreshing" || schemaStore.databases.find((d) => d.name === schemaStore.selectedDatabase)?.is_loading}
-                    <IconLoader2 class="size-3 animate-spin opacity-50" />
+                    <div class="flex items-center justify-center size-4">
+                      <IconLoader class="size-3.5 animate-spin opacity-50" />
+                    </div>
                   {/if}
                   <IconChevronDown
                     class={cn(

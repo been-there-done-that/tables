@@ -7,6 +7,7 @@
     import Expand from "$lib/svg/Expand.svelte";
     import IconDatabase from "@tabler/icons-svelte/icons/database";
     import IconRefresh from "@tabler/icons-svelte/icons/refresh";
+    import IconLoader from "@tabler/icons-svelte/icons/loader";
 
     interface Props {
         treeData: TreeNode[];
@@ -177,13 +178,13 @@
                 : "Refresh Schema"}
             onclick={onRefresh}
         >
-            <IconRefresh
-                class={cn(
-                    "size-4",
-                    schemaStore.status === "refreshing" &&
-                        "animate-spin-reverse",
-                )}
-            />
+            {#if schemaStore.status === "refreshing"}
+                <div class="flex items-center justify-center size-4">
+                    <IconLoader class="animate-spin size-3.5 opacity-60" />
+                </div>
+            {:else}
+                <IconRefresh class="size-4" />
+            {/if}
         </button>
     </div>
 </div>
