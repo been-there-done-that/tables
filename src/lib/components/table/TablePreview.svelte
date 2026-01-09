@@ -43,6 +43,7 @@
     let orderByClause = $state("");
     let columns = $state<Column[]>([]);
     let isLoading = $state(false);
+    let executionTime = $state<number | undefined>(undefined);
 
     // Create a reactive dataFetcher that uses current prop values
     // This function is recreated when dependencies change
@@ -61,6 +62,8 @@
             if (!currentConnectionId) {
                 return { rows: [], total: 0, columns: [] };
             }
+
+            const start = performance.now();
 
             try {
                 const result = await invoke<{
@@ -110,6 +113,8 @@
             } catch (error) {
                 console.error("[TablePreview] Failed to fetch data:", error);
                 return { rows: [], total: 0, columns: [] };
+            } finally {
+                executionTime = performance.now() - start;
             }
         };
     });
@@ -317,6 +322,7 @@
         onWhereChange={handleWhereChange}
         onOrderByChange={handleOrderByChange}
         {isLoading}
+        {executionTime}
     />
     {#key tableKey}
         <div class="flex-1 min-h-0">

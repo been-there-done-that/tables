@@ -54,7 +54,8 @@
         onWhereChange,
         onOrderByChange,
         isLoading = false,
-    }: Props = $props();
+        executionTime = 0,
+    }: Props & { executionTime?: number } = $props();
 
     let exportOpen = $state(false);
 
@@ -236,8 +237,6 @@
 
     <div class="w-px h-5 bg-border/50"></div>
 
-    <!-- Spacer -->
-
     <!-- Export Popover -->
     <Popover.Root bind:open={exportOpen}>
         <Popover.Trigger>
@@ -280,4 +279,13 @@
             </button>
         </Popover.Content>
     </Popover.Root>
+
+    <div class="w-px h-5 bg-border/50"></div>
+
+    <!-- Execution Time -->
+    <span class="text-[10px] text-muted-foreground mr-2 font-mono tabular-nums">
+        {executionTime < 1000
+            ? `${executionTime.toFixed(0)}ms`
+            : `${(executionTime / 1000).toFixed(2)}s`}
+    </span>
 </div>
