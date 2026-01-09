@@ -1,7 +1,10 @@
 import { get, set } from "idb-keyval";
 import type { Session, ViewState } from "./session.svelte";
 
-const STORAGE_KEY = "tables_session_state_v1";
+const BASE_STORAGE_KEY = "tables_session_state_v1";
+function getWindowKey(label: string) {
+    return `${BASE_STORAGE_KEY}_${label}`;
+}
 
 export interface PersistedSession {
     id: string;
@@ -34,7 +37,7 @@ function safeSerialize(obj: any): any {
 }
 
 export const persistenceStore = {
-    async saveSessionState(sessions: Session[], activeSessionId: string | null) {
+    async saveSessionState(sessions: Session[], activeSessionId: string | null, windowLabel: string) {
         if (!sessions || sessions.length === 0) {
             debugLog("Skipping save: No sessions active");
             return;
@@ -66,7 +69,7 @@ export const persistenceStore = {
             // effectively acting as a sanitizer for structured cloning issues related to proxies
             const safeState = JSON.parse(JSON.stringify(state));
 
-            await set(STORAGE_KEY, safeState);
+            await set(getWindowKey(windowLabel), safeState);
             const elapsed = Math.round(performance.now() - start);
             debugLog(`State saved successfully in ${elapsed}ms`, {
                 sessionCount: state.sessions.length,
@@ -77,11 +80,11 @@ export const persistenceStore = {
         }
     },
 
-    async loadSessionState(): Promise<PersistedState | null> {
-        debugLog("Loading session state...");
+    async loadSessionState(windowLabel: string): Promise<PersistedState | null> {
+        debugLog(`Loading session state for ${windowLabel}...`);
         const start = performance.now();
         try {
-            const state = await get<PersistedState>(STORAGE_KEY);
+            const state = await get<PersistedState>(getWindowKey(windowLabel));
             const elapsed = Math.round(performance.now() - start);
 
             if (state) {

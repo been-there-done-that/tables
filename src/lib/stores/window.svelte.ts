@@ -120,7 +120,7 @@ class WindowStateStore {
     requestSave() {
         if (this.saveTimeout) clearTimeout(this.saveTimeout);
         this.saveTimeout = setTimeout(() => {
-            persistenceStore.saveSessionState(this.sessions, this.activeSessionId);
+            persistenceStore.saveSessionState(this.sessions, this.activeSessionId, this.label);
         }, 1000); // 1s debounce
     }
 
@@ -325,7 +325,7 @@ class WindowStateStore {
             await settingsStore.waitForInit();
 
             // Load persisted sessions
-            const persistedState = await persistenceStore.loadSessionState();
+            const persistedState = await persistenceStore.loadSessionState(this.label);
             if (persistedState && persistedState.sessions.length > 0) {
                 console.log("[WindowStateStore] Hydrating sessions from persistence", persistedState);
 

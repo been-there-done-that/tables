@@ -200,12 +200,13 @@
                                     >{conn.name}</span
                                 >
 
-                                <span
-                                    class="text-[10px] text-(--theme-fg-secondary) opacity-40 truncate font-mono leading-tight"
-                                >
-                                    {conn.username || "root"}@{conn.host ||
-                                        "localhost"}
-                                </span>
+                                {#if conn.username && conn.host}
+                                    <span
+                                        class="text-[10px] text-(--theme-fg-secondary) opacity-40 truncate font-mono leading-tight"
+                                    >
+                                        {conn.username}@{conn.host}
+                                    </span>
+                                {/if}
                             </div>
 
                             {#if busy}
