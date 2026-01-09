@@ -1,5 +1,6 @@
 <script lang="ts">
     import { createEventDispatcher } from "svelte";
+    import { onDestroy } from "svelte";
     import { Button } from "$lib/components/ui/button";
     import {
         IconPlayerPlay,
@@ -31,6 +32,7 @@
         orderByClause?: string;
         onWhereChange?: (value: string) => void;
         onOrderByChange?: (value: string) => void;
+        isLoading?: boolean;
     }
 
     const dispatch = createEventDispatcher();
@@ -50,6 +52,7 @@
         orderByClause = $bindable(""),
         onWhereChange,
         onOrderByChange,
+        isLoading = false,
     }: Props = $props();
 
     let exportOpen = $state(false);
@@ -117,7 +120,15 @@
         dispatch("export", { format });
         exportOpen = false;
     }
+    function onKeyDown(e: KeyboardEvent) {
+        if ((e.metaKey || e.ctrlKey) && e.key === "r") {
+            e.preventDefault();
+            handleRefresh();
+        }
+    }
 </script>
+
+<svelte:window onkeydown={onKeyDown} />
 
 <div class="flex items-center gap-2 px-2 h-8 text-xs w-full">
     <!-- Execute Button -->
@@ -137,10 +148,27 @@
             size="icon"
             title="Refresh"
             onclick={handleRefresh}
+            disabled={isLoading}
         >
-            <IconRefresh class="size-4" />
+            <IconRefresh
+                class="size-4 {isLoading ? 'animate-spin-reverse' : ''}"
+            />
         </Button>
     </div>
+
+    <style>
+        @keyframes spin-reverse {
+            from {
+                transform: rotate(0deg);
+            }
+            to {
+                transform: rotate(-360deg);
+            }
+        }
+        .animate-spin-reverse {
+            animation: spin-reverse 1s linear infinite;
+        }
+    </style>
 
     <div class="w-px h-5 bg-border/50"></div>
 

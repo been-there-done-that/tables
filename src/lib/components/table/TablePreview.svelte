@@ -42,6 +42,7 @@
     let whereClause = $state("");
     let orderByClause = $state("");
     let columns = $state<Column[]>([]);
+    let isLoading = $state(false);
 
     // Create a reactive dataFetcher that uses current prop values
     // This function is recreated when dependencies change
@@ -315,6 +316,7 @@
         onShowDdl={handleShowDdl}
         onWhereChange={handleWhereChange}
         onOrderByChange={handleOrderByChange}
+        {isLoading}
     />
     {#key tableKey}
         <div class="flex-1 min-h-0">
@@ -326,6 +328,7 @@
                 tableSchema={effectiveSchema}
                 onViewStateChange={() => windowState.requestSave()}
                 onApplyEdits={handleApplyEdits}
+                bind:isLoading
             />
         </div>
     {/key}

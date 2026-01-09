@@ -36,6 +36,7 @@
         onOpenNewQueryTab?: (ctx: TableQueryContext) => void;
         viewState?: Record<string, any>;
         onViewStateChange?: (state: any) => void;
+        isLoading?: boolean;
     }
 
     let {
@@ -49,6 +50,7 @@
         onOpenNewQueryTab,
         viewState = $bindable(),
         onViewStateChange,
+        isLoading = $bindable(false),
     }: Props = $props();
 
     type ClipboardApi = {
@@ -319,7 +321,10 @@
         const targetOffset = append ? rows.length : offset;
 
         if (append) loadingMore = true;
-        else loading = true;
+        else {
+            loading = true;
+            isLoading = true;
+        }
 
         const startedAt = performance.now?.() ?? Date.now();
 
@@ -389,6 +394,7 @@
                 elapsedMs: elapsed,
             });
             loading = false;
+            isLoading = false;
             loadingMore = false;
         }
     }
