@@ -176,7 +176,7 @@
                                     src={DriverIcon}
                                     alt={conn.engine}
                                     class={cn(
-                                        "size-6 shrink-0 transition-opacity object-contain",
+                                        "size-10 shrink-0 transition-opacity object-contain",
                                         schemaStore.activeConnection?.id ===
                                             conn.id
                                             ? "opacity-100"
