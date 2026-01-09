@@ -1,14 +1,13 @@
 import { getCurrentWindow, getAllWindows } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
-import { METRICS } from "$lib/constants";
 import { listConnections } from "$lib/commands/client";
 import type { Connection } from "$lib/commands/types";
 import { schemaStore } from "./schema.svelte";
 import { settingsStore } from "./settings.svelte";
 import { themeStore } from "$lib/commands/stores.svelte";
 import { Session } from "./session.svelte";
-import { persistenceStore } from "./persistence.svelte";
+import { persistenceStore, type PersistedState } from "./persistence.svelte";
 
 export interface CommandConfig {
     id: string;
@@ -75,9 +74,8 @@ class WindowStateStore {
     label = $state("main");
     settingsWindowOpen = $state(false);
     datasourceWindowOpen = $state(false);
-    initialized = $state(false); // Track if settings have been loaded and applied
-    // Layout State (visibility)
-    // We use a getter/setter proxy pattern to settingsStore for automatic persistence
+    initialized = $state(false);
+
     get layout() {
         const self = this;
         return {
@@ -92,10 +90,8 @@ class WindowStateStore {
         };
     }
 
-    // internal state for non-persisted layout flags
     private _showSqlEditor = $state(false);
 
-    // Layout Ratios (proxied to settingsStore for debounced persistence)
     get layoutRatios() {
         return {
             get left() { return settingsStore.sidebarLeftRatio; },
@@ -107,7 +103,6 @@ class WindowStateStore {
         };
     }
 
-    // Session Management
     sessions = $state<Session[]>([]);
     activeSessionId = $state<string | null>(null);
 
@@ -120,15 +115,14 @@ class WindowStateStore {
     requestSave() {
         if (this.saveTimeout) clearTimeout(this.saveTimeout);
         this.saveTimeout = setTimeout(() => {
-            persistenceStore.saveSessionState(this.sessions, this.activeSessionId, this.label);
+            const activeConnId = this.activeSession?.connectionId;
+            persistenceStore.saveSessionState(this.sessions, this.activeSessionId, this.label, activeConnId);
         }, 1000); // 1s debounce
     }
 
     startSession(connection: Connection) {
-        // Check if a session for this connection already exists
         const existingSession = this.sessions.find(s => s.connectionId === connection.id);
         if (existingSession) {
-            // Reuse existing session instead of creating duplicate
             this.activateSession(existingSession.id);
             return;
         }
@@ -145,26 +139,66 @@ class WindowStateStore {
     }
 
     reset() {
-        // Just clear the active session so the UI resets to "Select Connection"
-        // We DO NOT wipe the sessions array to avoid losing "important things"
         this.activeSessionId = null;
         this.settingsWindowOpen = false;
         this.datasourceWindowOpen = false;
         this.requestSave();
-        console.log("[WindowStateStore] Workbench UI reset (sessions preserved)");
+        console.log("[WindowStateStore] Workbench UI reset");
     }
 
     activateSession(sessionId: string) {
         const session = this.sessions.find(s => s.id === sessionId);
         if (session) {
             this.activeSessionId = sessionId;
-            // Sync with schemaStore if needed (but don't interrupt active connection)
-            if (session.connection &&
-                schemaStore.activeConnection?.id !== session.connection.id &&
-                schemaStore.status !== "connecting") {
-                schemaStore.connect(session.connection);
-            }
             this.requestSave();
+        }
+    }
+
+    async restoreForConnection(connection: Connection) {
+        console.log(`[WindowStateStore] Restoring sessions for connection: ${connection.id}`);
+        const persistedState = await persistenceStore.loadSessionState(this.label, connection.id);
+
+        if (persistedState && persistedState.sessions.length > 0) {
+            this.hydrateSessions(persistedState, connection);
+        } else {
+            console.log("[WindowStateStore] No specific session state found for this connection, starting fresh");
+            this.startSession(connection);
+        }
+    }
+
+    private hydrateSessions(state: PersistedState, connection: Connection) {
+        console.log("[WindowStateStore] Hydrating sessions", state);
+
+        // Clear conflicting sessions for the same connection if any
+        this.sessions = this.sessions.filter(s => s.connectionId !== connection.id);
+
+        for (const pSession of state.sessions) {
+            const session = new Session(
+                pSession.id,
+                connection,
+                this.label,
+                () => this.requestSave()
+            );
+
+            if (pSession.explorerState?.expanded) {
+                session.explorerState.expanded = new Set(pSession.explorerState.expanded);
+            }
+
+            session.views = pSession.views.map((v: any) => ({
+                id: v.id,
+                type: v.type,
+                title: v.title,
+                data: v.data
+            }));
+
+            session.activeViewId = pSession.activeViewId;
+            this.sessions.push(session);
+        }
+
+        if (state.lastActiveSessionId) {
+            this.activateSession(state.lastActiveSessionId);
+        } else if (this.sessions.length > 0) {
+            this.activateSession(this.sessions[this.sessions.length - 1].id);
         }
     }
 
@@ -175,7 +209,6 @@ class WindowStateStore {
         this.sessions.splice(index, 1);
 
         if (this.activeSessionId === sessionId) {
-            // Activate the neighbor or null
             const newActive = this.sessions[index] || this.sessions[index - 1];
             if (newActive) {
                 this.activateSession(newActive.id);
@@ -186,33 +219,17 @@ class WindowStateStore {
         }
     }
 
-    // Layout ratio update methods (proxies to layoutRatios setters)
-    setLeftRatio(ratio: number) {
-        this.layoutRatios.left = ratio;
-    }
+    setLeftRatio(ratio: number) { this.layoutRatios.left = ratio; }
+    setRightRatio(ratio: number) { this.layoutRatios.right = ratio; }
+    setBottomRatio(ratio: number) { this.layoutRatios.bottom = ratio; }
 
-    setRightRatio(ratio: number) {
-        this.layoutRatios.right = ratio;
-    }
-
-    setBottomRatio(ratio: number) {
-        this.layoutRatios.bottom = ratio;
-    }
-
-    // Metrics (Moved to metrics.svelte.ts)
-
-    // Global Connections (shared across components in this window)
     connections = $state<Connection[]>([]);
     loadingConnections = $state(false);
-
     private unlistenFunctions: (() => void)[] = [];
-
-    // Command Registry
     commands = new Map<string, CommandConfig>();
-    keybindings = new Map<string, string>(); // Key combo -> Action ID
+    keybindings = new Map<string, string>();
 
     constructor() {
-        // We initialize the label immediately as it's synchronous
         try {
             this.label = getCurrentWindow().label;
         } catch (e) {
@@ -223,7 +240,6 @@ class WindowStateStore {
 
     private registerDefaultCommands() {
         const isMac = navigator.userAgent.includes("Mac");
-
         COMMANDS.forEach(cmd => {
             this.commands.set(cmd.id, cmd);
             const keybinding = isMac ? cmd.defaultKeybinding.mac : cmd.defaultKeybinding.win;
@@ -241,15 +257,11 @@ class WindowStateStore {
         const command = this.commands.get(commandId);
         if (command) {
             command.execute(this);
-        } else {
-            console.warn(`[WindowStateStore] Command not found: ${commandId}`);
         }
     }
 
-    // Public method for UI to get display string
     formatKeybinding(commandId: string): string {
         const isMac = navigator.userAgent.includes("Mac");
-        // Find keybinding for this command
         let foundKey: string | undefined;
         for (const [key, id] of this.keybindings.entries()) {
             if (id === commandId) {
@@ -257,21 +269,15 @@ class WindowStateStore {
                 break;
             }
         }
-
         if (!foundKey) return "None";
-
-        // Formatting logic
-        return foundKey
-            .split("+")
-            .map(part => {
-                part = part.trim();
-                if (part === "meta") return isMac ? "⌘" : "Ctrl";
-                if (part === "control") return "Ctrl";
-                if (part === "alt") return isMac ? "⌥" : "Alt";
-                if (part === "shift") return isMac ? "⇧" : "Shift";
-                return part.toUpperCase();
-            })
-            .join(isMac ? " " : "+"); // Mac uses spaces (⌘ ⇧ P), Win uses + (Ctrl+Shift+P)
+        return foundKey.split("+").map(part => {
+            part = part.trim();
+            if (part === "meta") return isMac ? "⌘" : "Ctrl";
+            if (part === "control") return "Ctrl";
+            if (part === "alt") return isMac ? "⌥" : "Alt";
+            if (part === "shift") return isMac ? "⇧" : "Shift";
+            return part.toUpperCase();
+        }).join(isMac ? " " : "+");
     }
 
     handleKeydown(event: KeyboardEvent) {
@@ -280,17 +286,12 @@ class WindowStateStore {
         if (event.ctrlKey) modifiers.push("control");
         if (event.altKey) modifiers.push("alt");
         if (event.shiftKey) modifiers.push("shift");
-
         const key = event.key.toLowerCase();
-        // Ignore modifier-only keydowns
         if (["meta", "control", "alt", "shift"].includes(key)) return;
-
         const combo = [...modifiers, key].join("+").toLowerCase();
-
         const commandId = this.keybindings.get(combo);
         if (commandId) {
             event.preventDefault();
-            console.log(`[WindowStateStore] Executing shortcuts: ${combo} -> ${commandId}`);
             this.executeCommand(commandId);
         }
     }
@@ -298,127 +299,38 @@ class WindowStateStore {
     async init() {
         try {
             console.log(`[WindowStateStore] Initializing for window: ${this.label}`);
-
-            // Initial check for existing windows
             const windows = await getAllWindows();
             this.settingsWindowOpen = windows.some(w => w.label === "appearance-window");
             this.datasourceWindowOpen = windows.some(w => w.label === "datasource-window");
-            // ... listeners
 
-
-            // Listen for new windows being created
             const unlistenCreated = await listen("window-created", (event) => {
                 const label = event.payload as string;
-                console.log(`[WindowStateStore] Window created: ${label}`);
                 if (label === "appearance-window") this.settingsWindowOpen = true;
                 if (label === "datasource-window") this.datasourceWindowOpen = true;
             });
             this.unlistenFunctions.push(unlistenCreated);
 
-            // Listen for windows being destroyed
             const unlistenDestroyed = await listen("window-destroyed", (event) => {
                 const label = event.payload as string;
-                console.log(`[WindowStateStore] Window destroyed: ${label}`);
                 if (label === "appearance-window") this.settingsWindowOpen = false;
                 if (label === "datasource-window") this.datasourceWindowOpen = false;
             });
             this.unlistenFunctions.push(unlistenDestroyed);
 
-            // Listen for system metrics - Handled by metrics.svelte.ts now
-            // const unlistenMetrics = await listen("metrics:update", (event) => { ... });
-
-            // Initialize global settings/theme listeners
             this.unlistenFunctions.push(settingsStore.init(this.label));
             this.unlistenFunctions.push(themeStore.init());
 
-            // Wait for settings to load
             await settingsStore.waitForInit();
-
-            // Load persisted sessions
-            const persistedState = await persistenceStore.loadSessionState(this.label);
-            if (persistedState && persistedState.sessions.length > 0) {
-                console.log("[WindowStateStore] Hydrating sessions from persistence", persistedState);
-
-                // Reconstruct sessions
-                for (const pSession of persistedState.sessions) {
-                    // Find connection object from loaded connections if possible, or wait?
-                    // Issue: connections might not be loaded yet. 
-                    // Ideally we should wait for connections, but they are async. 
-                    // For now, we'll try to reconstruct essential parts.
-
-                    // Note: We need the full Connection object to create a valid Session.
-                    // If we don't have it, the session might be invalid.
-                    // Let's assume we can lazily match it later or just use ID for now.
-                }
-
-                // Actually, we should wait for connections to be loaded before hydrating sessions 
-                // to ensure we have valid connection objects.
-                if (this.connections.length === 0) {
-                    await this.loadConnections();
-                }
-
-                this.sessions = persistedState.sessions.map(s => {
-                    const conn = this.connections.find(c => c.id === s.connectionId);
-                    if (!conn) {
-                        console.warn(`[WindowStateStore] Could not find connection for persisted session ${s.id}`);
-                        // Create a placeholder connection if needed or skip? 
-                        // Better to skip invalid sessions to avoid errors.
-                        return null;
-                    }
-                    const session = new Session(
-                        s.id,
-                        conn,
-                        s.windowLabel,
-                        () => this.requestSave()
-                    );
-
-                    // Hydrate views
-                    session.views = s.views; // ViewState interfaces match
-                    session.activeViewId = s.activeViewId;
-                    if (s.explorerState?.expanded) {
-                        session.explorerState.expanded = new Set(s.explorerState.expanded);
-                    }
-                    return session;
-                }).filter(s => s !== null) as Session[];
-
-                if (persistedState.lastActiveSessionId) {
-                    this.activeSessionId = persistedState.lastActiveSessionId;
-                    // Connect if active
-                    if (this.activeSession) {
-                        // Don't auto-connect immediately to avoid spamming? 
-                        // Or do we? User expects it.
-                        // Let's activate checking connection status
-                        this.activateSession(this.activeSessionId);
-                    }
-                }
-            }
-
             this.initialized = true;
-            console.log("[WindowStateStore] Layout initialized from settings");
-
+            console.log("[WindowStateStore] Initialization complete.");
         } catch (e) {
-            console.error("[WindowStateStore] Failed to setup window listeners:", e);
+            console.error("[WindowStateStore] Init failed:", e);
         }
     }
 
     cleanup() {
         this.unlistenFunctions.forEach(unlisten => unlisten());
         this.unlistenFunctions = [];
-    }
-    async loadConnections() {
-        this.loadingConnections = true;
-        try {
-            const response = await listConnections();
-            if (response.success && response.data) {
-                this.connections = response.data;
-            } else {
-                console.error("Failed to load connections:", response.error);
-            }
-        } catch (e) {
-            console.error("Failed to load connections:", e);
-        } finally {
-            this.loadingConnections = false;
-        }
     }
 }
 

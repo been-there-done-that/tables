@@ -122,8 +122,19 @@ pub async fn create_new_window(
     db_state: State<'_, DatabaseState>,
     conn_state: State<'_, ConnectionManagerState>,
 ) -> Result<(), String> {
-    let id = uuid::Uuid::new_v4();
-    let label = format!("window-{}", id);
+    let mut label = if let Some(ref conn_id) = connection_id {
+        format!("window-isolated-{}", conn_id)
+    } else {
+        format!("window-{}", uuid::Uuid::new_v4())
+    };
+
+    // If the stable label is already in use, fallback to a dynamic UUID 
+    // to allow multi-window support (mostly for Postgres).
+    // These transient windows won't persist state by default because their labes are dynamic.
+    if app.get_webview_window(&label).is_some() {
+        label = format!("window-{}", uuid::Uuid::new_v4());
+    }
+
     debug!("Creating new independent window: {}", label);
  
     // If a connection ID is provided, pre-save the window session for this new label
