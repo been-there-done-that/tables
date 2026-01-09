@@ -144,6 +144,16 @@ class WindowStateStore {
         this.requestSave();
     }
 
+    reset() {
+        // Just clear the active session so the UI resets to "Select Connection"
+        // We DO NOT wipe the sessions array to avoid losing "important things"
+        this.activeSessionId = null;
+        this.settingsWindowOpen = false;
+        this.datasourceWindowOpen = false;
+        this.requestSave();
+        console.log("[WindowStateStore] Workbench UI reset (sessions preserved)");
+    }
+
     activateSession(sessionId: string) {
         const session = this.sessions.find(s => s.id === sessionId);
         if (session) {
