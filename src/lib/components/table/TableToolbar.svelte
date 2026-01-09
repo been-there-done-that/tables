@@ -6,9 +6,7 @@
         IconChevronLeft,
         IconChevronRight,
         IconRefresh,
-        IconDatabase,
         IconDownload,
-        IconGripVertical,
     } from "@tabler/icons-svelte";
     import * as Popover from "$lib/components/ui/popover";
     import AutocompleteInput from "./AutocompleteInput.svelte";
@@ -87,10 +85,6 @@
     const hasNext = $derived(currentOffset + pageSize < totalRows);
 
     // Filter section width (resizable)
-    let filterWidth = $state(500);
-    let isResizing = $state(false);
-    let resizeStartX = $state(0);
-    let resizeStartWidth = $state(0);
 
     function handleExecute() {
         if (onWhereChange) onWhereChange(whereClause);
@@ -123,39 +117,30 @@
         dispatch("export", { format });
         exportOpen = false;
     }
-
-    function startResize(e: MouseEvent) {
-        isResizing = true;
-        resizeStartX = e.clientX;
-        resizeStartWidth = filterWidth;
-        document.addEventListener("mousemove", handleResize);
-        document.addEventListener("mouseup", stopResize);
-    }
-
-    function handleResize(e: MouseEvent) {
-        if (!isResizing) return;
-        const delta = e.clientX - resizeStartX;
-        filterWidth = Math.max(300, Math.min(800, resizeStartWidth + delta));
-    }
-
-    function stopResize() {
-        isResizing = false;
-        document.removeEventListener("mousemove", handleResize);
-        document.removeEventListener("mouseup", stopResize);
-    }
 </script>
 
-<div class="flex items-center gap-1 px-2 h-9 border-b bg-muted/30 text-xs">
+<div class="flex items-center gap-2 px-2 h-8 text-xs w-full">
     <!-- Execute Button -->
-    <Button
-        variant="ghost"
-        size="icon"
-        class="h-7 w-7 text-green-500 hover:text-green-600 hover:bg-green-500/10"
-        title="Execute (⌘+Enter)"
-        onclick={handleExecute}
-    >
-        <IconPlayerPlay class="h-4 w-4" />
-    </Button>
+    <!-- Execute Button -->
+    <div class="flex items-center gap-1">
+        <Button
+            variant="ghost"
+            size="icon"
+            class="h-7 w-7 text-green-500 hover:text-green-600 hover:bg-green-500/10"
+            title="Execute (⌘+Enter)"
+            onclick={handleExecute}
+        >
+            <IconPlayerPlay class="h-4 w-4" />
+        </Button>
+        <Button
+            variant="ghost"
+            size="icon"
+            title="Refresh"
+            onclick={handleRefresh}
+        >
+            <IconRefresh class="size-4" />
+        </Button>
+    </div>
 
     <div class="w-px h-5 bg-border/50"></div>
 
@@ -169,7 +154,7 @@
             disabled={!hasPrev}
             onclick={handlePrev}
         >
-            <IconChevronLeft class="h-3.5 w-3.5" />
+            <IconChevronLeft class="size-4" />
         </Button>
         <span
             class="text-muted-foreground text-[11px] min-w-[70px] text-center tabular-nums"
@@ -190,53 +175,24 @@
             disabled={!hasNext}
             onclick={handleNext}
         >
-            <IconChevronRight class="h-3.5 w-3.5" />
+            <IconChevronRight class="size-4" />
         </Button>
     </div>
 
     <div class="w-px h-5 bg-border/50"></div>
 
-    <!-- Refresh & DDL -->
-    <div class="flex items-center">
-        <Button
-            variant="ghost"
-            size="icon"
-            class="h-6 w-6"
-            title="Refresh"
-            onclick={handleRefresh}
-        >
-            <IconRefresh class="h-3.5 w-3.5" />
-        </Button>
-        <Button
-            variant="ghost"
-            size="icon"
-            class="h-6 w-6"
-            title="Show DDL"
-            onclick={() => onShowDdl?.()}
-        >
-            <IconDatabase class="h-3.5 w-3.5" />
-        </Button>
-    </div>
-
-    <div class="w-px h-5 bg-border/50"></div>
-
-    <!-- Filter Section (Resizable) -->
-    <div
-        class="flex items-center gap-3 px-3 py-1 bg-background/50 rounded-md border border-border/50"
-        style="width: {filterWidth}px; min-width: 300px;"
-    >
+    <!-- Filter Section -->
+    <div class="flex items-center gap-3 flex-1 px-3 h-full">
         <!-- WHERE (60%) -->
         <AutocompleteInput
             bind:value={whereClause}
             placeholder="column = value"
             suggestions={whereSuggestions}
             icon="filter"
-            widthClass="w-[60%]"
+            widthClass="w-[60%] h-full"
             onchange={(v) => onWhereChange?.(v)}
             onsubmit={handleExecute}
         />
-
-        <div class="w-px h-4 bg-border/30"></div>
 
         <!-- ORDER BY (40%) -->
         <AutocompleteInput
@@ -244,24 +200,15 @@
             placeholder="column ASC"
             suggestions={orderBySuggestions}
             icon="sort"
-            widthClass="w-[40%]"
+            widthClass="w-[40%] h-full"
             onchange={(v) => onOrderByChange?.(v)}
             onsubmit={handleExecute}
         />
-
-        <!-- Resize Handle -->
-        <div
-            class="flex items-center justify-center cursor-ew-resize text-muted-foreground/50 hover:text-muted-foreground -mr-1"
-            onmousedown={startResize}
-            role="separator"
-            aria-orientation="vertical"
-        >
-            <IconGripVertical class="h-4 w-4" />
-        </div>
     </div>
 
+    <div class="w-px h-5 bg-border/50"></div>
+
     <!-- Spacer -->
-    <div class="flex-1"></div>
 
     <!-- Export Popover -->
     <Popover.Root bind:open={exportOpen}>
@@ -270,7 +217,10 @@
                 <IconDownload class="h-4 w-4" />
             </Button>
         </Popover.Trigger>
-        <Popover.Content class="w-36 p-1" align="end">
+        <Popover.Content
+            class="w-36 p-1 bg-popover text-popover-foreground"
+            align="end"
+        >
             <div
                 class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-2 py-1.5"
             >
