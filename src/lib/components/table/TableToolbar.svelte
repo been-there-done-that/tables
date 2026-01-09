@@ -2,6 +2,7 @@
     import { createEventDispatcher } from "svelte";
     import { onDestroy } from "svelte";
     import { Button } from "$lib/components/ui/button";
+    import { cn } from "$lib/utils";
     import {
         IconPlayerPlayFilled,
         IconChevronLeft,
@@ -9,8 +10,12 @@
         IconRefresh,
         IconDownload,
         IconPlayerStopFilled,
+        IconPlayerSkipBack,
+        IconPlayerSkipForward,
+        IconChevronDown,
+        IconCheck,
     } from "@tabler/icons-svelte";
-    import * as Popover from "$lib/components/ui/popover";
+    import * as Menu from "$lib/components/ui/dropdown-menu";
     import AutocompleteInput from "./AutocompleteInput.svelte";
     import type { Column, SortState } from "./types";
 
@@ -23,6 +28,7 @@
         onExport?: (format: ExportFormat) => void;
         onShowDdl?: () => void;
         onPageChange?: (offset: number) => void;
+        onPageSizeChange?: (size: number) => void;
         columns?: Column[];
         // Pagination props
         currentOffset?: number;
@@ -45,6 +51,7 @@
         onExport,
         onShowDdl,
         onPageChange,
+        onPageSizeChange,
         columns = [],
         currentOffset = 0,
         totalRows = 0,
@@ -58,29 +65,35 @@
     }: Props & { executionTime?: number } = $props();
 
     let exportOpen = $state(false);
+    let pageSizeOpen = $state(false);
 
-    // Column names for autocomplete
-    const columnNames = $derived(columns.map((c) => c.label || c.id));
+    // Column names for autocomplete with types
+    const columnSuggestions = $derived(
+        columns.map((c) => ({
+            value: c.label || c.id,
+            type: c.rawType || c.type || "unknown",
+        })),
+    );
 
     // Add common SQL operators and keywords to suggestions
     const whereSuggestions = $derived([
-        ...columnNames,
-        "AND",
-        "OR",
-        "NOT",
-        "IS NULL",
-        "IS NOT NULL",
-        "LIKE",
-        "IN",
-        "BETWEEN",
+        ...columnSuggestions,
+        { value: "AND", type: "keyword" },
+        { value: "OR", type: "keyword" },
+        { value: "NOT", type: "keyword" },
+        { value: "IS NULL", type: "keyword" },
+        { value: "IS NOT NULL", type: "keyword" },
+        { value: "LIKE", type: "keyword" },
+        { value: "IN", type: "keyword" },
+        { value: "BETWEEN", type: "keyword" },
     ]);
 
     const orderBySuggestions = $derived([
-        ...columnNames,
-        "ASC",
-        "DESC",
-        "NULLS FIRST",
-        "NULLS LAST",
+        ...columnSuggestions,
+        { value: "ASC", type: "keyword" },
+        { value: "DESC", type: "keyword" },
+        { value: "NULLS FIRST", type: "keyword" },
+        { value: "NULLS LAST", type: "keyword" },
     ]);
 
     // Pagination calculations
@@ -117,6 +130,25 @@
         }
     }
 
+    function handleFirst() {
+        if (onPageChange) onPageChange(0);
+    }
+
+    function handleLast() {
+        if (onPageChange && totalRows > 0) {
+            const lastOffset =
+                Math.floor((totalRows - 1) / pageSize) * pageSize;
+            onPageChange(lastOffset);
+        }
+    }
+
+    function handlePageSize(size: number) {
+        if (onPageSizeChange) {
+            onPageSizeChange(size);
+            pageSizeOpen = false;
+        }
+    }
+
     function handleExport(format: ExportFormat) {
         if (onExport) onExport(format);
         dispatch("export", { format });
@@ -134,7 +166,18 @@
 
 <div class="flex items-center gap-2 px-2 h-8 text-xs w-full">
     <!-- Pagination -->
-    <div class="flex items-center">
+    <!-- Pagination -->
+    <div class="flex items-center gap-1">
+        <Button
+            variant="ghost"
+            size="icon"
+            class="h-6 w-6"
+            title="First page"
+            disabled={!hasPrev}
+            onclick={handleFirst}
+        >
+            <IconPlayerSkipBack class="size-3.5" />
+        </Button>
         <Button
             variant="ghost"
             size="icon"
@@ -143,19 +186,66 @@
             disabled={!hasPrev}
             onclick={handlePrev}
         >
-            <IconChevronLeft class="size-4" />
+            <IconChevronLeft class="size-3.5" />
         </Button>
-        <span
-            class="text-muted-foreground text-[11px] min-w-[70px] text-center tabular-nums"
-        >
-            {#if totalRows > 0}
-                {startRow}-{endRow} of {totalRows}{totalRows >= pageSize
-                    ? "+"
-                    : ""}
-            {:else}
-                0 rows
-            {/if}
+
+        <Menu.Root bind:open={pageSizeOpen}>
+            <Menu.Trigger>
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    class="h-6 px-1 gap-1 text-[11px] font-normal min-w-[60px]"
+                >
+                    {#if totalRows > 0}
+                        {startRow}-{endRow}
+                    {:else}
+                        0-0
+                    {/if}
+                    <IconChevronDown class="size-3 opacity-50" />
+                </Button>
+            </Menu.Trigger>
+            <Menu.Content
+                class="w-20 p-0 border border-(--theme-border-default) bg-(--theme-bg-secondary) shadow-lg"
+                align="start"
+            >
+                <div
+                    class="px-2 py-1.5 text-[10px] uppercase font-bold text-muted-foreground border-b border-border/50 bg-muted/30"
+                >
+                    Page Size
+                </div>
+                <div class="p-1 flex flex-col gap-0.5">
+                    {#each [5, 10, 20, 100, 500, 1000] as size}
+                        <Menu.Item
+                            class={cn(
+                                "w-full text-left px-1 py-1.5 text-xs rounded flex items-center gap-2 hover:bg-muted/80 cursor-pointer",
+                            )}
+                            onclick={() => handlePageSize(size)}
+                        >
+                            {#if pageSize === size}
+                                <IconCheck class="size-3 pointer-events-none" />
+                            {:else}
+                                <div class="size-3"></div>
+                            {/if}
+                            <span class="font-mono tabular-nums"
+                                >{size.toLocaleString()}</span
+                            >
+                        </Menu.Item>
+                    {/each}
+                    <!-- All option (simulated) -->
+                    <Menu.Item
+                        class="w-full text-left px-2 py-1.5 text-xs rounded flex items-center gap-2 hover:bg-muted/80 cursor-pointer"
+                    >
+                        <div class="size-3"></div>
+                        <span>All</span>
+                    </Menu.Item>
+                </div>
+            </Menu.Content>
+        </Menu.Root>
+
+        <span class="text-muted-foreground text-[11px] tabular-nums px-1">
+            of {totalRows ? totalRows.toLocaleString() : "0"}
         </span>
+
         <Button
             variant="ghost"
             size="icon"
@@ -164,7 +254,17 @@
             disabled={!hasNext}
             onclick={handleNext}
         >
-            <IconChevronRight class="size-4" />
+            <IconChevronRight class="size-3.5" />
+        </Button>
+        <Button
+            variant="ghost"
+            size="icon"
+            class="h-6 w-6"
+            title="Last page"
+            disabled={!hasNext}
+            onclick={handleLast}
+        >
+            <IconPlayerSkipForward class="size-3.5" />
         </Button>
     </div>
 
@@ -237,48 +337,51 @@
 
     <div class="w-px h-5 bg-border/50"></div>
 
-    <!-- Export Popover -->
-    <Popover.Root bind:open={exportOpen}>
-        <Popover.Trigger>
+    <!-- Export Menu -->
+    <Menu.Root bind:open={exportOpen}>
+        <Menu.Trigger>
             <Button variant="ghost" size="icon" class="h-7 w-7" title="Export">
-                <IconDownload class="h-4 w-4" />
+                <IconDownload class="h-4 w-4 opacity-70" />
             </Button>
-        </Popover.Trigger>
-        <Popover.Content
-            class="w-36 p-1 bg-popover text-popover-foreground"
+        </Menu.Trigger>
+        <Menu.Content
+            class="w-40 border border-(--theme-border-default) bg-(--theme-bg-secondary) shadow-lg"
             align="end"
         >
             <div
-                class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-2 py-1.5"
+                class="px-2 py-1.5 text-[10px] uppercase font-bold text-muted-foreground border-b border-border/50 bg-muted/30"
             >
-                Copy as
+                Data Format
             </div>
-            <button
-                class="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted flex items-center gap-2 transition-colors"
-                onclick={() => handleExport("csv")}
-            >
-                CSV
-            </button>
-            <button
-                class="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted flex items-center gap-2 transition-colors"
-                onclick={() => handleExport("tsv")}
-            >
-                TSV
-            </button>
-            <button
-                class="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted flex items-center gap-2 transition-colors"
-                onclick={() => handleExport("json")}
-            >
-                JSON
-            </button>
-            <button
-                class="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted flex items-center gap-2 transition-colors"
-                onclick={() => handleExport("sql")}
-            >
-                SQL INSERT
-            </button>
-        </Popover.Content>
-    </Popover.Root>
+            <div class="p-1 flex flex-col gap-0.5">
+                <Menu.Item
+                    class="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted cursor-pointer"
+                    onclick={() => handleExport("csv")}
+                >
+                    CSV (.csv)
+                </Menu.Item>
+                <Menu.Item
+                    class="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted cursor-pointer"
+                    onclick={() => handleExport("tsv")}
+                >
+                    TSV (.tsv)
+                </Menu.Item>
+                <Menu.Item
+                    class="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted cursor-pointer"
+                    onclick={() => handleExport("json")}
+                >
+                    JSON (.json)
+                </Menu.Item>
+                <Menu.Separator class="my-1" />
+                <Menu.Item
+                    class="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted cursor-pointer"
+                    onclick={() => handleExport("sql")}
+                >
+                    SQL Insert
+                </Menu.Item>
+            </div>
+        </Menu.Content>
+    </Menu.Root>
 
     <div class="w-px h-5 bg-border/50"></div>
 

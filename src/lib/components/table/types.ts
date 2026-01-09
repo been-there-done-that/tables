@@ -132,3 +132,9 @@ export interface TableQueryContext {
     columnId?: string;
     selectedColumns?: string[];
 }
+
+export interface SuggestionItem {
+    value: string;
+    type?: string;
+    description?: string;
+}

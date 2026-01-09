@@ -37,6 +37,7 @@
         viewState?: Record<string, any>;
         onViewStateChange?: (state: any) => void;
         isLoading?: boolean;
+        limit?: number;
     }
 
     let {
@@ -51,6 +52,7 @@
         viewState = $bindable(),
         onViewStateChange,
         isLoading = $bindable(false),
+        limit = $bindable(500),
     }: Props = $props();
 
     type ClipboardApi = {
@@ -209,7 +211,22 @@
 
     // Pagination state (for server-side pagination)
     let offset = $state(viewState?.offset || 0);
-    let limit = $state(viewState?.limit || 500); // Initial batch size to handle large datasets without huge payloads
+    // limit is now a prop, but we might want to respect viewState if prop not provided?
+    // The prop default is 500.
+    // If we want viewState to override default but prop to override viewState... complex.
+    // Simpler: limit is controlled by prop. If we want persistence, parent should handle it.
+    // But existing code used viewState to init.
+    // Let's just use the prop 'limit' directly and not redeclare it as local state if possible,
+    // OR sync local state with prop.
+    // Svelte 5: destructured prop `limit` IS a state proxy if bindable.
+    // So we don't need `let limit = ...` line anymore if we use the prop.
+
+    // Removing the local declaration since we destructured it as bindable prop
+    // let limit = $state(viewState?.limit || 500);
+
+    // However, we need to ensure it initializes from viewState if passed and prop didn't override?
+    // The prop default is 500.
+    // Let's rely on the prop.
 
     let totalWidth = $derived(
         visibleColumns.reduce((acc, col) => acc + (col.width || 150), 0),
