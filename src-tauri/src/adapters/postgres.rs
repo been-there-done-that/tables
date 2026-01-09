@@ -120,8 +120,11 @@ impl PostgresAdapter {
 
         // Check if we are already connected to the requested database
         if let Some(state) = state_guard.as_ref() {
-            if state.database == database {
+            if state.database == database && !state.client.is_closed() {
                 return Ok(());
+            }
+            if state.client.is_closed() {
+                debug!("Postgres connection to '{}' is closed, reconnecting...", state.database);
             }
         }
 
@@ -325,11 +328,18 @@ impl DatabaseAdapter for PostgresAdapter {
         self.ensure_connected(&database).await
     }
 
+    // Updated is_connected to check real connection status
     fn is_connected(&self) -> bool {
         let state = self.state.try_lock();
         match state {
-            Ok(guard) => guard.is_some(),
-            Err(_) => true, // Still busy, assume connected
+            Ok(guard) => {
+                if let Some(s) = guard.as_ref() {
+                    !s.client.is_closed()
+                } else {
+                    false
+                }
+            }
+            Err(_) => true, // Still busy, assume connected (optimistic)
         }
     }
 

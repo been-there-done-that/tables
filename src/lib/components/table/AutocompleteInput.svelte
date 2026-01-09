@@ -156,15 +156,13 @@
         inputRef?.focus();
     }}
 >
-    <div
-        class="flex items-center gap-1 text-muted-foreground shrink-0 group-hover:text-foreground transition-colors"
-    >
+    <div class="flex items-center gap-1 text-muted-foreground shrink-0">
         {#if icon === "filter"}
             <IconFilter class="h-3.5 w-3.5" />
         {:else}
             <IconArrowsSort class="h-3.5 w-3.5" />
         {/if}
-        <span class="text-[10px] font-semibold uppercase tracking-wider">
+        <span class="font-semibold uppercase tracking-wider">
             {icon === "filter" ? "WHERE" : "ORDER BY"}
         </span>
     </div>
