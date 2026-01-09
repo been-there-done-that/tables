@@ -18,7 +18,8 @@ pub struct QueryResult {
 pub struct TablePreviewResult {
     pub rows: Vec<serde_json::Value>,
     pub columns: Vec<ColumnInfo>,
-    pub total: i64,
+    pub total: Option<i64>,  // Only present when fetchTotal=true
+    pub duration_ms: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -119,13 +120,16 @@ pub async fn fetch_table_preview(
     table_name: String,
     offset: i64,
     limit: i64,
+    where_clause: Option<String>,
+    order_by_clause: Option<String>,
+    fetch_total: Option<bool>,
     db_state: State<'_, DatabaseState>,
     conn_state: State<'_, ConnectionManagerState>,
     app: AppHandle,
 ) -> Result<TablePreviewResult, String> {
     info!(
-        "Fetching table preview for {}.{}.{} (offset={}, limit={})",
-        database, schema, table_name, offset, limit
+        "Fetching table preview for {}.{}.{} (offset={}, limit={}, where={:?}, order={:?})",
+        database, schema, table_name, offset, limit, where_clause, order_by_clause
     );
     
     let correlation_id = uuid::Uuid::new_v4().to_string();
@@ -149,12 +153,23 @@ pub async fn fetch_table_preview(
             err_msg
         })?;
 
+    let should_fetch_total = fetch_total.unwrap_or(false);
+
     match connection.engine.as_str() {
         "postgres" | "postgresql" => {
             let start = Instant::now();
             let final_query = format!("SELECT * FROM \"{}\".\"{}\" LIMIT {} OFFSET {}", schema, table_name, limit, offset);
-            let result = fetch_postgres_preview(&config, &credentials, &database, &schema, &table_name, offset, limit).await;
+            let result = fetch_postgres_preview(
+                &config, &credentials, &database, &schema, &table_name, 
+                offset, limit, where_clause.as_deref(), order_by_clause.as_deref(), should_fetch_total
+            ).await;
             let duration = start.elapsed().as_millis() as u64;
+            
+            // Add duration_ms to result
+            let result = result.map(|mut r| {
+                r.duration_ms = duration;
+                r
+            });
             
             let status = if result.is_ok() { "success" } else { "error" };
             let error = result.as_ref().err().map(|e| e.as_str());
@@ -167,8 +182,17 @@ pub async fn fetch_table_preview(
         "sqlite" => {
             let start = Instant::now();
             let final_query = format!("SELECT * FROM \"{}\" LIMIT {} OFFSET {}", table_name, limit, offset);
-            let result = fetch_sqlite_preview(&config, &table_name, offset, limit);
+            let result = fetch_sqlite_preview(
+                &config, &table_name, offset, limit, 
+                where_clause.as_deref(), order_by_clause.as_deref(), should_fetch_total
+            );
             let duration = start.elapsed().as_millis() as u64;
+            
+            // Add duration_ms to result
+            let result = result.map(|mut r| {
+                r.duration_ms = duration;
+                r
+            });
              
             let status = if result.is_ok() { "success" } else { "error" };
             let error = result.as_ref().err().map(|e| e.as_str());
@@ -185,6 +209,8 @@ pub async fn fetch_table_preview(
         },
     }
 }
+
+
 
 /// Executes a generic SQL query
 #[tauri::command]
@@ -251,6 +277,9 @@ async fn fetch_postgres_preview(
     table_name: &str,
     offset: i64,
     limit: i64,
+    where_clause: Option<&str>,
+    order_by_clause: Option<&str>,
+    fetch_total: bool,
 ) -> Result<TablePreviewResult, String> {
     let db = config.get("db").ok_or("Missing 'db' config")?;
     let host = db.get("host").and_then(|v| v.as_str()).ok_or("Missing host")?;
@@ -301,19 +330,35 @@ async fn fetch_postgres_preview(
         client
     };
 
-    // Get total count
-    let count_query = format!(
-        "SELECT COUNT(*) FROM \"{}\".\"{}\"",
-        schema, table_name
-    );
-    let count_row = client.query_one(&count_query, &[]).await
-        .map_err(|e| format!("Count query failed: {}", e))?;
-    let total: i64 = count_row.get(0);
+    // Build WHERE clause for queries
+    let where_part = match where_clause {
+        Some(w) if !w.trim().is_empty() => format!(" WHERE {}", w),
+        _ => String::new(),
+    };
+
+    // Get total count only if requested
+    let total: Option<i64> = if fetch_total {
+        let count_query = format!(
+            "SELECT COUNT(*) FROM \"{}\".\"{}\"{}",
+            schema, table_name, where_part
+        );
+        let count_row = client.query_one(&count_query, &[]).await
+            .map_err(|e| format!("Count query failed: {}", e))?;
+        Some(count_row.get(0))
+    } else {
+        None
+    };
+
+    // Build ORDER BY clause
+    let order_part = match order_by_clause {
+        Some(o) if !o.trim().is_empty() => format!(" ORDER BY {}", o),
+        _ => String::new(),
+    };
 
     // Fetch rows with limit/offset
     let data_query = format!(
-        "SELECT * FROM \"{}\".\"{}\" LIMIT {} OFFSET {}",
-        schema, table_name, limit, offset
+        "SELECT * FROM \"{}\".\"{}\"{}{}  LIMIT {} OFFSET {}",
+        schema, table_name, where_part, order_part, limit, offset
     );
     let rows = client.query(&data_query, &[]).await
         .map_err(|e| format!("Data query failed: {}", e))?;
@@ -355,6 +400,7 @@ async fn fetch_postgres_preview(
         rows: json_rows,
         columns,
         total,
+        duration_ms: 0, // Set by caller
     })
 }
 
@@ -363,6 +409,9 @@ fn fetch_sqlite_preview(
     table_name: &str,
     offset: i64,
     limit: i64,
+    where_clause: Option<&str>,
+    order_by_clause: Option<&str>,
+    fetch_total: bool,
 ) -> Result<TablePreviewResult, String> {
     let sqlite_path = config.get("file")
         .and_then(|v| v.as_str())
@@ -371,12 +420,21 @@ fn fetch_sqlite_preview(
     let conn = rusqlite::Connection::open(sqlite_path)
         .map_err(|e| format!("Failed to open SQLite database: {}", e))?;
 
-    // Get total count
-    let total: i64 = conn.query_row(
-        &format!("SELECT COUNT(*) FROM \"{}\"", table_name),
-        [],
-        |row| row.get(0)
-    ).map_err(|e| format!("Count query failed: {}", e))?;
+    // Build WHERE clause
+    let where_part = match where_clause {
+        Some(w) if !w.trim().is_empty() => format!(" WHERE {}", w),
+        _ => String::new(),
+    };
+
+    // Get total count only if requested
+    let total: Option<i64> = if fetch_total {
+        let count_query = format!("SELECT COUNT(*) FROM \"{}\"{}",  table_name, where_part);
+        conn.query_row(&count_query, [], |row| row.get(0))
+            .map(Some)
+            .map_err(|e| format!("Count query failed: {}", e))?
+    } else {
+        None
+    };
 
     // Get column info
     let mut stmt = conn.prepare(&format!("PRAGMA table_info(\"{}\")", table_name))
@@ -390,8 +448,14 @@ fn fetch_sqlite_preview(
       .filter_map(|r| r.ok())
       .collect();
 
+    // Build ORDER BY clause
+    let order_part = match order_by_clause {
+        Some(o) if !o.trim().is_empty() => format!(" ORDER BY {}", o),
+        _ => String::new(),
+    };
+
     // Fetch rows
-    let query = format!("SELECT * FROM \"{}\" LIMIT {} OFFSET {}", table_name, limit, offset);
+    let query = format!("SELECT * FROM \"{}\"{}{}  LIMIT {} OFFSET {}", table_name, where_part, order_part, limit, offset);
     let mut stmt = conn.prepare(&query)
         .map_err(|e| format!("Failed to prepare query: {}", e))?;
 
@@ -411,6 +475,7 @@ fn fetch_sqlite_preview(
         rows,
         columns,
         total,
+        duration_ms: 0, // Set by caller
     })
 }
 
