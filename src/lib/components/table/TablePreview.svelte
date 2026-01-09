@@ -63,13 +63,12 @@
                 return { rows: [], total: 0, columns: [] };
             }
 
-            const start = performance.now();
-
             try {
                 const result = await invoke<{
                     rows: any[];
                     columns: { name: string; type: string }[];
-                    total: number;
+                    total: number | null;
+                    duration_ms: number;
                 }>("fetch_table_preview", {
                     connectionId: currentConnectionId,
                     database: currentDatabase,
@@ -79,7 +78,11 @@
                     limit: limit ?? 100,
                     whereClause: currentWhere || undefined,
                     orderByClause: currentOrderBy || undefined,
+                    fetchTotal: false, // Don't fetch total by default (expensive)
                 });
+
+                // Use backend timing
+                executionTime = result.duration_ms;
 
                 // Convert backend column info to Table component format
                 const fetchedColumns: Column[] = result.columns.map(
@@ -96,7 +99,7 @@
 
                 // Update toolbar state
                 columns = fetchedColumns;
-                totalRows = result.total;
+                totalRows = result.total ?? result.rows.length; // Fallback if total not fetched
                 currentOffset = offset ?? 0;
 
                 // Add _rowId to each row for the Table component
@@ -107,14 +110,12 @@
 
                 return {
                     rows: rowsWithId,
-                    total: result.total,
+                    total: result.total ?? result.rows.length,
                     columns: fetchedColumns,
                 };
             } catch (error) {
                 console.error("[TablePreview] Failed to fetch data:", error);
                 return { rows: [], total: 0, columns: [] };
-            } finally {
-                executionTime = performance.now() - start;
             }
         };
     });
