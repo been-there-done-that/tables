@@ -180,7 +180,8 @@
             <IconRefresh
                 class={cn(
                     "size-4",
-                    schemaStore.status === "refreshing" && "animate-spin",
+                    schemaStore.status === "refreshing" &&
+                        "animate-spin-reverse",
                 )}
             />
         </button>

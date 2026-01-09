@@ -5,6 +5,7 @@ import CheckIcon from "@tabler/icons-svelte/icons/check";
 import XIcon from "@tabler/icons-svelte/icons/x";
 import type { Connection, MetaDatabase } from "$lib/commands/types";
 import { settingsStore } from "./settings.svelte";
+import { windowState } from "./window.svelte";
 
 export class SchemaStore {
     activeConnection = $state<Connection | null>(null);
@@ -31,6 +32,7 @@ export class SchemaStore {
                 const conn = await invoke<Connection>("get_connection_metadata", { id: persistedId });
                 if (conn) {
                     await this.connect(conn);
+                    // Sessions will be restored inside connect()
                 }
             }
         } catch (e) {
@@ -184,6 +186,10 @@ export class SchemaStore {
             this.status = "idle";
             this.lastRefreshed = new Date();
             console.timeEnd("[SchemaStore] state update");
+            console.log(`[SchemaStore] Connected successfully to ${conn.id}`);
+
+            // 5. Restore window state sessions for this specific connection
+            await windowState.restoreForConnection(conn);
             console.log(`[SchemaStore] Status changed to: ${this.status}, databases count: ${this.databases.length}`);
 
             if (data.length === 0) {

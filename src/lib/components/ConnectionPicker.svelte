@@ -62,8 +62,7 @@
         }
 
         isOpen = false;
-        // Start a new session for this connection
-        windowState.startSession(conn);
+        // Connect via schemaStore, which will trigger session restoration in windowState
         await schemaStore.connect(conn);
     };
 
