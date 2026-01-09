@@ -124,7 +124,10 @@
                     <IconLoader2 class="size-3 animate-spin opacity-50" />
                   {/if}
                   <IconChevronDown
-                    class="size-4 opacity-50 transition-transform duration-200"
+                    class={cn(
+                      "size-4 opacity-50 transition-transform duration-200",
+                      isDbPickerOpen && "rotate-180",
+                    )}
                   />
                 </div>
               </Menu.Trigger>
