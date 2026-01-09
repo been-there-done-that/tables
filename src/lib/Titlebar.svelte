@@ -148,7 +148,7 @@
                   {#each schemaStore.databases as db (db.name)}
                     <Menu.RadioItem
                       value={db.name}
-                      class="flex items-center gap-2 pl-8 pr-2 py-1.5 text-xs outline-none select-none data-highlighted:bg-accent data-highlighted:text-accent-foreground cursor-default"
+                      class="flex items-center gap-2 pl-8 pr-2 py-1.5 text-xs outline-none select-none data-[state=checked]:bg-accent/5 data-[state=checked]:text-accent-foreground cursor-default"
                     >
                       <span class="flex-1 truncate">{db.name}</span>
                     </Menu.RadioItem>
