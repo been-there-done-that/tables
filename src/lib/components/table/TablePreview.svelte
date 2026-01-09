@@ -1,5 +1,6 @@
 <script lang="ts">
     import Table from "$lib/components/table/Table.svelte";
+    import TableToolbar from "$lib/components/table/TableToolbar.svelte";
     import type { Column, DataFetcher } from "$lib/components/table/types";
     import { invoke } from "@tauri-apps/api/core";
     import { schemaStore } from "$lib/stores/schema.svelte";
@@ -33,6 +34,15 @@
         `${connectionId}:${effectiveDatabase}:${effectiveSchema}:${tableName}`,
     );
 
+    // Toolbar state
+    let tableRef: any = $state(null);
+    let currentOffset = $state(0);
+    let totalRows = $state(0);
+    let pageSize = $state(500);
+    let whereClause = $state("");
+    let orderByClause = $state("");
+    let columns = $state<Column[]>([]);
+
     // Create a reactive dataFetcher that uses current prop values
     // This function is recreated when dependencies change
     const dataFetcher: DataFetcher = $derived.by(() => {
@@ -41,6 +51,8 @@
         const currentDatabase = effectiveDatabase;
         const currentSchema = effectiveSchema;
         const currentTable = tableName;
+        const currentWhere = whereClause;
+        const currentOrderBy = orderByClause;
 
         return async (params) => {
             const { offset, limit } = params;
@@ -61,18 +73,27 @@
                     tableName: currentTable,
                     offset: offset ?? 0,
                     limit: limit ?? 100,
+                    whereClause: currentWhere || undefined,
+                    orderByClause: currentOrderBy || undefined,
                 });
 
                 // Convert backend column info to Table component format
-                const columns: Column[] = result.columns.map((col, idx) => ({
-                    id: col.name,
-                    label: col.name,
-                    type: inferColumnType(col.type),
-                    sortable: true,
-                    filterable: true,
-                    pinnable: true,
-                    editable: true,
-                }));
+                const fetchedColumns: Column[] = result.columns.map(
+                    (col, idx) => ({
+                        id: col.name,
+                        label: col.name,
+                        type: inferColumnType(col.type),
+                        sortable: true,
+                        filterable: true,
+                        pinnable: true,
+                        editable: true,
+                    }),
+                );
+
+                // Update toolbar state
+                columns = fetchedColumns;
+                totalRows = result.total;
+                currentOffset = offset ?? 0;
 
                 // Add _rowId to each row for the Table component
                 const rowsWithId = result.rows.map((row, idx) => ({
@@ -83,7 +104,7 @@
                 return {
                     rows: rowsWithId,
                     total: result.total,
-                    columns,
+                    columns: fetchedColumns,
                 };
             } catch (error) {
                 console.error("[TablePreview] Failed to fetch data:", error);
@@ -242,17 +263,70 @@
         const strVal = String(val).replace(/'/g, "''");
         return `'${strVal}'`;
     }
+
+    // Toolbar handlers
+    function handleExecute() {
+        tableRef?.refresh?.();
+    }
+
+    function handleRefresh() {
+        tableRef?.refresh?.();
+    }
+
+    function handlePageChange(newOffset: number) {
+        currentOffset = newOffset;
+        // The Table component will handle this via its own pagination
+        // For now, trigger a refresh
+        tableRef?.refresh?.();
+    }
+
+    function handleExport(format: "csv" | "tsv" | "json" | "sql") {
+        // TODO: Implement export logic - copy formatted data to clipboard
+        console.log("[TablePreview] Export requested:", format);
+    }
+
+    function handleShowDdl() {
+        // TODO: Implement DDL display
+        console.log("[TablePreview] Show DDL requested");
+    }
+
+    function handleWhereChange(value: string) {
+        whereClause = value;
+    }
+
+    function handleOrderByChange(value: string) {
+        orderByClause = value;
+    }
 </script>
 
-<div class="h-full w-full">
+<div class="h-full w-full flex flex-col">
+    <TableToolbar
+        bind:tableRef
+        {columns}
+        {currentOffset}
+        {totalRows}
+        {pageSize}
+        {whereClause}
+        {orderByClause}
+        onExecute={handleExecute}
+        onRefresh={handleRefresh}
+        onPageChange={handlePageChange}
+        onExport={handleExport}
+        onShowDdl={handleShowDdl}
+        onWhereChange={handleWhereChange}
+        onOrderByChange={handleOrderByChange}
+    />
     {#key tableKey}
-        <Table
-            columns={[]}
-            {dataFetcher}
-            {tableName}
-            tableSchema={effectiveSchema}
-            onViewStateChange={() => windowState.requestSave()}
-            onApplyEdits={handleApplyEdits}
-        />
+        <div class="flex-1 min-h-0">
+            <Table
+                bind:this={tableRef}
+                columns={[]}
+                {dataFetcher}
+                {tableName}
+                tableSchema={effectiveSchema}
+                onViewStateChange={() => windowState.requestSave()}
+                onApplyEdits={handleApplyEdits}
+            />
+        </div>
     {/key}
 </div>
