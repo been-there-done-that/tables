@@ -150,7 +150,7 @@
                             class={cn(
                                 "w-full flex items-center gap-3 px-3 py-1.5 text-left transition-colors",
                                 schemaStore.activeConnection?.id === conn.id &&
-                                    "bg-accent/10 ring-1 ring-inset ring-accent/20",
+                                    "bg-accent/5 ring-1 ring-inset ring-accent/10",
                                 disabled && "opacity-50 cursor-not-allowed",
                             )}
                             {disabled}
@@ -184,10 +184,6 @@
                                 >
                                     Busy
                                 </div>
-                            {:else if schemaStore.activeConnection?.id === conn.id}
-                                <div
-                                    class="ml-auto w-1.5 h-1.5 rounded-full bg-(--theme-accent-primary)"
-                                ></div>
                             {/if}
                         </Menu.Item>
                     {/each}

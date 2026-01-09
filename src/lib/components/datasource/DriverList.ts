@@ -1,9 +1,9 @@
-import PostgresIcon from '$lib/svg/datasource/Postgres.svelte'
+import PostgresIcon from '$lib/svg/datasource/PostgresPencil.svelte'
 import MongoDbIcon from '$lib/svg/datasource/MongoDb.svelte'
 import ElasticsearchIcon from '$lib/svg/datasource/Elastic.svelte'
 import RedisIcon from '$lib/svg/datasource/Redis.svelte'
 import MySQLIcon from '$lib/svg/datasource/MySql.svelte'
-import SQLiteIcon from '$lib/svg/datasource/Sqlite.svelte'
+import SQLiteIcon from '$lib/svg/datasource/SqlitePencil.svelte'
 
 export interface Driver {
   id: string;
