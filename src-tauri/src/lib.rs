@@ -196,6 +196,7 @@ pub fn run() {
             app.manage(ConnectionManagerState {
                 credential_manager: credential_manager.clone(),
                 active_connections: Arc::new(Mutex::new(HashMap::new())),
+                adapters: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
             });
 
             debug!("Initializing adapter registry");

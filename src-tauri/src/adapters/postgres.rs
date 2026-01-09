@@ -241,6 +241,77 @@ impl PostgresAdapter {
             }
         }
     }
+
+    /// Convert a PostgreSQL row value to JSON
+    fn pg_value_to_json(row: &tokio_postgres::Row, idx: usize) -> serde_json::Value {
+        use tokio_postgres::types::Type;
+        
+        let col = &row.columns()[idx];
+        
+        match *col.type_() {
+            Type::BOOL => {
+                if let Ok(Some(v)) = row.try_get::<_, Option<bool>>(idx) {
+                    serde_json::Value::Bool(v)
+                } else {
+                    serde_json::Value::Null
+                }
+            }
+            Type::INT2 => {
+                if let Ok(Some(v)) = row.try_get::<_, Option<i16>>(idx) {
+                    serde_json::Value::Number(v.into())
+                } else {
+                    serde_json::Value::Null
+                }
+            }
+            Type::INT4 => {
+                if let Ok(Some(v)) = row.try_get::<_, Option<i32>>(idx) {
+                    serde_json::Value::Number(v.into())
+                } else {
+                    serde_json::Value::Null
+                }
+            }
+            Type::INT8 => {
+                if let Ok(Some(v)) = row.try_get::<_, Option<i64>>(idx) {
+                    serde_json::Value::Number(v.into())
+                } else {
+                    serde_json::Value::Null
+                }
+            }
+            Type::FLOAT4 => {
+                if let Ok(Some(v)) = row.try_get::<_, Option<f32>>(idx) {
+                    serde_json::Number::from_f64(v as f64)
+                        .map(serde_json::Value::Number)
+                        .unwrap_or(serde_json::Value::Null)
+                } else {
+                    serde_json::Value::Null
+                }
+            }
+            Type::FLOAT8 => {
+                if let Ok(Some(v)) = row.try_get::<_, Option<f64>>(idx) {
+                    serde_json::Number::from_f64(v)
+                        .map(serde_json::Value::Number)
+                        .unwrap_or(serde_json::Value::Null)
+                } else {
+                    serde_json::Value::Null
+                }
+            }
+            Type::JSON | Type::JSONB => {
+                if let Ok(Some(v)) = row.try_get::<_, Option<String>>(idx) {
+                    serde_json::from_str(&v).unwrap_or(serde_json::Value::String(v))
+                } else {
+                    serde_json::Value::Null
+                }
+            }
+            _ => {
+                // Default to string representation
+                if let Ok(Some(v)) = row.try_get::<_, Option<String>>(idx) {
+                    serde_json::Value::String(v)
+                } else {
+                    serde_json::Value::Null
+                }
+            }
+        }
+    }
 }
 
 #[async_trait]
@@ -249,7 +320,7 @@ impl DatabaseAdapter for PostgresAdapter {
         &self.capabilities
     }
 
-    async fn connect(&mut self) -> Result<(), AdapterError> {
+    async fn connect(&self) -> Result<(), AdapterError> {
         let database = self.config.database.clone().unwrap_or_else(|| "postgres".to_string());
         self.ensure_connected(&database).await
     }
@@ -262,11 +333,64 @@ impl DatabaseAdapter for PostgresAdapter {
         }
     }
 
-    async fn disconnect(&mut self) -> Result<(), AdapterError> {
+    async fn disconnect(&self) -> Result<(), AdapterError> {
         let mut state_guard = self.state.lock().await;
         *state_guard = None;
         debug!("PostgreSQL connection closed");
         Ok(())
+    }
+
+    async fn ensure_database(&self, database: Option<&str>) -> Result<(), AdapterError> {
+        let db = database.unwrap_or("postgres");
+        self.ensure_connected(db).await
+    }
+
+    async fn query(&self, query_str: &str) -> Result<crate::adapter::AdapterQueryResult, AdapterError> {
+        let state_guard = self.state.lock().await;
+        let state = state_guard.as_ref()
+            .ok_or_else(|| AdapterError::Connection("Not connected".to_string()))?;
+        
+        let rows = state.client.query(query_str, &[]).await
+            .map_err(|e| AdapterError::Query(format!("Query failed: {}", e)))?;
+        
+        // Extract column info
+        let columns: Vec<crate::adapter::AdapterColumnInfo> = if !rows.is_empty() {
+            rows[0].columns().iter().map(|col| {
+                crate::adapter::AdapterColumnInfo {
+                    name: col.name().to_string(),
+                    column_type: format!("{:?}", col.type_()),
+                }
+            }).collect()
+        } else {
+            vec![]
+        };
+        
+        // Convert rows to JSON
+        let json_rows: Vec<serde_json::Value> = rows.iter().map(|row| {
+            let mut obj = serde_json::Map::new();
+            for (i, col) in row.columns().iter().enumerate() {
+                let value = Self::pg_value_to_json(row, i);
+                obj.insert(col.name().to_string(), value);
+            }
+            serde_json::Value::Object(obj)
+        }).collect();
+        
+        Ok(crate::adapter::AdapterQueryResult {
+            rows: json_rows,
+            columns,
+            affected_rows: None,
+        })
+    }
+
+    async fn execute(&self, statement: &str) -> Result<u64, AdapterError> {
+        let state_guard = self.state.lock().await;
+        let state = state_guard.as_ref()
+            .ok_or_else(|| AdapterError::Connection("Not connected".to_string()))?;
+        
+        let affected = state.client.execute(statement, &[]).await
+            .map_err(|e| AdapterError::Query(format!("Execute failed: {}", e)))?;
+        
+        Ok(affected)
     }
 
     async fn list_databases(&self) -> Result<Vec<MetaDatabase>, AdapterError> {
