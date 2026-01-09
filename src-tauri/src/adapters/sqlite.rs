@@ -30,10 +30,12 @@ impl SqliteConfig {
 }
 
 /// SQLite database adapter
+/// Uses Arc<Mutex<Option<...>>> for interior mutability with &self methods
 pub struct SqliteAdapter {
     capabilities: DatabaseCapabilities,
     config: SqliteConfig,
-    connection: Option<Arc<Mutex<RusqliteConnection>>>,
+    /// Connection wrapped in Arc<Mutex<Option>> for interior mutability
+    connection: Arc<Mutex<Option<RusqliteConnection>>>,
 }
 
 impl SqliteAdapter {
@@ -41,7 +43,7 @@ impl SqliteAdapter {
         Self {
             capabilities: DatabaseCapabilities::sqlite(),
             config,
-            connection: None,
+            connection: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -58,10 +60,24 @@ impl SqliteAdapter {
         Ok(Self::new(SqliteConfig::new(path)))
     }
 
-    fn conn(&self) -> Result<Arc<Mutex<RusqliteConnection>>, AdapterError> {
-        self.connection
-            .clone()
-            .ok_or_else(|| AdapterError::Connection("Not connected".to_string()))
+    /// Get the connection, ensuring we're connected first
+    fn get_conn(&self) -> Result<std::sync::MutexGuard<'_, Option<RusqliteConnection>>, AdapterError> {
+        self.connection.lock()
+            .map_err(|e| AdapterError::Internal(format!("Lock error: {}", e)))
+    }
+
+    /// Ensure connection is established, return guard with connection
+    fn ensure_conn(&self) -> Result<(), AdapterError> {
+        let mut guard = self.get_conn()?;
+        if guard.is_some() {
+            return Ok(());
+        }
+        // Need to connect
+        info!("Connecting to SQLite database at {}", self.config.path);
+        let conn = RusqliteConnection::open(&self.config.path)
+            .map_err(|e| AdapterError::Connection(format!("Failed to open SQLite: {}", e)))?;
+        *guard = Some(conn);
+        Ok(())
     }
 
     // =========================================================================
@@ -257,45 +273,33 @@ impl DatabaseAdapter for SqliteAdapter {
     }
 
     async fn connect(&self) -> Result<(), AdapterError> {
-        info!("Connecting to SQLite database at {}", self.config.path);
-        let conn = RusqliteConnection::open(&self.config.path)
-            .map_err(|e| AdapterError::Connection(format!("Failed to open SQLite: {}", e)))?;
-        
-        // Use interior mutability pattern - we need to store in existing Arc<Mutex>
-        // Since self.connection is Option<Arc<Mutex<...>>>, we need a different approach
-        // For now, this won't work with the current struct design - need a wrapper
-        // This is a temporary implementation - the struct needs Arc<Mutex<Option<...>>>
-        
-        // Actually, SqliteAdapter uses Option<Arc<Mutex<Connection>>>
-        // We can't directly set self.connection with &self
-        // This needs a redesign of the struct to use Arc<Mutex<Option<Connection>>>
-        
-        // For now, return error to indicate this needs refactoring
-        Err(AdapterError::Internal("SqliteAdapter needs struct redesign for interior mutability".to_string()))
+        self.ensure_conn()
     }
 
     fn is_connected(&self) -> bool {
-        self.connection.is_some()
+        match self.connection.lock() {
+            Ok(guard) => guard.is_some(),
+            Err(_) => false,
+        }
     }
 
     async fn disconnect(&self) -> Result<(), AdapterError> {
-        // Same issue - can't mutate self.connection with &self
-        debug!("SQLite disconnect requested (no-op with current design)");
+        let mut guard = self.get_conn()?;
+        *guard = None;
+        debug!("SQLite connection closed");
         Ok(())
     }
 
     async fn ensure_database(&self, _database: Option<&str>) -> Result<(), AdapterError> {
         // SQLite has no database switching - just ensure connected
-        if self.is_connected() {
-            Ok(())
-        } else {
-            self.connect().await
-        }
+        self.ensure_conn()
     }
 
     async fn query(&self, query_str: &str) -> Result<crate::adapter::AdapterQueryResult, AdapterError> {
-        let conn_arc = self.conn()?;
-        let conn = conn_arc.lock().unwrap();
+        self.ensure_conn()?;
+        let guard = self.get_conn()?;
+        let conn = guard.as_ref()
+            .ok_or_else(|| AdapterError::Connection("Not connected".to_string()))?;
         
         let mut stmt = conn.prepare(query_str)
             .map_err(|e| AdapterError::Query(format!("Failed to prepare query: {}", e)))?;
@@ -308,9 +312,9 @@ impl DatabaseAdapter for SqliteAdapter {
                 column_type: "text".to_string(), // SQLite is dynamically typed
             })
             .collect();
-        
+
         let column_names: Vec<String> = columns.iter().map(|c| c.name.clone()).collect();
-        
+
         let rows: Vec<serde_json::Value> = stmt.query_map([], |row| {
             let mut obj = serde_json::Map::new();
             for (i, name) in column_names.iter().enumerate() {
@@ -321,7 +325,7 @@ impl DatabaseAdapter for SqliteAdapter {
         }).map_err(|e| AdapterError::Query(format!("Query failed: {}", e)))?
           .filter_map(|r| r.ok())
           .collect();
-        
+
         Ok(crate::adapter::AdapterQueryResult {
             rows,
             columns,
@@ -330,13 +334,32 @@ impl DatabaseAdapter for SqliteAdapter {
     }
 
     async fn execute(&self, statement: &str) -> Result<u64, AdapterError> {
-        let conn_arc = self.conn()?;
-        let conn = conn_arc.lock().unwrap();
-        
+        self.ensure_conn()?;
+        let guard = self.get_conn()?;
+        let conn = guard.as_ref()
+            .ok_or_else(|| AdapterError::Connection("Not connected".to_string()))?;
+
         let affected = conn.execute(statement, [])
             .map_err(|e| AdapterError::Query(format!("Execute failed: {}", e)))?;
-        
+
         Ok(affected as u64)
+    }
+
+    async fn is_alive(&self) -> bool {
+        if !self.is_connected() {
+            return false;
+        }
+        // Try a simple query to check connection
+        match self.get_conn() {
+            Ok(guard) => {
+                if let Some(conn) = guard.as_ref() {
+                    conn.execute_batch("SELECT 1").is_ok()
+                } else {
+                    false
+                }
+            }
+            Err(_) => false,
+        }
     }
 
     async fn list_databases(&self) -> Result<Vec<MetaDatabase>, AdapterError> {
@@ -359,8 +382,10 @@ impl DatabaseAdapter for SqliteAdapter {
     }
 
     async fn list_tables(&self, _database: &str, _schema: &str) -> Result<Vec<MetaTable>, AdapterError> {
-        let conn_arc = self.conn()?;
-        let conn = conn_arc.lock().unwrap();
+        self.ensure_conn()?;
+        let guard = self.get_conn()?;
+        let conn = guard.as_ref()
+            .ok_or_else(|| AdapterError::Connection("Not connected".to_string()))?;
 
         let mut stmt = conn
             .prepare("SELECT name, type FROM sqlite_master WHERE type IN ('table', 'view') AND name NOT LIKE 'sqlite_%'")
@@ -393,8 +418,10 @@ impl DatabaseAdapter for SqliteAdapter {
     }
 
     async fn list_columns(&self, table: &TableRef) -> Result<Vec<MetaColumn>, AdapterError> {
-        let conn_arc = self.conn()?;
-        let conn = conn_arc.lock().unwrap();
+        self.ensure_conn()?;
+        let guard = self.get_conn()?;
+        let conn = guard.as_ref()
+            .ok_or_else(|| AdapterError::Connection("Not connected".to_string()))?;
 
         // Step 1: Get table metadata using table_list (STRICT, virtual detection)
         let (is_strict, is_virtual, _table_type) = Self::get_table_meta(&conn, &table.name);
@@ -467,8 +494,10 @@ impl DatabaseAdapter for SqliteAdapter {
     }
 
     async fn list_indexes(&self, table: &TableRef) -> Result<Vec<MetaIndex>, AdapterError> {
-        let conn_arc = self.conn()?;
-        let conn = conn_arc.lock().unwrap();
+        self.ensure_conn()?;
+        let guard = self.get_conn()?;
+        let conn = guard.as_ref()
+            .ok_or_else(|| AdapterError::Connection("Not connected".to_string()))?;
 
         let mut stmt = conn
             .prepare(&format!("SELECT name, \"unique\" FROM pragma_index_list('{}')", table.name))
@@ -492,8 +521,10 @@ impl DatabaseAdapter for SqliteAdapter {
     }
 
     async fn list_foreign_keys(&self, table: &TableRef) -> Result<Vec<MetaForeignKey>, AdapterError> {
-        let conn_arc = self.conn()?;
-        let conn = conn_arc.lock().unwrap();
+        self.ensure_conn()?;
+        let guard = self.get_conn()?;
+        let conn = guard.as_ref()
+            .ok_or_else(|| AdapterError::Connection("Not connected".to_string()))?;
 
         let mut stmt = conn
             .prepare(&format!("PRAGMA foreign_key_list('{}')", table.name))
