@@ -1,14 +1,14 @@
-import PostgresIcon from '$lib/svg/datasource/PostgresPencil.svelte'
+import PostgresIcon from '$lib/svg/datasource/PostgresDataSource.png'
 import MongoDbIcon from '$lib/svg/datasource/MongoDb.svelte'
 import ElasticsearchIcon from '$lib/svg/datasource/Elastic.svelte'
 import RedisIcon from '$lib/svg/datasource/Redis.svelte'
 import MySQLIcon from '$lib/svg/datasource/MySql.svelte'
-import SQLiteIcon from '$lib/svg/datasource/SqlitePencil.svelte'
+import SQLiteIcon from '$lib/svg/datasource/SqliteDatabase.png'
 
 export interface Driver {
   id: string;
   name: string;
-  icon: typeof PostgresIcon | string; // Component type or fallback string
+  icon: any; // Component type or fallback string
   defaultPort?: number;
 }
 
@@ -24,5 +24,5 @@ export const drivers: Driver[] = [
 
 export const resolveDriverIcon = (id: string) => {
   const driver = drivers.find((d) => d.id === id);
-  return (driver && typeof driver.icon !== 'string' ? driver.icon : undefined) as any;
+  return (driver ? driver.icon : undefined) as any;
 };

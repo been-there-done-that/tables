@@ -119,16 +119,29 @@
                     />
                 {:else}
                     <IconChevronDown
-                        class="size-4 opacity-50 transition-transform duration-200"
+                        class={cn(
+                            "size-4 opacity-50 transition-transform duration-200",
+                            isOpen && "rotate-180",
+                        )}
                     />
                 {/if}
             </div>
         </Menu.Trigger>
 
         <Menu.Content
-            class="mt-1 w-72 origin-top p-0 z-50 overflow-hidden bg-(--theme-bg-secondary) border border-(--theme-border-default)"
+            class="mt-1 w-72 origin-top p-0 z-50 overflow-hidden rounded-md border border-(--theme-border-default) bg-(--theme-bg-secondary) shadow-lg"
             align="start"
             onCloseAutoFocus={(e) => e.preventDefault()}
+            onkeydown={(e) => {
+                if (
+                    (e.metaKey || e.ctrlKey) &&
+                    e.shiftKey &&
+                    e.key.toLowerCase() === "c"
+                ) {
+                    e.preventDefault();
+                    isOpen = false;
+                }
+            }}
         >
             <!-- Connections List -->
             <div class="flex-1 overflow-y-auto max-h-[320px] py-1 space-y-0.5">
@@ -156,14 +169,31 @@
                             {disabled}
                             onclick={() => selectConnection(conn)}
                         >
-                            <DriverIcon
-                                class={cn(
-                                    "size-4 shrink-0 transition-opacity",
-                                    schemaStore.activeConnection?.id === conn.id
-                                        ? "opacity-100 text-(--theme-accent-primary)"
-                                        : "opacity-60 grayscale-[0.5]",
-                                )}
-                            />
+                            {@const isImageIcon =
+                                typeof DriverIcon === "string"}
+                            {#if isImageIcon}
+                                <img
+                                    src={DriverIcon}
+                                    alt={conn.engine}
+                                    class={cn(
+                                        "size-6 shrink-0 transition-opacity object-contain",
+                                        schemaStore.activeConnection?.id ===
+                                            conn.id
+                                            ? "opacity-100"
+                                            : "opacity-60 grayscale-[0.5]",
+                                    )}
+                                />
+                            {:else}
+                                <DriverIcon
+                                    class={cn(
+                                        "size-4 shrink-0 transition-opacity",
+                                        schemaStore.activeConnection?.id ===
+                                            conn.id
+                                            ? "opacity-100 text-(--theme-accent-primary)"
+                                            : "opacity-60 grayscale-[0.5]",
+                                    )}
+                                />
+                            {/if}
                             <div class="flex flex-col min-w-0">
                                 <span
                                     class="text-sm font-medium truncate leading-tight"
