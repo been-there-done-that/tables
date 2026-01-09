@@ -14,11 +14,13 @@
 <DropdownMenuPrimitive.SubTrigger
     bind:ref
     class={cn(
-        "flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-accent data-state-open:bg-accent data-highlighted:bg-accent",
+        "group flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-accent data-state-open:bg-accent data-highlighted:bg-accent font-medium text-(--theme-fg-secondary)",
         className,
     )}
     {...restProps}
 >
     {@render children?.()}
-    <IconChevronRight class="ml-auto h-4 w-4" />
+    <IconChevronRight
+        class="ml-auto size-4 shrink-0 opacity-40 group-hover:opacity-100 transition-opacity"
+    />
 </DropdownMenuPrimitive.SubTrigger>

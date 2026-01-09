@@ -40,8 +40,27 @@
         loadConnectionsData();
     });
 
-    const selectConnection = async (conn: Connection) => {
-        if (isDisabled(conn)) return;
+    const selectConnection = async (
+        conn: Connection,
+        newWindow: boolean = false,
+    ) => {
+        if (newWindow) {
+            isOpen = false;
+            try {
+                // Pass connectionId to backend to pre-set it for the new window
+                await invoke("create_new_window", { connectionId: conn.id });
+            } catch (e) {
+                console.error("Failed to create window with connection:", e);
+            }
+            return;
+        }
+
+        // Only switch if it's not the same connection
+        if (schemaStore.activeConnection?.id === conn.id) {
+            isOpen = false;
+            return;
+        }
+
         isOpen = false;
         // Start a new session for this connection
         windowState.startSession(conn);
@@ -162,70 +181,94 @@
                             resolveDriverIcon(conn.engine) || IconDatabase}
                         {@const busy = isBusy(conn.id)}
                         {@const disabled = isDisabled(conn)}
-                        <Menu.Item
-                            class={cn(
-                                "w-full flex items-center gap-3 px-3 py-1.5 text-left transition-colors",
-                                schemaStore.activeConnection?.id === conn.id &&
-                                    "bg-accent/5 ring-1 ring-inset ring-accent/10",
-                                disabled && "opacity-50 cursor-not-allowed",
-                            )}
-                            {disabled}
-                            onclick={() => selectConnection(conn)}
-                        >
-                            {@const isImageIcon =
-                                typeof DriverIcon === "string"}
-                            {#if isImageIcon}
-                                <img
-                                    src={DriverIcon}
-                                    alt={conn.engine}
-                                    class={cn(
-                                        "size-10 shrink-0 transition-opacity object-contain",
-                                        schemaStore.activeConnection?.id ===
-                                            conn.id
-                                            ? "opacity-100"
-                                            : "opacity-60 grayscale-[0.5]",
-                                    )}
-                                />
-                            {:else}
-                                <DriverIcon
-                                    class={cn(
-                                        "size-4 shrink-0 transition-opacity",
-                                        schemaStore.activeConnection?.id ===
-                                            conn.id
-                                            ? "opacity-100 text-(--theme-accent-primary)"
-                                            : "opacity-60 grayscale-[0.5]",
-                                    )}
-                                />
-                            {/if}
-                            <div class="flex flex-col min-w-0">
-                                <span
-                                    class="text-sm font-medium truncate leading-tight"
-                                    >{conn.name}</span
-                                >
-
-                                {#if conn.username && conn.host}
-                                    <span
-                                        class="text-[10px] text-(--theme-fg-secondary) opacity-40 truncate font-mono leading-tight"
-                                    >
-                                        {conn.username}@{conn.host}
-                                    </span>
+                        <Menu.Sub>
+                            <Menu.SubTrigger
+                                class={cn(
+                                    "w-full flex items-center gap-3 px-3 py-1.5 text-left transition-colors cursor-default",
+                                    schemaStore.activeConnection?.id ===
+                                        conn.id &&
+                                        "bg-accent/5 ring-1 ring-inset ring-accent/10",
+                                    disabled && "opacity-50",
+                                )}
+                            >
+                                {@const isImageIcon =
+                                    typeof DriverIcon === "string"}
+                                {#if isImageIcon}
+                                    <img
+                                        src={DriverIcon}
+                                        alt={conn.engine}
+                                        class={cn(
+                                            "size-10 shrink-0 transition-opacity object-contain",
+                                            schemaStore.activeConnection?.id ===
+                                                conn.id
+                                                ? "opacity-100"
+                                                : "opacity-60 grayscale-[0.5]",
+                                        )}
+                                    />
+                                {:else}
+                                    <DriverIcon
+                                        class={cn(
+                                            "size-4 shrink-0 transition-opacity",
+                                            schemaStore.activeConnection?.id ===
+                                                conn.id
+                                                ? "opacity-100 text-(--theme-accent-primary)"
+                                                : "opacity-60 grayscale-[0.5]",
+                                        )}
+                                    />
                                 {/if}
-                            </div>
+                                <div class="flex flex-col min-w-0">
+                                    <span
+                                        class="text-sm font-medium truncate leading-tight"
+                                        >{conn.name}</span
+                                    >
 
-                            {#if schemaStore.activeConnection?.id === conn.id}
-                                <div
-                                    class="ml-auto px-1.5 py-0.5 rounded-full bg-accent/10 text-accent-foreground text-[9px] font-bold uppercase tracking-wider border border-accent/20"
-                                >
-                                    Current
+                                    {#if conn.username && conn.host}
+                                        <span
+                                            class="text-[10px] text-(--theme-fg-secondary) opacity-40 truncate font-mono leading-tight"
+                                        >
+                                            {conn.username}@{conn.host}
+                                        </span>
+                                    {/if}
                                 </div>
-                            {:else if busy}
-                                <div
-                                    class="ml-auto px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-500 text-[9px] font-bold uppercase tracking-wider border border-amber-500/20"
+
+                                {#if schemaStore.activeConnection?.id === conn.id}
+                                    <div
+                                        class="ml-auto px-1.5 py-0.5 rounded-full bg-accent/15 text-(--theme-accent-primary) text-[10px] font-bold uppercase tracking-wider border border-accent/20"
+                                    >
+                                        Current
+                                    </div>
+                                {:else if busy}
+                                    <div
+                                        class="ml-auto px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 text-[10px] font-bold uppercase tracking-wider border border-amber-500/20"
+                                    >
+                                        Busy
+                                    </div>
+                                {/if}
+                            </Menu.SubTrigger>
+
+                            <Menu.SubContent
+                                class="z-60 min-w-[160px] p-1 bg-(--theme-bg-secondary) border border-(--theme-border-default) rounded-md shadow-xl"
+                            >
+                                <Menu.Item
+                                    class={cn(
+                                        "flex items-center gap-2 px-3 py-2 text-xs rounded hover:bg-accent/10 cursor-pointer",
+                                        schemaStore.activeConnection?.id ===
+                                            conn.id &&
+                                            "opacity-50 pointer-events-none",
+                                    )}
+                                    onclick={() =>
+                                        selectConnection(conn, false)}
                                 >
-                                    Busy
-                                </div>
-                            {/if}
-                        </Menu.Item>
+                                    Use in Current Window
+                                </Menu.Item>
+                                <Menu.Item
+                                    class="flex items-center gap-2 px-3 py-2 text-xs rounded hover:bg-accent/10 cursor-pointer"
+                                    onclick={() => selectConnection(conn, true)}
+                                >
+                                    Open in New Window
+                                </Menu.Item>
+                            </Menu.SubContent>
+                        </Menu.Sub>
                     {/each}
                 {/if}
             </div>
