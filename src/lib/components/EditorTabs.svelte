@@ -100,13 +100,15 @@
                         {/if}
                     </button>
                 </ContextMenu.Trigger>
-                <ContextMenu.Content class="w-48">
+                <ContextMenu.Content class="w-56 gap-2">
                     <ContextMenu.Item
                         onclick={() => activeSession?.closeView(view.id)}
                     >
                         <IconX class="mr-2 size-4 text-muted-foreground" />
                         Close
-                        <ContextMenu.Shortcut>⌘W</ContextMenu.Shortcut>
+                        <ContextMenu.Shortcut>
+                            <span>⌘ + W</span>
+                        </ContextMenu.Shortcut>
                     </ContextMenu.Item>
                     <ContextMenu.Item
                         onclick={() => activeSession?.closeOtherViews(view.id)}
