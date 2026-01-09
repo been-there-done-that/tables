@@ -70,7 +70,8 @@
             if (highlightedIndex >= 0 && suggestions[highlightedIndex]) {
                 e.preventDefault();
                 selectSuggestion(suggestions[highlightedIndex]);
-            } else if (e.metaKey || e.ctrlKey) {
+            } else {
+                // Submit on Enter if no suggestion selected, or if meta/ctrl held
                 onsubmit?.();
             }
         } else if (e.key === "Escape") {
@@ -121,9 +122,10 @@
         <input
             bind:this={inputRef}
             type="text"
-            class="w-full h-6 px-2 text-xs bg-transparent border-0 border-b border-transparent hover:border-border focus:border-primary focus:outline-none placeholder:text-muted-foreground/50 transition-colors"
+            class="w-full h-6 px-2 text-sm bg-transparent border-0 border-b border-transparent placeholder:text-muted-foreground/50 transition-colors focus:outline-none"
             {placeholder}
             {value}
+            autocomplete="off"
             oninput={handleInput}
             onkeydown={handleKeyDown}
             onfocus={handleFocus}
