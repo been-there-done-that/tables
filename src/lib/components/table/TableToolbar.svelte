@@ -165,7 +165,9 @@
 
 <svelte:window onkeydown={onKeyDown} />
 
-<div class="flex items-center gap-2 px-2 h-8 text-xs w-full">
+<div
+    class="flex items-center gap-2 px-2 h-8 text-xs w-full border-b border-border/70"
+>
     <!-- Pagination -->
     <!-- Pagination -->
     <div class="flex items-center gap-1">

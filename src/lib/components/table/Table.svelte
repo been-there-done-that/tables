@@ -1838,7 +1838,7 @@
     bind:this={tableContainer}
     tabindex="-1"
     class={cn(
-        "flex flex-col flex-1 min-h-0 h-full w-full border border-border overflow-hidden bg-background",
+        "flex flex-col flex-1 min-h-0 h-full w-full overflow-hidden bg-background outline-none",
         className,
     )}
     role="grid"
