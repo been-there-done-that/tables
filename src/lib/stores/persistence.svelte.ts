@@ -1,8 +1,11 @@
 import { get, set } from "idb-keyval";
 import type { Session, ViewState } from "./session.svelte";
 
-const BASE_STORAGE_KEY = "tables_session_state_v1";
-function getWindowKey(label: string) {
+const BASE_STORAGE_KEY = "tables_session_state_v2";
+function getPersistenceKey(label: string, connectionId?: string) {
+    if (connectionId) {
+        return `${BASE_STORAGE_KEY}_${label}_conn_${connectionId}`;
+    }
     return `${BASE_STORAGE_KEY}_${label}`;
 }
 
@@ -37,7 +40,7 @@ function safeSerialize(obj: any): any {
 }
 
 export const persistenceStore = {
-    async saveSessionState(sessions: Session[], activeSessionId: string | null, windowLabel: string) {
+    async saveSessionState(sessions: Session[], activeSessionId: string | null, windowLabel: string, connectionId?: string) {
         if (!sessions || sessions.length === 0) {
             debugLog("Skipping save: No sessions active");
             return;
@@ -64,27 +67,25 @@ export const persistenceStore = {
         };
 
         try {
-            // Check for serialization issues before saving
-            // JSON.parse(JSON.stringify(state)) wipes out undefineds and functions,
-            // effectively acting as a sanitizer for structured cloning issues related to proxies
             const safeState = JSON.parse(JSON.stringify(state));
 
-            await set(getWindowKey(windowLabel), safeState);
+            await set(getPersistenceKey(windowLabel, connectionId), safeState);
             const elapsed = Math.round(performance.now() - start);
             debugLog(`State saved successfully in ${elapsed}ms`, {
                 sessionCount: state.sessions.length,
-                totalViews: state.sessions.reduce((acc, s) => acc + s.views.length, 0)
+                totalViews: state.sessions.reduce((acc, s) => acc + s.views.length, 0),
+                key: getPersistenceKey(windowLabel, connectionId)
             });
         } catch (err) {
             console.error("[PersistenceStore] Failed to save state:", err);
         }
     },
 
-    async loadSessionState(windowLabel: string): Promise<PersistedState | null> {
-        debugLog(`Loading session state for ${windowLabel}...`);
+    async loadSessionState(windowLabel: string, connectionId?: string): Promise<PersistedState | null> {
+        debugLog(`Loading session state for ${windowLabel} (conn: ${connectionId})...`);
         const start = performance.now();
         try {
-            const state = await get<PersistedState>(getWindowKey(windowLabel));
+            const state = await get<PersistedState>(getPersistenceKey(windowLabel, connectionId));
             const elapsed = Math.round(performance.now() - start);
 
             if (state) {
