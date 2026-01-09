@@ -1,11 +1,11 @@
 <script lang="ts">
     import { IconFilter, IconArrowsSort } from "@tabler/icons-svelte";
-    import * as Popover from "$lib/components/ui/popover";
+    import type { SuggestionItem } from "./types";
 
     interface Props {
         value?: string;
         placeholder?: string;
-        suggestions?: string[];
+        suggestions?: (string | SuggestionItem)[];
         icon?: "filter" | "sort";
         widthClass?: string;
         onchange?: (value: string) => void;
@@ -28,6 +28,16 @@
     let highlightedIndex = $state(-1);
     let inputFocused = $state(false);
 
+    // Normalize suggestions to SuggestionItem[]
+    const normalizedSuggestions = $derived(
+        suggestions.map((s) => {
+            if (typeof s === "string") {
+                return { value: s, type: undefined };
+            }
+            return s;
+        }),
+    );
+
     // Get the current word being typed (after last space or operator)
     const currentWord = $derived(() => {
         const parts = value.split(/[\s=><,()]+/);
@@ -37,16 +47,28 @@
     // Filter suggestions based on current word
     const filteredSuggestions = $derived(() => {
         const word = currentWord();
-        if (!word || word.length < 1) return suggestions.slice(0, 10);
-        return suggestions
-            .filter((s) => s.toLowerCase().includes(word))
+        const all = normalizedSuggestions;
+        if (!word || word.length < 1) return all.slice(0, 10);
+        return all
+            .filter((s) => s.value.toLowerCase().includes(word))
             .slice(0, 10);
     });
 
+    let containerRef: HTMLDivElement | null = $state(null);
+
     // Show suggestions when focused and have suggestions
-    $effect(() => {
-        showSuggestions = inputFocused && filteredSuggestions().length > 0;
-    });
+    // We removed the effect that forced showSuggestions based on focus to allow manual closing via Escape
+
+    function handleWindowMouseDown(e: MouseEvent) {
+        if (
+            showSuggestions &&
+            containerRef &&
+            !containerRef.contains(e.target as Node)
+        ) {
+            showSuggestions = false;
+            highlightedIndex = -1;
+        }
+    }
 
     $effect(() => {
         if (showSuggestions && highlightedIndex >= 0 && listRef) {
@@ -61,7 +83,12 @@
         const target = e.target as HTMLInputElement;
         value = target.value;
         onchange?.(value);
-        highlightedIndex = -1;
+        if (filteredSuggestions().length > 0) {
+            showSuggestions = true;
+            highlightedIndex = 0;
+        } else {
+            showSuggestions = false;
+        }
     }
 
     function handleKeyDown(e: KeyboardEvent) {
@@ -79,9 +106,9 @@
         } else if (e.key === "Enter") {
             if (highlightedIndex >= 0 && suggestions[highlightedIndex]) {
                 e.preventDefault();
-                selectSuggestion(suggestions[highlightedIndex]);
+                selectSuggestion(suggestions[highlightedIndex].value);
             } else {
-                // Submit on Enter if no suggestion selected, or if meta/ctrl held
+                // Submit on Enter if no valid suggestion selected
                 onsubmit?.();
             }
         } else if (e.key === "Escape") {
@@ -89,7 +116,7 @@
             highlightedIndex = -1;
         } else if (e.key === "Tab" && highlightedIndex >= 0) {
             e.preventDefault();
-            selectSuggestion(suggestions[highlightedIndex]);
+            selectSuggestion(suggestions[highlightedIndex].value);
         }
     }
 
@@ -106,18 +133,32 @@
 
     function handleFocus() {
         inputFocused = true;
+        if (filteredSuggestions().length > 0) {
+            showSuggestions = true;
+            highlightedIndex = 0;
+        }
     }
 
     function handleBlur() {
-        // Delay to allow click on suggestion
-        setTimeout(() => {
-            inputFocused = false;
-        }, 150);
+        // We handle closing via window click now for robustness
+        inputFocused = false;
     }
 </script>
 
-<div class="relative flex items-center gap-1.5 {widthClass} min-w-0">
-    <div class="flex items-center gap-1 text-muted-foreground shrink-0">
+<svelte:window onmousedown={handleWindowMouseDown} />
+
+<!-- svelte-ignore a11y_click_events_have_key_events -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div
+    bind:this={containerRef}
+    class="relative flex items-center gap-1.5 {widthClass} min-w-0 cursor-text group"
+    onclick={() => {
+        inputRef?.focus();
+    }}
+>
+    <div
+        class="flex items-center gap-1 text-muted-foreground shrink-0 group-hover:text-foreground transition-colors"
+    >
         {#if icon === "filter"}
             <IconFilter class="h-3.5 w-3.5" />
         {:else}
@@ -143,23 +184,39 @@
             onkeydown={handleKeyDown}
             onfocus={handleFocus}
             onblur={handleBlur}
+            onclick={(e) => {
+                e.stopPropagation();
+                if (filteredSuggestions().length > 0) {
+                    showSuggestions = true;
+                    if (highlightedIndex === -1) highlightedIndex = 0;
+                }
+            }}
         />
 
         {#if showSuggestions}
             <div
                 bind:this={listRef}
-                class="absolute left-0 top-full mt-1 z-50 w-full min-w-[180px] max-h-[200px] overflow-auto bg-popover border border-border rounded-md shadow-lg backdrop-blur-none"
-                style="background-color: hsl(var(--popover));"
+                class="absolute left-0 top-full mt-1 z-50 w-full min-w-[180px] max-h-[200px] overflow-auto border border-(--theme-border-default) bg-(--theme-bg-secondary) rounded-md shadow-lg backdrop-blur-none"
             >
                 {#each filteredSuggestions() as suggestion, idx}
                     <button
-                        class="w-full text-left px-2.5 py-1.5 text-xs hover:bg-muted cursor-pointer transition-colors {idx ===
+                        class="w-full text-left px-2.5 py-1.5 text-xs cursor-pointer transition-colors flex items-center justify-between gap-4 {idx ===
                         highlightedIndex
-                            ? 'bg-muted'
-                            : ''}"
-                        onmousedown={() => selectSuggestion(suggestion)}
+                            ? 'bg-accent text-accent-foreground'
+                            : 'text-foreground hover:bg-accent/10'}"
+                        onmouseenter={() => (highlightedIndex = idx)}
+                        onmousedown={(e) => {
+                            e.preventDefault(); // Prevent blur
+                            selectSuggestion(suggestion.value);
+                        }}
                     >
-                        {suggestion}
+                        <span>{suggestion.value}</span>
+                        {#if suggestion.type}
+                            <span
+                                class="opacity-50 text-[10px] font-mono lowercase"
+                                >{suggestion.type}</span
+                            >
+                        {/if}
                     </button>
                 {/each}
             </div>

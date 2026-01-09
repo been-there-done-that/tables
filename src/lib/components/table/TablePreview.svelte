@@ -286,6 +286,13 @@
         tableRef?.refresh?.();
     }
 
+    function handlePageSizeChange(newSize: number) {
+        pageSize = newSize;
+        currentOffset = 0; // Reset to first page
+        // We pass 'limit' to Table via prop, so just refreshing or letting reactivity handle it
+        tableRef?.refresh?.();
+    }
+
     function handleExport(format: "csv" | "tsv" | "json" | "sql") {
         // TODO: Implement export logic - copy formatted data to clipboard
         console.log("[TablePreview] Export requested:", format);
@@ -317,6 +324,7 @@
         onExecute={handleExecute}
         onRefresh={handleRefresh}
         onPageChange={handlePageChange}
+        onPageSizeChange={handlePageSizeChange}
         onExport={handleExport}
         onShowDdl={handleShowDdl}
         onWhereChange={handleWhereChange}
@@ -335,6 +343,7 @@
                 onViewStateChange={() => windowState.requestSave()}
                 onApplyEdits={handleApplyEdits}
                 bind:isLoading
+                limit={pageSize}
             />
         </div>
     {/key}
