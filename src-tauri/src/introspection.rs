@@ -216,7 +216,7 @@ impl Introspector {
         // Save database record
         self.save_database(&conn, connection_id, &database.name)?;
         
-        info!("[INTRO_DEBUG] saving database {} with {} schemas", database.name, database.schemas.len());
+        info!("[INTERNAL] saving database {} with {} schemas", database.name, database.schemas.len());
 
         for schema in &database.schemas {
             self.save_schema(&conn, connection_id, &database.name, &schema.name, &schema.schema_type, schema.kind)?;
@@ -1046,7 +1046,7 @@ impl Introspector {
              ORDER BY table_name"
         ).map_err(|e| e.to_string())?;
 
-        info!("[INTRO_DEBUG] get_tables_in_schema: con={}, db={}, schema={}", connection_id, database, schema);
+        info!("[INTERNAL] get_tables_in_schema: con={}, db={}, schema={}", connection_id, database, schema);
 
         let rows = stmt.query_map(params![connection_id, database, schema], |row| {
             Ok(MetaTable {

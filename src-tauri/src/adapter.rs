@@ -360,6 +360,25 @@ impl From<String> for AdapterError {
 }
 
 // =============================================================================
+// Query Result Types
+// =============================================================================
+
+/// Column information for query results.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AdapterColumnInfo {
+    pub name: String,
+    pub column_type: String,
+}
+
+/// Result of a query execution via the adapter.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AdapterQueryResult {
+    pub rows: Vec<serde_json::Value>,
+    pub columns: Vec<AdapterColumnInfo>,
+    pub affected_rows: Option<u64>,
+}
+
+// =============================================================================
 // Database Adapter Trait
 // =============================================================================
 
@@ -392,13 +411,42 @@ pub trait DatabaseAdapter: Send + Sync {
     }
 
     /// Establish connection to the database.
-    async fn connect(&mut self) -> Result<(), AdapterError>;
+    /// Uses interior mutability (Arc<Mutex>) so &self is sufficient.
+    async fn connect(&self) -> Result<(), AdapterError>;
 
     /// Check if the adapter is currently connected.
     fn is_connected(&self) -> bool;
 
+    /// Check if the connection is alive (active health check).
+    async fn is_alive(&self) -> bool {
+        self.is_connected()
+    }
+
     /// Close the connection.
-    async fn disconnect(&mut self) -> Result<(), AdapterError>;
+    async fn disconnect(&self) -> Result<(), AdapterError>;
+
+    // =========================================================================
+    // Database Selection
+    // =========================================================================
+
+    /// Ensure the adapter is connected to the specified database.
+    /// 
+    /// For Postgres: reconnects if database differs from current.
+    /// For SQLite: no-op.
+    /// For MySQL: issues `USE database`.
+    /// 
+    /// Safe to call repeatedly with the same value (idempotent).
+    async fn ensure_database(&self, database: Option<&str>) -> Result<(), AdapterError>;
+
+    // =========================================================================
+    // Query Execution
+    // =========================================================================
+
+    /// Execute a query and return results.
+    async fn query(&self, query: &str) -> Result<AdapterQueryResult, AdapterError>;
+
+    /// Execute a statement and return affected row count.
+    async fn execute(&self, statement: &str) -> Result<u64, AdapterError>;
 
     // =========================================================================
     // Level 1: Databases
@@ -514,7 +562,7 @@ impl DatabaseAdapter for Box<dyn DatabaseAdapter> {
         (**self).capabilities()
     }
 
-    async fn connect(&mut self) -> Result<(), AdapterError> {
+    async fn connect(&self) -> Result<(), AdapterError> {
         (**self).connect().await
     }
 
@@ -522,8 +570,20 @@ impl DatabaseAdapter for Box<dyn DatabaseAdapter> {
         (**self).is_connected()
     }
 
-    async fn disconnect(&mut self) -> Result<(), AdapterError> {
+    async fn disconnect(&self) -> Result<(), AdapterError> {
         (**self).disconnect().await
+    }
+
+    async fn ensure_database(&self, database: Option<&str>) -> Result<(), AdapterError> {
+        (**self).ensure_database(database).await
+    }
+
+    async fn query(&self, query: &str) -> Result<AdapterQueryResult, AdapterError> {
+        (**self).query(query).await
+    }
+
+    async fn execute(&self, statement: &str) -> Result<u64, AdapterError> {
+        (**self).execute(statement).await
     }
 
     async fn list_databases(&self) -> Result<Vec<MetaDatabase>, AdapterError> {
@@ -611,5 +671,47 @@ mod tests {
     fn test_adapter_error_display() {
         let err = AdapterError::NotSupported("triggers".to_string());
         assert!(err.to_string().contains("triggers"));
+    }
+
+    #[test]
+    fn test_adapter_query_result_serialization() {
+        let result = AdapterQueryResult {
+            rows: vec![serde_json::json!({"id": 1, "name": "test"})],
+            columns: vec![
+                AdapterColumnInfo { name: "id".to_string(), column_type: "integer".to_string() },
+                AdapterColumnInfo { name: "name".to_string(), column_type: "text".to_string() },
+            ],
+            affected_rows: None,
+        };
+        
+        // Test serialization
+        let json = serde_json::to_string(&result).unwrap();
+        assert!(json.contains("\"id\":1"));
+        assert!(json.contains("\"name\":\"test\""));
+        
+        // Test deserialization
+        let parsed: AdapterQueryResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.rows.len(), 1);
+        assert_eq!(parsed.columns.len(), 2);
+    }
+
+    #[test]
+    fn test_adapter_column_info() {
+        let col = AdapterColumnInfo {
+            name: "user_id".to_string(),
+            column_type: "bigint".to_string(),
+        };
+        assert_eq!(col.name, "user_id");
+        assert_eq!(col.column_type, "bigint");
+    }
+
+    #[test]
+    fn test_adapter_query_result_with_affected_rows() {
+        let result = AdapterQueryResult {
+            rows: vec![],
+            columns: vec![],
+            affected_rows: Some(42),
+        };
+        assert_eq!(result.affected_rows, Some(42));
     }
 }
