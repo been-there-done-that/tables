@@ -274,7 +274,8 @@ macro_rules! aggregate_plugin_commands {
             // Query commands
             fetch_table_preview,
             execute_query,
-            fetch_query_logs
+            fetch_query_logs,
+            clear_query_logs
         ]
     };
 }
