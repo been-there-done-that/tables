@@ -136,15 +136,18 @@
 
 /* View Transition Animations for Theme Switching */
 ::view-transition-old(root) {
-  animation-delay: 500ms;
+  animation: none;
+  z-index: -1;
 }
 
 ::view-transition-new(root) {
-  animation: circle-in 1000ms;
+  animation: circle-in 1.5s cubic-bezier(0.25, 1, 0.5, 1);
+  z-index: 1;
 }
 
 @keyframes circle-in {
   from {
+    /* 100% 0% is top-right corner */
     clip-path: circle(0% at 100% 0%);
   }
 
@@ -169,6 +172,7 @@
   from {
     transform: rotate(0deg);
   }
+
   to {
     transform: rotate(-360deg);
   }

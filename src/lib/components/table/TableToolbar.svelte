@@ -3,11 +3,12 @@
     import { onDestroy } from "svelte";
     import { Button } from "$lib/components/ui/button";
     import {
-        IconPlayerPlay,
+        IconPlayerPlayFilled,
         IconChevronLeft,
         IconChevronRight,
         IconRefresh,
         IconDownload,
+        IconPlayerStopFilled,
     } from "@tabler/icons-svelte";
     import * as Popover from "$lib/components/ui/popover";
     import AutocompleteInput from "./AutocompleteInput.svelte";
@@ -131,50 +132,6 @@
 <svelte:window onkeydown={onKeyDown} />
 
 <div class="flex items-center gap-2 px-2 h-8 text-xs w-full">
-    <!-- Execute Button -->
-    <!-- Execute Button -->
-    <div class="flex items-center gap-1">
-        <Button
-            variant="outline"
-            size="sm"
-            class="h-7 px-2 gap-2 text-xs font-normal bg-secondary/10 hover:bg-secondary/20 border-border/50"
-            title="Run (⌘+Enter)"
-            onclick={handleExecute}
-        >
-            <span>Run</span>
-            <IconPlayerPlay class="size-3.5 text-green-500" />
-        </Button>
-        <Button
-            variant="outline"
-            size="sm"
-            class="h-7 px-2 gap-2 text-xs font-normal bg-secondary/10 hover:bg-secondary/20 border-border/50"
-            title="Refresh"
-            onclick={handleRefresh}
-            disabled={isLoading}
-        >
-            <span>Refresh</span>
-            <IconRefresh
-                class="size-3.5 {isLoading ? 'animate-spin-reverse' : ''}"
-            />
-        </Button>
-    </div>
-
-    <style>
-        @keyframes spin-reverse {
-            from {
-                transform: rotate(0deg);
-            }
-            to {
-                transform: rotate(-360deg);
-            }
-        }
-        .animate-spin-reverse {
-            animation: spin-reverse 1s linear infinite;
-        }
-    </style>
-
-    <div class="w-px h-5 bg-border/50"></div>
-
     <!-- Pagination -->
     <div class="flex items-center">
         <Button
@@ -207,6 +164,44 @@
             onclick={handleNext}
         >
             <IconChevronRight class="size-4" />
+        </Button>
+    </div>
+
+    <div class="w-px h-5 bg-border/50"></div>
+
+    <!-- Execute Button -->
+    <div class="flex items-center">
+        <Button
+            variant="ghost"
+            size="sm"
+            class="h-7"
+            title="Run (⌘+Enter)"
+            onclick={handleExecute}
+        >
+            <IconPlayerPlayFilled class="size-5 text-green-500" />
+        </Button>
+
+        <Button
+            variant="ghost"
+            size="sm"
+            class="h-7"
+            title="Run (⌘+Enter)"
+            onclick={handleExecute}
+        >
+            <IconPlayerStopFilled class="size-5 text-red-500" />
+        </Button>
+
+        <Button
+            variant="ghost"
+            size="sm"
+            class="h-7"
+            title="Refresh"
+            onclick={handleRefresh}
+            disabled={isLoading}
+        >
+            <IconRefresh
+                class="size-5 {isLoading ? 'animate-spin-reverse' : ''}"
+            />
         </Button>
     </div>
 
