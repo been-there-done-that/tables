@@ -51,6 +51,9 @@
     const isBusy = (id: string) => schemaStore.isConnectionBusy(id);
 
     const isDisabled = (conn: Connection) => {
+        // Disable if it's already active in THIS window
+        if (schemaStore.activeConnection?.id === conn.id) return true;
+
         if (!isBusy(conn.id)) return false;
         // Only disable SQLite if busy ( Postgres can be multi-window)
         return conn.engine === "sqlite";
@@ -209,7 +212,13 @@
                                 {/if}
                             </div>
 
-                            {#if busy}
+                            {#if schemaStore.activeConnection?.id === conn.id}
+                                <div
+                                    class="ml-auto px-1.5 py-0.5 rounded-full bg-accent/10 text-accent-foreground text-[9px] font-bold uppercase tracking-wider border border-accent/20"
+                                >
+                                    Current
+                                </div>
+                            {:else if busy}
                                 <div
                                     class="ml-auto px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-500 text-[9px] font-bold uppercase tracking-wider border border-amber-500/20"
                                 >
