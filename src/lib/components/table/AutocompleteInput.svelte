@@ -23,6 +23,7 @@
     }: Props = $props();
 
     let inputRef: HTMLInputElement | null = $state(null);
+    let listRef: HTMLDivElement | null = $state(null);
     let showSuggestions = $state(false);
     let highlightedIndex = $state(-1);
     let inputFocused = $state(false);
@@ -45,6 +46,15 @@
     // Show suggestions when focused and have suggestions
     $effect(() => {
         showSuggestions = inputFocused && filteredSuggestions().length > 0;
+    });
+
+    $effect(() => {
+        if (showSuggestions && highlightedIndex >= 0 && listRef) {
+            const item = listRef.children[highlightedIndex] as HTMLElement;
+            if (item) {
+                item.scrollIntoView({ block: "nearest" });
+            }
+        }
     });
 
     function handleInput(e: Event) {
@@ -126,6 +136,9 @@
             {placeholder}
             {value}
             autocomplete="off"
+            spellcheck="false"
+            autocorrect="off"
+            autocapitalize="off"
             oninput={handleInput}
             onkeydown={handleKeyDown}
             onfocus={handleFocus}
@@ -134,6 +147,7 @@
 
         {#if showSuggestions}
             <div
+                bind:this={listRef}
                 class="absolute left-0 top-full mt-1 z-50 w-full min-w-[180px] max-h-[200px] overflow-auto bg-popover border border-border rounded-md shadow-lg backdrop-blur-none"
                 style="background-color: hsl(var(--popover));"
             >

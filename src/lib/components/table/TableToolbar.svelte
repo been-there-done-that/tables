@@ -135,23 +135,26 @@
     <!-- Execute Button -->
     <div class="flex items-center gap-1">
         <Button
-            variant="ghost"
-            size="icon"
-            class="h-7 w-7 text-green-500 hover:text-green-600 hover:bg-green-500/10"
-            title="Execute (⌘+Enter)"
+            variant="outline"
+            size="sm"
+            class="h-7 px-2 gap-2 text-xs font-normal bg-secondary/10 hover:bg-secondary/20 border-border/50"
+            title="Run (⌘+Enter)"
             onclick={handleExecute}
         >
-            <IconPlayerPlay class="h-4 w-4" />
+            <span>Run</span>
+            <IconPlayerPlay class="size-3.5 text-green-500" />
         </Button>
         <Button
-            variant="ghost"
-            size="icon"
+            variant="outline"
+            size="sm"
+            class="h-7 px-2 gap-2 text-xs font-normal bg-secondary/10 hover:bg-secondary/20 border-border/50"
             title="Refresh"
             onclick={handleRefresh}
             disabled={isLoading}
         >
+            <span>Refresh</span>
             <IconRefresh
-                class="size-4 {isLoading ? 'animate-spin-reverse' : ''}"
+                class="size-3.5 {isLoading ? 'animate-spin-reverse' : ''}"
             />
         </Button>
     </div>
@@ -221,6 +224,8 @@
             onchange={(v) => onWhereChange?.(v)}
             onsubmit={handleExecute}
         />
+
+        <div class="w-px h-5 bg-border/50"></div>
 
         <!-- ORDER BY (40%) -->
         <AutocompleteInput
