@@ -14,7 +14,7 @@
 
     import { schemaStore } from "$lib/stores/schema.svelte";
     import { windowState } from "$lib/stores/window.svelte";
-    import IconLoader2 from "@tabler/icons-svelte/icons/loader-2";
+    import IconLoader from "@tabler/icons-svelte/icons/loader";
     import IconLogout from "@tabler/icons-svelte/icons/logout";
 
     let connections = $state<Connection[]>([]);
@@ -136,9 +136,9 @@
                     >
                 {/if}
                 {#if schemaStore.status === "connecting" || schemaStore.status === "refreshing"}
-                    <IconLoader2
-                        class="animate-spin size-3 opacity-50 transition-transform duration-200"
-                    />
+                    <div class="flex items-center justify-center size-4">
+                        <IconLoader class="animate-spin size-3.5 opacity-60" />
+                    </div>
                 {:else}
                     <IconChevronDown
                         class={cn(
