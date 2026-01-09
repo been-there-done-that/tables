@@ -81,6 +81,26 @@ pub fn fetch_query_logs(
     Ok(logs)
 }
 
+/// Clears query logs for a specific connection
+#[tauri::command]
+pub fn clear_query_logs(
+    connection_id: String,
+    db_state: State<'_, DatabaseState>,
+) -> Result<(), String> {
+    debug!("Clearing query logs for connection: {}", connection_id);
+    let conn = db_state.conn.lock().map_err(|e| e.to_string())?;
+    
+    conn.execute(
+        "DELETE FROM query_logs WHERE connection_id = ?1",
+        rusqlite::params![connection_id],
+    ).map_err(|e| {
+        error!("Failed to clear query logs for {}: {}", connection_id, e);
+        format!("Failed to clear query logs: {}", e)
+    })?;
+
+    Ok(())
+}
+
 /// Column metadata from query result
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ColumnInfo {

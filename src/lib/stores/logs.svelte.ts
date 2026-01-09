@@ -19,6 +19,7 @@ export interface LogEntry {
 class LogsStore {
     logs = $state<LogEntry[]>([]);
     lastRefreshedConnectionId: string | null = null;
+    clearedAtMap = $state<Map<string, number>>(new Map());
 
     get isOpen() {
         return settingsStore.logsPanelVisible;
@@ -67,12 +68,31 @@ class LogsStore {
             });
 
             if (history && Array.isArray(history)) {
-                this.logs = history;
+                const clearedAt = this.clearedAtMap.get(targetId || "global") || 0;
+                this.logs = history.filter(l => l.timestamp > clearedAt);
             }
         } catch (e) {
             console.error("Failed to fetch query logs:", e);
             // Reset on error so we can try again potentially?
             this.lastRefreshedConnectionId = null;
+        }
+    }
+
+    clearSession(connectionId: string | null) {
+        const id = connectionId || "global";
+        this.clearedAtMap.set(id, Date.now());
+        this.logs = this.logs.filter(l => l.connectionId !== connectionId || l.timestamp > (this.clearedAtMap.get(id) || 0));
+        // Actually, just filtering existing is easier:
+        this.logs = [];
+    }
+
+    async clearAll(connectionId: string | null) {
+        if (!connectionId) return;
+        try {
+            await invoke("clear_query_logs", { connectionId });
+            this.clearSession(connectionId);
+        } catch (e) {
+            console.error("Failed to clear query logs permanently:", e);
         }
     }
 
