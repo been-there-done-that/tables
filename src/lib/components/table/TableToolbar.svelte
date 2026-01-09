@@ -8,8 +8,10 @@
         IconRefresh,
         IconDatabase,
         IconDownload,
+        IconGripVertical,
     } from "@tabler/icons-svelte";
     import * as Popover from "$lib/components/ui/popover";
+    import AutocompleteInput from "./AutocompleteInput.svelte";
     import type { Column, SortState } from "./types";
 
     type ExportFormat = "csv" | "tsv" | "json" | "sql";
@@ -46,23 +48,37 @@
         currentOffset = 0,
         totalRows = 0,
         pageSize = 500,
-        whereClause = "",
-        orderByClause = "",
+        whereClause = $bindable(""),
+        orderByClause = $bindable(""),
         onWhereChange,
         onOrderByChange,
     }: Props = $props();
 
     let exportOpen = $state(false);
-    let localWhere = $state(whereClause);
-    let localOrderBy = $state(orderByClause);
 
-    // Sync external props to local state
-    $effect(() => {
-        localWhere = whereClause;
-    });
-    $effect(() => {
-        localOrderBy = orderByClause;
-    });
+    // Column names for autocomplete
+    const columnNames = $derived(columns.map((c) => c.label || c.id));
+
+    // Add common SQL operators and keywords to suggestions
+    const whereSuggestions = $derived([
+        ...columnNames,
+        "AND",
+        "OR",
+        "NOT",
+        "IS NULL",
+        "IS NOT NULL",
+        "LIKE",
+        "IN",
+        "BETWEEN",
+    ]);
+
+    const orderBySuggestions = $derived([
+        ...columnNames,
+        "ASC",
+        "DESC",
+        "NULLS FIRST",
+        "NULLS LAST",
+    ]);
 
     // Pagination calculations
     const startRow = $derived(currentOffset + 1);
@@ -70,9 +86,15 @@
     const hasPrev = $derived(currentOffset > 0);
     const hasNext = $derived(currentOffset + pageSize < totalRows);
 
+    // Filter section width (resizable)
+    let filterWidth = $state(500);
+    let isResizing = $state(false);
+    let resizeStartX = $state(0);
+    let resizeStartWidth = $state(0);
+
     function handleExecute() {
-        if (onWhereChange) onWhereChange(localWhere);
-        if (onOrderByChange) onOrderByChange(localOrderBy);
+        if (onWhereChange) onWhereChange(whereClause);
+        if (onOrderByChange) onOrderByChange(orderByClause);
         if (onExecute) onExecute();
         else tableRef?.refresh?.();
         dispatch("execute");
@@ -102,29 +124,43 @@
         exportOpen = false;
     }
 
-    function handleKeyDown(e: KeyboardEvent) {
-        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-            handleExecute();
-        }
+    function startResize(e: MouseEvent) {
+        isResizing = true;
+        resizeStartX = e.clientX;
+        resizeStartWidth = filterWidth;
+        document.addEventListener("mousemove", handleResize);
+        document.addEventListener("mouseup", stopResize);
+    }
+
+    function handleResize(e: MouseEvent) {
+        if (!isResizing) return;
+        const delta = e.clientX - resizeStartX;
+        filterWidth = Math.max(300, Math.min(800, resizeStartWidth + delta));
+    }
+
+    function stopResize() {
+        isResizing = false;
+        document.removeEventListener("mousemove", handleResize);
+        document.removeEventListener("mouseup", stopResize);
     }
 </script>
 
-<div class="flex items-center gap-2 px-2 h-8 border-b bg-muted/40 text-xs">
+<div class="flex items-center gap-1 px-2 h-9 border-b bg-muted/30 text-xs">
     <!-- Execute Button -->
     <Button
         variant="ghost"
         size="icon"
-        class="h-6 w-6 text-green-500 hover:text-green-600 hover:bg-green-500/10"
+        class="h-7 w-7 text-green-500 hover:text-green-600 hover:bg-green-500/10"
         title="Execute (⌘+Enter)"
         onclick={handleExecute}
     >
         <IconPlayerPlay class="h-4 w-4" />
     </Button>
 
-    <div class="w-px h-4 bg-border"></div>
+    <div class="w-px h-5 bg-border/50"></div>
 
     <!-- Pagination -->
-    <div class="flex items-center gap-1">
+    <div class="flex items-center">
         <Button
             variant="ghost"
             size="icon"
@@ -133,10 +169,10 @@
             disabled={!hasPrev}
             onclick={handlePrev}
         >
-            <IconChevronLeft class="h-4 w-4" />
+            <IconChevronLeft class="h-3.5 w-3.5" />
         </Button>
         <span
-            class="text-muted-foreground min-w-[80px] text-center tabular-nums"
+            class="text-muted-foreground text-[11px] min-w-[70px] text-center tabular-nums"
         >
             {#if totalRows > 0}
                 {startRow}-{endRow} of {totalRows}{totalRows >= pageSize
@@ -154,58 +190,74 @@
             disabled={!hasNext}
             onclick={handleNext}
         >
-            <IconChevronRight class="h-4 w-4" />
+            <IconChevronRight class="h-3.5 w-3.5" />
         </Button>
     </div>
 
-    <div class="w-px h-4 bg-border"></div>
+    <div class="w-px h-5 bg-border/50"></div>
 
-    <!-- Refresh -->
-    <Button
-        variant="ghost"
-        size="icon"
-        class="h-6 w-6"
-        title="Refresh"
-        onclick={handleRefresh}
-    >
-        <IconRefresh class="h-4 w-4" />
-    </Button>
-
-    <!-- DDL -->
-    <Button
-        variant="ghost"
-        size="icon"
-        class="h-6 w-6"
-        title="Show DDL"
-        onclick={() => onShowDdl?.()}
-    >
-        <IconDatabase class="h-4 w-4" />
-    </Button>
-
-    <div class="w-px h-4 bg-border"></div>
-
-    <!-- WHERE Input -->
-    <div class="flex items-center gap-1.5">
-        <span class="text-muted-foreground font-medium">WHERE</span>
-        <input
-            type="text"
-            class="h-6 px-2 rounded border bg-background text-xs min-w-[120px] max-w-[200px] focus:outline-none focus:ring-1 focus:ring-primary"
-            placeholder="column = value"
-            bind:value={localWhere}
-            onkeydown={handleKeyDown}
-        />
+    <!-- Refresh & DDL -->
+    <div class="flex items-center">
+        <Button
+            variant="ghost"
+            size="icon"
+            class="h-6 w-6"
+            title="Refresh"
+            onclick={handleRefresh}
+        >
+            <IconRefresh class="h-3.5 w-3.5" />
+        </Button>
+        <Button
+            variant="ghost"
+            size="icon"
+            class="h-6 w-6"
+            title="Show DDL"
+            onclick={() => onShowDdl?.()}
+        >
+            <IconDatabase class="h-3.5 w-3.5" />
+        </Button>
     </div>
 
-    <!-- ORDER BY Input -->
-    <div class="flex items-center gap-1.5">
-        <span class="text-muted-foreground font-medium">ORDER BY</span>
-        <input
-            type="text"
-            class="h-6 px-2 rounded border bg-background text-xs min-w-[100px] max-w-[160px] focus:outline-none focus:ring-1 focus:ring-primary"
-            placeholder="column ASC"
-            bind:value={localOrderBy}
-            onkeydown={handleKeyDown}
+    <div class="w-px h-5 bg-border/50"></div>
+
+    <!-- Filter Section (Resizable) -->
+    <div
+        class="flex items-center gap-3 px-3 py-1 bg-background/50 rounded-md border border-border/50"
+        style="width: {filterWidth}px; min-width: 300px;"
+    >
+        <!-- WHERE (60%) -->
+        <AutocompleteInput
+            bind:value={whereClause}
+            placeholder="column = value"
+            suggestions={whereSuggestions}
+            icon="filter"
+            widthClass="w-[60%]"
+            onchange={(v) => onWhereChange?.(v)}
+            onsubmit={handleExecute}
         />
+
+        <div class="w-px h-4 bg-border/30"></div>
+
+        <!-- ORDER BY (40%) -->
+        <AutocompleteInput
+            bind:value={orderByClause}
+            placeholder="column ASC"
+            suggestions={orderBySuggestions}
+            icon="sort"
+            widthClass="w-[40%]"
+            onchange={(v) => onOrderByChange?.(v)}
+            onsubmit={handleExecute}
+        />
+
+        <!-- Resize Handle -->
+        <div
+            class="flex items-center justify-center cursor-ew-resize text-muted-foreground/50 hover:text-muted-foreground -mr-1"
+            onmousedown={startResize}
+            role="separator"
+            aria-orientation="vertical"
+        >
+            <IconGripVertical class="h-4 w-4" />
+        </div>
     </div>
 
     <!-- Spacer -->
@@ -214,37 +266,39 @@
     <!-- Export Popover -->
     <Popover.Root bind:open={exportOpen}>
         <Popover.Trigger>
-            <Button variant="ghost" size="icon" class="h-6 w-6" title="Export">
+            <Button variant="ghost" size="icon" class="h-7 w-7" title="Export">
                 <IconDownload class="h-4 w-4" />
             </Button>
         </Popover.Trigger>
-        <Popover.Content class="w-40 p-1" align="end">
-            <div class="text-xs font-medium text-muted-foreground px-2 py-1">
-                Export As
+        <Popover.Content class="w-36 p-1" align="end">
+            <div
+                class="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-2 py-1.5"
+            >
+                Copy as
             </div>
             <button
-                class="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted flex items-center gap-2"
+                class="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted flex items-center gap-2 transition-colors"
                 onclick={() => handleExport("csv")}
             >
-                <span class="text-muted-foreground">📋</span> CSV
+                CSV
             </button>
             <button
-                class="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted flex items-center gap-2"
+                class="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted flex items-center gap-2 transition-colors"
                 onclick={() => handleExport("tsv")}
             >
-                <span class="text-muted-foreground">📋</span> TSV
+                TSV
             </button>
             <button
-                class="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted flex items-center gap-2"
+                class="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted flex items-center gap-2 transition-colors"
                 onclick={() => handleExport("json")}
             >
-                <span class="text-muted-foreground">📋</span> JSON
+                JSON
             </button>
             <button
-                class="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted flex items-center gap-2"
+                class="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted flex items-center gap-2 transition-colors"
                 onclick={() => handleExport("sql")}
             >
-                <span class="text-muted-foreground">📋</span> SQL INSERT
+                SQL INSERT
             </button>
         </Popover.Content>
     </Popover.Root>
