@@ -10,7 +10,7 @@
     import ListSvg from "$lib/svg/List.svelte";
     import IconDataSource from "$lib/svg/IconDataSource.svelte";
     import { resolveDriverIcon } from "./datasource/DriverList";
-    import * as Menu from "$lib/components/ui/context-menu";
+    import * as Menu from "$lib/components/ui/dropdown-menu";
 
     import { schemaStore } from "$lib/stores/schema.svelte";
     import { windowState } from "$lib/stores/window.svelte";
@@ -86,52 +86,49 @@
 
 <div class="relative flex justify-center">
     <Menu.Root bind:open={isOpen}>
-        <Menu.DropdownTrigger>
-            <button
-                class={cn(
-                    "group flex items-center gap-2 p-1 text-sm rounded-md transition-all duration-200",
-                    "hover:bg-(--theme-bg-hover) active:bg-(--theme-bg-active)",
-                    "border border-transparent focus:outline-none focus:ring-1 focus:ring-(--theme-border-active)",
-                    isOpen ? "bg-(--theme-bg-active)" : "",
-                )}
-                aria-expanded={isOpen}
-            >
-                <div class="flex items-center gap-2 px-2">
-                    {#if schemaStore.activeConnection}
-                        <div class="flex items-center gap-2">
-                            <IconDataSource
-                                class="w-4 h-4 text-(--theme-accent-primary)"
-                            />
-                            <span class="font-medium text-(--theme-fg-primary)"
-                                >{schemaStore.activeConnection.name}</span
-                            >
-                        </div>
-                    {:else}
-                        <span class="opacity-70 flex">
-                            <ListSvg />
-                        </span>
-                        <span class="font-medium text-(--theme-fg-secondary)"
-                            >Select Connection</span
+        <Menu.Trigger
+            class={cn(
+                "group flex items-center gap-2 p-1 text-sm rounded-md transition-all duration-200",
+                "hover:bg-(--theme-bg-hover) active:bg-(--theme-bg-active)",
+                "border border-transparent focus:outline-none",
+                isOpen ? "bg-(--theme-bg-active)" : "",
+            )}
+            aria-expanded={isOpen}
+        >
+            <div class="flex items-center gap-2 px-2">
+                {#if schemaStore.activeConnection}
+                    <div class="flex items-center gap-2">
+                        <IconDataSource
+                            class="w-4 h-4 text-(--theme-accent-primary)"
+                        />
+                        <span class="font-medium text-(--theme-fg-primary)"
+                            >{schemaStore.activeConnection.name}</span
                         >
-                    {/if}
-                    {#if schemaStore.status === "connecting" || schemaStore.status === "refreshing"}
-                        <IconLoader2
-                            class="animate-spin size-3 opacity-50 transition-transform duration-200"
-                        />
-                    {:else}
-                        <IconChevronDown
-                            class={cn(
-                                "size-4 opacity-50 transition-transform duration-200",
-                                isOpen && "rotate-180",
-                            )}
-                        />
-                    {/if}
-                </div>
-            </button>
-        </Menu.DropdownTrigger>
+                    </div>
+                {:else}
+                    <span class="opacity-70 flex">
+                        <ListSvg />
+                    </span>
+                    <span class="font-medium text-(--theme-fg-secondary)"
+                        >Select Connection</span
+                    >
+                {/if}
+                {#if schemaStore.status === "connecting" || schemaStore.status === "refreshing"}
+                    <IconLoader2
+                        class="animate-spin size-3 opacity-50 transition-transform duration-200"
+                    />
+                {:else}
+                    <IconChevronDown
+                        class="size-4 opacity-50 transition-transform duration-200"
+                    />
+                {/if}
+            </div>
+        </Menu.Trigger>
 
         <Menu.Content
-            class="-translate-x-1/2 mt-1 w-72 origin-top p-0 z-50 overflow-hidden"
+            class="mt-1 w-72 origin-top p-0 z-50 overflow-hidden bg-(--theme-bg-secondary) border border-(--theme-border-default)"
+            align="start"
+            onCloseAutoFocus={(e) => e.preventDefault()}
         >
             <!-- Connections List -->
             <div class="flex-1 overflow-y-auto max-h-[320px] py-1 space-y-0.5">
