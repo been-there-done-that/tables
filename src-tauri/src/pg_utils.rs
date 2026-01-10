@@ -47,6 +47,7 @@ pub fn format_postgres_error(err: &tokio_postgres::Error) -> String {
     }
 }
 
+
 /// Convert a PostgreSQL row value to JSON based on the column type.
 ///
 /// This handles special types like UUID, timestamps, arrays, etc. that
