@@ -49,6 +49,7 @@ pub enum NormalizedType {
     Date,
     Time,
     DateTime { timezone: bool },
+    Interval,
 
     // Structured
     Json,
@@ -57,6 +58,15 @@ pub enum NormalizedType {
     // Advanced
     Enum { values: Vec<String> },
     Array { element: Box<NormalizedType> },
+    
+    // Composite (row types) - Postgres 2026+
+    Composite { fields: Vec<(String, Box<NormalizedType>)> },
+    
+    // Range types (Postgres 9.2+)
+    Range { element: Box<NormalizedType> },
+    
+    // Multirange types (Postgres 14+)
+    MultiRange { element: Box<NormalizedType> },
 
     // Fallbacks
     Custom { name: String }, // Domain types, user-defined types
@@ -101,9 +111,10 @@ impl Default for SqliteAffinity {
     }
 }
 
-/// Semantic hint inferred from declared type (heuristic, not enforced by SQLite)
-/// These hints are disabled for STRICT tables where only standard types are allowed
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Semantic hint inferred from type metadata or extension presence.
+/// For SQLite: heuristic from declared type (disabled for STRICT tables).
+/// For Postgres: extension-aware meaning derived from pg_extension.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SemanticHint {
     None,                           // No special hint
@@ -114,13 +125,31 @@ pub enum SemanticHint {
     Time,                           // TIME
     Boolean,                        // BOOL, BOOLEAN
     Decimal,                        // MONEY, DECIMAL, CURRENCY
-    Enum { values: Vec<String> },   // Detected from CHECK constraints
+    Enum { values: Vec<String> },   // Detected from CHECK constraints or pg_enum
+    
+    // Extension-aware hints (Postgres 2026+)
+    CaseInsensitiveText,            // citext extension
+    Spatial,                        // PostGIS: geometry, geography
+    Embedding { dimensions: Option<usize> },  // pgvector: vector(N)
+    Hierarchy,                      // ltree extension
+    KeyValue,                       // hstore extension
+    TimeSeries,                     // TimescaleDB hypertables
+    Encrypted,                      // pgcrypto
 }
 
 impl Default for SemanticHint {
     fn default() -> Self {
         SemanticHint::None
     }
+}
+
+/// Metadata about installed PostgreSQL extensions.
+/// Queried from pg_extension and cached per-database.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExtensionInfo {
+    pub name: String,
+    pub version: String,
+    pub schema: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
