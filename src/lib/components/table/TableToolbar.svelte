@@ -16,6 +16,7 @@
         IconCheck,
         IconStopwatch,
         IconClockPlay,
+        IconLoader2,
     } from "@tabler/icons-svelte";
     import * as Menu from "$lib/components/ui/dropdown-menu";
     import AutocompleteInput from "./AutocompleteInput.svelte";
@@ -44,6 +45,8 @@
         isLoading?: boolean;
         executionTime?: number;
         onCancel?: () => void;
+        onCountUpdate?: () => void;
+        isCountLoading?: boolean;
     }
 
     const dispatch = createEventDispatcher();
@@ -67,6 +70,8 @@
         isLoading = false,
         executionTime = 0,
         onCancel,
+        onCountUpdate,
+        isCountLoading = false,
     }: Props = $props();
 
     let exportOpen = $state(false);
@@ -276,11 +281,16 @@
                             >
                         </Menu.Item>
                     {/each}
-                    <!-- All option (simulated) -->
+                    <!-- All option -->
                     <Menu.Item
-                        class="w-full text-left px-2 py-1.5 text-xs rounded flex items-center gap-2 hover:bg-muted/80 cursor-pointer"
+                        class="w-full text-left px-1 py-1.5 text-xs rounded flex items-center gap-2 hover:bg-muted/80 cursor-pointer"
+                        onclick={() => handlePageSize(0)}
                     >
-                        <div class="size-3"></div>
+                        {#if pageSize === 0}
+                            <IconCheck class="size-3 pointer-events-none" />
+                        {:else}
+                            <div class="size-3"></div>
+                        {/if}
                         <span>All</span>
                     </Menu.Item>
                 </div>
@@ -291,11 +301,18 @@
             <span>of</span>
 
             <button
-                class="mx-1 h-6 font-normal text-[0.7rem] w-full px-2 hover:bg-muted/60 rounded-md hover:border-border border-0"
+                class="mx-1 h-6 font-normal text-[0.7rem] w-full px-2 hover:bg-muted/60 rounded-md hover:border-border border-0 flex justify-center items-center"
+                title="Click to update (runs SELECT COUNT(*) FROM ...)"
+                onclick={() => onCountUpdate?.()}
+                disabled={isCountLoading}
             >
                 <span class="inline-flex items-center gap-0.5">
-                    <span>{totalRows || "0"}</span>
-                    <span>{showPlus ? "+" : ""}</span>
+                    {#if isCountLoading}
+                        <IconLoader2 class="size-3 animate-spin" />
+                    {:else}
+                        <span>{totalRows || "0"}</span>
+                        <span>{showPlus ? "+" : ""}</span>
+                    {/if}
                 </span>
             </button>
         </span>
