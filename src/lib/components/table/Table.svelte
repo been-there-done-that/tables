@@ -993,16 +993,14 @@
         };
     });
 
-    let headerContainer: HTMLDivElement;
     let tableContainer: HTMLDivElement;
+    // let headerContainer: HTMLDivElement; // Removed in Unified Scroll refactor
     let tableBody: TableBody;
 
     function handleBodyScroll(e: Event) {
         const target = e.target as HTMLDivElement;
         scrollLeft = target.scrollLeft;
-        if (headerContainer) {
-            headerContainer.scrollLeft = scrollLeft;
-        }
+        // Manual header sync is removed as we use sticky header inside Body
 
         const nearBottomThreshold = 800;
         const scrolledBottom =
@@ -1610,13 +1608,11 @@
         const right = left + colWidth;
 
         // We need the scrollable container's width and scrollLeft.
-        // We don't have direct access to the VirtualScroller's container DOM from here easily
-        // unless we expose getters.
-        // But `handleBodyScroll` updates `scrollLeft`.
-        // And `headerContainer` width is roughly the viewport width (minus scrollbar).
-
-        if (headerContainer) {
-            const containerWidth = headerContainer.clientWidth;
+        // With unified scrolling, we can use tableBody.getContainer()
+        const scrollContainer = tableBody?.getContainer?.();
+        if (scrollContainer) {
+            const containerWidth = scrollContainer.clientWidth;
+            const scrollLeft = scrollContainer.scrollLeft;
 
             if (left < scrollLeft) {
                 console.info("[Table] ensureCellVisible:left", {
@@ -1854,8 +1850,7 @@
         e.preventDefault();
     }}
     onclick={(e) => {
-        const clickedOnBackground =
-            e.target === tableContainer || e.target === headerContainer;
+        const clickedOnBackground = e.target === tableContainer;
 
         if (clickedOnBackground) {
             // Clicking on empty space: clear selection
@@ -1863,38 +1858,7 @@
         }
     }}
 >
-    <!-- Header -->
-    <div bind:this={headerContainer} class="flex-none overflow-hidden">
-        <div
-            class="border-b border-border bg-surface"
-            style="width: {totalWidth + 60}px;"
-        >
-            <TableHeader
-                columns={visibleColumns}
-                {sortState}
-                {filters}
-                {pinnedColumnIds}
-                onSort={handleSort}
-                onClearSort={handleClearSort}
-                onOpenInQueryEditor={handleOpenInQueryEditor}
-                onOpenNewQueryTab={handleOpenNewQueryTab}
-                onFilter={handleFilterChange}
-                onResize={handleResize}
-                onResetColumnWidth={handleResetColumnWidth}
-                onMoveColumn={handleMoveColumn}
-                onPinColumn={handlePinColumn}
-                onUnpinColumn={handleUnpinColumn}
-                onResetColumnOrder={handleResetColumnOrder}
-                onResetAll={handleResetAll}
-                onHideColumn={handleHideColumn}
-                onHideOtherColumns={handleHideOtherColumns}
-                onShowColumnList={handleShowColumnList}
-                {getUniqueValues}
-            />
-        </div>
-    </div>
-
-    <!-- Body -->
+    <!-- Combined Header & Body -->
     <div class="flex-1 overflow-hidden relative">
         <TableBody
             bind:this={tableBody}
@@ -1915,7 +1879,34 @@
             onCellContextMenu={handleCellContextMenu}
             onEditComplete={handleEditComplete}
             onEditCancel={handleEditCancel}
-        />
+        >
+            {#snippet header()}
+                <div class="border-b border-border bg-surface w-full">
+                    <TableHeader
+                        columns={visibleColumns}
+                        {sortState}
+                        {filters}
+                        {pinnedColumnIds}
+                        onSort={handleSort}
+                        onClearSort={handleClearSort}
+                        onOpenInQueryEditor={handleOpenInQueryEditor}
+                        onOpenNewQueryTab={handleOpenNewQueryTab}
+                        onFilter={handleFilterChange}
+                        onResize={handleResize}
+                        onResetColumnWidth={handleResetColumnWidth}
+                        onMoveColumn={handleMoveColumn}
+                        onPinColumn={handlePinColumn}
+                        onUnpinColumn={handleUnpinColumn}
+                        onResetColumnOrder={handleResetColumnOrder}
+                        onResetAll={handleResetAll}
+                        onHideColumn={handleHideColumn}
+                        onHideOtherColumns={handleHideOtherColumns}
+                        onShowColumnList={handleShowColumnList}
+                        {getUniqueValues}
+                    />
+                </div>
+            {/snippet}
+        </TableBody>
     </div>
 
     {#if contextMenuState?.open}

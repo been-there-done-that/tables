@@ -6,6 +6,7 @@
         itemHeight: number;
         class?: string;
         children: import("svelte").Snippet<[any, number]>;
+        header: import("svelte").Snippet;
         onScroll?: (e: Event) => void;
     }
 
@@ -14,6 +15,7 @@
         itemHeight,
         class: className,
         children,
+        header,
         onScroll,
     }: Props = $props();
 
@@ -100,14 +102,15 @@
     style="overflow: auto; height: 100%;"
     onscroll={handleScroll}
 >
-    <div
-        style="height: {totalHeight}px; position: relative; min-width: fit-content;"
-    >
-        <div
-            style="transform: translateY({offsetY}px); position: absolute; top: 0; left: 0; right: 0;"
-        >
-            {#each visibleItems as item, i (item._rowId || startIndex + i)}
-                {@render children(item, startIndex + i)}
+    {#if header}
+        <div class="sticky top-0 z-10 w-fit min-w-full">
+            {@render header()}
+        </div>
+    {/if}
+    <div style="height: {totalHeight}px; width: 100%; position: relative;">
+        <div style="position: absolute; top: {offsetY}px; width: 100%;">
+            {#each visibleItems as item, i (item._rowId || i + startIndex)}
+                {@render children(item, i + startIndex)}
             {/each}
         </div>
     </div>
