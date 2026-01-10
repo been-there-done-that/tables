@@ -155,6 +155,35 @@ class WindowStateStore {
     }
 
     async restoreForConnection(connection: Connection) {
+        // 1. Stash current sessions to their respective connection keys
+        if (this.sessions.length > 0) {
+            console.log("[WindowStateStore] Stashing existing sessions before switch...");
+            const sessionsByConn = new Map<string, Session[]>();
+
+            // Group sessions by connection to ensure we save them to the correct buckets
+            // (fixes issue where mixed sessions were saved to the wrong connection key)
+            for (const s of this.sessions) {
+                if (!sessionsByConn.has(s.connectionId)) {
+                    sessionsByConn.set(s.connectionId, []);
+                }
+                sessionsByConn.get(s.connectionId)!.push(s);
+            }
+
+            for (const [connId, sessions] of sessionsByConn) {
+                // Determine active session ID for this group (if applicable)
+                const activeId = this.activeSessionId && sessions.some(s => s.id === this.activeSessionId)
+                    ? this.activeSessionId
+                    : null;
+
+                await persistenceStore.saveSessionState(sessions, activeId, this.label, connId);
+            }
+        }
+
+        // 2. Clear workspace completely
+        this.sessions = [];
+        this.activeSessionId = null;
+
+        // 3. Restore state for the new connection
         console.log(`[WindowStateStore] Restoring sessions for connection: ${connection.id}`);
         const persistedState = await persistenceStore.loadSessionState(this.label, connection.id);
 

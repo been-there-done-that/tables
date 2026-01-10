@@ -11,6 +11,7 @@
     import IconDatabase from "@tabler/icons-svelte/icons/database";
     import PlaylistAdd from "@tabler/icons-svelte/icons/playlist-add";
     import ExplorerToolbar from "../ExplorerToolbar.svelte";
+    import { getDefaultDatabase } from "$lib/engine-config";
 
     let fileTree = $state<any>(null);
     let selectedNodeId = $state<string | null>(null);
@@ -262,7 +263,9 @@
                 if (tableParts.length >= 2) {
                     const schemaName = tableParts[0];
                     const tableName = tableParts[1];
-                    const dbName = schemaStore.selectedDatabase || "main";
+                    const dbName =
+                        schemaStore.selectedDatabase ||
+                        getDefaultDatabase("postgres");
 
                     activeSession.openView("table", tableName, {
                         tableName,

@@ -5,6 +5,7 @@
     import { invoke } from "@tauri-apps/api/core";
     import { schemaStore } from "$lib/stores/schema.svelte";
     import { windowState } from "$lib/stores/window.svelte";
+    import { getDefaultDatabase, getDefaultSchema } from "$lib/engine-config";
 
     interface Props {
         context: {
@@ -22,11 +23,16 @@
     const schemaName = $derived(context.schemaName);
     const databaseName = $derived(context.databaseName);
 
-    // Derive connection ID from schemaStore
+    // Derive connection ID and engine from schemaStore
     const connectionId = $derived(schemaStore.activeConnection?.id || "");
-    const effectiveSchema = $derived(schemaName || "public");
+    const engine = $derived(schemaStore.activeConnection?.engine);
+
+    // Use centralized engine config for defaults (supports PostgreSQL, SQLite, MySQL, SQL Server, etc.)
+    const effectiveSchema = $derived(schemaName || getDefaultSchema(engine));
     const effectiveDatabase = $derived(
-        databaseName || schemaStore.selectedDatabase || "main",
+        databaseName ||
+            schemaStore.selectedDatabase ||
+            getDefaultDatabase(engine),
     );
 
     // Unique key for forcing Table remount when table changes
@@ -311,6 +317,21 @@
     function handleOrderByChange(value: string) {
         orderByClause = value;
     }
+
+    async function handleCancel() {
+        if (!connectionId) return;
+
+        try {
+            const cancelled = await invoke<boolean>("cancel_query", {
+                connectionId,
+            });
+            if (cancelled) {
+                console.log("[TablePreview] Query cancelled");
+            }
+        } catch (error) {
+            console.error("[TablePreview] Failed to cancel query:", error);
+        }
+    }
 </script>
 
 <div class="h-full w-full flex flex-col">
@@ -330,6 +351,7 @@
         onShowDdl={handleShowDdl}
         onWhereChange={handleWhereChange}
         onOrderByChange={handleOrderByChange}
+        onCancel={handleCancel}
         {isLoading}
         {executionTime}
     />
