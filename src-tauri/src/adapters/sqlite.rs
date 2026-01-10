@@ -238,38 +238,6 @@ impl SqliteAdapter {
             }
         }
     }
-
-    /// Convert a SQLite row value to JSON
-    fn sqlite_value_to_json(row: &rusqlite::Row, idx: usize) -> serde_json::Value {
-        // Try different types in order of likelihood
-        if let Ok(v) = row.get::<_, Option<i64>>(idx) {
-            match v {
-                Some(i) => return serde_json::Value::Number(i.into()),
-                None => return serde_json::Value::Null,
-            }
-        }
-        if let Ok(v) = row.get::<_, Option<f64>>(idx) {
-            if let Some(f) = v {
-                if let Some(n) = serde_json::Number::from_f64(f) {
-                    return serde_json::Value::Number(n);
-                }
-            }
-            return serde_json::Value::Null;
-        }
-        if let Ok(v) = row.get::<_, Option<String>>(idx) {
-            match v {
-                Some(s) => return serde_json::Value::String(s),
-                None => return serde_json::Value::Null,
-            }
-        }
-        if let Ok(v) = row.get::<_, Option<Vec<u8>>>(idx) {
-            match v {
-                Some(b) => return serde_json::Value::String(format!("[{} bytes]", b.len())),
-                None => return serde_json::Value::Null,
-            }
-        }
-        serde_json::Value::Null
-    }
 }
 
 use crate::schema_types::{SqliteAffinity, SemanticHint, SqliteTypeMeta, EngineType, EngineTypeMeta, DatabaseEngine};
@@ -310,7 +278,7 @@ impl DatabaseAdapter for SqliteAdapter {
             .ok_or_else(|| AdapterError::Connection("Not connected".to_string()))?;
         
         let mut stmt = conn.prepare(query_str)
-            .map_err(|e| AdapterError::Query(format!("Failed to prepare query: {}", e)))?;
+            .map_err(|e| AdapterError::Query(crate::sqlite_utils::format_sqlite_error(&e)))?;
         
         // Get column names
         let column_count = stmt.column_count();
@@ -326,11 +294,11 @@ impl DatabaseAdapter for SqliteAdapter {
         let rows: Vec<serde_json::Value> = stmt.query_map([], |row| {
             let mut obj = serde_json::Map::new();
             for (i, name) in column_names.iter().enumerate() {
-                let value = Self::sqlite_value_to_json(row, i);
+                let value = crate::sqlite_utils::sqlite_value_to_json(row, i);
                 obj.insert(name.clone(), value);
             }
             Ok(serde_json::Value::Object(obj))
-        }).map_err(|e| AdapterError::Query(format!("Query failed: {}", e)))?
+        }).map_err(|e| AdapterError::Query(crate::sqlite_utils::format_sqlite_error(&e)))?
           .filter_map(|r| r.ok())
           .collect();
 
@@ -348,7 +316,7 @@ impl DatabaseAdapter for SqliteAdapter {
             .ok_or_else(|| AdapterError::Connection("Not connected".to_string()))?;
 
         let affected = conn.execute(statement, [])
-            .map_err(|e| AdapterError::Query(format!("Execute failed: {}", e)))?;
+            .map_err(|e| AdapterError::Query(crate::sqlite_utils::format_sqlite_error(&e)))?;
 
         Ok(affected as u64)
     }
@@ -397,7 +365,7 @@ impl DatabaseAdapter for SqliteAdapter {
 
         let mut stmt = conn
             .prepare("SELECT name, type FROM sqlite_master WHERE type IN ('table', 'view') AND name NOT LIKE 'sqlite_%'")
-            .map_err(|e| AdapterError::Query(e.to_string()))?;
+            .map_err(|e| AdapterError::Query(crate::sqlite_utils::format_sqlite_error(&e)))?;
 
         info!("[SQLITE_DEBUG] list_tables for {} - Query prepared", self.config.path);
 
@@ -419,10 +387,10 @@ impl DatabaseAdapter for SqliteAdapter {
                     triggers: vec![],
                 })
             })
-            .map_err(|e| AdapterError::Query(e.to_string()))?;
+            .map_err(|e| AdapterError::Query(crate::sqlite_utils::format_sqlite_error(&e)))?;
 
         rows.collect::<Result<Vec<_>, _>>()
-            .map_err(|e| AdapterError::Query(e.to_string()))
+            .map_err(|e| AdapterError::Query(crate::sqlite_utils::format_sqlite_error(&e)))
     }
 
     async fn list_columns(&self, table: &TableRef) -> Result<Vec<MetaColumn>, AdapterError> {
@@ -446,7 +414,7 @@ impl DatabaseAdapter for SqliteAdapter {
                 "SELECT cid, name, type, notnull, dflt_value, pk, hidden FROM pragma_table_xinfo('{}')",
                 table.name
             ))
-            .map_err(|e| AdapterError::Query(e.to_string()))?;
+            .map_err(|e| AdapterError::Query(crate::sqlite_utils::format_sqlite_error(&e)))?;
 
         let rows = stmt
             .query_map([], |row| {
@@ -495,10 +463,10 @@ impl DatabaseAdapter for SqliteAdapter {
                     normalized_type: None,
                 })
             })
-            .map_err(|e| AdapterError::Query(e.to_string()))?;
+            .map_err(|e| AdapterError::Query(crate::sqlite_utils::format_sqlite_error(&e)))?;
 
         rows.collect::<Result<Vec<_>, _>>()
-            .map_err(|e| AdapterError::Query(e.to_string()))
+            .map_err(|e| AdapterError::Query(crate::sqlite_utils::format_sqlite_error(&e)))
     }
 
     async fn list_indexes(&self, table: &TableRef) -> Result<Vec<MetaIndex>, AdapterError> {
@@ -509,7 +477,7 @@ impl DatabaseAdapter for SqliteAdapter {
 
         let mut stmt = conn
             .prepare(&format!("SELECT name, \"unique\" FROM pragma_index_list('{}')", table.name))
-            .map_err(|e| AdapterError::Query(e.to_string()))?;
+            .map_err(|e| AdapterError::Query(crate::sqlite_utils::format_sqlite_error(&e)))?;
 
         let rows = stmt
             .query_map([], |row| {
@@ -522,10 +490,10 @@ impl DatabaseAdapter for SqliteAdapter {
                     is_unique: row.get::<_, i32>(1)? != 0,
                 })
             })
-            .map_err(|e| AdapterError::Query(e.to_string()))?;
+            .map_err(|e| AdapterError::Query(crate::sqlite_utils::format_sqlite_error(&e)))?;
 
         rows.collect::<Result<Vec<_>, _>>()
-            .map_err(|e| AdapterError::Query(e.to_string()))
+            .map_err(|e| AdapterError::Query(crate::sqlite_utils::format_sqlite_error(&e)))
     }
 
     async fn list_foreign_keys(&self, table: &TableRef) -> Result<Vec<MetaForeignKey>, AdapterError> {
@@ -536,7 +504,7 @@ impl DatabaseAdapter for SqliteAdapter {
 
         let mut stmt = conn
             .prepare(&format!("PRAGMA foreign_key_list('{}')", table.name))
-            .map_err(|e| AdapterError::Query(e.to_string()))?;
+            .map_err(|e| AdapterError::Query(crate::sqlite_utils::format_sqlite_error(&e)))?;
 
         let rows = stmt
             .query_map([], |row| {
@@ -561,10 +529,10 @@ impl DatabaseAdapter for SqliteAdapter {
                     seq_no: seq + 1,
                 })
             })
-            .map_err(|e| AdapterError::Query(e.to_string()))?;
+            .map_err(|e| AdapterError::Query(crate::sqlite_utils::format_sqlite_error(&e)))?;
 
         rows.collect::<Result<Vec<_>, _>>()
-            .map_err(|e| AdapterError::Query(e.to_string()))
+            .map_err(|e| AdapterError::Query(crate::sqlite_utils::format_sqlite_error(&e)))
     }
 
     async fn list_triggers(&self, _table: &TableRef) -> Result<Vec<MetaTrigger>, AdapterError> {
