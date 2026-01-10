@@ -3,6 +3,8 @@
     import type { Column, RowSelection, CellSelection } from "./types";
     import TableRow from "./TableRow.svelte";
     import VirtualScroller from "./VirtualScroller.svelte";
+    import TableEmptyState from "./TableEmptyState.svelte";
+    import TableLoadingState from "./TableLoadingState.svelte";
 
     interface Props {
         rows: any[];
@@ -14,6 +16,8 @@
         pendingEdits: Record<number, any>;
         onRowSelect: (rowId: number, multi: boolean, range: boolean) => void;
         loading?: boolean;
+        emptyTitle?: string;
+        emptyDescription?: string;
         onScroll?: (e: Event) => void;
         onCellClick?: (
             rowIndex: number,
@@ -50,6 +54,8 @@
         pendingEdits,
         onRowSelect,
         loading,
+        emptyTitle,
+        emptyDescription,
         onScroll,
         onCellClick,
         onCellMouseDown,
@@ -60,6 +66,11 @@
         onEditCancel,
     }: Props = $props();
 
+    // Determine what state to show
+    const showLoading = $derived(loading && rows.length === 0);
+    const showEmpty = $derived(!loading && rows.length === 0);
+    const showData = $derived(rows.length > 0);
+
     let measuredItemHeight = $state(36);
     let container: HTMLDivElement;
     let virtualScroller: VirtualScroller;
@@ -67,9 +78,9 @@
     // Measure first row to keep virtual scroll math aligned with DOM
     $effect(() => {
         tick().then(() => {
-            const firstRow = container?.querySelector("[data-row]") as
-                | HTMLElement
-                | null;
+            const firstRow = container?.querySelector(
+                "[data-row]",
+            ) as HTMLElement | null;
             if (!firstRow) return;
             const h = firstRow.getBoundingClientRect().height;
             if (h && Math.abs(h - measuredItemHeight) > 0.5) {
@@ -105,33 +116,39 @@
 </script>
 
 <div class="h-full w-full relative" bind:this={container} data-table-container>
-    <VirtualScroller
-        bind:this={virtualScroller}
-        items={rows}
-        itemHeight={measuredItemHeight}
-        class="h-full w-full"
-        {onScroll}
-    >
-        {#snippet children(row: any, index: number)}
-            <TableRow
-                {row}
-                {columns}
-                rowIndex={index}
-                selected={!!selectedRows[row._rowId]}
-                {selectedCells}
-                {focusedCell}
-                {editingCell}
-                {pendingEdits}
-                disabled={loading}
-                {onRowSelect}
-                {onCellClick}
-                {onCellMouseDown}
-                {onCellMouseEnter}
-                {onCellDoubleClick}
-                {onCellContextMenu}
-                {onEditComplete}
-                {onEditCancel}
-            />
-        {/snippet}
-    </VirtualScroller>
+    {#if showLoading}
+        <TableLoadingState {columns} />
+    {:else if showEmpty}
+        <TableEmptyState title={emptyTitle} description={emptyDescription} />
+    {:else}
+        <VirtualScroller
+            bind:this={virtualScroller}
+            items={rows}
+            itemHeight={measuredItemHeight}
+            class="h-full w-full"
+            {onScroll}
+        >
+            {#snippet children(row: any, index: number)}
+                <TableRow
+                    {row}
+                    {columns}
+                    rowIndex={index}
+                    selected={!!selectedRows[row._rowId]}
+                    {selectedCells}
+                    {focusedCell}
+                    {editingCell}
+                    {pendingEdits}
+                    disabled={loading}
+                    {onRowSelect}
+                    {onCellClick}
+                    {onCellMouseDown}
+                    {onCellMouseEnter}
+                    {onCellDoubleClick}
+                    {onCellContextMenu}
+                    {onEditComplete}
+                    {onEditCancel}
+                />
+            {/snippet}
+        </VirtualScroller>
+    {/if}
 </div>
