@@ -614,9 +614,6 @@ fn postgres_value_to_json(row: &tokio_postgres::Row, idx: usize) -> serde_json::
     
     let col = &row.columns()[idx];
     
-    // Try different types - we need to handle NULL separately
-    // Check if value is null first by trying to get Option<T>
-    
     match *col.type_() {
         Type::BOOL => {
             if let Ok(Some(v)) = row.try_get::<_, Option<bool>>(idx) {
@@ -665,9 +662,49 @@ fn postgres_value_to_json(row: &tokio_postgres::Row, idx: usize) -> serde_json::
             }
         }
         Type::JSON | Type::JSONB => {
-            // tokio_postgres doesn't have built-in serde_json FromSql, so we get as string and parse
             if let Ok(Some(v)) = row.try_get::<_, Option<String>>(idx) {
                 serde_json::from_str(&v).unwrap_or(serde_json::Value::String(v))
+            } else {
+                serde_json::Value::Null
+            }
+        }
+        // Date types - format as ISO8601 strings
+        Type::DATE | Type::TIME | Type::TIMETZ | Type::TIMESTAMP | Type::TIMESTAMPTZ => {
+            if let Ok(Some(v)) = row.try_get::<_, Option<String>>(idx) {
+                serde_json::Value::String(v)
+            } else {
+                serde_json::Value::Null
+            }
+        }
+        // UUID - format as string
+        Type::UUID => {
+            if let Ok(Some(v)) = row.try_get::<_, Option<String>>(idx) {
+                serde_json::Value::String(v)
+            } else {
+                serde_json::Value::Null
+            }
+        }
+        // Numeric/Money - preserve as string to avoid precision loss
+        Type::NUMERIC | Type::MONEY => {
+            if let Ok(Some(v)) = row.try_get::<_, Option<String>>(idx) {
+                serde_json::Value::String(v)
+            } else {
+                serde_json::Value::Null
+            }
+        }
+        // OID - display as integer
+        Type::OID => {
+            if let Ok(Some(v)) = row.try_get::<_, Option<u32>>(idx) {
+                serde_json::Value::Number(v.into())
+            } else {
+                serde_json::Value::Null
+            }
+        }
+        // Bytea - encode as hex for safe display
+        Type::BYTEA => {
+            if let Ok(Some(v)) = row.try_get::<_, Option<Vec<u8>>>(idx) {
+                let hex: String = v.iter().map(|b| format!("{:02x}", b)).collect();
+                serde_json::Value::String(format!("\\x{}", hex))
             } else {
                 serde_json::Value::Null
             }
