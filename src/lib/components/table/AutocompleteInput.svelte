@@ -151,16 +151,15 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
     bind:this={containerRef}
-    class="relative flex items-center gap-1.5 {widthClass} min-w-0 cursor-text group"
-    onclick={() => {
-        inputRef?.focus();
-    }}
+    class="relative flex items-center gap-1 {widthClass} min-w-0 cursor-text group"
 >
-    <div class="flex items-center gap-1 text-muted-foreground shrink-0">
+    <div
+        class="flex items-center gap-1 text-muted-foreground shrink-0 select-none"
+    >
         {#if icon === "filter"}
-            <IconFilter class="h-3.5 w-3.5" />
+            <IconFilter class="size-4" />
         {:else}
-            <IconArrowsSort class="h-3.5 w-3.5" />
+            <IconArrowsSort class="size-4" />
         {/if}
         <span class="font-semibold uppercase tracking-wider">
             {icon === "filter" ? "WHERE" : "ORDER BY"}
