@@ -9,7 +9,6 @@
         IconChevronRight,
         IconRefresh,
         IconDownload,
-        IconPlayerStopFilled,
         IconPlayerSkipBack,
         IconPlayerSkipForward,
         IconChevronDown,
@@ -19,7 +18,7 @@
     } from "@tabler/icons-svelte";
     import * as Menu from "$lib/components/ui/dropdown-menu";
     import AutocompleteInput from "./AutocompleteInput.svelte";
-    import type { Column, SortState } from "./types";
+    import type { Column } from "./types";
 
     type ExportFormat = "csv" | "tsv" | "json" | "sql";
 
@@ -42,6 +41,7 @@
         onWhereChange?: (value: string) => void;
         onOrderByChange?: (value: string) => void;
         isLoading?: boolean;
+        executionTime?: number;
     }
 
     const dispatch = createEventDispatcher();
@@ -64,7 +64,7 @@
         onOrderByChange,
         isLoading = false,
         executionTime = 0,
-    }: Props & { executionTime?: number } = $props();
+    }: Props = $props();
 
     let exportOpen = $state(false);
     let pageSizeOpen = $state(false);
@@ -199,9 +199,7 @@
 <div
     class="flex items-center gap-2 px-2 h-8 text-xs w-full border-b border-border/70"
 >
-    <!-- Pagination -->
-    <!-- Pagination -->
-    <!-- Pagination -->
+    <!-- Pagination Controls -->
     <div class="flex items-center">
         <Button
             variant="ghost"
@@ -328,16 +326,6 @@
             onclick={handleExecute}
         >
             <IconPlayerPlayFilled class="size-5 text-green-500" />
-        </Button>
-
-        <Button
-            variant="ghost"
-            size="sm"
-            class="h-7"
-            title="Run (⌘+Enter)"
-            onclick={handleExecute}
-        >
-            <IconPlayerStopFilled class="size-5 text-red-500" />
         </Button>
 
         <Button
