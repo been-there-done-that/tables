@@ -94,6 +94,14 @@
             return () => resizeObserver.disconnect();
         }
     });
+
+    $effect(() => {
+        if (containerHeight === 0 && items.length > 0) {
+            // console.warn(
+            //     "[VirtualScroller] Container height is 0, items might be invisible",
+            // );
+        }
+    });
 </script>
 
 <div
