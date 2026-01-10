@@ -19,6 +19,7 @@ pub mod adapter;
 pub mod adapters;
 pub mod orchestrator;
 pub mod adapter_registry;
+pub mod pg_utils;
 #[cfg(test)]
 mod dci_tests;
 
