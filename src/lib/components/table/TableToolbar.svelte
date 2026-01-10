@@ -49,6 +49,7 @@
         isCountLoading?: boolean;
         currentBatchSize?: number;
         isExactTotal?: boolean;
+        onLastPage?: () => void;
     }
 
     const dispatch = createEventDispatcher();
@@ -76,6 +77,7 @@
         isCountLoading = false,
         currentBatchSize = 0,
         isExactTotal = false,
+        onLastPage,
     }: Props = $props();
 
     let exportOpen = $state(false);
@@ -169,7 +171,9 @@
     }
 
     function handleLast() {
-        if (onPageChange && totalRows > 0) {
+        if (onLastPage) {
+            onLastPage();
+        } else if (onPageChange && totalRows > 0) {
             const lastOffset =
                 Math.floor((totalRows - 1) / pageSize) * pageSize;
             onPageChange(lastOffset);
@@ -351,10 +355,10 @@
             size="icon"
             class="h-6 w-6"
             title="Last page"
-            disabled={!hasNext}
+            disabled={!showPlus}
             onclick={handleLast}
         >
-            <IconPlayerSkipForward class="size-4" />
+            <IconPlayerSkipForward class="size-4" stroke={3} />
         </Button>
     </div>
 
