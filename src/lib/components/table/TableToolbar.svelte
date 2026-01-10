@@ -15,6 +15,7 @@
         IconChevronDown,
         IconCheck,
         IconStopwatch,
+        IconClockPlay,
     } from "@tabler/icons-svelte";
     import * as Menu from "$lib/components/ui/dropdown-menu";
     import AutocompleteInput from "./AutocompleteInput.svelte";
@@ -155,6 +156,34 @@
         dispatch("export", { format });
         exportOpen = false;
     }
+    function handleAutoRefresh(ms: number) {
+        if (intervalId) clearInterval(intervalId);
+        intervalId = null;
+        currentAutoRefresh = ms;
+
+        if (ms > 0) {
+            intervalId = setInterval(() => {
+                handleRefresh();
+            }, ms);
+        }
+    }
+
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+    let currentAutoRefresh = $state(0);
+
+    onDestroy(() => {
+        if (intervalId) clearInterval(intervalId);
+    });
+
+    const autoRefreshOptions = [
+        { label: "Off", value: 0 },
+        { label: "5s", value: 5000 },
+        { label: "10s", value: 10000 },
+        { label: "30s", value: 30000 },
+        { label: "1m", value: 60000 },
+        { label: "5m", value: 300000 },
+    ];
+
     function onKeyDown(e: KeyboardEvent) {
         if ((e.metaKey || e.ctrlKey) && e.key === "r") {
             e.preventDefault();
@@ -323,6 +352,46 @@
                 class="size-5 {isLoading ? 'animate-spin-reverse' : ''}"
             />
         </Button>
+
+        <Menu.Root>
+            <Menu.Trigger>
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    class={cn(
+                        "h-7",
+                        currentAutoRefresh > 0 &&
+                            "border-2 border-transparent rounded-md bg-origin-border [background-clip:padding-box,border-box] [background-image:linear-gradient(var(--theme-bg-secondary),var(--theme-bg-secondary)),linear-gradient(to_right,#ef4444,#f97316,#eab308,#22c55e,#3b82f6,#8b5cf6,#ec4899)]",
+                    )}
+                    title="Auto Refresh"
+                >
+                    <IconClockPlay class="size-5" />
+                </Button>
+            </Menu.Trigger>
+            <Menu.Content
+                class="w-32 border border-(--theme-border-default) bg-(--theme-bg-secondary) shadow-lg"
+                align="start"
+            >
+                <div
+                    class="px-2 py-1.5 text-[10px] uppercase font-bold text-muted-foreground border-b border-border/50 bg-muted/30"
+                >
+                    Auto Refresh
+                </div>
+                <div class="p-1 flex flex-col gap-0.5">
+                    {#each autoRefreshOptions as option}
+                        <Menu.Item
+                            class="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted cursor-pointer flex items-center justify-between"
+                            onclick={() => handleAutoRefresh(option.value)}
+                        >
+                            <span>{option.label}</span>
+                            {#if currentAutoRefresh === option.value}
+                                <IconCheck class="size-3" />
+                            {/if}
+                        </Menu.Item>
+                    {/each}
+                </div>
+            </Menu.Content>
+        </Menu.Root>
     </div>
 
     <div class="w-px h-5 bg-border/50"></div>
