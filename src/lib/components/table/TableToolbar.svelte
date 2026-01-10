@@ -161,6 +161,8 @@
             handleRefresh();
         }
     }
+
+    const showPlus = $derived(totalRows <= pageSize);
 </script>
 
 <svelte:window onkeydown={onKeyDown} />
@@ -170,7 +172,8 @@
 >
     <!-- Pagination -->
     <!-- Pagination -->
-    <div class="flex items-center gap-1">
+    <!-- Pagination -->
+    <div class="flex items-center">
         <Button
             variant="ghost"
             size="icon"
@@ -179,7 +182,7 @@
             disabled={!hasPrev}
             onclick={handleFirst}
         >
-            <IconPlayerSkipBack class="size-3.5" />
+            <IconPlayerSkipBack class="size-4" stroke={3} />
         </Button>
         <Button
             variant="ghost"
@@ -189,23 +192,27 @@
             disabled={!hasPrev}
             onclick={handlePrev}
         >
-            <IconChevronLeft class="size-3.5" />
+            <IconChevronLeft class="size-4" />
         </Button>
 
         <Menu.Root bind:open={pageSizeOpen}>
             <Menu.Trigger>
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    class="h-6 px-1 gap-1 text-[11px] font-normal min-w-[60px]"
+                <button
+                    class="mx-1 h-6 font-normal text-[0.7rem] w-full px-2 hover:bg-muted/60 rounded-md hover:border-border border-0"
                 >
-                    {#if totalRows > 0}
-                        {startRow}-{endRow}
-                    {:else}
-                        0-0
-                    {/if}
-                    <IconChevronDown class="size-3 opacity-50" />
-                </Button>
+                    <div class=" flex justify-between items-center">
+                        <span>
+                            {#if totalRows > 0}
+                                {startRow}-{endRow}
+                            {:else}
+                                0-0
+                            {/if}
+                        </span>
+                        <span>
+                            <IconChevronDown class="size-3 opacity-50" />
+                        </span>
+                    </div>
+                </button>
             </Menu.Trigger>
             <Menu.Content
                 class="w-20 p-0 border border-(--theme-border-default) bg-(--theme-bg-secondary) shadow-lg"
@@ -245,8 +252,17 @@
             </Menu.Content>
         </Menu.Root>
 
-        <span class="text-muted-foreground text-[11px] tabular-nums px-1">
-            of {totalRows ? totalRows.toLocaleString() : "0"}
+        <span class="inline-flex items-center text-[11px] tabular-nums">
+            <span>of</span>
+
+            <button
+                class="mx-1 h-6 font-normal text-[0.7rem] w-full px-2 hover:bg-muted/60 rounded-md hover:border-border border-0"
+            >
+                <span class="inline-flex items-center gap-0.5">
+                    <span>{totalRows || "0"}</span>
+                    <span>{showPlus ? "+" : ""}</span>
+                </span>
+            </button>
         </span>
 
         <Button
@@ -257,7 +273,7 @@
             disabled={!hasNext}
             onclick={handleNext}
         >
-            <IconChevronRight class="size-3.5" />
+            <IconChevronRight class="size-4" />
         </Button>
         <Button
             variant="ghost"
@@ -267,7 +283,7 @@
             disabled={!hasNext}
             onclick={handleLast}
         >
-            <IconPlayerSkipForward class="size-3.5" />
+            <IconPlayerSkipForward class="size-4" />
         </Button>
     </div>
 
