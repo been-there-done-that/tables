@@ -100,8 +100,10 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
     class={cn(
-        "flex w-fit border-b border-border hover:bg-muted transition-colors cursor-default",
-        selected ? "bg-surface text-foreground" : "bg-background text-foreground",
+        "flex min-w-full w-fit border-b border-border hover:bg-muted transition-colors cursor-default",
+        selected
+            ? "bg-surface text-foreground"
+            : "bg-background text-foreground",
         disabled && "opacity-70 pointer-events-none",
     )}
     onclick={handleClick}
