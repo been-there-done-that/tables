@@ -288,15 +288,17 @@
 
     function handlePageChange(newOffset: number) {
         currentOffset = newOffset;
-        // The Table component will handle this via its own pagination
-        // For now, trigger a refresh
+        // Offset is bound to Table component, so no need to manually refresh if Table reacts to it?
+        // Actually, Table relies on dataFetcher reference changing or explicit refresh call.
+        // Changing 'offset' prop might trigger updates if Table uses it purely for display or next fetch.
+        // But Table calls loadData().
+        // Let's ensure Table refreshes.
         tableRef?.refresh?.();
     }
 
     function handlePageSizeChange(newSize: number) {
         pageSize = newSize;
         currentOffset = 0; // Reset to first page
-        // We pass 'limit' to Table via prop, so just refreshing or letting reactivity handle it
         tableRef?.refresh?.();
     }
 
@@ -316,6 +318,32 @@
 
     function handleOrderByChange(value: string) {
         orderByClause = value;
+    }
+
+    let isCountLoading = $state(false);
+
+    async function handleCountUpdate() {
+        if (!connectionId) return;
+
+        isCountLoading = true;
+        try {
+            const sql = `SELECT COUNT(*) as count FROM "${effectiveSchema}"."${tableName}" ${whereClause ? `WHERE ${whereClause}` : ""}`;
+            const res = await invoke<{ rows: any[] }>("execute_query", {
+                connectionId,
+                database: effectiveDatabase,
+                schema: effectiveSchema,
+                query: sql,
+            });
+
+            if (res.rows && res.rows.length > 0) {
+                const count = Number(Object.values(res.rows[0])[0]);
+                totalRows = count;
+            }
+        } catch (e) {
+            console.error("Failed to update count", e);
+        } finally {
+            isCountLoading = false;
+        }
     }
 
     async function handleCancel() {
@@ -352,6 +380,8 @@
         onWhereChange={handleWhereChange}
         onOrderByChange={handleOrderByChange}
         onCancel={handleCancel}
+        onCountUpdate={handleCountUpdate}
+        {isCountLoading}
         {isLoading}
         {executionTime}
     />
@@ -367,6 +397,7 @@
                 onApplyEdits={handleApplyEdits}
                 bind:isLoading
                 limit={pageSize}
+                bind:offset={currentOffset}
             />
         </div>
     {/key}

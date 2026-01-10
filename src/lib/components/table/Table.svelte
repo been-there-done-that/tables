@@ -38,6 +38,7 @@
         onViewStateChange?: (state: any) => void;
         isLoading?: boolean;
         limit?: number;
+        offset?: number;
     }
 
     let {
@@ -53,6 +54,7 @@
         onViewStateChange,
         isLoading = $bindable(false),
         limit = $bindable(500),
+        offset = $bindable(0),
     }: Props = $props();
 
     type ClipboardApi = {
@@ -210,7 +212,8 @@
     let containerHeight = $state(0);
 
     // Pagination state (for server-side pagination)
-    let offset = $state(viewState?.offset || 0);
+    // Offset is now controlled via bindable prop from parent (TablePreview)
+    // let offset = $state(viewState?.offset || 0);
     // limit is now a prop, but we might want to respect viewState if prop not provided?
     // The prop default is 500.
     // If we want viewState to override default but prop to override viewState... complex.
