@@ -1,5 +1,29 @@
 import type { Column, EditorConfig } from "./types";
 
+/**
+ * Helper function to detect if a column type represents an array
+ * Handles multiple database formats:
+ * - PostgreSQL: uuid[], text[], integer[], etc.
+ * - PostgreSQL internal: _uuid, _text, _int4, etc.
+ * - Generic: types containing "array"
+ */
+function isArrayType(type: string): boolean {
+    if (!type) return false;
+    const lower = type.toLowerCase();
+
+    // PostgreSQL array syntax: uuid[], text[], integer[]
+    if (lower.includes('[]')) return true;
+
+    // PostgreSQL internal array types: _uuid, _text, _int4
+    // These start with underscore followed by base type
+    if (lower.startsWith('_')) return true;
+
+    // Generic array indicators
+    if (lower.includes('array')) return true;
+
+    return false;
+}
+
 export function resolveEditor(
     column: Column,
     value: any,
@@ -42,6 +66,15 @@ export function resolveEditor(
         };
     }
 
+    // Special case: Arrays -> JSON popover editor
+    // This handles PostgreSQL arrays (uuid[], text[], _uuid), MySQL JSON arrays, and SQLite arrays
+    if (isArrayType(type) || Array.isArray(value)) {
+        return {
+            mode: "popover",
+            renderer: "json"
+        };
+    }
+
     // Special case: Date/Time -> popover
     if (type === "date" || type === "time" || type === "datetime") {
         return {
@@ -76,3 +109,4 @@ export function resolveEditor(
         renderer: "text"
     };
 }
+
