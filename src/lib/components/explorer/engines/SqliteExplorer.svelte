@@ -253,6 +253,7 @@
                     metadata?.dbName ||
                     schemaStore.selectedDatabase ||
                     getDefaultDatabase("sqlite"),
+                connectionId: schemaStore.activeConnection?.id,
             });
         } else if (
             node.type === "column" ||
@@ -275,6 +276,7 @@
                         tableName,
                         schemaName,
                         databaseName: dbName,
+                        connectionId: schemaStore.activeConnection?.id,
                     });
                     return;
                 }
