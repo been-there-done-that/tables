@@ -472,7 +472,7 @@ async fn fetch_postgres_preview(
             schema, table_name, where_part
         );
         let count_row = client.query_one(&count_query, &[]).await
-            .map_err(|e| format!("Count query failed: {}", e))?;
+            .map_err(|e| crate::pg_utils::format_postgres_error(&e))?;
         Some(count_row.get(0))
     } else {
         None
@@ -490,7 +490,7 @@ async fn fetch_postgres_preview(
         schema, table_name, where_part, order_part, limit, offset
     );
     let rows = client.query(&data_query, &[]).await
-        .map_err(|e| format!("Data query failed: {}", e))?;
+        .map_err(|e| crate::pg_utils::format_postgres_error(&e))?;
 
     // Extract column info from the first row or query
     let columns: Vec<ColumnInfo> = if !rows.is_empty() {
@@ -506,7 +506,7 @@ async fn fetch_postgres_preview(
             "SELECT column_name, data_type FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2 ORDER BY ordinal_position"
         );
         let col_rows = client.query(&cols_query, &[&schema, &table_name]).await
-            .map_err(|e| format!("Column query failed: {}", e))?;
+            .map_err(|e| crate::pg_utils::format_postgres_error(&e))?;
         col_rows.iter().map(|row| {
             ColumnInfo {
                 name: row.get(0),
