@@ -246,6 +246,7 @@
                 tableName: node.name,
                 schemaName: metadata?.schemaName,
                 databaseName: metadata?.dbName,
+                connectionId: schemaStore.activeConnection?.id,
             });
         } else if (
             node.type === "column" ||
@@ -271,6 +272,7 @@
                         tableName,
                         schemaName,
                         databaseName: dbName,
+                        connectionId: schemaStore.activeConnection?.id,
                     });
                     return;
                 }
