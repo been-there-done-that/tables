@@ -6,6 +6,47 @@
 use serde_json;
 use tokio_postgres::types::Type;
 
+/// Format a PostgreSQL error with all available details (code, hint, position, etc.)
+/// This provides detailed error information matching DataGrip/psql output
+pub fn format_postgres_error(err: &tokio_postgres::Error) -> String {
+    // Check if this is a database error with rich metadata
+    if let Some(db_err) = err.as_db_error() {
+        let mut parts = Vec::new();
+        
+        // Error code (SQLSTATE) + main message
+        let code = db_err.code().code();
+        parts.push(format!("[{}] {}", code, db_err.message()));
+        
+        // Hint (if available) - provides actionable guidance
+        if let Some(hint) = db_err.hint() {
+            parts.push(format!("Hint: {}", hint));
+        }
+        
+        // Detail (if available) - additional context
+        if let Some(detail) = db_err.detail() {
+            parts.push(format!("Detail: {}", detail));
+        }
+        
+        // Position (if available) - character position in query
+        if let Some(position) = db_err.position() {
+            use tokio_postgres::error::ErrorPosition;
+            let pos_str = match position {
+                ErrorPosition::Original(p) => format!("Position: {}", p),
+                ErrorPosition::Internal { position, query } => {
+                    format!("Internal Position: {} in query: {}", position, query)
+                }
+            };
+            parts.push(pos_str);
+        }
+        
+        // Join all parts with newlines for readability
+        parts.join("\n")
+    } else {
+        // Not a DB error (connection issue, protocol error, etc.)
+        format!("Connection/Protocol Error: {}", err)
+    }
+}
+
 /// Convert a PostgreSQL row value to JSON based on the column type.
 ///
 /// This handles special types like UUID, timestamps, arrays, etc. that
