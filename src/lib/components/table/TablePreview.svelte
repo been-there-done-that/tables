@@ -23,8 +23,11 @@
     const schemaName = $derived(context.schemaName);
     const databaseName = $derived(context.databaseName);
 
-    // Derive connection ID and engine from schemaStore
-    const connectionId = $derived(schemaStore.activeConnection?.id || "");
+    // Derive connection ID and engine from schemaStore OR context
+    // Check context first to ensure we stick to the connection this tab was created for.
+    const connectionId = $derived(
+        context.connectionId || schemaStore.activeConnection?.id || "",
+    );
     const engine = $derived(schemaStore.activeConnection?.engine);
 
     // Use centralized engine config for defaults (supports PostgreSQL, SQLite, MySQL, SQL Server, etc.)
