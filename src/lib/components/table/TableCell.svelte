@@ -256,38 +256,42 @@
             onCommit={handleEditComplete}
             onCancel={handleEditCancel}
         />
-    {:else if isBoolean()}
-        <span
-            class="truncate select-none px-2 py-1 w-full h-full block text-xs"
-        >
-            {displayValue}
-        </span>
-    {:else if isJson()}
-        <span
-            class="truncate select-none px-2 py-1 w-full h-full block font-mono text-xs text-muted-foreground"
-        >
-            {jsonPreview(value)}
-        </span>
-    {:else if isBinary()}
-        {@const info = binaryInfo(value)}
-        <span
-            class="truncate select-none px-2 py-1 w-full h-full block font-mono text-xs text-muted-foreground"
-        >
-            {`len ${info.length}${info.preview ? ` · ${info.preview}` : ""}`}
-        </span>
-    {:else if isDateLike()}
-        <span class="truncate select-none px-2 py-1 w-full h-full block">
-            {formatDateValue(value)}
-        </span>
-    {:else if isLongText}
-        <span class="truncate select-none px-2 py-1 w-full h-full block">
-            {typeof displayValue === "string"
-                ? displayValue.slice(0, LONG_TEXT_THRESHOLD) + "…"
-                : displayValue}
-        </span>
-    {:else}
-        <span class="truncate select-none px-2 py-1 w-full h-full block">
-            {displayValue}
-        </span>
     {/if}
+
+    <div class={cn("w-full h-full truncate", isEditing && "invisible")}>
+        {#if isBoolean()}
+            <span
+                class="truncate select-none px-2 py-1 w-full h-full block text-xs"
+            >
+                {displayValue}
+            </span>
+        {:else if isJson()}
+            <span
+                class="truncate select-none px-2 py-1 w-full h-full block font-mono text-xs text-muted-foreground"
+            >
+                {jsonPreview(value)}
+            </span>
+        {:else if isBinary()}
+            {@const info = binaryInfo(value)}
+            <span
+                class="truncate select-none px-2 py-1 w-full h-full block font-mono text-xs text-muted-foreground"
+            >
+                {`len ${info.length}${info.preview ? ` · ${info.preview}` : ""}`}
+            </span>
+        {:else if isDateLike()}
+            <span class="truncate select-none px-2 py-1 w-full h-full block">
+                {formatDateValue(value)}
+            </span>
+        {:else if isLongText}
+            <span class="truncate select-none px-2 py-1 w-full h-full block">
+                {typeof displayValue === "string"
+                    ? displayValue.slice(0, LONG_TEXT_THRESHOLD) + "…"
+                    : displayValue}
+            </span>
+        {:else}
+            <span class="truncate select-none px-2 py-1 w-full h-full block">
+                {displayValue}
+            </span>
+        {/if}
+    </div>
 </div>

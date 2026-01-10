@@ -6,11 +6,12 @@
 
     // Import editors to register them (side-effect or explicit)
     import IndependentInlineTextEditor from "./editors/InlineTextEditor.svelte";
+    import NumberEditor from "./editors/NumberEditor.svelte"; // New inline editor
     import BooleanPopoverEditor from "./BooleanPopoverEditor.svelte";
     import EnumPopoverEditor from "./EnumPopoverEditor.svelte";
     import JsonPopoverEditor from "./JsonPopoverEditor.svelte";
     import DateTimePopoverEditor from "./DateTimePopoverEditor.svelte";
-    import NumberPopoverEditor from "./NumberPopoverEditor.svelte";
+    // import NumberPopoverEditor from "./NumberPopoverEditor.svelte"; // Deprecated
     // We map "TextPopoverEditor" to a registry key if needed, or use InlineTextEditor for "text"
     import TextPopoverEditor from "./TextPopoverEditor.svelte";
 
@@ -20,7 +21,7 @@
     registerEditorRenderer("enum", EnumPopoverEditor);
     registerEditorRenderer("json", JsonPopoverEditor);
     registerEditorRenderer("datetime", DateTimePopoverEditor);
-    registerEditorRenderer("number", NumberPopoverEditor);
+    registerEditorRenderer("number", NumberEditor);
     // You might want a "text-popover" for specific cases
     registerEditorRenderer("text-popover", TextPopoverEditor);
 
@@ -63,7 +64,7 @@
 </script>
 
 <div
-    class="w-full h-full"
+    class="absolute inset-0 z-20 w-full h-full"
     onmousedown={(e) => e.stopPropagation()}
     onclick={(e) => e.stopPropagation()}
     role="presentation"
