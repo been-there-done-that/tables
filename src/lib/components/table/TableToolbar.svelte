@@ -47,6 +47,8 @@
         onCancel?: () => void;
         onCountUpdate?: () => void;
         isCountLoading?: boolean;
+        currentBatchSize?: number;
+        isExactTotal?: boolean;
     }
 
     const dispatch = createEventDispatcher();
@@ -72,6 +74,8 @@
         onCancel,
         onCountUpdate,
         isCountLoading = false,
+        currentBatchSize = 0,
+        isExactTotal = false,
     }: Props = $props();
 
     let exportOpen = $state(false);
@@ -107,12 +111,27 @@
     ]);
 
     // Pagination calculations
-    const startRow = $derived(currentOffset + 1);
-    const endRow = $derived(Math.min(currentOffset + pageSize, totalRows));
-    const hasPrev = $derived(currentOffset > 0);
-    const hasNext = $derived(currentOffset + pageSize < totalRows);
+    // If rowCount > 0, start is offset+1. Else 0.
+    const startRow = $derived(currentBatchSize > 0 ? currentOffset + 1 : 0);
+    // End row is offset + loaded rows logic.
+    const endRow = $derived(currentOffset + currentBatchSize);
 
-    // Filter section width (resizable)
+    // Heuristic for hasNext:
+    // If we have an exact total, use standard math (offset + page < total).
+    // If NOT exact total, we assume next page exists if current page is FULL (fetched rows == pageSize).
+    // Because if fetch limit is 500, and we get 500, there MIGHT be row 501.
+    const hasPrev = $derived(currentOffset > 0);
+    const hasNext = $derived.by(() => {
+        if (isExactTotal) {
+            return currentOffset + pageSize < totalRows;
+        }
+        // Approximate mode: if we filled the page, assume there is more.
+        // Unless pageSize is 0 (All), then no next.
+        if (pageSize === 0) return false;
+        return currentBatchSize >= pageSize;
+    });
+
+    // ...
 
     function handleExecute() {
         if (onWhereChange) onWhereChange(whereClause);
@@ -204,7 +223,7 @@
         }
     }
 
-    const showPlus = $derived(totalRows <= pageSize);
+    const showPlus = $derived(!isExactTotal && hasNext);
 </script>
 
 <svelte:window onkeydown={onKeyDown} />

@@ -43,7 +43,12 @@
     // Toolbar state
     let tableRef: any = $state(null);
     let currentOffset = $state(0);
+    // currentBatchSize: number of rows returned in the last fetch
+    let currentBatchSize = $state(0);
     let totalRows = $state(0);
+    // isExactTotal: true if we have authoritative total from backend, false if we are guessing/accumulating
+    let isExactTotal = $state(false);
+
     let pageSize = $state(500);
     let whereClause = $state("");
     let orderByClause = $state("");
@@ -105,7 +110,21 @@
 
                 // Update toolbar state
                 columns = fetchedColumns;
-                totalRows = result.total ?? result.rows.length; // Fallback if total not fetched
+
+                // Logic for total rows and batch size
+                currentBatchSize = result.rows.length;
+
+                if (result.total !== null) {
+                    isExactTotal = true;
+                    totalRows = result.total;
+                } else {
+                    // We don't have an exact total.
+                    // If we found rows, we know at least (offset + count) exist.
+                    isExactTotal = false;
+                    const loadedCount = (offset ?? 0) + result.rows.length;
+                    totalRows = loadedCount;
+                }
+
                 currentOffset = offset ?? 0;
 
                 // Add _rowId to each row for the Table component
@@ -116,7 +135,7 @@
 
                 return {
                     rows: rowsWithId,
-                    total: result.total ?? result.rows.length,
+                    total: result.total ?? totalRows, // Pass best guess or exact
                     columns: fetchedColumns,
                 };
             } catch (error) {
@@ -338,6 +357,7 @@
             if (res.rows && res.rows.length > 0) {
                 const count = Number(Object.values(res.rows[0])[0]);
                 totalRows = count;
+                isExactTotal = true;
             }
         } catch (e) {
             console.error("Failed to update count", e);
@@ -381,6 +401,8 @@
         onOrderByChange={handleOrderByChange}
         onCancel={handleCancel}
         onCountUpdate={handleCountUpdate}
+        {currentBatchSize}
+        {isExactTotal}
         {isCountLoading}
         {isLoading}
         {executionTime}
