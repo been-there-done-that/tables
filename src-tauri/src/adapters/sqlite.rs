@@ -186,6 +186,14 @@ impl SqliteAdapter {
             SemanticHint::Time => "time".to_string(),
             SemanticHint::Decimal => "decimal".to_string(),
             SemanticHint::Enum { .. } => "enum".to_string(),
+            // Extension-aware hints are Postgres-specific, treat as None for SQLite
+            SemanticHint::CaseInsensitiveText | 
+            SemanticHint::Spatial | 
+            SemanticHint::Embedding { .. } | 
+            SemanticHint::Hierarchy | 
+            SemanticHint::KeyValue | 
+            SemanticHint::TimeSeries |
+            SemanticHint::Encrypted |
             SemanticHint::None => match affinity {
                 SqliteAffinity::Integer => "integer".to_string(),
                 SqliteAffinity::Text => "text".to_string(),

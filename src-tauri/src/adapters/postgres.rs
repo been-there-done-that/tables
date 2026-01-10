@@ -217,7 +217,27 @@ impl PostgresAdapter {
             };
         }
 
-        // 4. Scalar Mapping
+        // 4. Composite types (row types) - typtype = 'c'
+        if meta.type_kind == 'c' {
+            // Return as Composite with empty fields (field introspection requires separate query)
+            return NormalizedType::Composite { fields: vec![] };
+        }
+
+        // 5. Range types (Postgres 9.2+) - typtype = 'r'
+        if meta.type_kind == 'r' {
+            // Infer element type from range type name
+            let element = Self::infer_range_element(&meta.raw_type);
+            return NormalizedType::Range { element: Box::new(element) };
+        }
+
+        // 6. Multirange types (Postgres 14+) - typtype = 'm'
+        if meta.type_kind == 'm' {
+            // Infer element type from multirange type name
+            let element = Self::infer_range_element(&meta.raw_type);
+            return NormalizedType::MultiRange { element: Box::new(element) };
+        }
+
+        // 7. Scalar Mapping
         match meta.raw_type.as_str() {
             "int2" | "smallint" => NormalizedType::Integer { size: IntegerSize::Small, unsigned: false },
             "int4" | "integer" | "serial" | "serial4" => NormalizedType::Integer { size: IntegerSize::Normal, unsigned: false },
@@ -226,22 +246,116 @@ impl PostgresAdapter {
             "float8" | "double precision" => NormalizedType::Float { precision: FloatPrecision::Double },
             "numeric" | "decimal" | "money" => NormalizedType::Decimal,
             "bool" | "boolean" => NormalizedType::Boolean,
-            "text" | "varchar" | "char" | "bpchar" | "name" | "citext" => NormalizedType::Text,
+            "text" | "varchar" | "char" | "bpchar" | "name" => NormalizedType::Text,
+            "citext" => NormalizedType::Text, // citext gets semantic hint, not special normalized type
             "bytea" => NormalizedType::Binary,
             "date" => NormalizedType::Date,
             "time" | "time without time zone" => NormalizedType::Time,
             "timetz" | "time with time zone" => NormalizedType::Time, 
             "timestamp" | "timestamp without time zone" => NormalizedType::DateTime { timezone: false },
             "timestamptz" | "timestamp with time zone" => NormalizedType::DateTime { timezone: true },
+            "interval" => NormalizedType::Interval,
             "json" | "jsonb" => NormalizedType::Json,
             "uuid" => NormalizedType::Uuid,
+            // Range types by name (fallback if typtype not available)
+            "int4range" | "int8range" | "numrange" | "tsrange" | "tstzrange" | "daterange" => {
+                let element = Self::infer_range_element(&meta.raw_type);
+                NormalizedType::Range { element: Box::new(element) }
+            }
+            "int4multirange" | "int8multirange" | "nummultirange" | "tsmultirange" | "tstzmultirange" | "datemultirange" => {
+                let element = Self::infer_range_element(&meta.raw_type);
+                NormalizedType::MultiRange { element: Box::new(element) }
+            }
             _ => match meta.type_category {
                 'N' => NormalizedType::Decimal, 
                 'S' => NormalizedType::Text,  
                 'B' => NormalizedType::Boolean,
                 'D' => NormalizedType::DateTime { timezone: false },
+                'R' => {
+                    // Range category fallback
+                    let element = Self::infer_range_element(&meta.raw_type);
+                    NormalizedType::Range { element: Box::new(element) }
+                }
                 _ => NormalizedType::Custom { name: meta.raw_type.clone() },
             }
+        }
+    }
+
+    /// Infer the element type from a range/multirange type name
+    fn infer_range_element(type_name: &str) -> crate::schema_types::NormalizedType {
+        use crate::schema_types::{NormalizedType, IntegerSize};
+        
+        let name = type_name.to_lowercase();
+        if name.contains("int4") {
+            NormalizedType::Integer { size: IntegerSize::Normal, unsigned: false }
+        } else if name.contains("int8") {
+            NormalizedType::Integer { size: IntegerSize::Big, unsigned: false }
+        } else if name.contains("num") {
+            NormalizedType::Decimal
+        } else if name.contains("tstz") {
+            NormalizedType::DateTime { timezone: true }
+        } else if name.contains("ts") {
+            NormalizedType::DateTime { timezone: false }
+        } else if name.contains("date") {
+            NormalizedType::Date
+        } else {
+            NormalizedType::Unknown
+        }
+    }
+
+    /// Derive semantic hint from type name and installed extensions.
+    /// Extension presence enables semantic classification, but does not force it.
+    fn semantic_hint_from_extension(
+        type_name: &str,
+        extensions: &[crate::schema_types::ExtensionInfo],
+    ) -> Option<crate::schema_types::SemanticHint> {
+        use crate::schema_types::SemanticHint;
+        
+        let type_lower = type_name.to_lowercase();
+        
+        // Check for extension-provided types
+        let has_extension = |name: &str| extensions.iter().any(|e| e.name == name);
+        
+        // citext: case-insensitive text
+        if type_lower == "citext" && has_extension("citext") {
+            return Some(SemanticHint::CaseInsensitiveText);
+        }
+        
+        // PostGIS: spatial types
+        if (type_lower == "geometry" || type_lower == "geography") && has_extension("postgis") {
+            return Some(SemanticHint::Spatial);
+        }
+        
+        // pgvector: embedding vectors
+        if type_lower.starts_with("vector") && has_extension("vector") {
+            // Try to extract dimensions from vector(N)
+            let dimensions = type_name
+                .strip_prefix("vector(")
+                .and_then(|s| s.strip_suffix(")"))
+                .and_then(|s| s.parse::<usize>().ok());
+            return Some(SemanticHint::Embedding { dimensions });
+        }
+        
+        // ltree: hierarchical labels
+        if type_lower == "ltree" && has_extension("ltree") {
+            return Some(SemanticHint::Hierarchy);
+        }
+        
+        // hstore: key-value pairs
+        if type_lower == "hstore" && has_extension("hstore") {
+            return Some(SemanticHint::KeyValue);
+        }
+        
+        // Standard semantic hints (no extension required)
+        match type_lower.as_str() {
+            "uuid" => Some(SemanticHint::Uuid),
+            "json" | "jsonb" => Some(SemanticHint::Json),
+            "date" => Some(SemanticHint::Date),
+            "time" | "timetz" => Some(SemanticHint::Time),
+            "timestamp" | "timestamptz" => Some(SemanticHint::DateTime),
+            "bool" | "boolean" => Some(SemanticHint::Boolean),
+            "money" | "numeric" | "decimal" => Some(SemanticHint::Decimal),
+            _ => None,
         }
     }
 
@@ -301,6 +415,82 @@ impl PostgresAdapter {
             Type::JSON | Type::JSONB => {
                 if let Ok(Some(v)) = row.try_get::<_, Option<String>>(idx) {
                     serde_json::from_str(&v).unwrap_or(serde_json::Value::String(v))
+                } else {
+                    serde_json::Value::Null
+                }
+            }
+            // Date types - format as ISO8601 strings
+            Type::DATE => {
+                if let Ok(Some(v)) = row.try_get::<_, Option<String>>(idx) {
+                    serde_json::Value::String(v)
+                } else {
+                    serde_json::Value::Null
+                }
+            }
+            Type::TIME => {
+                if let Ok(Some(v)) = row.try_get::<_, Option<String>>(idx) {
+                    serde_json::Value::String(v)
+                } else {
+                    serde_json::Value::Null
+                }
+            }
+            Type::TIMETZ => {
+                if let Ok(Some(v)) = row.try_get::<_, Option<String>>(idx) {
+                    serde_json::Value::String(v)
+                } else {
+                    serde_json::Value::Null
+                }
+            }
+            Type::TIMESTAMP => {
+                if let Ok(Some(v)) = row.try_get::<_, Option<String>>(idx) {
+                    serde_json::Value::String(v)
+                } else {
+                    serde_json::Value::Null
+                }
+            }
+            Type::TIMESTAMPTZ => {
+                if let Ok(Some(v)) = row.try_get::<_, Option<String>>(idx) {
+                    serde_json::Value::String(v)
+                } else {
+                    serde_json::Value::Null
+                }
+            }
+            // UUID - format as string
+            Type::UUID => {
+                if let Ok(Some(v)) = row.try_get::<_, Option<String>>(idx) {
+                    serde_json::Value::String(v)
+                } else {
+                    serde_json::Value::Null
+                }
+            }
+            // Numeric/Money - preserve as string to avoid precision loss
+            Type::NUMERIC => {
+                if let Ok(Some(v)) = row.try_get::<_, Option<String>>(idx) {
+                    serde_json::Value::String(v)
+                } else {
+                    serde_json::Value::Null
+                }
+            }
+            Type::MONEY => {
+                if let Ok(Some(v)) = row.try_get::<_, Option<String>>(idx) {
+                    serde_json::Value::String(v)
+                } else {
+                    serde_json::Value::Null
+                }
+            }
+            // OID - display as integer
+            Type::OID => {
+                if let Ok(Some(v)) = row.try_get::<_, Option<u32>>(idx) {
+                    serde_json::Value::Number(v.into())
+                } else {
+                    serde_json::Value::Null
+                }
+            }
+            // Bytea - encode as hex for safe display
+            Type::BYTEA => {
+                if let Ok(Some(v)) = row.try_get::<_, Option<Vec<u8>>>(idx) {
+                    let hex: String = v.iter().map(|b| format!("{:02x}", b)).collect();
+                    serde_json::Value::String(format!("\\x{}", hex))
                 } else {
                     serde_json::Value::Null
                 }
