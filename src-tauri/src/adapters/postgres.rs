@@ -722,8 +722,8 @@ impl DatabaseAdapter for PostgresAdapter {
             a.attname                                   AS column_name,
             a.attnum                                    AS ordinal_position,
 
-            -- Raw PostgreSQL type info
-            t.typname                                   AS raw_type,
+            -- Raw PostgreSQL type info (FIXED: use format_type for proper type representation with modifiers)
+            pg_catalog.format_type(a.atttypid, a.atttypmod) AS raw_type,
             t.typtype                                   AS type_kind,       -- b=base, e=enum, d=domain, c=composite
             t.typcategory                               AS type_category,   -- numeric, string, boolean, etc.
 
