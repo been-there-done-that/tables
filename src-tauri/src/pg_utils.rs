@@ -288,10 +288,42 @@ pub fn pg_array_to_json(
                 );
             }
         }
+        
+        // Fallback for unrecognized array element types: try to get as Vec<String>
+        // This handles custom types, domains, etc.
+        if let Ok(Some(v)) = row.try_get::<_, Option<Vec<String>>>(idx) {
+            return serde_json::Value::Array(
+                v.into_iter().map(serde_json::Value::String).collect(),
+            );
+        }
     }
 
-    // Fallback: try to get as string (PostgreSQL text representation)
+    // Final fallback: try to get as string and parse PostgreSQL array format {a,b,c}
     if let Ok(Some(v)) = row.try_get::<_, Option<String>>(idx) {
+        // Check if it looks like a PostgreSQL array format
+        let trimmed = v.trim();
+        if trimmed.starts_with('{') && trimmed.ends_with('}') {
+            // Parse PostgreSQL array format: {val1,val2,val3}
+            let inner = &trimmed[1..trimmed.len()-1];
+            if inner.is_empty() {
+                return serde_json::Value::Array(vec![]);
+            }
+            // Split by comma (simple parsing - doesn't handle quoted strings with commas)
+            let elements: Vec<serde_json::Value> = inner
+                .split(',')
+                .map(|s| {
+                    let s = s.trim();
+                    // Remove surrounding quotes if present
+                    if s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
+                        serde_json::Value::String(s[1..s.len()-1].to_string())
+                    } else {
+                        serde_json::Value::String(s.to_string())
+                    }
+                })
+                .collect();
+            return serde_json::Value::Array(elements);
+        }
+        // Not an array format, return as plain string
         serde_json::Value::String(v)
     } else {
         serde_json::Value::Null
