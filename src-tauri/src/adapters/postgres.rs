@@ -419,22 +419,23 @@ impl PostgresAdapter {
                     serde_json::Value::Null
                 }
             }
-            // Date types - format as ISO8601 strings
+            // Date types - format using chrono native types
             Type::DATE => {
-                if let Ok(Some(v)) = row.try_get::<_, Option<String>>(idx) {
-                    serde_json::Value::String(v)
+                if let Ok(Some(v)) = row.try_get::<_, Option<chrono::NaiveDate>>(idx) {
+                    serde_json::Value::String(v.format("%Y-%m-%d").to_string())
                 } else {
                     serde_json::Value::Null
                 }
             }
             Type::TIME => {
-                if let Ok(Some(v)) = row.try_get::<_, Option<String>>(idx) {
-                    serde_json::Value::String(v)
+                if let Ok(Some(v)) = row.try_get::<_, Option<chrono::NaiveTime>>(idx) {
+                    serde_json::Value::String(v.format("%H:%M:%S%.6f").to_string())
                 } else {
                     serde_json::Value::Null
                 }
             }
             Type::TIMETZ => {
+                // TIMETZ doesn't have direct chrono support, fall back to string
                 if let Ok(Some(v)) = row.try_get::<_, Option<String>>(idx) {
                     serde_json::Value::String(v)
                 } else {
@@ -442,23 +443,23 @@ impl PostgresAdapter {
                 }
             }
             Type::TIMESTAMP => {
-                if let Ok(Some(v)) = row.try_get::<_, Option<String>>(idx) {
-                    serde_json::Value::String(v)
+                if let Ok(Some(v)) = row.try_get::<_, Option<chrono::NaiveDateTime>>(idx) {
+                    serde_json::Value::String(v.format("%Y-%m-%d %H:%M:%S%.6f").to_string())
                 } else {
                     serde_json::Value::Null
                 }
             }
             Type::TIMESTAMPTZ => {
-                if let Ok(Some(v)) = row.try_get::<_, Option<String>>(idx) {
-                    serde_json::Value::String(v)
+                if let Ok(Some(v)) = row.try_get::<_, Option<chrono::DateTime<chrono::Utc>>>(idx) {
+                    serde_json::Value::String(v.format("%Y-%m-%d %H:%M:%S%.6f").to_string())
                 } else {
                     serde_json::Value::Null
                 }
             }
-            // UUID - format as string
+            // UUID - format as string using native uuid type
             Type::UUID => {
-                if let Ok(Some(v)) = row.try_get::<_, Option<String>>(idx) {
-                    serde_json::Value::String(v)
+                if let Ok(Some(v)) = row.try_get::<_, Option<uuid::Uuid>>(idx) {
+                    serde_json::Value::String(v.to_string())
                 } else {
                     serde_json::Value::Null
                 }
