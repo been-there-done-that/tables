@@ -1634,79 +1634,73 @@
             return;
         }
 
-        // Prefer DOM-based scroll to avoid height drift
         const container = tableBody.getContainer?.();
+        if (!container) return;
+
         const targetRowId = filteredRows[rowIndex]?._rowId;
         const targetEl =
             targetRowId && container
                 ? container.querySelector(`[data-row-id="${targetRowId}"]`)
                 : null;
 
+        // Vertical scrolling - account for sticky header
         if (targetEl instanceof HTMLElement) {
-            targetEl.scrollIntoView({ block: "nearest" });
+            // Get the sticky header height
+            const stickyHeader = container.querySelector(
+                ".sticky.top-0",
+            ) as HTMLElement;
+            const headerHeight = stickyHeader?.offsetHeight || 36; // Default to ~36px
+
+            const containerRect = container.getBoundingClientRect();
+            const targetRect = targetEl.getBoundingClientRect();
+
+            // Calculate positions relative to the scroll container
+            const targetTop =
+                targetRect.top - containerRect.top + container.scrollTop;
+            const targetBottom = targetTop + targetEl.offsetHeight;
+
+            const visibleTop = container.scrollTop + headerHeight; // Account for header
+            const visibleBottom = container.scrollTop + container.clientHeight;
+
+            if (targetTop < visibleTop) {
+                // Row is hidden behind the header, scroll up
+                container.scrollTop = targetTop - headerHeight;
+            } else if (targetBottom > visibleBottom) {
+                // Row is below the visible area, scroll down
+                container.scrollTop = targetBottom - container.clientHeight;
+            }
         } else {
             console.info("[Table] ensureCellVisible:no-target", {
                 rowIndex,
                 columnIndex,
                 targetRowId,
             });
-            // Avoid fallback scrollToIndex to prevent drift if heights mismatch
             return;
         }
 
-        // Horizontal scrolling
-        // We need to calculate the left offset of the column
-        // Since we don't have direct access to column DOM elements easily here without more state,
-        // we can approximate or use the column widths if they are fixed/known.
-        // But wait, we have `tableColumns` which might have width info if we track it.
-        // The `visibleColumns` have a width property? Let's check `Column` type.
-        // Assuming `width` is on `Column`.
+        // Horizontal scrolling - account for sticky row number column
+        const rowNumberWidth = 60; // Match the width in TableRow.svelte
 
-        // A simpler approach for horizontal scroll if we don't want to track strict pixel widths:
-        // We can't easily do "auto" without knowing current scrollLeft and container width.
-        // But we can try to guess.
-
-        // Let's rely on the fact that we can get the container from `TableBody` if we exposed it,
-        // or just use `tableContainer` (which wraps the header, but the body has its own scroll).
-        // Actually `TableBody` has the scrollable div.
-
-        // Let's implement a best-effort horizontal scroll based on column index and estimated width
-        // OR, better, let's just scroll if it's the first or last column for now?
-        // No, that's not enough.
-
-        // Let's calculate cumulative width
-        let left = 0;
+        let left = rowNumberWidth; // Start after row number column
         for (let i = 0; i < columnIndex; i++) {
-            left += visibleColumns[i].width || 150; // Default 150 if undefined
+            left += visibleColumns[i].width || 150;
         }
         const colWidth = visibleColumns[columnIndex].width || 150;
         const right = left + colWidth;
 
-        // We need the scrollable container's width and scrollLeft.
-        // With unified scrolling, we can use tableBody.getContainer()
-        const scrollContainer = tableBody?.getContainer?.();
-        if (scrollContainer) {
-            const containerWidth = scrollContainer.clientWidth;
-            const scrollLeft = scrollContainer.scrollLeft;
+        if (container) {
+            const containerWidth = container.clientWidth;
+            const scrollLeft = container.scrollLeft;
 
-            if (left < scrollLeft) {
-                console.info("[Table] ensureCellVisible:left", {
-                    rowIndex,
-                    columnIndex,
-                    left,
-                    scrollLeft,
-                    containerWidth,
-                });
-                tableBody.scrollToLeft(left);
-            } else if (right > scrollLeft + containerWidth) {
-                console.info("[Table] ensureCellVisible:right", {
-                    rowIndex,
-                    columnIndex,
-                    right,
-                    scrollLeft,
-                    containerWidth,
-                });
-                tableBody.scrollToLeft(right - containerWidth);
+            const visibleLeft = scrollLeft + rowNumberWidth; // Account for sticky row number
+            const visibleRight = scrollLeft + containerWidth;
+
+            if (left < visibleLeft) {
+                // Column is hidden behind row number column
+                container.scrollLeft = left - rowNumberWidth;
+            } else if (right > visibleRight) {
+                // Column is off the right edge
+                container.scrollLeft = right - containerWidth;
             }
         }
     }
