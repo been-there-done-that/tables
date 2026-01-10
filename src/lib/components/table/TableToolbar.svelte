@@ -9,6 +9,7 @@
         IconChevronRight,
         IconRefresh,
         IconDownload,
+        IconPlayerStopFilled,
         IconPlayerSkipBack,
         IconPlayerSkipForward,
         IconChevronDown,
@@ -42,6 +43,7 @@
         onOrderByChange?: (value: string) => void;
         isLoading?: boolean;
         executionTime?: number;
+        onCancel?: () => void;
     }
 
     const dispatch = createEventDispatcher();
@@ -64,6 +66,7 @@
         onOrderByChange,
         isLoading = false,
         executionTime = 0,
+        onCancel,
     }: Props = $props();
 
     let exportOpen = $state(false);
@@ -118,6 +121,11 @@
         if (onRefresh) onRefresh();
         else tableRef?.refresh?.();
         dispatch("refresh");
+    }
+
+    function handleCancel() {
+        if (onCancel) onCancel();
+        dispatch("cancel");
     }
 
     function handlePrev() {
@@ -326,6 +334,21 @@
             onclick={handleExecute}
         >
             <IconPlayerPlayFilled class="size-5 text-green-500" />
+        </Button>
+
+        <Button
+            variant="ghost"
+            size="sm"
+            class="h-7"
+            title="Cancel query (Esc)"
+            onclick={handleCancel}
+            disabled={!isLoading}
+        >
+            <IconPlayerStopFilled
+                class="size-5 {isLoading
+                    ? 'text-red-500'
+                    : 'text-muted-foreground/40'}"
+            />
         </Button>
 
         <Button
