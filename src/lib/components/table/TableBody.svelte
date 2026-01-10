@@ -42,6 +42,7 @@
             newValue: any,
         ) => void;
         onEditCancel?: () => void;
+        header: import("svelte").Snippet;
     }
 
     let {
@@ -64,6 +65,7 @@
         onCellContextMenu,
         onEditComplete,
         onEditCancel,
+        header,
     }: Props = $props();
 
     // Determine what state to show
@@ -127,6 +129,7 @@
             itemHeight={measuredItemHeight}
             class="h-full w-full"
             {onScroll}
+            {header}
         >
             {#snippet children(row: any, index: number)}
                 <TableRow
