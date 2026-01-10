@@ -233,11 +233,18 @@
 <div
     bind:this={cellEl}
     class={cn(
-        "relative flex items-center border-r truncate text-sm select-none text-foreground border-border",
-        isSelected && "bg-accent/20 text-foreground border-accent/50",
-        isFocused && "z-10",
-        isPendingEdit && "bg-amber-500/20 text-foreground",
-        disabled && "opacity-70",
+        "relative flex items-center border-r truncate text-sm select-none text-foreground border-border box-border transition-colors duration-75",
+        // Selection state
+        isSelected && "bg-accent/10 border-accent/20",
+        // Focus state (keyboard nav)
+        isFocused && "z-10 ring-1 ring-inset ring-accent outline-none",
+        // Pending/Dirty state (edited but not saved)
+        isPendingEdit &&
+            "bg-amber-500/10 italic border-l-2 border-l-amber-500 pl-1.5",
+        // Editing state (active input)
+        isEditing && "z-20 bg-surface ring-2 ring-inset ring-accent shadow-lg",
+        // Disabled
+        disabled && "opacity-50 cursor-not-allowed",
     )}
     style="width: {column.width || 150}px; min-width: {column.minWidth ||
         50}px; max-width: {column.maxWidth}px; flex-shrink: 0;"
