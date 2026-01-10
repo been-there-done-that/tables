@@ -174,7 +174,7 @@
         if (isBoolean()) {
             return displayBooleanValue(value);
         }
-        if (isJson()) return jsonPreview(value);
+        if (isJson() || Array.isArray(value)) return jsonPreview(value);
         if (isBinary()) {
             const info = binaryInfo(value);
             return `len ${info.length}${info.preview ? ` · ${info.preview}` : ""}`;
@@ -272,7 +272,7 @@
             >
                 {displayValue}
             </span>
-        {:else if isJson()}
+        {:else if isJson() || Array.isArray(value)}
             <span
                 class="truncate select-none px-2 py-1 w-full h-full block font-mono text-xs text-muted-foreground"
             >
