@@ -11,6 +11,7 @@
     import IconDatabase from "@tabler/icons-svelte/icons/database";
     import PlaylistAdd from "@tabler/icons-svelte/icons/playlist-add";
     import ExplorerToolbar from "../ExplorerToolbar.svelte";
+    import { getDefaultDatabase, getDefaultSchema } from "$lib/engine-config";
 
     let fileTree = $state<any>(null);
     let selectedNodeId = $state<string | null>(null);
@@ -247,9 +248,11 @@
                 | undefined;
             activeSession.openView("table", node.name, {
                 tableName: node.name,
-                schemaName: metadata?.schemaName || "main",
+                schemaName: metadata?.schemaName || getDefaultSchema("sqlite"),
                 databaseName:
-                    metadata?.dbName || schemaStore.selectedDatabase || "main",
+                    metadata?.dbName ||
+                    schemaStore.selectedDatabase ||
+                    getDefaultDatabase("sqlite"),
             });
         } else if (
             node.type === "column" ||
@@ -264,7 +267,9 @@
                 if (tableParts.length >= 2) {
                     const schemaName = tableParts[0];
                     const tableName = tableParts[1];
-                    const dbName = schemaStore.selectedDatabase || "main";
+                    const dbName =
+                        schemaStore.selectedDatabase ||
+                        getDefaultDatabase("sqlite");
 
                     activeSession.openView("table", tableName, {
                         tableName,

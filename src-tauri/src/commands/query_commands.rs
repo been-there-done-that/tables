@@ -3,6 +3,51 @@ use serde::{Deserialize, Serialize};
 use log::{debug, error, info, warn};
 use crate::{DatabaseState, ConnectionManager, ConnectionManagerState};
 use std::time::Instant;
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::Mutex;
+use tokio_util::sync::CancellationToken;
+
+/// State for tracking running queries per connection
+pub struct QueryExecutionState {
+    /// Active queries: connection_id → CancellationToken
+    pub active_queries: Arc<Mutex<HashMap<String, CancellationToken>>>,
+}
+
+impl Default for QueryExecutionState {
+    fn default() -> Self {
+        Self {
+            active_queries: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+}
+
+/// Cancel an active query for a connection
+#[tauri::command]
+pub async fn cancel_query(
+    connection_id: String,
+    query_state: State<'_, QueryExecutionState>,
+    app: AppHandle,
+) -> Result<bool, String> {
+    info!("[cancel_query] Attempting to cancel query for connection: {}", connection_id);
+    
+    let mut queries = query_state.active_queries.lock().await;
+    if let Some(token) = queries.remove(&connection_id) {
+        token.cancel();
+        info!("[cancel_query] Successfully cancelled query for connection: {}", connection_id);
+        
+        // Emit cancellation event
+        let _ = app.emit("query-cancelled", serde_json::json!({
+            "connectionId": connection_id,
+            "timestamp": crate::now_ts() * 1000
+        }));
+        
+        Ok(true)
+    } else {
+        debug!("[cancel_query] No active query to cancel for connection: {}", connection_id);
+        Ok(false)
+    }
+}
 
 /// Result of a general query execution
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -126,6 +171,7 @@ pub async fn fetch_table_preview(
     fetch_total: Option<bool>,
     db_state: State<'_, DatabaseState>,
     conn_state: State<'_, ConnectionManagerState>,
+    query_state: State<'_, QueryExecutionState>,
     app: AppHandle,
 ) -> Result<TablePreviewResult, String> {
     info!(
@@ -135,6 +181,23 @@ pub async fn fetch_table_preview(
     
     let correlation_id = uuid::Uuid::new_v4().to_string();
     let start = std::time::Instant::now();
+    
+    // Create cancellation token and register it
+    let cancel_token = CancellationToken::new();
+    {
+        let mut queries = query_state.active_queries.lock().await;
+        // Cancel any existing query for this connection
+        if let Some(old_token) = queries.remove(&connection_id) {
+            old_token.cancel();
+        }
+        queries.insert(connection_id.clone(), cancel_token.clone());
+    }
+    
+    // Cleanup function to remove token when done
+    let cleanup_token = || async {
+        let mut queries = query_state.active_queries.lock().await;
+        queries.remove(&connection_id);
+    };
     
     // Build WHERE and ORDER BY clauses
     let where_part = match &where_clause {
@@ -152,7 +215,8 @@ pub async fn fetch_table_preview(
     let connection = match manager.get_connection_metadata(&connection_id) {
         Ok(res) => res,
         Err(e) => {
-             return Err(e);
+            cleanup_token().await;
+            return Err(e);
         }
     };
 
@@ -160,6 +224,7 @@ pub async fn fetch_table_preview(
     let adapter = match manager.get_or_create_adapter(&connection_id).await {
         Ok(a) => a,
         Err(e) => {
+            cleanup_token().await;
             error!("Failed to get adapter: {}", e);
             return Err(e);
         }
@@ -167,6 +232,7 @@ pub async fn fetch_table_preview(
 
     // Ensure we're connected to the right database
     if let Err(e) = adapter.ensure_database(Some(&database)).await {
+        cleanup_token().await;
         error!("Failed to ensure database: {}", e);
         return Err(format!("Failed to switch to database '{}': {}", database, e));
     }
@@ -177,7 +243,7 @@ pub async fn fetch_table_preview(
     let (data_query, count_query) = match connection.engine.as_str() {
         "postgres" | "postgresql" => {
             let dq = format!(
-                "SELECT * FROM \"{}\".\"{}\"{}{} LIMIT {} OFFSET {}",
+                "SELECT * FROM \"{}\".\"{}\"{}{}  LIMIT {} OFFSET {}",
                 schema, table_name, where_part, order_part, limit, offset
             );
             let cq = format!("SELECT COUNT(*) FROM \"{}\".\"{}\"{}",  schema, table_name, where_part);
@@ -185,16 +251,25 @@ pub async fn fetch_table_preview(
         }
         "sqlite" => {
             let dq = format!(
-                "SELECT * FROM \"{}\"{}{} LIMIT {} OFFSET {}",
+                "SELECT * FROM \"{}\"{}{}  LIMIT {} OFFSET {}",
                 table_name, where_part, order_part, limit, offset
             );
             let cq = format!("SELECT COUNT(*) FROM \"{}\"{}",  table_name, where_part);
             (dq, cq)
         }
-        _ => return Err(format!("Unsupported engine: {}", connection.engine)),
+        _ => {
+            cleanup_token().await;
+            return Err(format!("Unsupported engine: {}", connection.engine));
+        }
     };
 
     emit_query_start(&app, &correlation_id, &connection_id, &database, &data_query);
+
+    // Check if already cancelled before starting query
+    if cancel_token.is_cancelled() {
+        cleanup_token().await;
+        return Err("Query cancelled".to_string());
+    }
 
     // Fetch total count if requested
     let total: Option<i64> = if should_fetch_total {
@@ -213,9 +288,30 @@ pub async fn fetch_table_preview(
         None
     };
 
-    // Execute main query
-    let result = adapter.query(&data_query).await;
+    // Check cancellation before main query
+    if cancel_token.is_cancelled() {
+        cleanup_token().await;
+        let duration = start.elapsed().as_millis() as u64;
+        log_query_end(&app, &correlation_id, &connection_id, &database, &data_query, duration, "cancelled", Some("Query cancelled by user"), None);
+        return Err("Query cancelled".to_string());
+    }
+
+    // Execute main query with cancellation support using tokio::select!
+    let query_future = adapter.query(&data_query);
+    let cancel_future = cancel_token.cancelled();
+    
+    let result = tokio::select! {
+        query_result = query_future => query_result,
+        _ = cancel_future => {
+            cleanup_token().await;
+            let duration = start.elapsed().as_millis() as u64;
+            log_query_end(&app, &correlation_id, &connection_id, &database, &data_query, duration, "cancelled", Some("Query cancelled by user"), None);
+            return Err("Query cancelled".to_string());
+        }
+    };
+    
     let duration = start.elapsed().as_millis() as u64;
+    cleanup_token().await;
 
     match result {
         Ok(query_result) => {
