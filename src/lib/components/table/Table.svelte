@@ -1312,11 +1312,30 @@
         // Restore focus and scroll position after DOM update
         tick().then(() => {
             tableContainer?.focus({ preventScroll: true });
+
+            // Restore scroll position
             if (scrollContainer) {
                 if (savedTop !== undefined)
                     scrollContainer.scrollTop = savedTop;
                 if (savedLeft !== undefined)
                     scrollContainer.scrollLeft = savedLeft;
+            }
+
+            // Set up temporary scroll guard - fights back against any async scroll changes
+            if (
+                scrollContainer &&
+                (savedTop !== undefined || savedLeft !== undefined)
+            ) {
+                const guard = () => {
+                    if (savedTop !== undefined)
+                        scrollContainer.scrollTop = savedTop;
+                    if (savedLeft !== undefined)
+                        scrollContainer.scrollLeft = savedLeft;
+                };
+                scrollContainer.addEventListener("scroll", guard);
+                setTimeout(() => {
+                    scrollContainer.removeEventListener("scroll", guard);
+                }, 100);
             }
         });
     }
@@ -1327,87 +1346,36 @@
         const savedTop = scrollContainer?.scrollTop;
         const savedLeft = scrollContainer?.scrollLeft;
 
-        console.log("[Table] handleEditCancel: BEFORE", {
-            hasScrollContainer: !!scrollContainer,
-            savedTop,
-            savedLeft,
-        });
-
         editingCell = null;
 
         // Restore focus and scroll position after DOM update
         tick().then(() => {
-            const currentTop = scrollContainer?.scrollTop;
-            const currentLeft = scrollContainer?.scrollLeft;
-
-            console.log("[Table] handleEditCancel: AFTER tick", {
-                currentTop,
-                currentLeft,
-                willRestoreTop:
-                    savedTop !== undefined && currentTop !== savedTop,
-                willRestoreLeft:
-                    savedLeft !== undefined && currentLeft !== savedLeft,
-            });
-
-            // Restore scroll BEFORE focus
-            if (scrollContainer) {
-                if (savedTop !== undefined) {
-                    scrollContainer.scrollTop = savedTop;
-                }
-                if (savedLeft !== undefined) {
-                    scrollContainer.scrollLeft = savedLeft;
-                }
-            }
-
             tableContainer?.focus({ preventScroll: true });
 
-            // Aggressively restore scroll multiple times to fight any delayed changes
-            const restoreScroll = () => {
-                if (scrollContainer) {
-                    if (
-                        savedTop !== undefined &&
-                        scrollContainer.scrollTop !== savedTop
-                    ) {
-                        console.log(
-                            "[Table] handleEditCancel: RESTORING scrollTop",
-                            { from: scrollContainer.scrollTop, to: savedTop },
-                        );
+            // Restore scroll position
+            if (scrollContainer) {
+                if (savedTop !== undefined)
+                    scrollContainer.scrollTop = savedTop;
+                if (savedLeft !== undefined)
+                    scrollContainer.scrollLeft = savedLeft;
+            }
+
+            // Set up temporary scroll guard - fights back against any async scroll changes
+            if (
+                scrollContainer &&
+                (savedTop !== undefined || savedLeft !== undefined)
+            ) {
+                const guard = () => {
+                    if (savedTop !== undefined)
                         scrollContainer.scrollTop = savedTop;
-                    }
-                    if (
-                        savedLeft !== undefined &&
-                        scrollContainer.scrollLeft !== savedLeft
-                    ) {
-                        console.log(
-                            "[Table] handleEditCancel: RESTORING scrollLeft",
-                            { from: scrollContainer.scrollLeft, to: savedLeft },
-                        );
+                    if (savedLeft !== undefined)
                         scrollContainer.scrollLeft = savedLeft;
-                    }
-                }
-            };
-
-            // Restore immediately
-            restoreScroll();
-
-            // Restore after each animation frame for 5 frames
-            let frameCount = 0;
-            const checkFrame = () => {
-                restoreScroll();
-                frameCount++;
-                if (frameCount < 5) {
-                    requestAnimationFrame(checkFrame);
-                } else {
-                    console.log("[Table] handleEditCancel: FINAL", {
-                        scrollTop: scrollContainer?.scrollTop,
-                        scrollLeft: scrollContainer?.scrollLeft,
-                        matchesSaved:
-                            scrollContainer?.scrollTop === savedTop &&
-                            scrollContainer?.scrollLeft === savedLeft,
-                    });
-                }
-            };
-            requestAnimationFrame(checkFrame);
+                };
+                scrollContainer.addEventListener("scroll", guard);
+                setTimeout(() => {
+                    scrollContainer.removeEventListener("scroll", guard);
+                }, 100);
+            }
         });
     }
 
@@ -1656,6 +1624,7 @@
 
     function ensureCellVisible(rowIndex: number, columnIndex: number) {
         if (!tableBody) return;
+
         if (editingCell) {
             console.info("[Table] ensureCellVisible:skip-editing", {
                 rowIndex,
