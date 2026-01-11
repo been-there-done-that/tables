@@ -226,4 +226,117 @@
         display: flex;
         flex-direction: column;
     }
+
+    /* Override SVAR Grid theme with app theme variables */
+    :global(.wx-willow-dark) {
+        /* Base colors */
+        --wx-background: var(--theme-bg-primary) !important;
+        --wx-background-alt: var(--theme-bg-secondary) !important;
+        --wx-color-font: var(--theme-fg-primary) !important;
+        --wx-color-font-alt: var(--theme-fg-secondary) !important;
+        --wx-color-disabled: var(--theme-fg-tertiary) !important;
+
+        /* Borders */
+        --wx-border: none !important;
+        --wx-border-color: transparent !important;
+
+        /* Focus/Selection */
+        --wx-color-primary: var(--theme-accent-primary) !important;
+        --wx-color-primary-font: var(--theme-fg-primary) !important;
+        --wx-color-secondary: var(--theme-bg-hover) !important;
+        --wx-color-secondary-font: var(--theme-fg-primary) !important;
+
+        /* Hover states */
+        --wx-background-hover: var(--theme-bg-hover) !important;
+        --wx-background-active: var(--theme-bg-active) !important;
+
+        /* Header */
+        --wx-header-background: var(--theme-bg-secondary) !important;
+        --wx-header-color: var(--theme-fg-primary) !important;
+
+        /* Font */
+        --wx-font-family: var(--font-mono) !important;
+        --wx-font-size: 13px !important;
+    }
+
+    /* Grid specific overrides */
+    :global(.wx-grid) {
+        background: var(--theme-bg-primary) !important;
+        color: var(--theme-fg-primary) !important;
+        border: none !important;
+        font-family: var(--font-mono) !important;
+    }
+
+    /* Header cells */
+    :global(.wx-grid .wx-header) {
+        background: var(--theme-bg-secondary) !important;
+        border-bottom: 1px solid var(--theme-border-subtle) !important;
+    }
+
+    :global(.wx-grid .wx-header-cell) {
+        background: var(--theme-bg-secondary) !important;
+        color: var(--theme-fg-primary) !important;
+        border-right: none !important;
+        font-weight: 500 !important;
+    }
+
+    /* Data cells - No borders */
+    :global(.wx-grid .wx-cell) {
+        background: var(--theme-bg-primary) !important;
+        color: var(--theme-fg-primary) !important;
+        border: none !important;
+    }
+
+    /* Alternating row colors - disabled */
+    :global(.wx-grid .wx-row:nth-child(even)) {
+        background: var(--theme-bg-primary) !important;
+    }
+
+    :global(.wx-grid .wx-row:nth-child(even) .wx-cell) {
+        background: var(--theme-bg-primary) !important;
+    }
+
+    /* Hover state */
+    :global(.wx-grid .wx-row:hover) {
+        background: var(--theme-bg-hover) !important;
+    }
+
+    :global(.wx-grid .wx-row:hover .wx-cell) {
+        background: var(--theme-bg-hover) !important;
+    }
+
+    /* Selected state */
+    :global(.wx-grid .wx-selected),
+    :global(.wx-grid .wx-row.wx-selected .wx-cell) {
+        background: var(--theme-bg-active) !important;
+    }
+
+    /* Focus state */
+    :global(.wx-grid .wx-focused) {
+        outline: 2px solid var(--theme-accent-primary) !important;
+        outline-offset: -2px;
+    }
+
+    /* Scrollbar styling */
+    :global(.wx-grid ::-webkit-scrollbar) {
+        width: 10px;
+        height: 10px;
+    }
+
+    :global(.wx-grid ::-webkit-scrollbar-track) {
+        background: transparent;
+    }
+
+    :global(.wx-grid ::-webkit-scrollbar-thumb) {
+        background: var(--theme-border-default);
+        border: 2px solid transparent;
+        background-clip: content-box;
+        border-radius: 10px;
+    }
+
+    :global(.wx-grid ::-webkit-scrollbar-thumb:hover) {
+        background: var(--theme-fg-tertiary);
+        border: 2px solid transparent;
+        background-clip: content-box;
+    }
 </style>
