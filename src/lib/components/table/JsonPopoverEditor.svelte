@@ -1,6 +1,8 @@
 <script lang="ts">
     import { getContext, onMount } from "svelte";
     import { cn } from "$lib/utils";
+    import { portal } from "$lib/actions/portal";
+    import { focusTrap } from "$lib/actions/focus-trap";
     import { useMonacoEditor } from "$lib/monaco/useMonacoEditor";
     import type { EditorHandle } from "$lib/monaco/editor-types";
     import type * as Monaco from "monaco-editor";
@@ -23,6 +25,8 @@
     // UI State
     let position = $state({ top: 0, left: 0, width: 520 });
     let isVisible = $state(false);
+    let placement = $state<"left" | "right">("right");
+    let arrowOffset = $state(0);
     let errorMessage = $state<string | null>(null);
 
     const GUTTER = 4;
@@ -191,19 +195,11 @@
         const target = event.target as Node;
         if (overlayEl?.contains(target)) return;
         if (anchorEl?.contains(target)) return;
+        // Don't close if clicking monaco overlays
+        if ((target as HTMLElement).closest?.(".monaco-aria-container")) return;
         onCancel();
     }
     // ... portal ...
-    function portal(node: HTMLElement) {
-        if (typeof document === "undefined") return {};
-        document.body.appendChild(node);
-        return {
-            destroy() {
-                if (node.parentNode === document.body)
-                    document.body.removeChild(node);
-            },
-        };
-    }
 
     // RESTORED Positioning Logic
     function updatePosition() {
@@ -212,14 +208,17 @@
             return;
         }
         const rect = anchorEl.getBoundingClientRect();
-        const width = Math.max(rect.width + 120, 420);
+        const width = 520;
         const overlayHeight = overlayEl?.offsetHeight ?? 360;
-        const margin = GUTTER;
+        const margin = 8;
 
         let left = rect.right + margin;
+        placement = "right";
+
         const fitsRight = left + width + margin <= window.innerWidth;
         if (!fitsRight) {
             left = rect.left - width - margin;
+            placement = "left";
         }
         left = Math.max(
             margin,
@@ -230,6 +229,15 @@
         const minTop = margin;
         const maxTop = window.innerHeight - overlayHeight - margin;
         top = Math.max(minTop, Math.min(top, maxTop));
+
+        // Calculate arrow vertical offset
+        const anchorCenterY = rect.top + rect.height / 2;
+        const minArrow = 12;
+        const maxArrow = overlayHeight - 12;
+        arrowOffset = Math.max(
+            minArrow,
+            Math.min(anchorCenterY - top, maxArrow),
+        );
 
         position = { top, left, width };
     }
@@ -257,16 +265,19 @@
 
 <div
     use:portal
+    use:focusTrap
     bind:this={overlayEl}
+    data-placement={placement}
     role="dialog"
     aria-label="Edit JSON value"
     tabindex="-1"
     onkeydown={handleKeydown}
     class={cn(
-        "fixed bg-surface border border-border-focus rounded-md flex flex-col p-1",
+        "popover-editor fixed rounded-lg shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] flex flex-col p-1",
+        "bg-surface border border-accent/20 ring-1 ring-accent/10",
         isVisible ? "anim-pop opacity-100" : "opacity-0 pointer-events-none",
     )}
-    style={`top:${position.top}px;left:${position.left}px;min-width:${position.width}px;max-width:720px;min-height:200px;max-height:640px;transform-origin:center;z-index:1000`}
+    style={`top:${position.top}px;left:${position.left}px;min-width:${position.width}px;max-width:720px;min-height:200px;max-height:640px;transform-origin:center;z-index:1000;--arrow-top:${arrowOffset}px`}
     aria-hidden={!isVisible}
 >
     <div class="flex-1 overflow-hidden min-h-[180px] relative">

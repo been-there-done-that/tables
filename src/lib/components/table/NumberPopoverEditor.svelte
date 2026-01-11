@@ -199,7 +199,7 @@
             >
                 <span
                     class="text-[9px] font-medium px-1 rounded bg-accent/10 border border-accent/20 text-accent/80"
-                    >↵</span
+                    >{isMac ? "⌘↵" : "Ctrl↵"}</span
                 >
                 <IconCheck
                     class="size-3.5 opacity-80 group-hover/btn:opacity-100"
@@ -233,60 +233,3 @@
         </div>
     </div>
 </div>
-
-<style>
-    .anim-pop {
-        animation: pop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-    @keyframes pop {
-        from {
-            transform: scale(0.95) translateY(4px);
-            opacity: 0;
-        }
-        to {
-            transform: scale(1) translateY(0);
-            opacity: 1;
-        }
-    }
-
-    .popover-editor::before,
-    .popover-editor::after {
-        content: "";
-        position: absolute;
-        width: 10px;
-        height: 10px;
-        transform: rotate(45deg);
-        top: var(--arrow-top);
-        margin-top: -5px;
-        pointer-events: none;
-    }
-
-    /* Border Layer (Match border-accent/20 ring-1 ring-accent/10) */
-    .popover-editor::before {
-        background: var(--theme-accent-primary);
-        opacity: 0.25;
-        z-index: 0;
-    }
-
-    /* Fill Layer (Match bg-surface / bg-secondary) */
-    .popover-editor::after {
-        background: var(--theme-bg-secondary);
-        z-index: 1;
-    }
-
-    /* Right Side Placement (Arrow on left of popover) */
-    .popover-editor[data-placement="right"]::before {
-        left: -6px;
-    }
-    .popover-editor[data-placement="right"]::after {
-        left: -5px;
-    }
-
-    /* Left Side Placement (Arrow on right of popover) */
-    .popover-editor[data-placement="left"]::before {
-        right: -6px;
-    }
-    .popover-editor[data-placement="left"]::after {
-        right: -5px;
-    }
-</style>
