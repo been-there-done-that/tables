@@ -1,6 +1,8 @@
 <script lang="ts">
     import { getContext, onMount } from "svelte";
     import { cn } from "$lib/utils";
+    import { portal } from "$lib/actions/portal";
+    import { focusTrap } from "$lib/actions/focus-trap";
 
     import IconCheck from "@tabler/icons-svelte/icons/check";
     import IconX from "@tabler/icons-svelte/icons/x";
@@ -29,17 +31,6 @@
     $effect(() => {
         inputValue = (value ?? "").toString();
     });
-
-    function portal(node: HTMLElement) {
-        if (typeof document === "undefined") return {};
-        const target = document.body;
-        target.appendChild(node);
-        return {
-            destroy() {
-                if (node.parentNode === target) target.removeChild(node);
-            },
-        };
-    }
 
     function updatePosition() {
         if (!anchorEl || !anchorEl.isConnected) {
@@ -154,6 +145,7 @@
 
 <div
     use:portal
+    use:focusTrap
     bind:this={overlayEl}
     data-placement={placement}
     role="dialog"
