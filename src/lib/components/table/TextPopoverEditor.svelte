@@ -21,6 +21,9 @@
     let placement = $state<"left" | "right">("right");
     let arrowOffset = $state(0);
 
+    const isMac =
+        typeof navigator !== "undefined" && navigator.userAgent.includes("Mac");
+
     const originalString = $derived((value ?? "").toString());
 
     $effect(() => {
@@ -174,29 +177,35 @@
         ></textarea>
 
         <div
-            class="absolute bottom-1 left-2 right-1 flex items-center justify-between pointer-events-none"
+            class="absolute bottom-1 left-0 right-0 flex items-center justify-center gap-2 pointer-events-none"
         >
-            <span
-                class="text-[9px] text-foreground-muted opacity-30 font-medium whitespace-nowrap"
+            <button
+                type="button"
+                class="flex items-center gap-1.5 px-2 py-0.5 rounded border border-transparent hover:border-accent/10 hover:bg-muted text-foreground-muted transition-colors active:scale-95 group/btn pointer-events-auto"
+                onclick={onCancel}
             >
-                ⌘↵ Save · Esc Cancel
-            </span>
-            <div class="flex items-center gap-0.5 pointer-events-auto">
-                <button
-                    type="button"
-                    class="p-0.5 rounded hover:bg-muted text-foreground-muted transition-colors active:scale-95"
-                    onclick={onCancel}
+                <span
+                    class="text-[9px] font-medium px-1 rounded bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 text-foreground-muted/60"
+                    >Esc</span
                 >
-                    <IconX class="size-3" />
-                </button>
-                <button
-                    type="button"
-                    class="p-0.5 rounded text-accent hover:bg-accent/10 transition-colors active:scale-95"
-                    onclick={commit}
+                <IconX
+                    class="size-3.5 opacity-60 group-hover/btn:opacity-100"
+                />
+            </button>
+
+            <button
+                type="button"
+                class="flex items-center gap-1.5 px-2 py-0.5 rounded text-accent border border-transparent hover:border-accent/10 hover:bg-accent/10 transition-colors active:scale-95 group/btn pointer-events-auto"
+                onclick={commit}
+            >
+                <span
+                    class="text-[9px] font-medium px-1 rounded bg-accent/10 border border-accent/20 text-accent/80"
+                    >{isMac ? "⌘↵" : "Ctrl↵"}</span
                 >
-                    <IconCheck class="size-3" />
-                </button>
-            </div>
+                <IconCheck
+                    class="size-3.5 opacity-80 group-hover/btn:opacity-100"
+                />
+            </button>
         </div>
     </div>
 </div>
