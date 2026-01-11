@@ -2,7 +2,8 @@
     import { getContext, onMount } from "svelte";
     import { cn } from "$lib/utils";
 
-    import { IconCheck, IconX } from "@tabler/icons-svelte";
+    import IconCheck from "@tabler/icons-svelte/icons/check";
+    import IconX from "@tabler/icons-svelte/icons/x";
 
     interface Props {
         value: any;
