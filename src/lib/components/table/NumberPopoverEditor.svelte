@@ -2,6 +2,8 @@
     import { getContext, onMount } from "svelte";
     import { cn } from "$lib/utils";
 
+    import { IconCheck, IconX } from "@tabler/icons-svelte";
+
     type NumberType = "int" | "float";
 
     interface Props {
@@ -142,42 +144,45 @@
     tabindex="-1"
     onkeydown={handleKeydown}
     class={cn(
-        "fixed bg-surface border border-border-focus rounded-md flex flex-col p-1",
+        "fixed bg-surface border border-accent/10 rounded-lg flex flex-col p-0.5",
         isVisible ? "anim-pop opacity-100" : "opacity-0 pointer-events-none",
     )}
     style={`top:${position.top}px;left:${position.left}px;min-width:${position.width}px;max-width:280px;transform-origin:center;z-index:1000`}
     aria-hidden={!isVisible}
 >
-    <div class="flex flex-col gap-2">
+    <div class="relative flex flex-col group">
         <input
             type="number"
             inputmode="decimal"
-            class="w-full rounded border border-border px-2 py-1 text-sm bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-border-focus"
+            class="w-full rounded-md border border-accent/5 px-2 pt-1 pb-6 text-sm bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-accent/10 focus:border-accent/10 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             bind:value={inputValue}
+            placeholder="0"
         />
+
         <div
-            class="flex items-center justify-between text-xs text-foreground-muted"
+            class="absolute bottom-1 left-2 right-1.5 flex items-center justify-between pointer-events-none"
         >
-            <span>Enter or Cmd/Ctrl+Enter to save · Esc to cancel</span>
-            <span class="text-[10px] uppercase tracking-wide">{kind}</span>
+            <span
+                class="text-[9px] text-foreground-muted opacity-30 font-medium tracking-tight"
+            >
+                ↵ Save · Esc Cancel
+            </span>
+            <div class="flex items-center gap-0.5 pointer-events-auto">
+                <button
+                    type="button"
+                    class="p-0.5 rounded hover:bg-muted text-foreground-muted transition-colors active:scale-95"
+                    onclick={onCancel}
+                >
+                    <IconX class="size-3" />
+                </button>
+                <button
+                    type="button"
+                    class="p-0.5 rounded text-accent hover:bg-accent/10 transition-colors active:scale-95"
+                    onclick={commit}
+                >
+                    <IconCheck class="size-3" />
+                </button>
+            </div>
         </div>
-    </div>
-    <div
-        class="flex items-center justify-end border-t border-border px-2 py-1 gap-2 bg-surface"
-    >
-        <button
-            type="button"
-            class="px-2 py-1 text-sm rounded bg-tertiary text-foreground hover:bg-muted transition"
-            onclick={onCancel}
-        >
-            Cancel
-        </button>
-        <button
-            type="button"
-            class="px-2 py-1 text-sm rounded bg-accent text-accent-foreground hover:bg-accent-hover transition"
-            onclick={commit}
-        >
-            Save
-        </button>
     </div>
 </div>
