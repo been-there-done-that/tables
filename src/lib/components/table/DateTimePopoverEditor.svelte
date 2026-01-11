@@ -1,6 +1,8 @@
 <script lang="ts">
     import { getContext, onMount } from "svelte";
     import { cn } from "$lib/utils";
+    import { portal } from "$lib/actions/portal";
+    import { focusTrap } from "$lib/actions/focus-trap";
 
     interface Props {
         value: any;
@@ -15,6 +17,8 @@
     let overlayEl = $state<HTMLElement | null>(null);
     let position = $state({ top: 0, left: 0, width: 280 });
     let isVisible = $state(false);
+    let placement = $state<"left" | "right">("right");
+    let arrowOffset = $state(0);
 
     const GUTTER = 4;
 
@@ -116,31 +120,23 @@
         dayOptions = Array.from({ length: max }, (_, i) => i + 1);
     });
 
-    function portal(node: HTMLElement) {
-        if (typeof document === "undefined") return {};
-        const target = document.body;
-        target.appendChild(node);
-        return {
-            destroy() {
-                if (node.parentNode === target) target.removeChild(node);
-            },
-        };
-    }
-
     function updatePosition() {
         if (!anchorEl || !anchorEl.isConnected) {
-            onCancel();
+            isVisible = false;
             return;
         }
         const rect = anchorEl.getBoundingClientRect();
-        const width = Math.max(rect.width + 40, position.width);
+        const width = 280;
         const overlayHeight = overlayEl?.offsetHeight ?? 240;
-        const margin = GUTTER;
+        const margin = 8;
 
         let left = rect.right + margin;
+        placement = "right";
+
         const fitsRight = left + width + margin <= window.innerWidth;
         if (!fitsRight) {
             left = rect.left - width - margin;
+            placement = "left";
         }
         left = Math.max(
             margin,
@@ -151,6 +147,15 @@
         const minTop = margin;
         const maxTop = window.innerHeight - overlayHeight - margin;
         top = Math.max(minTop, Math.min(top, maxTop));
+
+        // Calculate arrow vertical offset
+        const anchorCenterY = rect.top + rect.height / 2;
+        const minArrow = 12;
+        const maxArrow = overlayHeight - 12;
+        arrowOffset = Math.max(
+            minArrow,
+            Math.min(anchorCenterY - top, maxArrow),
+        );
 
         position = { top, left, width };
     }
@@ -269,16 +274,19 @@
     {#if isVisible}
         <div
             use:portal
+            use:focusTrap
             bind:this={overlayEl}
+            data-placement={placement}
             role="dialog"
             aria-label="Edit date/time value"
             tabindex="-1"
             onkeydown={handleKeydown}
             class={cn(
-                "fixed bg-surface border border-border-focus rounded-md flex flex-col p-1 shadow-lg",
+                "popover-editor fixed rounded-lg shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] flex flex-col p-1",
+                "bg-surface border border-accent/20 ring-1 ring-accent/10",
                 "anim-pop opacity-100",
             )}
-            style={`top:${position.top}px;left:${position.left}px;min-width:${position.width}px;max-width:340px;min-height:200px;transform-origin:center;z-index:9999`}
+            style={`top:${position.top}px;left:${position.left}px;min-width:${position.width}px;max-width:340px;min-height:200px;transform-origin:center;z-index:9999;--arrow-top:${arrowOffset}px`}
         >
             <div class="flex flex-col gap-3 p-3">
                 <div class="grid grid-cols-3 gap-2">
