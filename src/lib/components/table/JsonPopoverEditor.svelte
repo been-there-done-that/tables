@@ -5,6 +5,8 @@
     import { focusTrap } from "$lib/actions/focus-trap";
     import { useMonacoEditor } from "$lib/monaco/useMonacoEditor";
     import type { EditorHandle } from "$lib/monaco/editor-types";
+    import IconCheck from "@tabler/icons-svelte/icons/check";
+    import IconX from "@tabler/icons-svelte/icons/x";
     import type * as Monaco from "monaco-editor";
     import { MONACO_THEME_NAME } from "$lib/monaco/monaco-theme";
 
@@ -39,6 +41,9 @@
         null,
         2,
     );
+
+    const isMac =
+        typeof navigator !== "undefined" && navigator.userAgent.includes("Mac");
 
     const originalText = buildInitialText(value);
     const originalParsed = parseJsonSafe(originalText, value);
@@ -101,6 +106,7 @@
                 },
                 fontFamily:
                     "Fira Code, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                padding: { bottom: 28 },
             },
         },
         (handle) => {
@@ -283,40 +289,48 @@
     <div class="flex-1 overflow-hidden min-h-[180px] relative">
         <div
             bind:this={editorContainer}
-            class="absolute inset-0 h-full w-full"
+            class="absolute inset-0"
             oncontextmenu={handleEditorContextMenu}
         ></div>
         {#if errorMessage}
-            <div class="absolute inset-x-0 bottom-0 pointer-events-none">
+            <div class="absolute inset-x-0 bottom-0 pointer-events-none z-10">
                 <div
-                    class="mx-1 mb-1 rounded bg-destructive/80 text-destructive-foreground text-xs px-2 py-1 shadow-sm border border-destructive/60"
+                    class="mx-1 mb-1 rounded bg-destructive/80 text-destructive-foreground text-[10px] px-2 py-1 shadow-sm border border-destructive/60 backdrop-blur-sm"
                 >
                     {errorMessage}
                 </div>
             </div>
         {/if}
-    </div>
 
-    <div
-        class="flex items-center justify-between border-t border-border px-2 py-1 gap-2 bg-surface"
-    >
-        <div class="text-xs text-foreground-muted truncate">
-            Ctrl/Cmd+Enter to save · Esc to cancel
-        </div>
-        <div class="flex items-center gap-2">
+        <div
+            class="absolute bottom-1 left-0 right-0 flex items-center justify-center gap-2 pointer-events-none z-10"
+        >
             <button
                 type="button"
-                class="px-2 py-1 text-sm rounded bg-tertiary text-foreground hover:bg-muted transition"
+                class="flex items-center gap-1.5 px-2 py-0.5 rounded border border-transparent hover:border-accent/10 hover:bg-muted text-foreground-muted transition-colors active:scale-95 group/btn pointer-events-auto"
                 onclick={onCancel}
             >
-                Cancel
+                <span
+                    class="text-[9px] font-medium px-1 rounded bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 text-foreground-muted/60"
+                    >Esc</span
+                >
+                <IconX
+                    class="size-3.5 opacity-60 group-hover/btn:opacity-100"
+                />
             </button>
+
             <button
                 type="button"
-                class="px-2 py-1 text-sm rounded bg-accent text-accent-foreground hover:bg-accent-hover transition"
+                class="flex items-center gap-1.5 px-2 py-0.5 rounded text-accent border border-transparent hover:border-accent/10 hover:bg-accent/10 transition-colors active:scale-95 group/btn pointer-events-auto"
                 onclick={commitFromEditor}
             >
-                Save
+                <span
+                    class="text-[9px] font-medium px-1 rounded bg-accent/10 border border-accent/20 text-accent/80"
+                    >{isMac ? "⌘↵" : "Ctrl↵"}</span
+                >
+                <IconCheck
+                    class="size-3.5 opacity-80 group-hover/btn:opacity-100"
+                />
             </button>
         </div>
     </div>
