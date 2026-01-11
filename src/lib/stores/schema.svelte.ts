@@ -21,22 +21,27 @@ export class SchemaStore {
 
     async initialize(label: string) {
         this.windowLabel = label;
-        console.log(`[SchemaStore] Initializing for window: ${label} `);
+        console.log(`[SchemaStore] Initializing for window: ${label}`);
 
-        try {
-            // Check if there's a persisted session for this window
-            const persistedId = await invoke<string | null>("get_window_session", { windowLabel: label });
-            if (persistedId) {
-                console.log(`[SchemaStore] Found persisted session: ${persistedId} `);
-                // Load connection metadata
-                const conn = await invoke<Connection>("get_connection_metadata", { id: persistedId });
-                if (conn) {
-                    await this.connect(conn);
-                    // Sessions will be restored inside connect()
+        // Skip connection restoration for specialized windows
+        if (label === "appearance-window" || label === "datasource-window") {
+            console.log(`[SchemaStore] Specialized window detected, skipping connection restoration.`);
+        } else {
+            try {
+                // Check if there's a persisted session for this window
+                const persistedId = await invoke<string | null>("get_window_session", { windowLabel: label });
+                if (persistedId) {
+                    console.log(`[SchemaStore] Found persisted session: ${persistedId}`);
+                    // Load connection metadata
+                    const conn = await invoke<Connection>("get_connection_metadata", { id: persistedId });
+                    if (conn) {
+                        // Use silent connect for restoration to avoid redundant toasts on startup
+                        await this.connect(conn, true);
+                    }
                 }
+            } catch (e) {
+                console.error("[SchemaStore] Failed to restore session:", e);
             }
-        } catch (e) {
-            console.error("[SchemaStore] Failed to restore session:", e);
         }
 
         // Listen for active connection changes from backend
@@ -50,7 +55,7 @@ export class SchemaStore {
         this.refreshActiveConnections();
     }
 
-    async connect(conn: Connection) {
+    async connect(conn: Connection, silent: boolean = false) {
         const previousId = this.activeConnection?.id;
 
         // Guard against duplicate concurrent connects to same connection
@@ -107,10 +112,14 @@ export class SchemaStore {
                     console.timeEnd("[SchemaStore] get_schema (after refresh)");
                     console.log(`[SchemaStore] After refresh: ${data.length} databases`);
 
-                    toast.success("Schema Loaded", {
-                        id: loadingToastId,
-                        description: `Discovered ${data.length} databases.`
-                    });
+                    if (!silent) {
+                        toast.success("Schema Loaded", {
+                            id: loadingToastId,
+                            description: `Discovered ${data.length} databases.`
+                        });
+                    } else {
+                        toast.dismiss(loadingToastId);
+                    }
                 } catch (introError) {
                     toast.error("Introspection Failed", {
                         id: loadingToastId,
@@ -192,10 +201,12 @@ export class SchemaStore {
             await windowState.restoreForConnection(conn);
             console.log(`[SchemaStore] Status changed to: ${this.status}, databases count: ${this.databases.length}`);
 
-            if (data.length === 0) {
-                toast.success("Connected", { description: "No schema found. Try refreshing." });
-            } else {
-                toast.success("Connected", { description: `Loaded ${data.length} databases.` });
+            if (!silent) {
+                if (data.length === 0) {
+                    toast.success("Connected", { description: "No schema found. Try refreshing." });
+                } else {
+                    toast.success("Connected", { description: `Loaded ${data.length} databases.` });
+                }
             }
 
         } catch (e) {

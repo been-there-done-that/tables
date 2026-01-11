@@ -428,7 +428,7 @@
                 <!-- Vertical Line -->
                 <div
                     class="absolute top-0 bottom-0 w-px bg-border/40"
-                    style="left: calc({indent}px * {depth} + 10px);"
+                    style="left: calc({indent}px * {depth} + 12px);"
                 ></div>
 
                 <ul class="flex flex-col gap-0">

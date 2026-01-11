@@ -233,7 +233,7 @@
 <div
     bind:this={cellEl}
     class={cn(
-        "relative flex items-center border-r truncate text-sm select-none text-foreground border-border box-border transition-colors duration-75",
+        "relative flex items-center border-r truncate text-sm select-none text-foreground border-border box-border",
         // Selection state
         isSelected && "bg-accent/10 border-accent/20",
         // Focus state (keyboard nav)
@@ -247,7 +247,7 @@
         disabled && "opacity-50 cursor-not-allowed",
     )}
     style="width: {column.width || 150}px; min-width: {column.minWidth ||
-        50}px; max-width: {column.maxWidth}px; flex-shrink: 0;"
+        50}px; max-width: {column.maxWidth}px; flex-shrink: 0; overflow: hidden;"
     onclick={handleClick}
     onmousedown={handleMouseDown}
     onmouseenter={handleMouseEnter}

@@ -6,23 +6,21 @@
 
     // Import editors to register them (side-effect or explicit)
     import IndependentInlineTextEditor from "./editors/InlineTextEditor.svelte";
-    import NumberEditor from "./editors/NumberEditor.svelte"; // New inline editor
     import BooleanPopoverEditor from "./BooleanPopoverEditor.svelte";
     import EnumPopoverEditor from "./EnumPopoverEditor.svelte";
     import JsonPopoverEditor from "./JsonPopoverEditor.svelte";
     import DateTimePopoverEditor from "./DateTimePopoverEditor.svelte";
-    // import NumberPopoverEditor from "./NumberPopoverEditor.svelte"; // Deprecated
-    // We map "TextPopoverEditor" to a registry key if needed, or use InlineTextEditor for "text"
+    import NumberPopoverEditor from "./NumberPopoverEditor.svelte";
     import TextPopoverEditor from "./TextPopoverEditor.svelte";
 
     // Register default editors (idempotent)
-    registerEditorRenderer("text", IndependentInlineTextEditor);
+    // Note: Using popover editors for all types to avoid inline editing wiggle
+    registerEditorRenderer("text", IndependentInlineTextEditor); // Fallback only
     registerEditorRenderer("boolean", BooleanPopoverEditor);
     registerEditorRenderer("enum", EnumPopoverEditor);
     registerEditorRenderer("json", JsonPopoverEditor);
     registerEditorRenderer("datetime", DateTimePopoverEditor);
-    registerEditorRenderer("number", NumberEditor);
-    // You might want a "text-popover" for specific cases
+    registerEditorRenderer("number-popover", NumberPopoverEditor);
     registerEditorRenderer("text-popover", TextPopoverEditor);
 
     interface Props {

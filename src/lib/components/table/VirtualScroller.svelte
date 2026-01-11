@@ -22,9 +22,11 @@
     let container: HTMLDivElement;
     let scrollTop = $state(0);
     let containerHeight = $state(0);
+    let isScrolling = $state(false);
+    let scrollTimeout: ReturnType<typeof setTimeout> | null = null;
 
     // Add buffer to prevent blank states during fast scrolling
-    const BUFFER_SIZE = 5; // Render 5 extra items above and below
+    const BUFFER_SIZE = 20;
 
     let totalHeight = $derived(items.length * itemHeight);
     let startIndex = $derived(
@@ -42,6 +44,14 @@
     function handleScroll(e: Event) {
         const target = e.target as HTMLDivElement;
         scrollTop = target.scrollTop;
+
+        // Set scrolling state to disable pointer events during scroll
+        isScrolling = true;
+        if (scrollTimeout) clearTimeout(scrollTimeout);
+        scrollTimeout = setTimeout(() => {
+            isScrolling = false;
+        }, 150); // Reset after 150ms of no scrolling
+
         onScroll?.(e);
     }
 
@@ -91,7 +101,10 @@
                 containerHeight = container.clientHeight;
             });
             resizeObserver.observe(container);
-            return () => resizeObserver.disconnect();
+            return () => {
+                resizeObserver.disconnect();
+                if (scrollTimeout) clearTimeout(scrollTimeout);
+            };
         }
     });
 
@@ -111,15 +124,40 @@
     onscroll={handleScroll}
 >
     {#if header}
-        <div class="sticky top-0 z-20 w-fit min-w-full bg-surface">
+        <div class="sticky top-0 z-50 w-fit min-w-full bg-surface">
             {@render header()}
         </div>
     {/if}
-    <div style="height: {totalHeight}px; width: 100%; position: relative;">
-        <div style="position: absolute; top: {offsetY}px; width: 100%;">
-            {#each visibleItems as item, i (item._rowId || i + startIndex)}
+    <div
+        class="virtual-scroll-content"
+        style="height: {totalHeight}px; width: fit-content; min-width: 100%; position: relative;"
+    >
+        <!-- Use absolute top positioning instead of transform for smoother rendering -->
+        <div
+            class="virtual-scroll-viewport"
+            class:scrolling={isScrolling}
+            style="position: absolute; width: fit-content; min-width: 100%; top: {offsetY}px;"
+        >
+            {#each visibleItems as item, i (item._rowId ?? `row-${startIndex + i}`)}
                 {@render children(item, i + startIndex)}
             {/each}
         </div>
     </div>
 </div>
+
+<style>
+    .virtual-scroll-viewport {
+        /* Optimize rendering with backface-visibility */
+        backface-visibility: hidden;
+    }
+
+    /* Disable pointer events during scroll to prevent repaints from hover states */
+    .virtual-scroll-viewport.scrolling {
+        pointer-events: none;
+    }
+
+    .virtual-scroll-content {
+        /* Prevent subpixel rendering issues */
+        backface-visibility: hidden;
+    }
+</style>

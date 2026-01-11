@@ -472,7 +472,7 @@ async fn fetch_postgres_preview(
             schema, table_name, where_part
         );
         let count_row = client.query_one(&count_query, &[]).await
-            .map_err(|e| format!("Count query failed: {}", e))?;
+            .map_err(|e| crate::pg_utils::format_postgres_error(&e))?;
         Some(count_row.get(0))
     } else {
         None
@@ -490,7 +490,7 @@ async fn fetch_postgres_preview(
         schema, table_name, where_part, order_part, limit, offset
     );
     let rows = client.query(&data_query, &[]).await
-        .map_err(|e| format!("Data query failed: {}", e))?;
+        .map_err(|e| crate::pg_utils::format_postgres_error(&e))?;
 
     // Extract column info from the first row or query
     let columns: Vec<ColumnInfo> = if !rows.is_empty() {
@@ -506,7 +506,7 @@ async fn fetch_postgres_preview(
             "SELECT column_name, data_type FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2 ORDER BY ordinal_position"
         );
         let col_rows = client.query(&cols_query, &[&schema, &table_name]).await
-            .map_err(|e| format!("Column query failed: {}", e))?;
+            .map_err(|e| crate::pg_utils::format_postgres_error(&e))?;
         col_rows.iter().map(|row| {
             ColumnInfo {
                 name: row.get(0),
@@ -547,7 +547,7 @@ fn fetch_sqlite_preview(
         .ok_or("Missing SQLite file path in config")?;
 
     let conn = rusqlite::Connection::open(sqlite_path)
-        .map_err(|e| format!("Failed to open SQLite database: {}", e))?;
+        .map_err(|e| crate::sqlite_utils::format_sqlite_error(&e))?;
 
     // Build WHERE clause
     let where_part = match where_clause {
@@ -560,20 +560,20 @@ fn fetch_sqlite_preview(
         let count_query = format!("SELECT COUNT(*) FROM \"{}\"{}",  table_name, where_part);
         conn.query_row(&count_query, [], |row| row.get(0))
             .map(Some)
-            .map_err(|e| format!("Count query failed: {}", e))?
+            .map_err(|e| crate::sqlite_utils::format_sqlite_error(&e))?
     } else {
         None
     };
 
     // Get column info
     let mut stmt = conn.prepare(&format!("PRAGMA table_info(\"{}\")", table_name))
-        .map_err(|e| format!("Failed to get table info: {}", e))?;
+        .map_err(|e| crate::sqlite_utils::format_sqlite_error(&e))?;
     let columns: Vec<ColumnInfo> = stmt.query_map([], |row| {
         Ok(ColumnInfo {
             name: row.get(1)?,
             column_type: row.get(2)?,
         })
-    }).map_err(|e| format!("Failed to query columns: {}", e))?
+    }).map_err(|e| crate::sqlite_utils::format_sqlite_error(&e))?
       .filter_map(|r| r.ok())
       .collect();
 
@@ -586,17 +586,17 @@ fn fetch_sqlite_preview(
     // Fetch rows
     let query = format!("SELECT * FROM \"{}\"{}{}  LIMIT {} OFFSET {}", table_name, where_part, order_part, limit, offset);
     let mut stmt = conn.prepare(&query)
-        .map_err(|e| format!("Failed to prepare query: {}", e))?;
+        .map_err(|e| crate::sqlite_utils::format_sqlite_error(&e))?;
 
     let column_names: Vec<String> = columns.iter().map(|c| c.name.clone()).collect();
     let rows: Vec<serde_json::Value> = stmt.query_map([], |row| {
         let mut obj = serde_json::Map::new();
         for (i, name) in column_names.iter().enumerate() {
-            let value = sqlite_value_to_json(row, i);
+            let value = crate::sqlite_utils::sqlite_value_to_json(row, i);
             obj.insert(name.clone(), value);
         }
         Ok(serde_json::Value::Object(obj))
-    }).map_err(|e| format!("Failed to query rows: {}", e))?
+    }).map_err(|e| crate::sqlite_utils::format_sqlite_error(&e))?
       .filter_map(|r| r.ok())
       .collect();
 
@@ -612,43 +612,6 @@ fn fetch_sqlite_preview(
 fn postgres_value_to_json(row: &tokio_postgres::Row, idx: usize) -> serde_json::Value {
     let col = &row.columns()[idx];
     crate::pg_utils::pg_value_to_json(row, idx, col)
-}
-
-/// Convert a SQLite row value to JSON
-fn sqlite_value_to_json(row: &rusqlite::Row, idx: usize) -> serde_json::Value {
-    // Try different types in order of likelihood
-    if let Ok(v) = row.get::<_, Option<i64>>(idx) {
-        if let Some(n) = v {
-            return serde_json::Value::Number(n.into());
-        }
-        return serde_json::Value::Null;
-    }
-    if let Ok(v) = row.get::<_, Option<f64>>(idx) {
-        if let Some(n) = v {
-            return serde_json::Number::from_f64(n)
-                .map(serde_json::Value::Number)
-                .unwrap_or(serde_json::Value::Null);
-        }
-        return serde_json::Value::Null;
-    }
-    if let Ok(v) = row.get::<_, Option<String>>(idx) {
-        if let Some(s) = v {
-            // Try to parse as JSON
-            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&s) {
-                if json.is_object() || json.is_array() {
-                    return json;
-                }
-            }
-            return serde_json::Value::String(s);
-        }
-        return serde_json::Value::Null;
-    }
-    if let Ok(v) = row.get::<_, Option<bool>>(idx) {
-        if let Some(b) = v {
-            return serde_json::Value::Bool(b);
-        }
-    }
-    serde_json::Value::Null
 }
 
 async fn execute_postgres_query(
@@ -743,10 +706,10 @@ fn execute_sqlite_query(
         .ok_or("Missing SQLite file path in config")?;
 
     let conn = rusqlite::Connection::open(sqlite_path)
-        .map_err(|e| format!("Failed to open SQLite database: {}", e))?;
+        .map_err(|e| crate::sqlite_utils::format_sqlite_error(&e))?;
 
     let mut stmt = conn.prepare(query)
-        .map_err(|e| format!("Failed to prepare query: {}", e))?;
+        .map_err(|e| crate::sqlite_utils::format_sqlite_error(&e))?;
 
     let column_count = stmt.column_count();
     let column_names: Vec<String> = stmt.column_names().into_iter().map(|s| s.to_string()).collect();
@@ -761,11 +724,11 @@ fn execute_sqlite_query(
     let rows: Vec<serde_json::Value> = stmt.query_map([], |row| {
         let mut obj = serde_json::Map::new();
         for (i, name) in column_names.iter().enumerate() {
-            let value = sqlite_value_to_json(row, i);
+            let value = crate::sqlite_utils::sqlite_value_to_json(row, i);
             obj.insert(name.clone(), value);
         }
         Ok(serde_json::Value::Object(obj))
-    }).map_err(|e| format!("Failed to query rows: {}", e))?
+    }).map_err(|e| crate::sqlite_utils::format_sqlite_error(&e))?
       .filter_map(|r| r.ok())
       .collect();
 
