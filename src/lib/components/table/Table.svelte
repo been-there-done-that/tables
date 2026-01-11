@@ -334,7 +334,7 @@
             if (loading) return;
         }
 
-        const targetOffset = append ? rows.length : offset;
+        const targetOffset = append ? offset + rows.length : offset;
 
         if (append) loadingMore = true;
         else {
@@ -801,6 +801,7 @@
                 },
                 {} as Record<string, number>,
             ),
+            limit,
             hiddenColumnIds: Array.from(hiddenColumnIds),
             pinnedColumnIds,
         };
@@ -864,6 +865,10 @@
 
             if (state.pinnedColumnIds) {
                 pinnedColumnIds = state.pinnedColumnIds;
+            }
+
+            if (state.limit) {
+                limit = state.limit;
             }
         } catch (e) {
             console.error("Failed to load view state", e);
@@ -1018,7 +1023,7 @@
                 totalRows,
             });
             // Move offset forward and append next page
-            offset = rows.length;
+            // offset = rows.length; // Removing incorrect update of start offset
             loadData({ append: true });
         }
     }
