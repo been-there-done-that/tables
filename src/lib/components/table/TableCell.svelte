@@ -247,7 +247,7 @@
         disabled && "opacity-50 cursor-not-allowed",
     )}
     style="width: {column.width || 150}px; min-width: {column.minWidth ||
-        50}px; max-width: {column.maxWidth}px; flex-shrink: 0;"
+        50}px; max-width: {column.maxWidth}px; flex-shrink: 0; overflow: hidden;"
     onclick={handleClick}
     onmousedown={handleMouseDown}
     onmouseenter={handleMouseEnter}
