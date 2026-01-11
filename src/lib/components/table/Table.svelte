@@ -1009,6 +1009,7 @@
             target.scrollHeight - nearBottomThreshold;
 
         const canLoadMore =
+            false && // Auto-load on scroll disabled for now
             !loadingMore &&
             !loading &&
             rows.length < totalRows &&
