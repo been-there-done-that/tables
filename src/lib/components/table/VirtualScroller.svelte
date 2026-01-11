@@ -24,7 +24,7 @@
     let containerHeight = $state(0);
 
     // Add buffer to prevent blank states during fast scrolling
-    const BUFFER_SIZE = 5; // Render 5 extra items above and below
+    const BUFFER_SIZE = 20; // Render 5 extra items above and below
 
     let totalHeight = $derived(items.length * itemHeight);
     let startIndex = $derived(
@@ -116,7 +116,9 @@
         </div>
     {/if}
     <div style="height: {totalHeight}px; width: 100%; position: relative;">
-        <div style="position: absolute; top: {offsetY}px; width: 100%;">
+        <div
+            style="position: absolute; width: 100%; transform: translate3d(0, {offsetY}px, 0); will-change: transform;"
+        >
             {#each visibleItems as item, i (item._rowId || i + startIndex)}
                 {@render children(item, i + startIndex)}
             {/each}
