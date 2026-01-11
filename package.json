@@ -25,7 +25,8 @@
     "monaco-editor": "^0.55.1",
     "svelte-sonner": "^1.0.7",
     "tailwind-variants": "^3.2.2",
-    "tailwindcss": "^4.1.18"
+    "tailwindcss": "^4.1.18",
+    "wx-svelte-grid": "^2.4.0"
   },
   "devDependencies": {
     "@iconify-json/akar-icons": "^1.2.7",

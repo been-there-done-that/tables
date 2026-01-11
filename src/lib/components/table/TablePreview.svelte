@@ -1,5 +1,5 @@
 <script lang="ts">
-    import Table from "$lib/components/table/Table.svelte";
+    import SvarTable from "$lib/components/table/SvarTable.svelte";
     import TableToolbar from "$lib/components/table/TableToolbar.svelte";
     import type { Column, DataFetcher } from "$lib/components/table/types";
     import { invoke } from "@tauri-apps/api/core";
@@ -654,7 +654,7 @@
     />
     {#key tableKey}
         <div class="flex-1 min-h-0">
-            <Table
+            <SvarTable
                 bind:this={tableRef}
                 columns={[]}
                 {dataFetcher}
