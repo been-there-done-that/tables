@@ -159,6 +159,10 @@
         null,
     );
 
+    // Layout stability flags
+    let scrollLock = false;
+    let columnWidthsFrozen = false;
+
     const MAX_UNDO = 10;
     let clipboardFormat: ClipboardFormat = "tsv";
     let includeHeaders = true;
@@ -273,6 +277,8 @@
 
     function autoSizeColumns() {
         if (!rows.length) return;
+        if (editingCell || scrollLock) return; // Never auto-size during edit
+
         const needsAuto = tableColumns.some((c) => c.width == null);
         if (!needsAuto) {
             console.info(
@@ -315,9 +321,19 @@
             widthMap[col.id] = finalWidth;
         }
 
-        tableColumns = tableColumns.map((c) =>
-            c.width != null ? c : { ...c, width: widthMap[c.id] },
-        );
+        tableColumns = tableColumns.map((c) => {
+            if (c.width != null) return c;
+            // If freezing is active and we somehow got here, fallback to default rather than content-based
+            if (columnWidthsFrozen) {
+                return { ...c, width: c.width ?? 150 };
+            }
+            return { ...c, width: widthMap[c.id] };
+        });
+
+        // Freeze widths after first successful auto-size
+        if (Object.keys(widthMap).length > 0) {
+            columnWidthsFrozen = true;
+        }
 
         console.info("[Table] autoSizeColumns:completed", {
             autoSizedColumns: Object.keys(widthMap),
@@ -334,7 +350,7 @@
             if (loading) return;
         }
 
-        const targetOffset = append ? rows.length : offset;
+        const targetOffset = append ? offset + rows.length : offset;
 
         if (append) loadingMore = true;
         else {
@@ -801,6 +817,7 @@
                 },
                 {} as Record<string, number>,
             ),
+            limit,
             hiddenColumnIds: Array.from(hiddenColumnIds),
             pinnedColumnIds,
         };
@@ -864,6 +881,10 @@
 
             if (state.pinnedColumnIds) {
                 pinnedColumnIds = state.pinnedColumnIds;
+            }
+
+            if (state.limit) {
+                limit = state.limit;
             }
         } catch (e) {
             console.error("Failed to load view state", e);
@@ -994,6 +1015,7 @@
     let tableBody: TableBody;
 
     function handleBodyScroll(e: Event) {
+        if (scrollLock) return;
         const target = e.target as HTMLDivElement;
         scrollLeft = target.scrollLeft;
         // Manual header sync is removed as we use sticky header inside Body
@@ -1004,6 +1026,7 @@
             target.scrollHeight - nearBottomThreshold;
 
         const canLoadMore =
+            false && // Auto-load on scroll disabled for now
             !loadingMore &&
             !loading &&
             rows.length < totalRows &&
@@ -1018,7 +1041,7 @@
                 totalRows,
             });
             // Move offset forward and append next page
-            offset = rows.length;
+            // offset = rows.length; // Removing incorrect update of start offset
             loadData({ append: true });
         }
     }
@@ -1175,6 +1198,7 @@
                 rowId: filteredRows[rowIndex]._rowId,
                 columnId: col.id,
             };
+            scrollLock = true; // Lock scroll during edit
             console.info("[Table] edit:state-set", { editingCell });
         } else {
             console.warn("[Table] edit:refused - not editable");
@@ -1278,17 +1302,26 @@
         columnIndex: number,
         newValue: any,
     ) {
-        // CAPTURE scroll position BEFORE modifying state (which triggers DOM update)
+        // CAPTURE scroll position BEFORE modifying state
         const scrollContainer = tableBody?.getContainer?.();
         const savedTop = scrollContainer?.scrollTop;
         const savedLeft = scrollContainer?.scrollLeft;
 
+        scrollLock = true; // Ensure lock is on
+
         const row = filteredRows[rowIndex];
-        if (!row) return;
+        if (!row) {
+            // Even if we bail, release lock eventually
+            requestAnimationFrame(() => (scrollLock = false));
+            return;
+        }
 
         const rowId = row._rowId;
         const column = visibleColumns[columnIndex];
-        if (!column) return;
+        if (!column) {
+            requestAnimationFrame(() => (scrollLock = false));
+            return;
+        }
         const columnId = column.id;
 
         let normalizedValue = newValue;
@@ -1309,34 +1342,27 @@
         }
         editingCell = null;
 
-        // Restore focus and scroll position after DOM update
+        // Restore focus and scroll position after layout settles
+        // Double RAF -> Layout + Paint safe
         tick().then(() => {
-            tableContainer?.focus({ preventScroll: true });
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    scrollLock = false; // Release lock only after stabilization
 
-            // Restore scroll position
-            if (scrollContainer) {
-                if (savedTop !== undefined)
-                    scrollContainer.scrollTop = savedTop;
-                if (savedLeft !== undefined)
-                    scrollContainer.scrollLeft = savedLeft;
-            }
+                    tableContainer?.focus({ preventScroll: true });
+                    // Explicitly blur active element if it's the input we just left, to avoid browser scroll jumps
+                    if (document.activeElement instanceof HTMLElement) {
+                        document.activeElement.blur();
+                    }
 
-            // Set up temporary scroll guard - fights back against any async scroll changes
-            if (
-                scrollContainer &&
-                (savedTop !== undefined || savedLeft !== undefined)
-            ) {
-                const guard = () => {
-                    if (savedTop !== undefined)
-                        scrollContainer.scrollTop = savedTop;
-                    if (savedLeft !== undefined)
-                        scrollContainer.scrollLeft = savedLeft;
-                };
-                scrollContainer.addEventListener("scroll", guard);
-                setTimeout(() => {
-                    scrollContainer.removeEventListener("scroll", guard);
-                }, 100);
-            }
+                    if (scrollContainer) {
+                        scrollContainer.scrollTop =
+                            savedTop ?? scrollContainer.scrollTop;
+                        scrollContainer.scrollLeft =
+                            savedLeft ?? scrollContainer.scrollLeft;
+                    }
+                });
+            });
         });
     }
 
@@ -1346,36 +1372,29 @@
         const savedTop = scrollContainer?.scrollTop;
         const savedLeft = scrollContainer?.scrollLeft;
 
+        scrollLock = true; // Ensure lock
+
         editingCell = null;
 
-        // Restore focus and scroll position after DOM update
+        // Restore focus and scroll position after layout settles
         tick().then(() => {
-            tableContainer?.focus({ preventScroll: true });
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    scrollLock = false;
 
-            // Restore scroll position
-            if (scrollContainer) {
-                if (savedTop !== undefined)
-                    scrollContainer.scrollTop = savedTop;
-                if (savedLeft !== undefined)
-                    scrollContainer.scrollLeft = savedLeft;
-            }
+                    tableContainer?.focus({ preventScroll: true });
+                    if (document.activeElement instanceof HTMLElement) {
+                        document.activeElement.blur();
+                    }
 
-            // Set up temporary scroll guard - fights back against any async scroll changes
-            if (
-                scrollContainer &&
-                (savedTop !== undefined || savedLeft !== undefined)
-            ) {
-                const guard = () => {
-                    if (savedTop !== undefined)
-                        scrollContainer.scrollTop = savedTop;
-                    if (savedLeft !== undefined)
-                        scrollContainer.scrollLeft = savedLeft;
-                };
-                scrollContainer.addEventListener("scroll", guard);
-                setTimeout(() => {
-                    scrollContainer.removeEventListener("scroll", guard);
-                }, 100);
-            }
+                    if (scrollContainer) {
+                        scrollContainer.scrollTop =
+                            savedTop ?? scrollContainer.scrollTop;
+                        scrollContainer.scrollLeft =
+                            savedLeft ?? scrollContainer.scrollLeft;
+                    }
+                });
+            });
         });
     }
 
@@ -1625,11 +1644,12 @@
     function ensureCellVisible(rowIndex: number, columnIndex: number) {
         if (!tableBody) return;
 
-        if (editingCell) {
-            console.info("[Table] ensureCellVisible:skip-editing", {
+        if (editingCell || scrollLock) {
+            console.info("[Table] ensureCellVisible:skip-editing-or-locked", {
                 rowIndex,
                 columnIndex,
                 editingCell,
+                scrollLock,
             });
             return;
         }

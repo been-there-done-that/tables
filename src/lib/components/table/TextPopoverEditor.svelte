@@ -1,8 +1,11 @@
 <script lang="ts">
     import { getContext, onMount } from "svelte";
     import { cn } from "$lib/utils";
+    import { portal } from "$lib/actions/portal";
+    import { focusTrap } from "$lib/actions/focus-trap";
 
-    import { IconCheck, IconX } from "@tabler/icons-svelte";
+    import IconCheck from "@tabler/icons-svelte/icons/check";
+    import IconX from "@tabler/icons-svelte/icons/x";
 
     interface Props {
         value: any;
@@ -17,23 +20,17 @@
     let position = $state({ top: 0, left: 0, width: 260 });
     let isVisible = $state(false);
     let inputValue = $state("");
+    let placement = $state<"left" | "right">("right");
+    let arrowOffset = $state(0);
+
+    const isMac =
+        typeof navigator !== "undefined" && navigator.userAgent.includes("Mac");
 
     const originalString = $derived((value ?? "").toString());
 
     $effect(() => {
         inputValue = (value ?? "").toString();
     });
-
-    function portal(node: HTMLElement) {
-        if (typeof document === "undefined") return {};
-        const target = document.body;
-        target.appendChild(node);
-        return {
-            destroy() {
-                if (node.parentNode === target) target.removeChild(node);
-            },
-        };
-    }
 
     function updatePosition() {
         if (!anchorEl || !anchorEl.isConnected) {
@@ -46,9 +43,12 @@
         const margin = 8;
 
         let left = rect.right + margin;
+        placement = "right";
+
         const fitsRight = left + width + margin <= window.innerWidth;
         if (!fitsRight) {
             left = rect.left - width - margin;
+            placement = "left";
         }
         left = Math.max(
             margin,
@@ -59,6 +59,15 @@
         const minTop = margin;
         const maxTop = window.innerHeight - overlayHeight - margin;
         top = Math.max(minTop, Math.min(top, maxTop));
+
+        // Calculate arrow vertical offset with clamping to avoid corners
+        const anchorCenterY = rect.top + rect.height / 2;
+        const minArrow = 16;
+        const maxArrow = overlayHeight - 16;
+        arrowOffset = Math.max(
+            minArrow,
+            Math.min(anchorCenterY - top, maxArrow),
+        );
 
         position = { top, left, width };
     }
@@ -136,66 +145,59 @@
 
 <div
     use:portal
+    use:focusTrap
     bind:this={overlayEl}
+    data-placement={placement}
     role="dialog"
     aria-label="Edit value"
     tabindex="-1"
     onkeydown={handleKeydown}
     class={cn(
-        "fixed bg-surface border border-border-focus rounded-lg shadow-2xl flex flex-col p-3 gap-3",
+        "popover-editor fixed rounded-lg shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] flex flex-col p-1",
+        "bg-surface border border-accent/20 ring-1 ring-accent/10",
         isVisible ? "anim-pop opacity-100" : "opacity-0 pointer-events-none",
     )}
-    style={`top:${position.top}px;left:${position.left}px;min-width:${position.width}px;max-width:400px;transform-origin:center;z-index:1000`}
+    style={`top:${position.top}px;left:${position.left}px;min-width:${position.width}px;max-width:400px;transform-origin:center;z-index:1000;--arrow-top:${arrowOffset}px`}
     aria-hidden={!isVisible}
 >
-    <div class="flex flex-col gap-2">
+    <div class="relative flex flex-col group">
         <textarea
-            class="w-full rounded-md border border-border text-sm bg-background text-foreground min-h-[160px] resize-y px-3 py-2 focus:outline-none focus:ring-1 focus:ring-border-focus font-mono"
+            class="w-full rounded-md border border-accent/5 text-[13px] bg-background text-foreground min-h-[110px] resize-y p-1.5 pb-6 focus:ring-1 focus:ring-accent/10 focus:border-accent/10 focus:outline-none transition-all placeholder:text-foreground-muted/20"
             bind:value={inputValue}
-            rows={6}
-            placeholder="Type long text here..."
+            rows={4}
+            placeholder="Edit text..."
         ></textarea>
+
         <div
-            class="flex items-center justify-between text-[10px] text-foreground-muted uppercase tracking-widest px-1 font-medium"
+            class="absolute bottom-1 left-0 right-0 flex items-center justify-center gap-2 pointer-events-none"
         >
-            <span>Cmd+Enter to save • Esc to cancel</span>
-            <span class="bg-tertiary px-1.5 py-0.5 rounded"
-                >Long Text</span
+            <button
+                type="button"
+                class="flex items-center gap-1.5 px-2 py-0.5 rounded border border-transparent hover:border-accent/10 hover:bg-muted text-foreground-muted transition-colors active:scale-95 group/btn pointer-events-auto"
+                onclick={onCancel}
             >
+                <span
+                    class="text-[9px] font-medium px-1 rounded bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 text-foreground-muted/60"
+                    >Esc</span
+                >
+                <IconX
+                    class="size-3.5 opacity-60 group-hover/btn:opacity-100"
+                />
+            </button>
+
+            <button
+                type="button"
+                class="flex items-center gap-1.5 px-2 py-0.5 rounded text-accent border border-transparent hover:border-accent/10 hover:bg-accent/10 transition-colors active:scale-95 group/btn pointer-events-auto"
+                onclick={commit}
+            >
+                <span
+                    class="text-[9px] font-medium px-1 rounded bg-accent/10 border border-accent/20 text-accent/80"
+                    >{isMac ? "⌘↵" : "Ctrl↵"}</span
+                >
+                <IconCheck
+                    class="size-3.5 opacity-80 group-hover/btn:opacity-100"
+                />
+            </button>
         </div>
     </div>
-    <div class="flex items-center justify-end gap-2 pt-1">
-        <button
-            type="button"
-            class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-tertiary text-foreground hover:bg-muted transition-all active:scale-95 border border-border"
-            onclick={onCancel}
-        >
-            <IconX class="size-3.5" />
-            Cancel
-        </button>
-        <button
-            type="button"
-            class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-accent text-accent-foreground hover:bg-accent-hover transition-all active:scale-95 shadow-sm"
-            onclick={commit}
-        >
-            <IconCheck class="size-3.5" />
-            Save Changes
-        </button>
-    </div>
 </div>
-
-<style>
-    .anim-pop {
-        animation: pop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-    @keyframes pop {
-        from {
-            transform: scale(0.95) translateY(4px);
-            opacity: 0;
-        }
-        to {
-            transform: scale(1) translateY(0);
-            opacity: 1;
-        }
-    }
-</style>

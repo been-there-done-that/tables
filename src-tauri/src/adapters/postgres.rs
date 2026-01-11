@@ -410,7 +410,7 @@ impl DatabaseAdapter for PostgresAdapter {
             .ok_or_else(|| AdapterError::Connection("Not connected".to_string()))?;
         
         let rows = state.client.query(query_str, &[]).await
-            .map_err(|e| AdapterError::Query(format!("Query failed: {}", e)))?;
+            .map_err(|e| AdapterError::Query(crate::pg_utils::format_postgres_error(&e)))?;
         
         // Extract column info
         let columns: Vec<crate::adapter::AdapterColumnInfo> = if !rows.is_empty() {
@@ -447,7 +447,7 @@ impl DatabaseAdapter for PostgresAdapter {
             .ok_or_else(|| AdapterError::Connection("Not connected".to_string()))?;
         
         let affected = state.client.execute(statement, &[]).await
-            .map_err(|e| AdapterError::Query(format!("Execute failed: {}", e)))?;
+            .map_err(|e| AdapterError::Query(crate::pg_utils::format_postgres_error(&e)))?;
         
         Ok(affected)
     }

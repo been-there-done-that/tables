@@ -84,29 +84,19 @@ export function resolveEditor(
         };
     }
 
-    // Special case: Number -> inline input (with type=number ideally, or text for now)
+    // Number -> popover editor for consistent editing experience
     if (type === "int" || type === "float") {
         return {
-            mode: "inline",
-            renderer: "number",
+            mode: "popover",
+            renderer: "number-popover",
             props: { kind: type }
         };
     }
 
-    // Default: Text -> Inline or Popover correctly
-    const textValue = String(value ?? "");
-    const isLongText = textValue.length > 200 || textValue.includes("\n");
-
-    if (trigger === "double-click" || isLongText) {
-        return {
-            mode: "popover",
-            renderer: "text-popover"
-        };
-    }
-
+    // Default: Text -> always popover for consistent editing
     return {
-        mode: "inline",
-        renderer: "text"
+        mode: "popover",
+        renderer: "text-popover"
     };
 }
 

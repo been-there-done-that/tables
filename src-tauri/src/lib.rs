@@ -20,6 +20,7 @@ pub mod adapters;
 pub mod orchestrator;
 pub mod adapter_registry;
 pub mod pg_utils;
+pub mod sqlite_utils;
 #[cfg(test)]
 mod dci_tests;
 

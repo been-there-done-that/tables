@@ -1,6 +1,10 @@
 <script lang="ts">
-    import { getContext, onMount } from "svelte";
+    import IconCheck from "@tabler/icons-svelte/icons/check";
+    import IconX from "@tabler/icons-svelte/icons/x";
     import { cn } from "$lib/utils";
+    import { portal } from "$lib/actions/portal";
+    import { focusTrap } from "$lib/actions/focus-trap";
+    import { onMount, getContext } from "svelte";
 
     interface Props {
         value: any;
@@ -12,9 +16,14 @@
 
     let { value, mode, anchorEl, onCommit, onCancel }: Props = $props();
 
+    const isMac =
+        typeof navigator !== "undefined" && navigator.userAgent.includes("Mac");
+
     let overlayEl = $state<HTMLElement | null>(null);
     let position = $state({ top: 0, left: 0, width: 280 });
     let isVisible = $state(false);
+    let placement = $state<"left" | "right">("right");
+    let arrowOffset = $state(0);
 
     const GUTTER = 4;
 
@@ -116,31 +125,23 @@
         dayOptions = Array.from({ length: max }, (_, i) => i + 1);
     });
 
-    function portal(node: HTMLElement) {
-        if (typeof document === "undefined") return {};
-        const target = document.body;
-        target.appendChild(node);
-        return {
-            destroy() {
-                if (node.parentNode === target) target.removeChild(node);
-            },
-        };
-    }
-
     function updatePosition() {
         if (!anchorEl || !anchorEl.isConnected) {
-            onCancel();
+            isVisible = false;
             return;
         }
         const rect = anchorEl.getBoundingClientRect();
-        const width = Math.max(rect.width + 40, position.width);
+        const width = 280;
         const overlayHeight = overlayEl?.offsetHeight ?? 240;
-        const margin = GUTTER;
+        const margin = 8;
 
         let left = rect.right + margin;
+        placement = "right";
+
         const fitsRight = left + width + margin <= window.innerWidth;
         if (!fitsRight) {
             left = rect.left - width - margin;
+            placement = "left";
         }
         left = Math.max(
             margin,
@@ -151,6 +152,15 @@
         const minTop = margin;
         const maxTop = window.innerHeight - overlayHeight - margin;
         top = Math.max(minTop, Math.min(top, maxTop));
+
+        // Calculate arrow vertical offset
+        const anchorCenterY = rect.top + rect.height / 2;
+        const minArrow = 12;
+        const maxArrow = overlayHeight - 12;
+        arrowOffset = Math.max(
+            minArrow,
+            Math.min(anchorCenterY - top, maxArrow),
+        );
 
         position = { top, left, width };
     }
@@ -269,16 +279,19 @@
     {#if isVisible}
         <div
             use:portal
+            use:focusTrap
             bind:this={overlayEl}
+            data-placement={placement}
             role="dialog"
             aria-label="Edit date/time value"
             tabindex="-1"
             onkeydown={handleKeydown}
             class={cn(
-                "fixed bg-surface border border-border-focus rounded-md flex flex-col p-1 shadow-lg",
+                "popover-editor fixed rounded-lg shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] flex flex-col p-1",
+                "bg-surface border border-accent/20 ring-1 ring-accent/10",
                 "anim-pop opacity-100",
             )}
-            style={`top:${position.top}px;left:${position.left}px;min-width:${position.width}px;max-width:340px;min-height:200px;transform-origin:center;z-index:9999`}
+            style={`top:${position.top}px;left:${position.left}px;min-width:${position.width}px;max-width:340px;min-height:200px;transform-origin:center;z-index:9999;--arrow-top:${arrowOffset}px`}
         >
             <div class="flex flex-col gap-3 p-3">
                 <div class="grid grid-cols-3 gap-2">
@@ -370,7 +383,7 @@
                 <div class="flex gap-2 text-xs text-muted-foreground">
                     <button
                         type="button"
-                        class="rounded border border-border px-2 py-1 text-foreground hover:bg-muted transition"
+                        class="rounded border border-accent/10 px-2 py-0.5 text-foreground hover:bg-muted transition text-[11px]"
                         onclick={() => {
                             const now = new Date();
                             day = now.getUTCDate();
@@ -387,7 +400,7 @@
                     </button>
                     <button
                         type="button"
-                        class="rounded border px-2 py-1 hover:bg-accent transition"
+                        class="rounded border border-accent/10 px-2 py-0.5 hover:bg-muted transition text-[11px]"
                         onclick={() => {
                             const now = new Date();
                             day = now.getUTCDate();
@@ -402,7 +415,7 @@
                     </button>
                     <button
                         type="button"
-                        class="rounded border px-2 py-1 hover:bg-accent transition"
+                        class="rounded border border-accent/10 px-2 py-0.5 hover:bg-muted transition text-[11px]"
                         onclick={() => {
                             day = 0 as any;
                             month = 0;
@@ -415,30 +428,36 @@
                         Clear
                     </button>
                 </div>
-            </div>
 
-            <div
-                class="flex items-center justify-end border-t border-border px-2 py-1 gap-2 bg-surface"
-            >
-                <div class="text-xs text-foreground-muted truncate">
-                    {mode === "datetime"
-                        ? "Ctrl/Cmd+Enter to save · Esc to cancel"
-                        : "Enter to save · Esc to cancel"}
-                </div>
-                <div class="flex items-center gap-2">
+                <div
+                    class="flex items-center justify-center gap-2 pointer-events-none mt-1"
+                >
                     <button
                         type="button"
-                        class="px-2 py-1 text-sm rounded bg-tertiary text-foreground hover:bg-muted transition"
+                        class="flex items-center gap-1.5 px-2 py-0.5 rounded border border-transparent hover:border-accent/10 hover:bg-muted text-foreground-muted transition-colors active:scale-95 group/btn pointer-events-auto"
                         onclick={onCancel}
                     >
-                        Cancel
+                        <span
+                            class="text-[9px] font-medium px-1 rounded bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 text-foreground-muted/60"
+                            >Esc</span
+                        >
+                        <IconX
+                            class="size-3.5 opacity-60 group-hover/btn:opacity-100"
+                        />
                     </button>
+
                     <button
                         type="button"
-                        class="px-2 py-1 text-sm rounded bg-accent text-accent-foreground hover:bg-accent-hover transition"
+                        class="flex items-center gap-1.5 px-2 py-0.5 rounded text-accent border border-transparent hover:border-accent/10 hover:bg-accent/10 transition-colors active:scale-95 group/btn pointer-events-auto"
                         onclick={commit}
                     >
-                        Save
+                        <span
+                            class="text-[9px] font-medium px-1 rounded bg-accent/10 border border-accent/20 text-accent/80"
+                            >{isMac || mode === "date" ? "↵" : "Ctrl↵"}</span
+                        >
+                        <IconCheck
+                            class="size-3.5 opacity-80 group-hover/btn:opacity-100"
+                        />
                     </button>
                 </div>
             </div>

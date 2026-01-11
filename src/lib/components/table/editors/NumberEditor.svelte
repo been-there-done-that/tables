@@ -60,7 +60,8 @@
     bind:this={inputEl}
     bind:value={localValue}
     type="number"
-    class="w-full h-full bg-surface border-none outline-none px-2 py-1 text-sm m-0 leading-none focus:ring-0"
+    class="w-full h-full bg-surface border-none outline-none px-2 py-1 text-sm m-0 leading-none focus:ring-0 box-border"
+    style="width: 100%; min-width: 100%; max-width: 100%;"
     onkeydown={handleKeydown}
     onblur={handleBlur}
     onclick={(e) => e.stopPropagation()}

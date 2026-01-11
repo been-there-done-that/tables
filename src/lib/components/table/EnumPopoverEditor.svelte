@@ -1,6 +1,8 @@
 <script lang="ts">
     import { getContext, onMount } from "svelte";
     import { cn } from "$lib/utils";
+    import { portal } from "$lib/actions/portal";
+    import { focusTrap } from "$lib/actions/focus-trap";
 
     interface Props {
         value: any;
@@ -16,6 +18,8 @@
     let overlayEl: HTMLElement | null = null;
     let position = $state({ top: 0, left: 0, width: 140 });
     let isVisible = $state(false);
+    let placement = $state<"left" | "right">("right");
+    let arrowOffset = $state(0);
 
     const GUTTER = 4; // consistent spacing from the cell on every side
     const originalValue = $derived(value);
@@ -24,18 +28,6 @@
         if (!overlayEl) return;
         const buttons = overlayEl.querySelectorAll("button");
         buttons[idx]?.focus();
-    }
-
-    // Move node to document.body to avoid clipping by ancestors.
-    function portal(node: HTMLElement) {
-        if (typeof document === "undefined") return {};
-        const target = document.body;
-        target.appendChild(node);
-        return {
-            destroy() {
-                if (node.parentNode === target) target.removeChild(node);
-            },
-        };
     }
 
     const getContainer: (() => HTMLElement | null | undefined) | undefined =
@@ -64,26 +56,36 @@
             return;
         }
         const rect = anchorEl.getBoundingClientRect();
-        const width = Math.max(rect.width, 100);
-        const overlayHeight = overlayEl?.offsetHeight ?? rect.height;
-        const margin = GUTTER;
+        const width = Math.max(rect.width, 140);
+        const overlayHeight = overlayEl?.offsetHeight ?? 140;
+        const margin = 8;
 
-        // Prefer positioning to the right of the cell; fall back left if needed.
         let left = rect.right + margin;
+        placement = "right";
+
         const fitsRight = left + width + margin <= window.innerWidth;
         if (!fitsRight) {
             left = rect.left - width - margin;
+            placement = "left";
         }
         left = Math.max(
             margin,
             Math.min(left, window.innerWidth - width - margin),
         );
 
-        // Align vertically with cell center while keeping within viewport using the same gutter.
         let top = rect.top + rect.height / 2 - overlayHeight / 2;
         const minTop = margin;
         const maxTop = window.innerHeight - overlayHeight - margin;
         top = Math.max(minTop, Math.min(top, maxTop));
+
+        // Calculate arrow vertical offset with clamping to avoid corners
+        const anchorCenterY = rect.top + rect.height / 2;
+        const minArrow = 12;
+        const maxArrow = overlayHeight - 12;
+        arrowOffset = Math.max(
+            minArrow,
+            Math.min(anchorCenterY - top, maxArrow),
+        );
 
         position = { top, left, width };
     }
@@ -158,16 +160,19 @@
 
 <div
     use:portal
+    use:focusTrap
     bind:this={overlayEl}
-    role="menu"
+    data-placement={placement}
+    role="dialog"
     aria-label="Select value"
     tabindex="-1"
     onkeydown={handleKeydown}
     class={cn(
-        "fixed bg-surface border border-border-focus rounded-md shadow-2xl",
+        "popover-editor fixed rounded-lg shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] flex flex-col p-1",
+        "bg-surface border border-accent/20 ring-1 ring-accent/10",
         isVisible ? "anim-pop opacity-100" : "opacity-0 pointer-events-none",
     )}
-    style={`top:${position.top}px;left:${position.left}px;min-width:${position.width}px;transform-origin:center;z-index:1000`}
+    style={`top:${position.top}px;left:${position.left}px;min-width:${position.width}px;transform-origin:center;z-index:1000;--arrow-top:${arrowOffset}px`}
     aria-hidden={!isVisible}
 >
     <div class="flex flex-col gap-1 p-1">
