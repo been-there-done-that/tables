@@ -83,19 +83,37 @@ const COMMANDS: CommandConfig[] = [
                 console.error("[Shortcut] Explorer sidebar not found in DOM");
                 return;
             }
+
+            // A. Prefer already selected item
+            const selected = sidebar.querySelector('[data-selected="true"]') as HTMLElement;
+            if (selected) {
+                console.log("[Shortcut] Focusing selected sidebar item");
+                selected.focus();
+                // Double check if focus actually moved away from whatever was focused (like the table)
+                if (document.activeElement !== selected && !sidebar.contains(document.activeElement)) {
+                    console.warn("[Shortcut] Selected node focus failed, falling back to sidebar container");
+                    (sidebar.querySelector('[role="tree"]') as HTMLElement)?.focus();
+                }
+                toast.info("Focused Sidebar");
+                return;
+            }
+
+            // B. Then search input
             const searchInput = sidebar.querySelector("input") as HTMLInputElement;
             if (searchInput) {
                 console.log("[Shortcut] Focusing sidebar search input");
                 searchInput.focus();
-            } else {
-                // Look for the tree or the first focusable
-                const tree = sidebar.querySelector('[role="tree"]') as HTMLElement;
-                const firstItem = tree || (sidebar.querySelector('[tabindex="0"]') as HTMLElement);
-                if (firstItem) {
-                    console.log("[Shortcut] Focusing sidebar element:", firstItem);
-                    firstItem.focus();
-                    toast.info("Focused Sidebar");
-                }
+                toast.info("Focused Sidebar Search");
+                return;
+            }
+
+            // C. Fallback: tree or first focusable
+            const tree = sidebar.querySelector('[role="tree"]') as HTMLElement;
+            const firstItem = tree || (sidebar.querySelector('[tabindex="0"]') as HTMLElement);
+            if (firstItem) {
+                console.log("[Shortcut] Focusing sidebar element:", firstItem);
+                firstItem.focus();
+                toast.info("Focused Sidebar");
             }
         }
     },
