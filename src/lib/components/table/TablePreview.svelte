@@ -1,7 +1,9 @@
 <script lang="ts">
     import Table from "$lib/components/table/Table.svelte";
     import TableToolbar from "$lib/components/table/TableToolbar.svelte";
+    import PendingChangesPanel from "$lib/components/table/PendingChangesPanel.svelte";
     import type { Column, DataFetcher } from "$lib/components/table/types";
+    import type { EditDelta } from "$lib/components/table/TableEditManager.svelte";
     import { invoke } from "@tauri-apps/api/core";
     import { schemaStore } from "$lib/stores/schema.svelte";
     import { windowState } from "$lib/stores/window.svelte";
@@ -58,6 +60,52 @@
     let columns = $state<Column[]>([]);
     let isLoading = $state(false);
     let executionTime = $state<number | undefined>(undefined);
+
+    // Pending changes panel state
+    let showPendingChanges = $state(false);
+    let pendingDeltas = $state<EditDelta[]>([]);
+
+    // Computed pending changes count
+    const pendingChangesCount = $derived(pendingDeltas.length);
+
+    // Get primary key columns for SQL generation
+    const primaryKeyColumns = $derived(() => {
+        const dbMeta = schemaStore.databases.find(
+            (d) => d.name === effectiveDatabase,
+        );
+        const schemaMeta = dbMeta?.schemas.find(
+            (s) => s.name === effectiveSchema,
+        );
+        const tableMeta = schemaMeta?.tables.find(
+            (t) => t.table_name === tableName,
+        );
+        return (
+            tableMeta?.columns
+                .filter((c) => c.is_primary_key)
+                .map((c) => c.column_name) ?? []
+        );
+    });
+
+    function handleShowChanges() {
+        // Get deltas from the table's edit manager
+        if (tableRef?.getEditDeltas) {
+            pendingDeltas = tableRef.getEditDeltas();
+        }
+        showPendingChanges = true;
+    }
+
+    function updatePendingCount() {
+        if (tableRef?.getEditDeltas) {
+            pendingDeltas = tableRef.getEditDeltas();
+        }
+    }
+
+    function handleEditChange(count: number) {
+        // Update pendingDeltas when edit count changes
+        if (tableRef?.getEditDeltas) {
+            pendingDeltas = tableRef.getEditDeltas();
+        }
+    }
 
     // Create a reactive dataFetcher that uses current prop values
     // This function is recreated when dependencies change
@@ -651,6 +699,8 @@
         {isCountLoading}
         {isLoading}
         {executionTime}
+        {pendingChangesCount}
+        onShowChanges={handleShowChanges}
     />
     {#key tableKey}
         <div class="flex-1 min-h-0">
@@ -662,10 +712,23 @@
                 tableSchema={effectiveSchema}
                 onViewStateChange={() => windowState.requestSave()}
                 onApplyEdits={handleApplyEdits}
+                onEditChange={handleEditChange}
                 bind:isLoading
                 limit={pageSize}
                 bind:offset={currentOffset}
             />
         </div>
     {/key}
+
+    <!-- Pending Changes Panel -->
+    {#if showPendingChanges}
+        <PendingChangesPanel
+            deltas={pendingDeltas}
+            {tableName}
+            tableSchema={effectiveSchema}
+            {columns}
+            primaryKeyColumns={primaryKeyColumns()}
+            onClose={() => (showPendingChanges = false)}
+        />
+    {/if}
 </div>
