@@ -114,6 +114,34 @@
         return virtualScroller?.getContainer?.();
     }
 
+    export function focusCell(rowIndex: number, columnIndex: number) {
+        // Find the cell within the virtual scroller container
+        const scrollerContainer = virtualScroller?.getContainer?.();
+        if (!scrollerContainer) {
+            console.warn(
+                "[TableBody] Cannot focus cell: Scroller container not found",
+            );
+            return false;
+        }
+
+        const selector = `[data-row-index="${rowIndex}"][data-col-index="${columnIndex}"]`;
+        const cell = scrollerContainer.querySelector(selector) as HTMLElement;
+
+        if (cell) {
+            console.log(
+                `[TableBody] Focusing cell ${rowIndex}:${columnIndex}`,
+                cell,
+            );
+            cell.focus({ preventScroll: true });
+            return true;
+        } else {
+            console.warn(
+                `[TableBody] Cell not found for focus: ${rowIndex}:${columnIndex}. Logic might need scrolling to it first.`,
+            );
+            return false;
+        }
+    }
+
     setContext("table-container", () => virtualScroller?.getContainer?.());
 </script>
 
