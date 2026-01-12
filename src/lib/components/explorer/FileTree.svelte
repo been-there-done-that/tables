@@ -254,9 +254,16 @@
         setTimeout(() => {
             const el = document.querySelector(
                 `[data-node-id="${CSS.escape(id)}"]`,
-            );
+            ) as HTMLElement;
             if (el) {
                 el.scrollIntoView({ block: "nearest", inline: "nearest" });
+                // If tree container has focus or is a parent of active element, move focus to the node
+                if (
+                    document.activeElement === treeContainer ||
+                    treeContainer?.contains(document.activeElement)
+                ) {
+                    el.focus();
+                }
             }
         }, 0);
     }
@@ -271,6 +278,21 @@
     )}
     tabindex="0"
     onkeydown={handleKeyDown}
+    onfocus={(e) => {
+        if (e.target === treeContainer) {
+            const selected = treeContainer.querySelector(
+                '[data-selected="true"]',
+            ) as HTMLElement;
+            if (selected) {
+                selected.focus();
+            } else if (items.length > 0) {
+                const visible = getVisibleNodes();
+                if (visible.length > 0) {
+                    selectNode(visible[0].id);
+                }
+            }
+        }
+    }}
     onmousemove={() => (interactionMode = "mouse")}
     role="tree"
 >
@@ -315,7 +337,7 @@
                 <!-- svelte-ignore a11y_click_events_have_key_events -->
                 <div
                     class={cn(
-                        "group flex items-center gap-1.5 rounded-sm cursor-default transition-colors border border-transparent h-6",
+                        "group flex items-center gap-1.5 rounded-sm cursor-default transition-colors border border-transparent h-6 outline-none",
                         isSelected
                             ? "bg-primary/20 text-foreground"
                             : interactionMode === "mouse"
@@ -327,6 +349,8 @@
                                 : "text-foreground",
                     )}
                     data-node-id={key}
+                    data-selected={isSelected}
+                    tabindex="-1"
                     style="padding-left: calc({indent}px * {depth} + 4px);"
                     onclick={(e) => {
                         e.stopPropagation();

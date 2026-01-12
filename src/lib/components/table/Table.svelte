@@ -1937,6 +1937,16 @@
     role="grid"
     oncontextmenu={(event) => event.preventDefault()}
     onkeydown={handleKeyDown}
+    onfocusin={(e) => {
+        if (
+            !focusedCell &&
+            filteredRows.length > 0 &&
+            visibleColumns.length > 0
+        ) {
+            console.log("[Table] Auto-picking first cell on focus");
+            setSelection({ rowIndex: 0, columnIndex: 0 });
+        }
+    }}
     onmouseup={handleMouseUp}
     onmousedown={(e) => {
         // Prevent ANY click on the table from auto-focusing the container
