@@ -17,7 +17,9 @@
         IconStopwatch,
         IconClockPlay,
         IconLoader2,
+        IconVersions,
     } from "@tabler/icons-svelte";
+
     import * as Menu from "$lib/components/ui/dropdown-menu";
     import AutocompleteInput from "./AutocompleteInput.svelte";
     import type { Column } from "./types";
@@ -50,6 +52,8 @@
         currentBatchSize?: number;
         isExactTotal?: boolean;
         onLastPage?: () => void;
+        pendingChangesCount?: number;
+        onShowChanges?: () => void;
     }
 
     const dispatch = createEventDispatcher();
@@ -78,6 +82,8 @@
         currentBatchSize = 0,
         isExactTotal = false,
         onLastPage,
+        pendingChangesCount = 0,
+        onShowChanges,
     }: Props = $props();
 
     let exportOpen = $state(false);
@@ -449,7 +455,27 @@
 
         <div class="flex-1"></div>
 
+        <!-- Changes Button -->
+        {#if pendingChangesCount > 0}
+            <Button
+                variant="ghost"
+                size="sm"
+                class="h-7 relative"
+                title="View pending changes"
+                onclick={() => onShowChanges?.()}
+            >
+                <IconVersions class="size-4 text-amber-500" />
+                <span
+                    class="absolute -top-0.5 -right-0.5 size-4 text-[9px] font-bold bg-amber-500 text-white rounded-full flex items-center justify-center"
+                >
+                    {pendingChangesCount > 9 ? "9+" : pendingChangesCount}
+                </span>
+            </Button>
+            <div class="w-px h-5 bg-border/50"></div>
+        {/if}
+
         <!-- Export Menu -->
+
         <Menu.Root bind:open={exportOpen}>
             <Menu.Trigger>
                 <Button

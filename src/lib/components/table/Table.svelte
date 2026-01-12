@@ -37,6 +37,7 @@
         onOpenNewQueryTab?: (ctx: TableQueryContext) => void;
         viewState?: Record<string, any>;
         onViewStateChange?: (state: any) => void;
+        onEditChange?: (count: number) => void;
         isLoading?: boolean;
         limit?: number;
         offset?: number;
@@ -53,6 +54,7 @@
         onOpenNewQueryTab,
         viewState = $bindable(),
         onViewStateChange,
+        onEditChange,
         isLoading = $bindable(false),
         limit = $bindable(500),
         offset = $bindable(0),
@@ -154,6 +156,12 @@
     let selectionHead = $state<SelectionAnchor | null>(null);
     let editingCell = $state<CellSelection | null>(null);
     const editManager = new TableEditManager();
+
+    // Notify parent when edit count changes
+    $effect(() => {
+        const count = Object.keys(editManager.pendingEdits).length;
+        if (onEditChange) onEditChange(count);
+    });
 
     let focusedCell = $state<{ rowIndex: number; columnIndex: number } | null>(
         null,
@@ -1917,6 +1925,14 @@
         sortState = [...nextSort];
         offset = 0;
         loadData();
+    }
+
+    export function getEditDeltas() {
+        return editManager.getDeltas();
+    }
+
+    export function hasPendingEdits() {
+        return editManager.hasPendingEdits();
     }
 
     // ... existing handlers ...
