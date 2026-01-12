@@ -8,6 +8,7 @@ import { settingsStore } from "./settings.svelte";
 import { themeStore } from "$lib/commands/stores.svelte";
 import { Session } from "./session.svelte";
 import { persistenceStore, type PersistedState } from "./persistence.svelte";
+import { toast } from "svelte-sonner";
 
 export interface CommandConfig {
     id: string;
@@ -65,6 +66,75 @@ const COMMANDS: CommandConfig[] = [
                 await invoke("open_datasource_window");
             } catch (e) {
                 console.error("Failed to open datasource window:", e);
+            }
+        }
+    },
+    {
+        id: "workbench.action.focusSidebar",
+        label: "Focus Sidebar",
+        defaultKeybinding: { mac: "Control+1", win: "Control+1" },
+        execute: () => {
+            console.log("[Shortcut] Executing Focus Sidebar (Ctrl+1)");
+            // First open it if it's closed
+            settingsStore.sidebarLeftVisible = true;
+            // Focus search input or first tree item
+            const sidebar = document.querySelector("#explorer-sidebar");
+            if (!sidebar) {
+                console.error("[Shortcut] Explorer sidebar not found in DOM");
+                return;
+            }
+            const searchInput = sidebar.querySelector("input") as HTMLInputElement;
+            if (searchInput) {
+                console.log("[Shortcut] Focusing sidebar search input");
+                searchInput.focus();
+            } else {
+                // Look for the tree or the first focusable
+                const tree = sidebar.querySelector('[role="tree"]') as HTMLElement;
+                const firstItem = tree || (sidebar.querySelector('[tabindex="0"]') as HTMLElement);
+                if (firstItem) {
+                    console.log("[Shortcut] Focusing sidebar element:", firstItem);
+                    firstItem.focus();
+                    toast.info("Focused Sidebar");
+                }
+            }
+        }
+    },
+    {
+        id: "workbench.action.focusMain",
+        label: "Focus Main Content",
+        defaultKeybinding: { mac: "Control+2", win: "Control+2" },
+        execute: () => {
+            console.log("[Shortcut] Executing Focus Main (Ctrl+2)");
+            const mainContent = document.querySelector("#main-content-area");
+            if (!mainContent) {
+                console.error("[Shortcut] Main content area not found in DOM");
+                return;
+            }
+
+            // 1. Try to find the cell that is visually focused (Amber ring)
+            const focusedCell = mainContent.querySelector('[data-is-focused="true"]') as HTMLElement;
+            if (focusedCell) {
+                console.log("[Shortcut] Restoring focus to previous cell:", focusedCell.dataset.rowIndex, focusedCell.dataset.colIndex);
+                focusedCell.focus();
+                toast.info("Restored Table Focus");
+                return;
+            }
+
+            // 2. Fallback to first visible cell (0,0 or just any cell)
+            const firstCell = mainContent.querySelector('[data-row-index="0"][data-col-index="0"]') as HTMLElement;
+            if (firstCell) {
+                console.log("[Shortcut] Focusing first visible cell (0,0)");
+                firstCell.focus();
+                toast.info("Focused Table Start");
+                return;
+            }
+
+            // 3. Last fallback: any focusable in main area (editors, table container)
+            const focusable = mainContent.querySelector('[tabindex="0"], .monaco-editor, [data-row-index]') as HTMLElement;
+            console.log("[Shortcut] Falling back to general focusable:", focusable);
+            if (focusable) {
+                focusable.focus();
+                toast.info("Focused Main Content");
             }
         }
     }
@@ -318,8 +388,12 @@ class WindowStateStore {
         const key = event.key.toLowerCase();
         if (["meta", "control", "alt", "shift"].includes(key)) return;
         const combo = [...modifiers, key].join("+").toLowerCase();
+
+        console.log(`[ShortcutCheck] combo: ${combo}, activeElement:`, document.activeElement);
+
         const commandId = this.keybindings.get(combo);
         if (commandId) {
+            console.log(`[ShortcutMatch] Found command: ${commandId}`);
             event.preventDefault();
             this.executeCommand(commandId);
         }
