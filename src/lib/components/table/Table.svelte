@@ -1105,7 +1105,10 @@
             }
         }
 
-        tick().then(() => tableContainer?.focus());
+        tick().then(() => {
+            const focused = tableBody?.focusCell(rowIndex, columnIndex);
+            if (!focused) tableContainer?.focus();
+        });
     }
 
     function handleCellMouseDown(
@@ -1124,8 +1127,9 @@
         // Prevent default to avoid text selection
         event.preventDefault();
 
-        // Ensure table has focus
-        tableContainer?.focus();
+        // Ensure table has focus - focus the cell if possible, otherwise container
+        const focused = tableBody?.focusCell(rowIndex, columnIndex);
+        if (!focused) tableContainer?.focus();
 
         isDragging = true;
         dragStartCell = { rowIndex, columnIndex };
@@ -1357,17 +1361,19 @@
                 requestAnimationFrame(() => {
                     scrollLock = false; // Release lock only after stabilization
 
-                    tableContainer?.focus({ preventScroll: true });
-                    // Explicitly blur active element if it's the input we just left, to avoid browser scroll jumps
-                    if (document.activeElement instanceof HTMLElement) {
-                        document.activeElement.blur();
-                    }
-
                     if (scrollContainer) {
                         scrollContainer.scrollTop =
                             savedTop ?? scrollContainer.scrollTop;
                         scrollContainer.scrollLeft =
                             savedLeft ?? scrollContainer.scrollLeft;
+                    }
+
+                    const focused = tableBody?.focusCell(rowIndex, columnIndex);
+                    if (!focused) {
+                        console.warn(
+                            "[Table] Cell focus failed, fallback to container",
+                        );
+                        tableContainer?.focus({ preventScroll: true });
                     }
                 });
             });
@@ -1375,10 +1381,27 @@
     }
 
     function handleEditCancel() {
+        console.log("[Table] handleEditCancel");
         // CAPTURE scroll position BEFORE modifying state
         const scrollContainer = tableBody?.getContainer?.();
         const savedTop = scrollContainer?.scrollTop;
         const savedLeft = scrollContainer?.scrollLeft;
+
+        // Capture which cell was being edited to restore focus
+        let targetRowIndex = -1;
+        let targetColIndex = -1;
+
+        if (editingCell) {
+            targetRowIndex = filteredRows.findIndex(
+                (r: any) => r._rowId === editingCell?.rowId,
+            );
+            targetColIndex = visibleColumns.findIndex(
+                (c: Column) => c.id === editingCell?.columnId,
+            );
+        } else if (focusedCell) {
+            targetRowIndex = focusedCell.rowIndex;
+            targetColIndex = focusedCell.columnIndex;
+        }
 
         scrollLock = true; // Ensure lock
 
@@ -1390,16 +1413,31 @@
                 requestAnimationFrame(() => {
                     scrollLock = false;
 
-                    tableContainer?.focus({ preventScroll: true });
-                    if (document.activeElement instanceof HTMLElement) {
-                        document.activeElement.blur();
-                    }
-
                     if (scrollContainer) {
                         scrollContainer.scrollTop =
                             savedTop ?? scrollContainer.scrollTop;
                         scrollContainer.scrollLeft =
                             savedLeft ?? scrollContainer.scrollLeft;
+                    }
+
+                    console.log(
+                        `[Table] Restoring focus to cell ${targetRowIndex}:${targetColIndex}`,
+                    );
+
+                    const focused =
+                        targetRowIndex >= 0 && targetColIndex >= 0
+                            ? tableBody?.focusCell(
+                                  targetRowIndex,
+                                  targetColIndex,
+                              )
+                            : false;
+
+                    if (!focused) {
+                        console.log(
+                            "[Table] Cell focus failed or invalid indices, fallback to container",
+                            tableContainer,
+                        );
+                        tableContainer?.focus({ preventScroll: true });
                     }
                 });
             });
@@ -1450,7 +1488,11 @@
     }
 
     function handleKeyDown(e: KeyboardEvent) {
-        if (document.activeElement !== tableContainer) return;
+        if (
+            document.activeElement !== tableContainer &&
+            !tableContainer?.contains(document.activeElement)
+        )
+            return;
 
         // Debug focus
         if (e.key === "Tab") {
@@ -1519,6 +1561,14 @@
                     focusedCell.rowIndex,
                     focusedCell.columnIndex,
                 );
+
+                tick().then(() => {
+                    const focused = tableBody?.focusCell(
+                        focusedCell!.rowIndex,
+                        focusedCell!.columnIndex,
+                    );
+                    if (!focused) tableContainer?.focus();
+                });
             }
             return;
         }
@@ -1555,6 +1605,14 @@
                 { preserveAnchor: true },
             );
             ensureCellVisible(newRowIndex, newColumnIndex);
+
+            tick().then(() => {
+                const focused = tableBody?.focusCell(
+                    newRowIndex,
+                    newColumnIndex,
+                );
+                if (!focused) tableContainer?.focus();
+            });
             return;
         }
 
@@ -1626,6 +1684,14 @@
             };
             selectionAnchor = selectionAnchor ?? focusedCell;
             ensureCellVisible(newRowIndex, newColumnIndex);
+
+            tick().then(() => {
+                const focused = tableBody?.focusCell(
+                    newRowIndex,
+                    newColumnIndex,
+                );
+                if (!focused) tableContainer?.focus();
+            });
             return;
         } else {
             return;
@@ -1647,6 +1713,11 @@
         }
 
         ensureCellVisible(newRowIndex, newColumnIndex);
+
+        tick().then(() => {
+            const focused = tableBody?.focusCell(newRowIndex, newColumnIndex);
+            if (!focused) tableContainer?.focus();
+        });
     }
 
     function ensureCellVisible(rowIndex: number, columnIndex: number) {
