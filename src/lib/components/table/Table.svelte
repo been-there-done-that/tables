@@ -369,20 +369,11 @@
         const startedAt = performance.now?.() ?? Date.now();
 
         try {
-            console.log("[Table] loadData: start", {
-                append,
-                targetOffset,
-                limit,
-            });
             const result = await dataFetcher({
                 offset: targetOffset,
                 limit,
                 sort: sortState,
                 filters,
-            });
-            console.log("[Table] loadData: result", {
-                rows: result.rows.length,
-                total: result.total,
             });
 
             if (result.columns?.length) {
@@ -421,7 +412,6 @@
                 });
             } else {
                 rows = mappedRows;
-                console.log("[Table] rows updated", rows.length);
                 baselineRows = new Map(
                     rows.map((row) => [row._rowId, { ...row }]),
                 );
@@ -447,13 +437,6 @@
         } catch (e) {
             console.error("[Table] loadData error", e);
         } finally {
-            const endedAt = performance.now?.() ?? Date.now();
-            const elapsed = Math.round(endedAt - startedAt);
-            console.info("[Table] loadData completed", {
-                append,
-                rows: rows.length,
-                elapsedMs: elapsed,
-            });
             loading = false;
             isLoading = false;
             loadingMore = false;
@@ -830,10 +813,6 @@
             pinnedColumnIds,
         };
         localStorage.setItem(key, JSON.stringify(state));
-        console.info("[Table] saveViewState", {
-            key,
-            columnCount: tableColumns.length,
-        });
     }
 
     function debouncedSaveViewState() {
@@ -850,14 +829,9 @@
         try {
             const saved = localStorage.getItem(key);
             if (!saved) {
-                console.info("[Table] loadViewState:no-saved-state", { key });
                 return;
             }
             const state = JSON.parse(saved);
-            console.info("[Table] loadViewState:applying", {
-                key,
-                widthCount: Object.keys(state.columnWidths || {}).length,
-            });
 
             if (state.columnOrder) {
                 const orderMap = new Map<string, number>(
@@ -875,12 +849,6 @@
                     ...c,
                     width: state.columnWidths[c.id] ?? c.width,
                 }));
-                console.info("[Table] loadViewState:applied-widths", {
-                    columns: tableColumns.map((c) => ({
-                        id: c.id,
-                        width: c.width,
-                    })),
-                });
             }
 
             if (state.hiddenColumnIds) {
@@ -986,7 +954,6 @@
     onMount(() => {
         // Note: loadViewState is called inside loadData after columns arrive
         if (viewState && viewState.rows && viewState.rows.length > 0) {
-            console.info("[Table] Restored state from cache, skipping fetch");
             // If we have persisted baseline rows, we might want to restore them too
             // For now, simpler reconstruction:
             baselineRows = new Map(rows.map((row) => [row._rowId, { ...row }]));
@@ -1041,13 +1008,6 @@
             scrolledBottom;
 
         if (canLoadMore) {
-            console.info("[Table] scroll:near-bottom", {
-                scrollTop: target.scrollTop,
-                scrollHeight: target.scrollHeight,
-                clientHeight: target.clientHeight,
-                rows: rows.length,
-                totalRows,
-            });
             // Move offset forward and append next page
             // offset = rows.length; // Removing incorrect update of start offset
             loadData({ append: true });
@@ -1172,11 +1132,7 @@
     }
 
     function handleCellDoubleClick(rowIndex: number, columnIndex: number) {
-        console.log("handleCellDoubleClick called", {
-            rowIndex,
-            columnIndex,
-            hasOnApplyEdits: !!onApplyEdits,
-        });
+        if (loading) return;
         if (!onApplyEdits) {
             console.warn(
                 "handleCellDoubleClick: Read-only mode (no onApplyEdits)",
@@ -1193,17 +1149,6 @@
         ];
         const canEdit =
             col.editable || alwaysEditableTypes.includes(col.type as any);
-        console.info("[Table] edit:request", {
-            reason: "doubleClick-or-enter",
-            rowIndex,
-            columnIndex,
-            rowId: filteredRows[rowIndex]?._rowId,
-            columnId: col.id,
-            type: col.type,
-            editableFlag: col.editable,
-            canEdit,
-            loading,
-        });
 
         if (canEdit) {
             editingCell = {
@@ -1211,7 +1156,6 @@
                 columnId: col.id,
             };
             scrollLock = true; // Lock scroll during edit
-            console.info("[Table] edit:state-set", { editingCell });
         } else {
             console.warn("[Table] edit:refused - not editable");
         }
@@ -1225,7 +1169,6 @@
         if (loading) return;
         event.preventDefault();
         event.stopPropagation();
-        console.log("handleCellContextMenu", { rowIndex, columnIndex });
 
         // Keep existing selection if it already includes this cell; otherwise select this cell
         if (!selectionIncludes(rowIndex, columnIndex)) {
@@ -1239,22 +1182,15 @@
         );
 
         contextMenuState = { open: true, x, y, rowIndex, columnIndex };
-        console.log("contextMenuState set", contextMenuState);
     }
 
     function closeContextMenu() {
-        console.log("closeContextMenu");
         contextMenuState = null;
     }
 
-    function contextEdit() {
-        console.log("contextEdit called", contextMenuState);
-        if (!contextMenuState) {
-            console.error("contextEdit: contextMenuState is null");
-            return;
-        }
+    function handleContextEdit() {
+        if (!contextMenuState) return;
         const { rowIndex, columnIndex } = contextMenuState;
-        console.log("contextEdit extracting", { rowIndex, columnIndex });
         closeContextMenu();
         handleCellDoubleClick(rowIndex, columnIndex);
     }
@@ -1381,7 +1317,6 @@
     }
 
     function handleEditCancel() {
-        console.log("[Table] handleEditCancel");
         // CAPTURE scroll position BEFORE modifying state
         const scrollContainer = tableBody?.getContainer?.();
         const savedTop = scrollContainer?.scrollTop;
@@ -1420,10 +1355,6 @@
                             savedLeft ?? scrollContainer.scrollLeft;
                     }
 
-                    console.log(
-                        `[Table] Restoring focus to cell ${targetRowIndex}:${targetColIndex}`,
-                    );
-
                     const focused =
                         targetRowIndex >= 0 && targetColIndex >= 0
                             ? tableBody?.focusCell(
@@ -1433,10 +1364,6 @@
                             : false;
 
                     if (!focused) {
-                        console.log(
-                            "[Table] Cell focus failed or invalid indices, fallback to container",
-                            tableContainer,
-                        );
                         tableContainer?.focus({ preventScroll: true });
                     }
                 });
@@ -1493,15 +1420,6 @@
             !tableContainer?.contains(document.activeElement)
         )
             return;
-
-        // Debug focus
-        if (e.key === "Tab") {
-            console.debug("[Table] KeyDown: Tab", {
-                activeElement: document.activeElement,
-                editingCell,
-                focusedCell,
-            });
-        }
 
         if (editingCell) return;
         if (loading) return;
@@ -2108,7 +2026,7 @@
         >
             <button
                 class="w-full text-left px-3 py-1.5 hover:bg-muted hover:text-foreground transition-colors"
-                onclick={contextEdit}
+                onclick={handleContextEdit}
             >
                 Edit
             </button>
