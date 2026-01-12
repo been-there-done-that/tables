@@ -256,6 +256,7 @@
     aria-disabled={disabled}
     data-row-index={rowIndex}
     data-col-index={columnIndex}
+    data-is-focused={isFocused}
     tabindex="-1"
 >
     {#if isEditing}

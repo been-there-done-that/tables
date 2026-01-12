@@ -36,7 +36,9 @@
     >
       <!-- Left Panel: Sidebar -->
       {#snippet left()}
-        <ExplorerContainer />
+        <div id="explorer-sidebar" class="h-full w-full overflow-hidden">
+          <ExplorerContainer />
+        </div>
       {/snippet}
 
       <!-- Right Panel: Contains Center Area + Right Sidebar -->
@@ -53,7 +55,7 @@
           >
             <!-- Center Area (Editor + Bottom Panel) -->
             {#snippet left()}
-              <div class="relative h-full w-full">
+              <div id="main-content-area" class="relative h-full w-full">
                 <!-- Level 3: Vertical Split (Editor / Bottom) -->
                 <ResizableSplitPane
                   orientation="vertical"
