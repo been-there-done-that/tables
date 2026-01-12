@@ -233,11 +233,11 @@
 <div
     bind:this={cellEl}
     class={cn(
-        "relative flex items-center border-r truncate text-sm select-none text-foreground border-border box-border",
+        "relative flex items-center border-r truncate text-sm select-none text-foreground border-border box-border outline-none focus:outline-none",
         // Selection state
         isSelected && "bg-accent/10 border-accent/20",
         // Focus state (keyboard nav)
-        isFocused && "z-10 ring-1 ring-inset ring-accent outline-none",
+        isFocused && "z-10 ring-1 ring-inset ring-accent",
         // Pending/Dirty state (edited but not saved)
         isPendingEdit &&
             "bg-amber-500/10 italic border-l-2 border-l-amber-500 pl-1.5",
@@ -254,6 +254,9 @@
     ondblclick={handleDoubleClick}
     oncontextmenu={handleContextMenu}
     aria-disabled={disabled}
+    data-row-index={rowIndex}
+    data-col-index={columnIndex}
+    tabindex="-1"
 >
     {#if isEditing}
         <CellEditor
