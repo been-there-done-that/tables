@@ -41,6 +41,7 @@
         isLoading?: boolean;
         limit?: number;
         offset?: number;
+        error?: string | null;
     }
 
     let {
@@ -58,6 +59,7 @@
         isLoading = $bindable(false),
         limit = $bindable(500),
         offset = $bindable(0),
+        error = $bindable(null),
     }: Props = $props();
 
     type ClipboardApi = {
@@ -2006,53 +2008,86 @@
 >
     <!-- Combined Header & Body -->
     <div class="flex-1 overflow-hidden relative">
-        <TableBody
-            bind:this={tableBody}
-            rows={filteredRows}
-            columns={visibleColumns}
-            {selectedRows}
-            {selectedCells}
-            {focusedCell}
-            {editingCell}
-            pendingEdits={editManager.pendingEdits}
-            {loading}
-            onRowSelect={handleRowSelect}
-            onScroll={handleBodyScroll}
-            onCellClick={handleCellClick}
-            onCellMouseDown={handleCellMouseDown}
-            onCellMouseEnter={handleCellMouseEnter}
-            onCellDoubleClick={handleCellDoubleClick}
-            onCellContextMenu={handleCellContextMenu}
-            onEditComplete={handleEditComplete}
-            onEditCancel={handleEditCancel}
-        >
-            {#snippet header()}
-                <div class="border-b border-border bg-surface w-full">
-                    <TableHeader
-                        columns={visibleColumns}
-                        {sortState}
-                        {filters}
-                        {pinnedColumnIds}
-                        onSort={handleSort}
-                        onClearSort={handleClearSort}
-                        onOpenInQueryEditor={handleOpenInQueryEditor}
-                        onOpenNewQueryTab={handleOpenNewQueryTab}
-                        onFilter={handleFilterChange}
-                        onResize={handleResize}
-                        onResetColumnWidth={handleResetColumnWidth}
-                        onMoveColumn={handleMoveColumn}
-                        onPinColumn={handlePinColumn}
-                        onUnpinColumn={handleUnpinColumn}
-                        onResetColumnOrder={handleResetColumnOrder}
-                        onResetAll={handleResetAll}
-                        onHideColumn={handleHideColumn}
-                        onHideOtherColumns={handleHideOtherColumns}
-                        onShowColumnList={handleShowColumnList}
-                        {getUniqueValues}
-                    />
+        {#if error}
+            <div
+                class="absolute inset-0 flex flex-col items-center justify-center p-8 text-center bg-background select-text z-50"
+            >
+                <!-- Warning / Alert Icon -->
+                <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="48"
+                    height="48"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    class="text-red-500 mb-4 opacity-90"
+                >
+                    <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                    <path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" />
+                    <path d="M12 9v4" />
+                    <path d="M12 16v.01" />
+                </svg>
+                <div class="text-xl font-medium text-red-500 mb-2">
+                    Query Error
                 </div>
-            {/snippet}
-        </TableBody>
+                <div
+                    class="text-sm text-red-400 font-mono bg-red-500/10 px-6 py-4 rounded-md border border-red-500/20 max-w-2xl overflow-auto whitespace-pre-wrap break-all shadow-sm"
+                >
+                    {error}
+                </div>
+            </div>
+        {:else}
+            <TableBody
+                bind:this={tableBody}
+                rows={filteredRows}
+                columns={visibleColumns}
+                {selectedRows}
+                {selectedCells}
+                {focusedCell}
+                {editingCell}
+                pendingEdits={editManager.pendingEdits}
+                {loading}
+                onRowSelect={handleRowSelect}
+                onScroll={handleBodyScroll}
+                onCellClick={handleCellClick}
+                onCellMouseDown={handleCellMouseDown}
+                onCellMouseEnter={handleCellMouseEnter}
+                onCellDoubleClick={handleCellDoubleClick}
+                onCellContextMenu={handleCellContextMenu}
+                onEditComplete={handleEditComplete}
+                onEditCancel={handleEditCancel}
+            >
+                {#snippet header()}
+                    <div class="border-b border-border bg-surface w-full">
+                        <TableHeader
+                            columns={visibleColumns}
+                            {sortState}
+                            {filters}
+                            {pinnedColumnIds}
+                            onSort={handleSort}
+                            onClearSort={handleClearSort}
+                            onOpenInQueryEditor={handleOpenInQueryEditor}
+                            onOpenNewQueryTab={handleOpenNewQueryTab}
+                            onFilter={handleFilterChange}
+                            onResize={handleResize}
+                            onResetColumnWidth={handleResetColumnWidth}
+                            onMoveColumn={handleMoveColumn}
+                            onPinColumn={handlePinColumn}
+                            onUnpinColumn={handleUnpinColumn}
+                            onResetColumnOrder={handleResetColumnOrder}
+                            onResetAll={handleResetAll}
+                            onHideColumn={handleHideColumn}
+                            onHideOtherColumns={handleHideOtherColumns}
+                            onShowColumnList={handleShowColumnList}
+                            {getUniqueValues}
+                        />
+                    </div>
+                {/snippet}
+            </TableBody>
+        {/if}
     </div>
 
     {#if contextMenuState?.open}
