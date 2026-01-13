@@ -14,7 +14,7 @@
 <DropdownMenuPrimitive.SubTrigger
     bind:ref
     class={cn(
-        "group flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-accent data-state-open:bg-accent data-highlighted:bg-accent font-medium text-(--theme-fg-secondary)",
+        "group flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-accent/10 data-state-open:bg-accent/10 data-highlighted:bg-accent/10 font-medium text-(--theme-fg-secondary)",
         className,
     )}
     {...restProps}

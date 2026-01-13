@@ -24,10 +24,10 @@
             {#each drivers as driver}
                 {@const IconComponent = driver.icon}
                 <button
-                    class="w-full text-left px-3 py-1.5 flex items-center space-x-2 text-sm rounded-md
+                    class="w-full text-left px-3 py-1.5 flex items-center space-x-2 text-sm rounded-sm outline-none transition-colors
                     {selectedDriver?.id === driver.id
-                        ? 'bg-accent text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.45)] hover:bg-[color-mix(in_srgb,var(--theme-accent-primary)_78%,black_22%)] focus-visible:ring-offset-2 focus-visible:ring-offset-background'
-                        : 'text-muted-foreground hover:bg-(--theme-bg-hover)'}"
+                        ? 'bg-accent/10 text-foreground'
+                        : 'text-muted-foreground hover:bg-accent/10 hover:text-foreground'}"
                     onclick={() => selectDriver(driver)}
                 >
                     {#if typeof IconComponent === "function"}
