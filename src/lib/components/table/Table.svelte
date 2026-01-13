@@ -283,6 +283,16 @@
         }
     }
 
+    function isSameValue(a: any, b: any) {
+        if (a === b) return true;
+        // Deep comparison for objects (JSON)
+        try {
+            return JSON.stringify(a) === JSON.stringify(b);
+        } catch {
+            return String(a) === String(b);
+        }
+    }
+
     function autoSizeColumns() {
         if (!rows.length) return;
         if (editingCell || scrollLock) return; // Never auto-size during edit
@@ -649,10 +659,14 @@
         edits: Record<number, Record<string, any>>,
         label = "edit",
         pushToUndo = true,
+        originalValues?: Record<number, Record<string, any>>,
     ) {
         if (!edits || Object.keys(edits).length === 0) return;
-        editManager.applyEditsLocally(edits);
-        // Note: label and pushToUndo are simplified in the manager for now
+        editManager.applyEditsLocally(
+            edits,
+            label === "paste" ? "paste" : "input",
+            originalValues,
+        );
     }
 
     function performUndo() {
@@ -1280,14 +1294,12 @@
         const originalValue =
             baselineRows.get(rowId)?.[columnId] ?? row[columnId];
 
-        if (originalValue !== normalizedValue) {
-            editManager.setPendingEdit(
-                rowId,
-                columnId,
-                normalizedValue,
-                originalValue,
-            );
-        }
+        editManager.setPendingEdit(
+            rowId,
+            columnId,
+            normalizedValue,
+            originalValue,
+        );
         editingCell = null;
 
         // Restore focus and scroll position after layout settles
@@ -1769,6 +1781,12 @@
         );
     }
 
+    function getDisplayValue(row: any, columnId: string) {
+        return editManager.hasPendingValue(row._rowId, columnId)
+            ? editManager.getPendingValue(row._rowId, columnId)
+            : row[columnId];
+    }
+
     function handleCopy() {
         const bounds = getActiveBounds();
         if (!bounds) return;
@@ -1781,9 +1799,12 @@
             const payload = rowsSlice.map((row) =>
                 includeHeaders
                     ? Object.fromEntries(
-                          colsSlice.map((c) => [c.id, row[c.id]]),
+                          colsSlice.map((c) => [
+                              c.id,
+                              getDisplayValue(row, c.id),
+                          ]),
                       )
-                    : colsSlice.map((c) => row[c.id]),
+                    : colsSlice.map((c) => getDisplayValue(row, c.id)),
             );
             writeClipboardText(JSON.stringify(payload, null, 2));
             return;
@@ -1798,7 +1819,7 @@
 
         for (const row of rowsSlice) {
             const cells = colsSlice.map((col) =>
-                formatValueForClipboard(row[col.id], col.type),
+                formatValueForClipboard(getDisplayValue(row, col.id), col.type),
             );
             lines.push(cells.join(delimiter));
         }
@@ -1855,6 +1876,7 @@
             );
 
             const edits: Record<number, Record<string, any>> = {};
+            const originalValues: Record<number, Record<string, any>> = {};
 
             for (let r = targetBounds.top; r <= targetRowEnd; r++) {
                 const row = filteredRows[r];
@@ -1873,14 +1895,24 @@
                         column.type,
                     );
 
+                    // Skip if value is same as current (including pending)
+                    const currentValue = getDisplayValue(row, column.id);
+
+                    if (isSameValue(parsedValue, currentValue)) continue;
+
                     if (!edits[row._rowId]) edits[row._rowId] = {};
                     edits[row._rowId][column.id] = parsedValue;
+
+                    // Capture actual original value from the raw data
+                    if (!originalValues[row._rowId])
+                        originalValues[row._rowId] = {};
+                    originalValues[row._rowId][column.id] = row[column.id];
                 }
             }
 
             if (Object.keys(edits).length === 0) return;
 
-            applyEditsLocally(edits, "paste", true);
+            applyEditsLocally(edits, "paste", true, originalValues);
         } catch (e) {
             console.error("Paste failed", e);
         }

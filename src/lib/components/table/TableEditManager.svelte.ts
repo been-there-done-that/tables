@@ -27,36 +27,75 @@ export class TableEditManager {
         }
     }
 
+    private isEqual(a: any, b: any): boolean {
+        if (a === b) return true;
+        try {
+            return JSON.stringify(a) === JSON.stringify(b);
+        } catch {
+            return String(a) === String(b);
+        }
+    }
+
     setPendingEdit(rowId: number, columnId: string, newValue: any, originalValue: any) {
         // Track original for delta 
         this.ensureOriginalValue(rowId, columnId, originalValue);
 
-        // Logic to update pendingEdits
         const currentEdits = { ...this.pendingEdits };
-        if (!currentEdits[rowId]) {
-            currentEdits[rowId] = {};
+
+        const baseline = this.originalValues.get(`${rowId}:${columnId}`);
+        if (this.isEqual(newValue, baseline)) {
+            // Reverting to original - prune the edit
+            if (currentEdits[rowId]) {
+                delete currentEdits[rowId][columnId];
+                if (Object.keys(currentEdits[rowId]).length === 0) {
+                    delete currentEdits[rowId];
+                }
+            }
+        } else {
+            if (!currentEdits[rowId]) {
+                currentEdits[rowId] = {};
+            }
+            currentEdits[rowId][columnId] = newValue;
         }
 
-        // Check if new value is essentially same as original, if so, remove edit?
-        // For now, let's strictly set it.
-        currentEdits[rowId][columnId] = newValue;
-
-        // Push to undo stack (simplified: snapshotting whole state for now, 
-        // essentially what the previous implementation did, but we can optimize later)
         this.undoStack.push(this.snapshot());
-        this.redoStack = []; // clear redo on new action
-
+        this.redoStack = [];
         this.pendingEdits = currentEdits;
     }
 
-    applyEditsLocally(edits: Record<number, Record<string, any>>, mode: "paste" | "input" = "input") {
+    applyEditsLocally(
+        edits: Record<number, Record<string, any>>,
+        mode: "paste" | "input" = "input",
+        originalValues?: Record<number, Record<string, any>>
+    ) {
         this.undoStack.push(this.snapshot());
+
+        if (originalValues) {
+            for (const [rowId, cols] of Object.entries(originalValues)) {
+                const rId = Number(rowId);
+                for (const [colId, val] of Object.entries(cols)) {
+                    this.ensureOriginalValue(rId, colId, val);
+                }
+            }
+        }
 
         const next = { ...this.pendingEdits };
         for (const [rowId, cols] of Object.entries(edits)) {
             const rId = Number(rowId);
             if (!next[rId]) next[rId] = {};
-            Object.assign(next[rId], cols);
+
+            for (const [colId, val] of Object.entries(cols)) {
+                const baseline = this.originalValues.get(`${rId}:${colId}`);
+                if (this.isEqual(val, baseline)) {
+                    delete next[rId][colId];
+                } else {
+                    next[rId][colId] = val;
+                }
+            }
+
+            if (Object.keys(next[rId]).length === 0) {
+                delete next[rId];
+            }
         }
         this.pendingEdits = next;
         this.redoStack = [];
