@@ -60,6 +60,7 @@
     let columns = $state<Column[]>([]);
     let isLoading = $state(false);
     let executionTime = $state<number | undefined>(undefined);
+    let error = $state<string | null>(null);
 
     // Pending changes panel state
     let showPendingChanges = $state(false);
@@ -126,6 +127,7 @@
             }
 
             try {
+                error = null; // Reset error on new fetch
                 const result = await invoke<{
                     rows: any[];
                     columns: { name: string; type: string }[];
@@ -189,8 +191,9 @@
                     total: result.total ?? totalRows, // Pass best guess or exact
                     columns: fetchedColumns,
                 };
-            } catch (error) {
-                console.error("[TablePreview] Failed to fetch data:", error);
+            } catch (err: any) {
+                console.error("[TablePreview] Failed to fetch data:", err);
+                error = err.message || String(err);
                 return { rows: [], total: 0, columns: [] };
             }
         };
@@ -716,6 +719,7 @@
                 bind:isLoading
                 limit={pageSize}
                 bind:offset={currentOffset}
+                {error}
             />
         </div>
     {/key}
