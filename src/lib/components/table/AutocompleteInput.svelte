@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { getContext } from "svelte";
     import { IconFilter, IconArrowsSort } from "@tabler/icons-svelte";
     import type { SuggestionItem } from "./types";
 
@@ -27,6 +28,11 @@
     let showSuggestions = $state(false);
     let highlightedIndex = $state(-1);
     let inputFocused = $state(false);
+
+    // Get table container reference for boundary detection
+    const getTableContainer = getContext<
+        (() => HTMLElement | undefined) | undefined
+    >("table-container");
 
     // Normalize suggestions to SuggestionItem[]
     const normalizedSuggestions = $derived(
@@ -69,6 +75,23 @@
             highlightedIndex = -1;
         }
     }
+
+    // Close dropdown when it would cross the table boundary
+    $effect(() => {
+        if (showSuggestions && listRef && getTableContainer) {
+            const tableContainer = getTableContainer();
+            if (tableContainer) {
+                const dropdownRect = listRef.getBoundingClientRect();
+                const tableRect = tableContainer.getBoundingClientRect();
+
+                // If dropdown bottom extends past table top, close it
+                if (dropdownRect.bottom > tableRect.top + 20) {
+                    showSuggestions = false;
+                    highlightedIndex = -1;
+                }
+            }
+        }
+    });
 
     $effect(() => {
         if (showSuggestions && highlightedIndex >= 0 && listRef) {
