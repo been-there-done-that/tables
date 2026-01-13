@@ -188,7 +188,6 @@
                                     schemaStore.activeConnection?.id ===
                                         conn.id &&
                                         "bg-accent/5 ring-1 ring-inset ring-accent/10",
-                                    disabled && "opacity-50",
                                 )}
                             >
                                 {@const isImageIcon =
@@ -197,24 +196,10 @@
                                     <img
                                         src={DriverIcon}
                                         alt={conn.engine}
-                                        class={cn(
-                                            "size-10 shrink-0 transition-opacity object-contain",
-                                            schemaStore.activeConnection?.id ===
-                                                conn.id
-                                                ? "opacity-100"
-                                                : "opacity-60 grayscale-[0.5]",
-                                        )}
+                                        class="size-10 shrink-0 object-contain"
                                     />
                                 {:else}
-                                    <DriverIcon
-                                        class={cn(
-                                            "size-4 shrink-0 transition-opacity",
-                                            schemaStore.activeConnection?.id ===
-                                                conn.id
-                                                ? "opacity-100 text-(--theme-accent-primary)"
-                                                : "opacity-60 grayscale-[0.5]",
-                                        )}
-                                    />
+                                    <DriverIcon class="size-4 shrink-0" />
                                 {/if}
                                 <div class="flex flex-col min-w-0">
                                     <span

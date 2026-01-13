@@ -74,10 +74,10 @@
                 aria-checked={selectedIndex === i}
                 tabindex={selectedIndex === i ? 0 : -1}
                 class={cn(
-                    "pl-2 py-1 text-sm rounded text-left transition-colors flex items-center gap-1",
+                    "pl-2 py-1 text-sm rounded-sm text-left transition-colors flex items-center gap-1 outline-none",
                     selectedIndex === i
-                        ? "bg-active text-foreground"
-                        : "hover:bg-muted hover:text-foreground",
+                        ? "bg-accent/10 text-foreground"
+                        : "hover:bg-accent/10 hover:text-foreground",
                 )}
                 onclick={() => handleSelect(option)}
                 onmouseenter={() => (selectedIndex = i)}
