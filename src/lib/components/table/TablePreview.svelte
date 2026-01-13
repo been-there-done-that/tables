@@ -674,7 +674,7 @@
     }
 </script>
 
-<div class="h-full w-full flex flex-col">
+<div class="h-full w-full flex flex-col" style="isolation: isolate;">
     <TableToolbar
         bind:tableRef
         {columns}
@@ -703,7 +703,7 @@
         onShowChanges={handleShowChanges}
     />
     {#key tableKey}
-        <div class="flex-1 min-h-0">
+        <div class="flex-1 min-h-0 relative z-0">
             <Table
                 bind:this={tableRef}
                 columns={[]}
