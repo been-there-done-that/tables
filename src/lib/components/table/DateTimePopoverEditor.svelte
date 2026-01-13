@@ -25,6 +25,11 @@
     let placement = $state<"left" | "right">("right");
     let arrowOffset = $state(0);
 
+    // Get table container reference for boundary detection
+    const containerGetter = getContext<
+        (() => HTMLElement | null | undefined) | undefined
+    >("table-container");
+
     const GUTTER = 4;
 
     const monthNames = [
@@ -134,24 +139,38 @@
         const width = 280;
         const overlayHeight = overlayEl?.offsetHeight ?? 240;
         const margin = 8;
+        const headerHeight = 36;
+
+        const container = containerGetter?.();
+        const containerRect = container?.getBoundingClientRect();
+
+        const safeTop = containerRect
+            ? containerRect.top + headerHeight
+            : headerHeight;
+        const safeBottom = containerRect
+            ? containerRect.bottom - margin
+            : window.innerHeight - margin;
+        const safeLeft = containerRect ? containerRect.left + margin : margin;
+        const safeRight = containerRect
+            ? containerRect.right - margin
+            : window.innerWidth - margin;
 
         let left = rect.right + margin;
         placement = "right";
 
-        const fitsRight = left + width + margin <= window.innerWidth;
+        const fitsRight = left + width <= safeRight;
         if (!fitsRight) {
             left = rect.left - width - margin;
             placement = "left";
         }
-        left = Math.max(
-            margin,
-            Math.min(left, window.innerWidth - width - margin),
-        );
+
+        // Final horizontal clamp
+        left = Math.max(safeLeft, Math.min(left, safeRight - width));
 
         let top = rect.top + rect.height / 2 - overlayHeight / 2;
-        const minTop = margin;
-        const maxTop = window.innerHeight - overlayHeight - margin;
-        top = Math.max(minTop, Math.min(top, maxTop));
+
+        // Constrain top to be within safe area
+        top = Math.max(safeTop, Math.min(top, safeBottom - overlayHeight));
 
         // Calculate arrow vertical offset
         const anchorCenterY = rect.top + rect.height / 2;
@@ -226,9 +245,6 @@
         const handleUpdate = () => requestAnimationFrame(updatePosition);
         window.addEventListener("resize", handleUpdate);
         window.addEventListener("scroll", handleUpdate, true);
-        const containerGetter:
-            | (() => HTMLElement | null | undefined)
-            | undefined = getContext("table-container");
         const containerEl = containerGetter?.();
         containerEl?.addEventListener("scroll", handleUpdate, {
             passive: true,

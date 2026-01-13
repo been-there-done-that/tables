@@ -77,21 +77,7 @@
     }
 
     // Close dropdown when it would cross the table boundary
-    $effect(() => {
-        if (showSuggestions && listRef && getTableContainer) {
-            const tableContainer = getTableContainer();
-            if (tableContainer) {
-                const dropdownRect = listRef.getBoundingClientRect();
-                const tableRect = tableContainer.getBoundingClientRect();
-
-                // If dropdown bottom extends past table top, close it
-                if (dropdownRect.bottom > tableRect.top + 20) {
-                    showSuggestions = false;
-                    highlightedIndex = -1;
-                }
-            }
-        }
-    });
+    // We removed the aggressive closing but kept the z-index high (z-50) to ensure visibility above the table header (z-10).
 
     $effect(() => {
         if (showSuggestions && highlightedIndex >= 0 && listRef) {
