@@ -238,7 +238,7 @@
 
 <svelte:window onkeydown={onKeyDown} />
 
-<div class="flex flex-col border-b border-border/70">
+<div class="flex flex-col border-b border-border/70 relative z-20">
     <!-- Row 1: Pagination, Execute, Export, Timing -->
     <div class="flex items-center gap-2 px-2 h-8 text-xs w-full">
         <!-- Pagination Controls -->
