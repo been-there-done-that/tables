@@ -1,6 +1,7 @@
 <script lang="ts">
     import { logsStore, type LogEntry } from "$lib/stores/logs.svelte";
     import { schemaStore } from "$lib/stores/schema.svelte";
+    import { windowState } from "$lib/stores/window.svelte";
     import { cn } from "$lib/utils";
     import XIcon from "@tabler/icons-svelte/icons/x";
     import IconCheck from "@tabler/icons-svelte/icons/check";
@@ -134,9 +135,10 @@
                     <span class="text-[9px] font-medium">Clear All</span>
                 </button>
                 <div class="w-px h-3 bg-border mx-1 opacity-50"></div>
+                <!-- svelte-ignore a11y_click_events_have_key_events -->
                 <button
                     class="h-6 w-6 flex items-center justify-center hover:bg-accent rounded text-muted-foreground transition-colors"
-                    onclick={() => logsStore.toggle()}
+                    onclick={() => windowState.closeRightPanel()}
                 >
                     <XIcon class="h-4 w-4" />
                 </button>

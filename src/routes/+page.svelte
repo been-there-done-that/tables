@@ -106,7 +106,7 @@
 
             <!-- Right Sidebar -->
             {#snippet right()}
-              {#if logsStore.isOpen}
+              {#if windowState.activeRightPanel === "logs"}
                 <QueryLogsPanel />
               {:else}
                 <div class="flex h-full flex-col bg-muted/10">
