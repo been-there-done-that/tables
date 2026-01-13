@@ -258,12 +258,7 @@
                 ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
                 : "hover:bg-(--theme-bg-hover) border-transparent",
             )}
-            onclick={() => {
-              logsStore.toggle();
-              if (logsStore.isOpen) {
-                windowState.layout.right = true;
-              }
-            }}
+            onclick={() => logsStore.toggle()}
             title="Toggle Query Logs"
           >
             <Logs class="size-5" />
