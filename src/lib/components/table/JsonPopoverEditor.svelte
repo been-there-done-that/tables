@@ -1,8 +1,6 @@
 <script lang="ts">
-    import { getContext, onMount } from "svelte";
+    import PopoverShell from "./PopoverShell.svelte";
     import { cn } from "$lib/utils";
-    import { portal } from "$lib/actions/portal";
-    import { focusTrap } from "$lib/actions/focus-trap";
     import { useMonacoEditor } from "$lib/monaco/useMonacoEditor";
     import type { EditorHandle } from "$lib/monaco/editor-types";
     import IconCheck from "@tabler/icons-svelte/icons/check";
@@ -19,33 +17,11 @@
 
     let { value, anchorEl, onCommit, onCancel }: Props = $props();
 
-    let overlayEl: HTMLElement | null = null;
     let editorContainer: HTMLElement | null = null;
-    let currentHandle: EditorHandle | null = null;
     let editorInstance: Monaco.editor.IStandaloneCodeEditor | null = null;
 
-    // UI State
-    let position = $state({ top: 0, left: 0, width: 520 });
     let isVisible = $state(false);
-    let placement = $state<"left" | "right">("right");
-    let arrowOffset = $state(0);
     let errorMessage = $state<string | null>(null);
-
-    // Get table container reference for boundary detection
-    const containerGetter = getContext<
-        (() => HTMLElement | null | undefined) | undefined
-    >("table-container");
-
-    const GUTTER = 4;
-
-    const DEFAULT_JSON = JSON.stringify(
-        {
-            id: "root-123",
-            meta: { createdAt: "2025-01-15T12:34:56.789Z" },
-        },
-        null,
-        2,
-    );
 
     const isMac =
         typeof navigator !== "undefined" && navigator.userAgent.includes("Mac");
@@ -100,11 +76,11 @@
                 minimap: { enabled: false },
                 stickyScroll: { enabled: false },
                 automaticLayout: true,
-                wordWrap: "off", // Enable horizontal scrolling
+                wordWrap: "off",
                 scrollBeyondLastLine: false,
                 lineNumbers: "on",
                 tabSize: 2,
-                fontSize: 12, // Reduced from 13
+                fontSize: 12,
                 scrollbar: {
                     horizontal: "auto",
                     vertical: "auto",
@@ -115,7 +91,6 @@
             },
         },
         (handle) => {
-            currentHandle = handle;
             setupEditorInteractions(handle);
         },
     );
@@ -129,7 +104,6 @@
             editor.setValue(text);
         }
 
-        // Ensure explicit layout after visibility
         requestAnimationFrame(() => {
             editor.layout();
             setTimeout(() => editor.layout(), 50);
@@ -148,12 +122,10 @@
             validateCurrent();
         });
 
-        // Show editor
         isVisible = true;
         editor.focus();
     }
 
-    // ... validation and commit functions (unchanged) ...
     function validateCurrent() {
         if (!editorInstance) return { ok: true, parsed: null };
         const text = editorInstance.getValue();
@@ -192,119 +164,25 @@
     }
 
     function handleKeydown(e: KeyboardEvent) {
-        e.stopPropagation();
-        if (e.key === "Escape") {
-            e.preventDefault();
-            onCancel();
-        } else if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
             e.preventDefault();
             commitFromEditor();
         }
     }
-
-    function handleClickOutside(event: MouseEvent) {
-        const target = event.target as Node;
-        if (overlayEl?.contains(target)) return;
-        if (anchorEl?.contains(target)) return;
-        // Don't close if clicking monaco overlays
-        if ((target as HTMLElement).closest?.(".monaco-aria-container")) return;
-        onCancel();
-    }
-    // ... portal ...
-
-    // RESTORED Positioning Logic
-    function updatePosition() {
-        if (!anchorEl || !anchorEl.isConnected) {
-            onCancel();
-            return;
-        }
-        const rect = anchorEl.getBoundingClientRect();
-        const width = 520;
-        const overlayHeight = overlayEl?.offsetHeight ?? 360;
-        const margin = 8;
-        const headerHeight = 36;
-
-        const container = containerGetter?.();
-        const containerRect = container?.getBoundingClientRect();
-
-        const safeTop = containerRect
-            ? containerRect.top + headerHeight
-            : headerHeight;
-        const safeBottom = containerRect
-            ? containerRect.bottom - margin
-            : window.innerHeight - margin;
-        const safeLeft = containerRect ? containerRect.left + margin : margin;
-        const safeRight = containerRect
-            ? containerRect.right - margin
-            : window.innerWidth - margin;
-
-        let left = rect.right + margin;
-        placement = "right";
-
-        const fitsRight = left + width <= safeRight;
-        if (!fitsRight) {
-            left = rect.left - width - margin;
-            placement = "left";
-        }
-
-        // Final horizontal clamp
-        left = Math.max(safeLeft, Math.min(left, safeRight - width));
-
-        let top = rect.top + rect.height / 2 - overlayHeight / 2;
-
-        // Constrain top to be within safe area
-        top = Math.max(safeTop, Math.min(top, safeBottom - overlayHeight));
-
-        // Calculate arrow vertical offset
-        const anchorCenterY = rect.top + rect.height / 2;
-        const minArrow = 12;
-        const maxArrow = overlayHeight - 12;
-        arrowOffset = Math.max(
-            minArrow,
-            Math.min(anchorCenterY - top, maxArrow),
-        );
-
-        position = { top, left, width };
-    }
-
-    onMount(() => {
-        requestAnimationFrame(updatePosition);
-        const handleUpdate = () => requestAnimationFrame(updatePosition);
-        window.addEventListener("resize", handleUpdate);
-        window.addEventListener("scroll", handleUpdate, true);
-        const containerEl = containerGetter?.();
-        containerEl?.addEventListener("scroll", handleUpdate, {
-            passive: true,
-        });
-        document.addEventListener("mousedown", handleClickOutside);
-
-        return () => {
-            window.removeEventListener("resize", handleUpdate);
-            window.removeEventListener("scroll", handleUpdate, true);
-            containerEl?.removeEventListener("scroll", handleUpdate);
-            document.removeEventListener("mousedown", handleClickOutside);
-        };
-    });
 </script>
 
-<div
-    use:portal
-    use:focusTrap
-    bind:this={overlayEl}
-    data-placement={placement}
-    role="dialog"
-    aria-label="Edit JSON value"
-    tabindex="-1"
-    onkeydown={handleKeydown}
-    class={cn(
-        "popover-editor fixed rounded-lg shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] flex flex-col p-1",
-        "bg-surface border border-accent/20 ring-1 ring-accent/10",
-        isVisible ? "anim-pop opacity-100" : "opacity-0 pointer-events-none",
-    )}
-    style={`top:${position.top}px;left:${position.left}px;min-width:${position.width}px;max-width:720px;min-height:200px;max-height:640px;transform-origin:center;z-index:1000;--arrow-top:${arrowOffset}px`}
-    aria-hidden={!isVisible}
+<PopoverShell
+    {anchorEl}
+    {onCancel}
+    minWidth={520}
+    maxWidth={720}
+    minHeight={200}
+    maxHeight={640}
 >
-    <div class="flex-1 overflow-hidden min-h-[180px] relative">
+    <div
+        class="flex-1 overflow-hidden min-h-[180px] relative"
+        onkeydown={handleKeydown}
+    >
         <div
             bind:this={editorContainer}
             class="absolute inset-0"
@@ -352,4 +230,4 @@
             </button>
         </div>
     </div>
-</div>
+</PopoverShell>
