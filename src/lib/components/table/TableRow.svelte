@@ -112,7 +112,7 @@
 >
     <!-- Row Number Cell -->
     <div
-        class="sticky left-0 z-30 flex items-center justify-center border-r border-border bg-surface px-2 py-1 text-xs text-foreground-muted font-mono select-none"
+        class="sticky left-0 z-5 flex items-center justify-center border-r border-border bg-surface px-2 py-1 text-xs text-foreground-muted font-mono select-none"
         style="width: 60px; min-width: 60px; flex-shrink: 0;"
     >
         {row._rowId}
