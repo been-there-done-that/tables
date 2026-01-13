@@ -306,8 +306,8 @@ pub fn run() {
                     let manager = ConnectionManager::from_state(&db_state, &conn_state);
                     manager.remove_window_from_active(&label);
                     
-                    // Emit global event with updated active IDs
-                    let _ = app.emit("active-connections-changed", manager.get_active_connection_ids());
+                    // Emit global event with updated active connections map
+                    let _ = app.emit("active-connections-changed", manager.get_active_connections_map());
                 }
 
                 let _ = app.emit("window-destroyed", label);

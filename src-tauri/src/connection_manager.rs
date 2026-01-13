@@ -250,7 +250,7 @@ impl ConnectionManager {
 
         let mut stmt = conn.prepare(
             "SELECT id, name, engine, host, port, database, username, uses_ssh, uses_tls, config_json, is_favorite, color_tag, created_at, updated_at, last_connected_at, connection_count
-             FROM connections ORDER BY name COLLATE NOCASE"
+             FROM connections ORDER BY created_at"
         ).map_err(|e| {
             error!("Failed to prepare query for listing connections: {}", e);
             format!("Failed to prepare query: {}", e)
@@ -697,7 +697,7 @@ impl ConnectionManager {
 
         let mut stmt = conn.prepare(
             "SELECT id, name, engine, host, port, database, username, uses_ssh, uses_tls, config_json, is_favorite, color_tag, created_at, updated_at, last_connected_at, connection_count
-             FROM connections WHERE is_favorite = 1 ORDER BY name COLLATE NOCASE"
+             FROM connections WHERE is_favorite = 1 ORDER BY created_at"
         ).map_err(|e| {
             error!("Failed to prepare query for favorite connections: {}", e);
             format!("Failed to prepare query: {}", e)
@@ -736,7 +736,7 @@ impl ConnectionManager {
 
         let mut stmt = conn.prepare(
             "SELECT id, name, engine, host, port, database, username, uses_ssh, uses_tls, config_json, is_favorite, color_tag, created_at, updated_at, last_connected_at, connection_count
-             FROM connections WHERE name LIKE ?1 ESCAPE '\\' OR host LIKE ?1 ESCAPE '\\' ORDER BY name COLLATE NOCASE"
+             FROM connections WHERE name LIKE ?1 ESCAPE '\\' OR host LIKE ?1 ESCAPE '\\' ORDER BY created_at"
         ).map_err(|e| {
             error!("Failed to prepare search query for '{}': {}", query, e);
             format!("Failed to prepare query: {}", e)
@@ -760,12 +760,19 @@ impl ConnectionManager {
         Ok(connections)
     }
     // Active Connection Management
-    pub fn get_active_connection_ids(&self) -> Vec<String> {
+    /// Get a map of connection_id -> window_label for all active connections.
+    /// This is the single source of truth for active connection tracking.
+    /// Callers can derive:
+    /// - IDs: map.keys()
+    /// - Window for connection: map.get(connection_id)
+    pub fn get_active_connections_map(&self) -> std::collections::HashMap<String, String> {
         let active = self.active_connections.lock().unwrap();
-        let mut ids: Vec<String> = active.values().cloned().collect();
-        ids.sort();
-        ids.dedup();
-        ids
+        // Invert the map: window_label -> conn_id becomes conn_id -> window_label
+        let mut result = std::collections::HashMap::new();
+        for (label, conn_id) in active.iter() {
+            result.insert(conn_id.clone(), label.clone());
+        }
+        result
     }
 
     pub fn set_window_connection_active(&self, window_label: &str, connection_id: &str, active: bool) {

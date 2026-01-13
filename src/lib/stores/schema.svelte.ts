@@ -16,7 +16,8 @@ export class SchemaStore {
     lastRefreshed = $state<Date | null>(null);
     windowLabel = $state<string | null>(null);
     activeSchema = $state<string | null>("public");
-    activeConnectionIds = $state<string[]>([]);
+    // Map of connection_id -> window_label for all active connections
+    activeConnectionsMap = $state<Record<string, string>>({});
     private unlistenActive: (() => void) | null = null;
 
     async initialize(label: string) {
@@ -46,8 +47,8 @@ export class SchemaStore {
 
         // Listen for active connection changes from backend
         import("@tauri-apps/api/event").then(({ listen }) => {
-            listen<string[]>("active-connections-changed", (event) => {
-                this.activeConnectionIds = event.payload;
+            listen<Record<string, string>>("active-connections-changed", (event) => {
+                this.activeConnectionsMap = event.payload;
             }).then(un => this.unlistenActive = un);
         });
 
@@ -340,16 +341,26 @@ export class SchemaStore {
 
     async refreshActiveConnections() {
         try {
-            this.activeConnectionIds = await invoke<string[]>("get_active_connections");
+            this.activeConnectionsMap = await invoke<Record<string, string>>("get_active_connections");
         } catch (e) {
             console.error("[SchemaStore] Failed to fetch active connections:", e);
         }
     }
 
+    // Get the list of active connection IDs (for backward compatibility)
+    get activeConnectionIds(): string[] {
+        return Object.keys(this.activeConnectionsMap);
+    }
+
     isConnectionBusy(connId: string) {
         // A connection is busy if it's active in another window
         // (i.e. it's in the global active list but isn't our window's active connection)
-        return this.activeConnectionIds.includes(connId) && this.activeConnection?.id !== connId;
+        return connId in this.activeConnectionsMap && this.activeConnection?.id !== connId;
+    }
+
+    // Get the window label for a busy connection
+    getWindowForConnection(connId: string): string | null {
+        return this.activeConnectionsMap[connId] ?? null;
     }
 
     cleanup() {

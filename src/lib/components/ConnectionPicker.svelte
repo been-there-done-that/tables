@@ -25,9 +25,7 @@
         try {
             const response = await listConnections();
             if (response.success && response.data) {
-                connections = response.data.sort((a, b) =>
-                    a.name.localeCompare(b.name),
-                );
+                connections = response.data;
             } else {
                 console.error("Failed to load connections:", response.error);
             }
@@ -89,6 +87,31 @@
             isOpen = false;
         } catch (e) {
             console.error("Failed to open datasource window:", e);
+        }
+    };
+
+    const focusConnectionWindow = async (connectionId: string) => {
+        try {
+            // Get the window label from the schemaStore (already fetched)
+            const windowLabel =
+                schemaStore.getWindowForConnection(connectionId);
+            if (!windowLabel) {
+                console.warn("No window found for connection:", connectionId);
+                return;
+            }
+
+            const { WebviewWindow } = await import(
+                "@tauri-apps/api/webviewWindow"
+            );
+            const window = await WebviewWindow.getByLabel(windowLabel);
+            if (window) {
+                await window.unminimize();
+                await window.show();
+                await window.setFocus();
+            }
+            isOpen = false;
+        } catch (e) {
+            console.error("Failed to focus connection window:", e);
         }
     };
 
@@ -185,9 +208,6 @@
                             <Menu.SubTrigger
                                 class={cn(
                                     "w-full flex items-center gap-3 px-3 py-1.5 text-left transition-colors cursor-default",
-                                    schemaStore.activeConnection?.id ===
-                                        conn.id &&
-                                        "bg-accent/5 ring-1 ring-inset ring-accent/10",
                                 )}
                             >
                                 {@const isImageIcon =
@@ -252,6 +272,15 @@
                                 >
                                     Open in New Window
                                 </Menu.Item>
+                                {#if busy}
+                                    <Menu.Item
+                                        class="flex items-center gap-2 px-3 py-2 text-xs rounded hover:bg-accent/10 cursor-pointer"
+                                        onclick={() =>
+                                            focusConnectionWindow(conn.id)}
+                                    >
+                                        Bring to Front
+                                    </Menu.Item>
+                                {/if}
                             </Menu.SubContent>
                         </Menu.Sub>
                     {/each}
