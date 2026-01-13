@@ -93,8 +93,17 @@
     const focusConnectionWindow = async (connectionId: string) => {
         try {
             // Get the window label from the schemaStore (already fetched)
+            console.log(
+                "[FocusWindow] Trying to focus connection:",
+                connectionId,
+            );
+            console.log(
+                "[FocusWindow] activeConnectionsMap:",
+                schemaStore.activeConnectionsMap,
+            );
             const windowLabel =
                 schemaStore.getWindowForConnection(connectionId);
+            console.log("[FocusWindow] Found window label:", windowLabel);
             if (!windowLabel) {
                 console.warn("No window found for connection:", connectionId);
                 return;
@@ -104,10 +113,17 @@
                 "@tauri-apps/api/webviewWindow"
             );
             const window = await WebviewWindow.getByLabel(windowLabel);
+            console.log("[FocusWindow] Got window:", window);
             if (window) {
                 await window.unminimize();
                 await window.show();
                 await window.setFocus();
+                console.log("[FocusWindow] Focused window successfully");
+            } else {
+                console.warn(
+                    "[FocusWindow] Window not found by label:",
+                    windowLabel,
+                );
             }
             isOpen = false;
         } catch (e) {
@@ -254,31 +270,46 @@
                             <Menu.SubContent
                                 class="z-60 min-w-[160px] p-1 bg-(--theme-bg-secondary) border border-(--theme-border-default) rounded-md shadow-xl"
                             >
-                                <Menu.Item
-                                    class={cn(
-                                        "flex items-center gap-2 px-3 py-2 text-xs rounded hover:bg-accent/10 cursor-pointer",
-                                        schemaStore.activeConnection?.id ===
-                                            conn.id &&
-                                            "opacity-50 pointer-events-none",
-                                    )}
-                                    onclick={() =>
-                                        selectConnection(conn, false)}
-                                >
-                                    Use in Current Window
-                                </Menu.Item>
-                                <Menu.Item
-                                    class="flex items-center gap-2 px-3 py-2 text-xs rounded hover:bg-accent/10 cursor-pointer"
-                                    onclick={() => selectConnection(conn, true)}
-                                >
-                                    Open in New Window
-                                </Menu.Item>
                                 {#if busy}
+                                    <!-- Busy connection: Bring to Front first, then Open in New Window -->
                                     <Menu.Item
                                         class="flex items-center gap-2 px-3 py-2 text-xs rounded hover:bg-accent/10 cursor-pointer"
                                         onclick={() =>
                                             focusConnectionWindow(conn.id)}
                                     >
                                         Bring to Front
+                                    </Menu.Item>
+                                    <Menu.Item
+                                        class="flex items-center gap-2 px-3 py-2 text-xs rounded hover:bg-accent/10 cursor-pointer"
+                                        onclick={() =>
+                                            selectConnection(conn, true)}
+                                    >
+                                        Open in New Window
+                                    </Menu.Item>
+                                {:else if schemaStore.activeConnection?.id === conn.id}
+                                    <!-- Current connection: Only show Open in New Window -->
+                                    <Menu.Item
+                                        class="flex items-center gap-2 px-3 py-2 text-xs rounded hover:bg-accent/10 cursor-pointer"
+                                        onclick={() =>
+                                            selectConnection(conn, true)}
+                                    >
+                                        Open in New Window
+                                    </Menu.Item>
+                                {:else}
+                                    <!-- Normal connection: Standard options -->
+                                    <Menu.Item
+                                        class="flex items-center gap-2 px-3 py-2 text-xs rounded hover:bg-accent/10 cursor-pointer"
+                                        onclick={() =>
+                                            selectConnection(conn, false)}
+                                    >
+                                        Use in Current Window
+                                    </Menu.Item>
+                                    <Menu.Item
+                                        class="flex items-center gap-2 px-3 py-2 text-xs rounded hover:bg-accent/10 cursor-pointer"
+                                        onclick={() =>
+                                            selectConnection(conn, true)}
+                                    >
+                                        Open in New Window
                                     </Menu.Item>
                                 {/if}
                             </Menu.SubContent>
