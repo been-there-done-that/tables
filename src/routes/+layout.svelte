@@ -10,6 +10,7 @@
 	import { onMount } from "svelte";
 	import { listen } from "@tauri-apps/api/event";
 	import LoadingOverlay from "$lib/LoadingOverlay.svelte";
+	import CloseConfirmDialog from "$lib/components/CloseConfirmDialog.svelte";
 	import { Toaster } from "svelte-sonner";
 	import SuccessIcon from "$lib/svg/SuccessMark.svelte";
 	import ErrorIcon from "$lib/svg/ErrorMark.svelte";
@@ -50,6 +51,7 @@
 
 <ThemeProvider>
 	<LoadingOverlay />
+	<CloseConfirmDialog />
 	<div class="flex h-screen w-full flex-col overflow-hidden bg-background">
 		<Titlebar {isFullScreen} />
 		<div class="h-8 shrink-0" aria-hidden="true"></div>
