@@ -345,6 +345,12 @@ class WindowStateStore {
         const index = this.sessions.findIndex(s => s.id === sessionId);
         if (index === -1) return;
 
+        const session = this.sessions[index];
+
+        // Clear expanded nodes in settings store for this connection
+        // This ensures that when we reopen the connection, we start fresh (no expanded folders)
+        settingsStore.setExpandedNodes(session.connectionId, []);
+
         this.sessions.splice(index, 1);
 
         if (this.activeSessionId === sessionId) {
@@ -356,6 +362,9 @@ class WindowStateStore {
                 schemaStore.disconnect();
             }
         }
+
+        // Always save state after closing a session to ensure persistence is updated (or cleared)
+        this.requestSave();
     }
 
     setLeftRatio(ratio: number) { this.layoutRatios.left = ratio; }

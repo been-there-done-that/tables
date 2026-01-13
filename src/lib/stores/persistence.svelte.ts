@@ -1,4 +1,4 @@
-import { get, set } from "idb-keyval";
+import { get, set, del } from "idb-keyval";
 import type { Session, ViewState } from "./session.svelte";
 
 const BASE_STORAGE_KEY = "tables_session_state_v2";
@@ -41,8 +41,16 @@ function safeSerialize(obj: any): any {
 
 export const persistenceStore = {
     async saveSessionState(sessions: Session[], activeSessionId: string | null, windowLabel: string, connectionId?: string) {
+        const key = getPersistenceKey(windowLabel, connectionId);
+
         if (!sessions || sessions.length === 0) {
-            debugLog("Skipping save: No sessions active");
+            debugLog("Clearing state: No sessions active", { key });
+            try {
+                await del(key);
+                debugLog("State cleared successfully");
+            } catch (err) {
+                console.error("[PersistenceStore] Failed to clear state:", err);
+            }
             return;
         }
 
