@@ -1,9 +1,5 @@
 <script lang="ts">
-    import { getContext, onMount } from "svelte";
-    import { cn } from "$lib/utils";
-    import { portal } from "$lib/actions/portal";
-    import { focusTrap } from "$lib/actions/focus-trap";
-
+    import PopoverShell from "./PopoverShell.svelte";
     import IconCheck from "@tabler/icons-svelte/icons/check";
     import IconX from "@tabler/icons-svelte/icons/x";
 
@@ -16,12 +12,7 @@
 
     let { value, anchorEl, onCommit, onCancel }: Props = $props();
 
-    let overlayEl: HTMLElement | null = null;
-    let position = $state({ top: 0, left: 0, width: 260 });
-    let isVisible = $state(false);
     let inputValue = $state("");
-    let placement = $state<"left" | "right">("right");
-    let arrowOffset = $state(0);
 
     const isMac =
         typeof navigator !== "undefined" && navigator.userAgent.includes("Mac");
@@ -32,77 +23,8 @@
         inputValue = (value ?? "").toString();
     });
 
-    // Get table container reference for boundary detection
-    const containerGetter = getContext<
-        (() => HTMLElement | null | undefined) | undefined
-    >("table-container");
-
-    function updatePosition() {
-        if (!anchorEl || !anchorEl.isConnected) {
-            onCancel();
-            return;
-        }
-        const rect = anchorEl.getBoundingClientRect();
-        const width = Math.max(rect.width + 100, position.width);
-        const overlayHeight = overlayEl?.offsetHeight ?? 200;
-        const margin = 8;
-        const headerHeight = 36;
-
-        const container = containerGetter?.();
-        const containerRect = container?.getBoundingClientRect();
-
-        const safeTop = containerRect
-            ? containerRect.top + headerHeight
-            : headerHeight;
-        const safeBottom = containerRect
-            ? containerRect.bottom - margin
-            : window.innerHeight - margin;
-        const safeLeft = containerRect ? containerRect.left + margin : margin;
-        const safeRight = containerRect
-            ? containerRect.right - margin
-            : window.innerWidth - margin;
-
-        let left = rect.right + margin;
-        placement = "right";
-
-        const fitsRight = left + width <= safeRight;
-        if (!fitsRight) {
-            left = rect.left - width - margin;
-            placement = "left";
-        }
-
-        // Final horizontal clamp
-        left = Math.max(safeLeft, Math.min(left, safeRight - width));
-
-        let top = rect.top + rect.height / 2 - overlayHeight / 2;
-
-        // Constrain top to be within safe area
-        top = Math.max(safeTop, Math.min(top, safeBottom - overlayHeight));
-
-        // Calculate arrow vertical offset with clamping to avoid corners
-        const anchorCenterY = rect.top + rect.height / 2;
-        const minArrow = 16;
-        const maxArrow = overlayHeight - 16;
-        arrowOffset = Math.max(
-            minArrow,
-            Math.min(anchorCenterY - top, maxArrow),
-        );
-
-        position = { top, left, width };
-    }
-
-    function parseValue(val: string) {
-        return val;
-    }
-
     function handleKeydown(e: KeyboardEvent) {
-        e.stopPropagation();
-        if (e.key === "Escape") {
-            e.preventDefault();
-            onCancel();
-            return;
-        }
-
+        // Standard Escape handled by shell, but we need Cmd+Enter
         const isCmdEnter = (e.metaKey || e.ctrlKey) && e.key === "Enter";
         if (isCmdEnter) {
             e.preventDefault();
@@ -111,72 +33,16 @@
     }
 
     function commit() {
-        const parsed = parseValue(inputValue);
-        const unchanged = inputValue === originalString;
-        if (unchanged) {
+        if (inputValue === originalString) {
             onCancel();
             return;
         }
-        onCommit(parsed);
-    }
-
-    onMount(() => {
-        requestAnimationFrame(updatePosition);
-        const handleUpdate = () => requestAnimationFrame(updatePosition);
-        window.addEventListener("resize", handleUpdate);
-        window.addEventListener("scroll", handleUpdate, true);
-        const containerEl = containerGetter?.();
-        containerEl?.addEventListener("scroll", handleUpdate, {
-            passive: true,
-        });
-        document.addEventListener("mousedown", handleClickOutside);
-
-        queueMicrotask(() => {
-            overlayEl?.focus();
-            const first = overlayEl?.querySelector("input,textarea");
-            if (
-                first instanceof HTMLInputElement ||
-                first instanceof HTMLTextAreaElement
-            ) {
-                first.focus();
-            }
-            isVisible = true;
-        });
-
-        return () => {
-            window.removeEventListener("resize", handleUpdate);
-            window.removeEventListener("scroll", handleUpdate, true);
-            containerEl?.removeEventListener("scroll", handleUpdate);
-            document.removeEventListener("mousedown", handleClickOutside);
-        };
-    });
-
-    function handleClickOutside(event: MouseEvent) {
-        const target = event.target as Node;
-        if (overlayEl?.contains(target)) return;
-        if (anchorEl?.contains(target)) return;
-        onCancel();
+        onCommit(inputValue);
     }
 </script>
 
-<div
-    use:portal
-    use:focusTrap
-    bind:this={overlayEl}
-    data-placement={placement}
-    role="dialog"
-    aria-label="Edit value"
-    tabindex="-1"
-    onkeydown={handleKeydown}
-    class={cn(
-        "popover-editor fixed rounded-lg shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] flex flex-col p-1",
-        "bg-surface border border-accent/20 ring-1 ring-accent/10",
-        isVisible ? "anim-pop opacity-100" : "opacity-0 pointer-events-none",
-    )}
-    style={`top:${position.top}px;left:${position.left}px;min-width:${position.width}px;max-width:400px;transform-origin:center;z-index:1000;--arrow-top:${arrowOffset}px`}
-    aria-hidden={!isVisible}
->
-    <div class="relative flex flex-col group">
+<PopoverShell {anchorEl} {onCancel} minWidth={260} maxWidth={400}>
+    <div class="relative flex flex-col group" onkeydown={handleKeydown}>
         <textarea
             class="w-full rounded-md border border-accent/5 text-[13px] bg-background text-foreground min-h-[110px] resize-y p-1.5 pb-6 focus:ring-1 focus:ring-accent/10 focus:border-accent/10 focus:outline-none transition-all placeholder:text-foreground-muted/20"
             bind:value={inputValue}
@@ -216,4 +82,4 @@
             </button>
         </div>
     </div>
-</div>
+</PopoverShell>
