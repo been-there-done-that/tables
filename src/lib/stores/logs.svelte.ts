@@ -2,6 +2,7 @@ import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { settingsStore } from "$lib/stores/settings.svelte";
 import { schemaStore } from "$lib/stores/schema.svelte";
+import { windowState } from "$lib/stores/window.svelte";
 
 export interface LogEntry {
     id?: number;
@@ -22,11 +23,12 @@ class LogsStore {
     clearedAtMap = $state<Map<string, number>>(new Map());
 
     get isOpen() {
-        return settingsStore.logsPanelVisible;
+        return windowState.activeRightPanel === "logs" && windowState.layout.right;
     }
 
     set isOpen(v: boolean) {
-        settingsStore.logsPanelVisible = v;
+        if (v) windowState.openRightPanel("logs");
+        else if (this.isOpen) windowState.closeRightPanel();
     }
 
     constructor() {

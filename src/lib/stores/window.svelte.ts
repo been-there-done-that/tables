@@ -180,6 +180,28 @@ class WindowStateStore {
 
     private _showSqlEditor = $state(false);
 
+    // activeRightPanel: "logs" | "properties" | null
+    activeRightPanel = $state<string | null>(null);
+
+    openRightPanel(view: string) {
+        this.activeRightPanel = view;
+        this.layout.right = true;
+    }
+
+    closeRightPanel() {
+        this.layout.right = false;
+        // Optional: clear the view state or keep it for next time
+        // this.activeRightPanel = null; 
+    }
+
+    toggleRightPanel(view: string) {
+        if (this.activeRightPanel === view && this.layout.right) {
+            this.closeRightPanel();
+        } else {
+            this.openRightPanel(view);
+        }
+    }
+
     get layoutRatios() {
         return {
             get left() { return settingsStore.sidebarLeftRatio; },
