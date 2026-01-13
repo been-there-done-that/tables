@@ -296,7 +296,6 @@
     onmousemove={() => (interactionMode = "mouse")}
     role="tree"
 >
-    <!-- Tree -->
     <ul class="flex flex-col gap-0 overflow-auto flex-1">
         {#each items as item, i (getKey(item, i))}
             {@render TreeItem({ node: item, index: i, depth: 0 })}
@@ -337,7 +336,7 @@
                 <!-- svelte-ignore a11y_click_events_have_key_events -->
                 <div
                     class={cn(
-                        "group flex items-center gap-1.5 rounded-sm cursor-default transition-colors border border-transparent h-6 outline-none",
+                        "group flex items-center gap-1.5 rounded-sm cursor-default transition-colors border border-transparent h-6 outline-none ring-0 focus:outline-none focus:ring-0",
                         isSelected
                             ? "bg-primary/20 text-foreground"
                             : interactionMode === "mouse"
