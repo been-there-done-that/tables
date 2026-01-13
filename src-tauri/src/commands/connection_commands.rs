@@ -188,15 +188,16 @@ pub async fn check_keyring_available(
     Ok(conn_state.credential_manager.is_available())
 }
 
-/// Get active connection IDs
+/// Get active connections map (connection_id -> window_label)
+/// This is the single source of truth for active connection tracking.
 #[tauri::command]
 pub async fn get_active_connections(
     db_state: State<'_, DatabaseState>,
     conn_state: State<'_, ConnectionManagerState>,
-) -> Result<Vec<String>, String> {
-    debug!("Getting active connection IDs");
+) -> Result<std::collections::HashMap<String, String>, String> {
+    debug!("Getting active connections map");
     let manager = ConnectionManager::from_state(&db_state, &conn_state);
-    Ok(manager.get_active_connection_ids())
+    Ok(manager.get_active_connections_map())
 }
 
 /// Mark a connection as active
@@ -220,8 +221,8 @@ pub async fn mark_connection_active(
         manager.save_window_session(&label, &id)?;
     }
 
-    // Emit global event with updated active IDs
-    let _ = app.emit("active-connections-changed", manager.get_active_connection_ids());
+    // Emit global event with updated active connections map
+    let _ = app.emit("active-connections-changed", manager.get_active_connections_map());
     
     Ok(())
 }
@@ -251,8 +252,8 @@ pub async fn mark_connection_inactive(
         }
     }
 
-    // Emit global event with updated active IDs
-    let _ = app.emit("active-connections-changed", manager.get_active_connection_ids());
+    // Emit global event with updated active connections map
+    let _ = app.emit("active-connections-changed", manager.get_active_connections_map());
     
     Ok(())
 }
