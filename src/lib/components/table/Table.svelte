@@ -302,7 +302,7 @@
         if (measureCtx) {
             // Try to find a real table cell to get font
             // We use the container or a dummy element if needed
-            let computedFont = "13px Inter, system-ui, sans-serif"; // Default fallback
+            let computedFont = "12px Inter, system-ui, sans-serif"; // Default fallback
 
             if (typeof document !== "undefined") {
                 // Try to grab the font from the table container
