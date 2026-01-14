@@ -46,16 +46,20 @@
             hour: 0,
             minute: 0,
             second: 0,
+            fractional: "",
+            timezone: "",
         };
         if (!val) return fallback;
 
         if (typeof val === "string") {
+            // Capture timezone: Z or +HH:MM or -HH:MM, allowing optional space before it
+            // Also supports fractional seconds: .123456
             const m =
-                /^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2})(?::(\d{2}))?(?:Z|[+-]\d{2}:?\d{2})?)?$/.exec(
+                /^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d+))?)?)?(?:\s*(Z|[+-]\d{2}(?::?\d{2})?))?$/.exec(
                     val,
                 );
             if (m) {
-                const [, y, mo, d, h, mi, s] = m;
+                const [, y, mo, d, h, mi, s, frac, tz] = m;
                 return {
                     year: Number(y),
                     month: Number(mo) - 1,
@@ -63,6 +67,8 @@
                     hour: h !== undefined ? Number(h) : 0,
                     minute: mi !== undefined ? Number(mi) : 0,
                     second: s !== undefined ? Number(s) : 0,
+                    fractional: frac || "",
+                    timezone: tz || "",
                 };
             }
         }
@@ -77,6 +83,8 @@
             hour: base.getHours(),
             minute: base.getMinutes(),
             second: base.getSeconds(),
+            fractional: "",
+            timezone: "",
         };
     }
 
@@ -86,6 +94,8 @@
     let hour = $state<number>(0);
     let minute = $state<number>(0);
     let second = $state<number>(0);
+    let fractional = $state<string>("");
+    let timezone = $state<string>("");
 
     let dayOptions = $state<number[]>(
         Array.from({ length: 31 }, (_, i) => i + 1),
@@ -102,6 +112,8 @@
             hour = parsed.hour;
             minute = parsed.minute;
             second = parsed.second;
+            fractional = parsed.fractional;
+            timezone = parsed.timezone;
             initialSync = true;
         }
     });
@@ -134,6 +146,71 @@
 
     function pad(n: number) {
         return n.toString().padStart(2, "0");
+    }
+
+    // Derived for 1-based month input
+    let displayMonth = $state(month + 1);
+    $effect(() => {
+        // When internal month changes, update display
+        if (displayMonth !== month + 1) {
+            displayMonth = month + 1;
+        }
+    });
+    $effect(() => {
+        // When display changes (user input), update internal
+        if (displayMonth && displayMonth !== month + 1) {
+            month = Math.max(0, Math.min(11, displayMonth - 1));
+        }
+    });
+
+    function convertToLocal() {
+        // Use the current values to construct a date object
+        // If we have a timezone, we construct the date as ISO with that timezone, then read back the local components
+        // If we don't have a timezone, we assume it was already parsed as local components or just UTC numbers...
+        // Actually, if we have "2023-01-01T12:00:00Z", we parsed it as 12, 00, 00, Z.
+        // We want to convert 12:00 Z to Local.
+
+        let dateStr = `${year}-${pad(month + 1)}-${pad(day)}`;
+        if (mode === "datetime") {
+            dateStr += `T${pad(hour)}:${pad(minute)}:${pad(second)}`;
+            if (fractional) {
+                dateStr += `.${fractional}`;
+            }
+        }
+
+        // If we have a timezone, append it. If not, assume UTC if we want to convert TO local?
+        // Or if no timezone, assume it IS local/floating and do nothing?
+        // Usually "Convert to Local" implies "Treat this as UTC/Server time and show me what it is here".
+        // But if it already has a timezone, proceed.
+        // If it has NO timezone, let's treat it as UTC for conversion purposes if that's the standard, or just return.
+
+        let d: Date;
+        if (timezone) {
+            d = new Date(dateStr + timezone);
+        } else {
+            // If no timezone is present, assume UTC for conversion? Or just add 'Z'?
+            d = new Date(dateStr + "Z");
+        }
+
+        if (!isNaN(d.getTime())) {
+            day = d.getDate();
+            month = d.getMonth();
+            year = d.getFullYear();
+            if (mode === "datetime") {
+                hour = d.getHours();
+                minute = d.getMinutes();
+                second = d.getSeconds();
+                // Fractional shouldn't change on TZ conversion usually unless it adds/removes precision,
+                // but JS Date doesn't really handle microseconds well (only milliseconds).
+                // We'll keep the existing fractional part or try to extract milliseconds?
+                // Let's just keep the fractional part as is for visual consistency unless we really want
+                // to support milli extraction.
+                // Actually, if we convert, we might lose precision if we rely on .getMilliseconds().
+                // Safest is to leave fractional as is or just clear it? User probably wants to keep it.
+            }
+            // After converting to local representation, the timezone part "disappears" or becomes local implication
+            timezone = "";
+        }
     }
 
     function commit() {
@@ -169,124 +246,180 @@
             return;
         }
 
+        // Re-append timezone if it exists
+        const tz = timezone || "";
+        const frac = fractional ? `.${fractional}` : "";
         onCommit(
-            `${y}-${pad(m)}-${pad(d)}T${pad(useHour)}:${pad(useMinute)}:${pad(useSecond)}`,
+            `${y}-${pad(m)}-${pad(d)}T${pad(useHour)}:${pad(useMinute)}:${pad(useSecond)}${frac}${tz}`,
         );
     }
 </script>
 
-<PopoverShell {anchorEl} {onCancel} minWidth={280} maxWidth={340}>
+<PopoverShell {anchorEl} {onCancel} minWidth={280} maxWidth={380}>
     <div class="flex flex-col gap-3 p-3" onkeydown={handleKeydown}>
-        <div class="grid grid-cols-3 gap-2">
-            <div class="flex flex-col gap-1 text-xs text-muted-foreground">
-                <span>Day</span>
-                <select
-                    class="w-full rounded border border-border px-2 py-1 text-sm bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-border-focus"
-                    bind:value={day}
-                >
-                    {#each dayOptions as d}
-                        <option value={d}>{d}</option>
-                    {/each}
-                </select>
-            </div>
-            <div class="flex flex-col gap-1 text-xs text-muted-foreground">
-                <span>Month</span>
-                <select
-                    class="w-full rounded border border-border px-2 py-1 text-sm bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-border-focus"
-                    bind:value={month}
-                >
-                    {#each monthNames as label, idx}
-                        <option value={idx}>{label}</option>
-                    {/each}
-                </select>
-            </div>
-            <div class="flex flex-col gap-1 text-xs text-muted-foreground">
-                <span>Year</span>
+        <!-- Single Line Segmented Input -->
+        <div class="flex flex-col gap-1.5">
+            <span
+                class="text-[10px] uppercase font-bold text-muted-foreground/60 tracking-wider font-mono"
+            >
+                {mode === "datetime" ? "Date & Time" : "Date"}
+            </span>
+            <div
+                class="flex items-center rounded-md border border-input bg-transparent focus-within:ring-1 focus-within:ring-ring focus-within:border-ring transition-all h-9 px-2 w-full"
+            >
+                <!-- Date Parts -->
                 <input
                     type="number"
-                    class="w-full rounded border border-border px-2 py-1 text-sm bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-border-focus"
+                    class="w-[2.5ch] bg-transparent text-center text-sm outline-none placeholder:text-muted-foreground/30 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none p-0"
+                    bind:value={day}
+                    min="1"
+                    max="31"
+                    placeholder="DD"
+                />
+                <span
+                    class="text-muted-foreground/30 mx-0.5 select-none font-light"
+                    >/</span
+                >
+                <input
+                    type="number"
+                    class="w-[2.5ch] bg-transparent text-center text-sm outline-none placeholder:text-muted-foreground/30 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none p-0"
+                    bind:value={displayMonth}
+                    min="1"
+                    max="12"
+                    placeholder="MM"
+                />
+                <span
+                    class="text-muted-foreground/30 mx-0.5 select-none font-light"
+                    >/</span
+                >
+                <input
+                    type="number"
+                    class="min-w-[4ch] w-[4ch] bg-transparent text-center text-sm outline-none placeholder:text-muted-foreground/30 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none p-0"
                     bind:value={year}
                     min="1900"
                     max="2100"
-                    step="1"
+                    placeholder="YYYY"
                 />
-            </div>
-        </div>
 
-        {#if mode === "datetime"}
-            <div class="grid grid-cols-3 gap-2">
-                <div class="flex flex-col gap-1 text-xs text-muted-foreground">
-                    <span>Hour</span>
+                <!-- Time Parts (if datetime) -->
+                {#if mode === "datetime"}
+                    <div class="h-4 w-px bg-border/60 mx-3"></div>
+
                     <input
                         type="number"
-                        class="w-full rounded border px-2 py-1 text-sm bg-background"
+                        class="w-[2.5ch] bg-transparent text-center text-sm outline-none placeholder:text-muted-foreground/30 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none p-0"
                         bind:value={hour}
                         min="0"
                         max="23"
-                        step="1"
+                        placeholder="HH"
                     />
-                </div>
-                <div class="flex flex-col gap-1 text-xs text-muted-foreground">
-                    <span>Minute</span>
+                    <span
+                        class="text-muted-foreground/30 mx-0.5 select-none font-light"
+                        >:</span
+                    >
                     <input
                         type="number"
-                        class="w-full rounded border px-2 py-1 text-sm bg-background"
+                        class="w-[2.5ch] bg-transparent text-center text-sm outline-none placeholder:text-muted-foreground/30 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none p-0"
                         bind:value={minute}
                         min="0"
                         max="59"
-                        step="1"
+                        placeholder="MM"
                     />
-                </div>
-                <div class="flex flex-col gap-1 text-xs text-muted-foreground">
-                    <span>Second</span>
+                    <span
+                        class="text-muted-foreground/30 mx-0.5 select-none font-light"
+                        >:</span
+                    >
                     <input
                         type="number"
-                        class="w-full rounded border px-2 py-1 text-sm bg-background"
+                        class="w-[2.5ch] bg-transparent text-center text-sm outline-none placeholder:text-muted-foreground/30 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none p-0"
                         bind:value={second}
                         min="0"
                         max="59"
-                        step="1"
+                        placeholder="SS"
                     />
-                </div>
+                    <span
+                        class="text-muted-foreground/30 mx-0.5 select-none font-light"
+                        >.</span
+                    >
+                    <input
+                        type="text"
+                        inputmode="numeric"
+                        pattern="[0-9]*"
+                        class="w-[6ch] bg-transparent text-left text-sm outline-none placeholder:text-muted-foreground/30 [appearance:textfield] p-0"
+                        bind:value={fractional}
+                        placeholder="ssssss"
+                        oninput={(e) => {
+                            const val = e.currentTarget.value;
+                            e.currentTarget.value = val.replace(/[^0-9]/g, "");
+                            fractional = e.currentTarget.value;
+                        }}
+                    />
+                {/if}
+                {#if timezone}
+                    <span
+                        class="text-muted-foreground/50 ml-2 text-xs font-mono"
+                        >{timezone}</span
+                    >
+                {/if}
             </div>
-        {/if}
+        </div>
 
-        <div class="flex gap-2 text-xs text-muted-foreground">
+        <!-- Actions Row -->
+        <div class="flex items-center gap-3 pt-2 px-1">
             <button
                 type="button"
-                class="rounded border border-accent/10 px-2 py-0.5 text-foreground hover:bg-muted transition text-[11px]"
+                class="rounded-sm text-[11px] font-medium text-muted-foreground/80 hover:text-foreground hover:bg-muted/40 transition-colors px-1.5 py-0.5"
                 onclick={() => {
                     const now = new Date();
-                    day = now.getUTCDate();
-                    month = now.getUTCMonth();
-                    year = now.getUTCFullYear();
+                    day = now.getDate();
+                    month = now.getMonth();
+                    year = now.getFullYear();
                     if (mode === "datetime") {
-                        hour = now.getUTCHours();
-                        minute = now.getUTCMinutes();
-                        second = now.getUTCSeconds();
+                        hour = now.getHours();
+                        minute = now.getMinutes();
+                        second = now.getSeconds();
                     }
                 }}
             >
-                {mode === "datetime" ? "Now" : "Today"}
+                Now
             </button>
             <button
                 type="button"
-                class="rounded border border-accent/10 px-2 py-0.5 hover:bg-muted transition text-[11px]"
+                class="rounded-sm text-[11px] font-medium text-muted-foreground/80 hover:text-foreground hover:bg-muted/40 transition-colors px-1.5 py-0.5"
+                onclick={convertToLocal}
+            >
+                Local
+            </button>
+            <button
+                type="button"
+                class="rounded-sm text-[11px] font-medium text-muted-foreground/80 hover:text-foreground hover:bg-muted/40 transition-colors px-1.5 py-0.5"
                 onclick={() => {
-                    const parsed = parseIncoming(value);
-                    day = parsed.day;
-                    month = parsed.month;
-                    year = parsed.year;
-                    hour = parsed.hour;
-                    minute = parsed.minute;
-                    second = parsed.second;
+                    // Clean reset
+                    const {
+                        day: d,
+                        month: m,
+                        year: y,
+                        hour: h,
+                        minute: min,
+                        second: s,
+                        fractional: frac,
+                        timezone: tz,
+                    } = parseIncoming(value);
+                    day = d;
+                    month = m;
+                    year = y;
+                    hour = h;
+                    minute = min;
+                    second = s;
+                    fractional = frac;
+                    timezone = tz;
                 }}
             >
                 Reset
             </button>
             <button
                 type="button"
-                class="rounded border border-accent/10 px-2 py-0.5 hover:bg-muted transition text-[11px]"
+                class="ml-auto rounded-sm text-[11px] font-medium text-muted-foreground/80 hover:text-destructive hover:bg-destructive/10 transition-colors px-1.5 py-0.5"
                 onclick={() => {
                     day = 1;
                     month = 0;
@@ -294,13 +427,16 @@
                     hour = 0;
                     minute = 0;
                     second = 0;
+                    fractional = "";
                 }}
             >
                 Clear
             </button>
         </div>
 
-        <div class="flex items-center justify-center gap-2 mt-1">
+        <div
+            class="flex items-center justify-center gap-2 mt-1 border-t border-border/40 pt-2"
+        >
             <button
                 type="button"
                 class="flex items-center gap-1.5 px-2 py-0.5 rounded border border-transparent hover:border-accent/10 hover:bg-muted text-foreground-muted transition-colors active:scale-95 group/btn"
