@@ -2209,7 +2209,7 @@
                 onEditCancel={handleEditCancel}
             >
                 {#snippet header()}
-                    <div class="border-b border-border bg-surface w-full">
+                    <div class="border-b border-border bg-surface w-fit">
                         <TableHeader
                             columns={visibleColumns}
                             {sortState}

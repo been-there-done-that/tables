@@ -124,7 +124,7 @@
     onscroll={handleScroll}
 >
     {#if header}
-        <div class="sticky top-0 z-10 w-fit min-w-full bg-surface">
+        <div class="sticky top-0 z-10 w-fit">
             {@render header()}
         </div>
     {/if}
