@@ -11,7 +11,7 @@ pub struct WindowLayout {
     pub sidebar_right_ratio: f64,
     pub sidebar_bottom_visible: bool,
     pub sidebar_bottom_ratio: f64,
-    pub logs_panel_visible: bool,
+    pub active_right_panel: Option<String>,
     pub selected_database: Option<String>,
     pub expanded_nodes: HashMap<String, Vec<String>>,
 }
@@ -25,7 +25,7 @@ impl Default for WindowLayout {
             sidebar_right_ratio: 0.75,
             sidebar_bottom_visible: false,
             sidebar_bottom_ratio: 0.7,
-            logs_panel_visible: false,
+            active_right_panel: None,
             selected_database: None,
             expanded_nodes: HashMap::new(),
         }
@@ -101,7 +101,13 @@ pub fn get_settings(conn: &Connection) -> Result<AppSettings> {
                                         layout.sidebar_bottom_ratio = ratio;
                                     }
                                 }
-                                "logs_panel_visible" => layout.logs_panel_visible = value == "true",
+                                "active_right_panel" => {
+                                    if !value.is_empty() {
+                                        layout.active_right_panel = Some(value);
+                                    } else {
+                                        layout.active_right_panel = None;
+                                    }
+                                }
                                 "selected_database" => {
                                     if !value.is_empty() {
                                         layout.selected_database = Some(value);
