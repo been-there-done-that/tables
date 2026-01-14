@@ -7,6 +7,7 @@
   import SqlTestingEditor from "$lib/components/SqlTestingEditor.svelte";
   import TablePreview from "$lib/components/table/TablePreview.svelte";
   import QueryLogsPanel from "$lib/components/QueryLogsPanel.svelte";
+  import PendingChangesPanel from "$lib/components/table/PendingChangesPanel.svelte";
   import { logsStore } from "$lib/stores/logs.svelte";
 
   const activeSession = $derived(windowState.activeSession);
@@ -108,6 +109,8 @@
             {#snippet right()}
               {#if windowState.activeRightPanel === "logs"}
                 <QueryLogsPanel />
+              {:else if windowState.activeRightPanel === "pending-changes"}
+                <PendingChangesPanel />
               {:else}
                 <div class="flex h-full flex-col bg-muted/10">
                   <div
