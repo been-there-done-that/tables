@@ -65,6 +65,7 @@
     let isLoading = $state(false);
     let executionTime = $state<number | undefined>(undefined);
     let error = $state<string | null>(null);
+    let tableMetadata = $state<MetaTable | null>(null);
 
     // Pending Changes are now managed globally via pendingChangesStore
     let pendingDeltas = $state<EditDelta[]>([]);
@@ -74,6 +75,16 @@
 
     // Get primary key columns for SQL generation
     const primaryKeyColumns = $derived(() => {
+        // Prefer locally fetched metadata as it's fresher than store
+        if (tableMetadata) {
+            return (
+                tableMetadata.columns
+                    .filter((c) => c.is_primary_key)
+                    .map((c) => c.column_name) ?? []
+            );
+        }
+
+        // Fallback to schemaStore
         const dbMeta = schemaStore.databases.find(
             (d) => d.name === effectiveDatabase,
         );
@@ -204,6 +215,9 @@
                             (t) => t.table_name === currentTable,
                         ) || null;
                 }
+
+                // Update local metadata state (used for PK detection)
+                tableMetadata = tableMeta;
 
                 // Convert backend column info to Table component format
                 const fetchedColumns: Column[] = result.columns.map(
