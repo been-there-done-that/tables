@@ -100,7 +100,7 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
     class={cn(
-        "flex min-w-full w-fit border-b border-border hover:bg-muted cursor-default",
+        "flex min-w-full w-fit hover:bg-muted cursor-default",
         selected
             ? "bg-surface text-foreground"
             : "bg-background text-foreground",
