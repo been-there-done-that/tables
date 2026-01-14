@@ -23,7 +23,23 @@
         open = false;
         if (onCancel) onCancel();
     }
+
+    function handleKeyDown(e: KeyboardEvent) {
+        if (!open) return;
+
+        if (e.key === "Escape") {
+            e.preventDefault();
+            e.stopPropagation();
+            handleCancel();
+        } else if (e.key === "Enter") {
+            e.preventDefault();
+            e.stopPropagation();
+            handleConfirm();
+        }
+    }
 </script>
+
+<svelte:window onkeydown={handleKeyDown} />
 
 <DraggableWindow
     bind:open
