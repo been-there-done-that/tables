@@ -3,25 +3,26 @@
     import {
         IconCopy,
         IconEyeOff,
+        IconEye,
         IconList,
         IconArrowUp,
         IconArrowDown,
         IconFilter,
         IconX,
-        IconCheck,
         IconEdit,
         IconPlus,
-        IconPin,
-        IconRefresh,
+        IconColumns,
     } from "@tabler/icons-svelte";
     import type { Column } from "./types";
 
     interface Props {
         column: Column;
+        hiddenCount?: number;
         onCopyName: () => void;
-        onSelectColumn: () => void;
+        onCopyColumnData: () => void;
         onHideColumn: () => void;
         onHideOtherColumns: () => void;
+        onUnhideAll: () => void;
         onShowColumnList: () => void;
         onSortAsc: () => void;
         onSortDesc: () => void;
@@ -29,20 +30,16 @@
         onSetLocalFilter: () => void;
         onOpenInQueryEditor?: () => void;
         onOpenNewQueryTab?: () => void;
-        isPinned?: boolean;
-        onPinColumn: () => void;
-        onUnpinColumn: () => void;
-        onResetWidth: () => void;
-        onResetOrder: () => void;
-        onResetAll: () => void;
     }
 
     let {
         column,
+        hiddenCount = 0,
         onCopyName,
-        onSelectColumn,
+        onCopyColumnData,
         onHideColumn,
         onHideOtherColumns,
+        onUnhideAll,
         onShowColumnList,
         onSortAsc,
         onSortDesc,
@@ -50,103 +47,100 @@
         onSetLocalFilter,
         onOpenInQueryEditor,
         onOpenNewQueryTab,
-        isPinned,
-        onPinColumn,
-        onUnpinColumn,
-        onResetWidth,
-        onResetOrder,
-        onResetAll,
     }: Props = $props();
 </script>
 
-<ContextMenuPrimitive.Content class="w-64">
-    <ContextMenuPrimitive.Item onclick={onCopyName}>
-        <IconCopy class="mr-2 size-4" />
-        Copy Column Name
-    </ContextMenuPrimitive.Item>
-    <ContextMenuPrimitive.Item onclick={onSelectColumn}>
-        <IconCheck class="mr-2 size-4" />
-        Select Column
-    </ContextMenuPrimitive.Item>
-
-    <ContextMenuPrimitive.Separator />
-
-    <ContextMenuPrimitive.Item onclick={onHideColumn}>
-        <IconEyeOff class="mr-2 size-4" />
-        Hide Column
-    </ContextMenuPrimitive.Item>
-    <ContextMenuPrimitive.Item onclick={onHideOtherColumns}>
-        <IconEyeOff class="mr-2 size-4" />
-        Hide Other Columns
-    </ContextMenuPrimitive.Item>
-    <ContextMenuPrimitive.Item onclick={onShowColumnList}>
-        <IconList class="mr-2 size-4" />
-        <span>Show Column List</span>
+<ContextMenuPrimitive.Content class="w-56 text-xs">
+    <ContextMenuPrimitive.Item
+        onclick={onShowColumnList}
+        class="text-xs py-1.5"
+    >
+        <IconList class="mr-1.5 size-3.5" />
+        <span>Column List</span>
         <ContextMenuPrimitive.Shortcut>⌘F12</ContextMenuPrimitive.Shortcut>
     </ContextMenuPrimitive.Item>
 
     <ContextMenuPrimitive.Separator />
 
-    <ContextMenuPrimitive.Label>ORDER BY</ContextMenuPrimitive.Label>
-    <ContextMenuPrimitive.Item onclick={onSortAsc}>
-        <IconArrowUp class="mr-2 size-4" />
+    <ContextMenuPrimitive.Item onclick={onCopyName} class="text-xs py-1.5">
+        <IconCopy class="mr-1.5 size-3.5" />
+        Copy Column Name
+    </ContextMenuPrimitive.Item>
+    <ContextMenuPrimitive.Item
+        onclick={onCopyColumnData}
+        class="text-xs py-1.5"
+    >
+        <IconColumns class="mr-1.5 size-3.5" />
+        Copy Column Data
+    </ContextMenuPrimitive.Item>
+
+    <ContextMenuPrimitive.Separator />
+
+    <ContextMenuPrimitive.Item onclick={onHideColumn} class="text-xs py-1.5">
+        <IconEyeOff class="mr-1.5 size-3.5" />
+        Hide Column
+    </ContextMenuPrimitive.Item>
+    <ContextMenuPrimitive.Item
+        onclick={onHideOtherColumns}
+        class="text-xs py-1.5"
+    >
+        <IconEyeOff class="mr-1.5 size-3.5" />
+        Hide Other Columns
+    </ContextMenuPrimitive.Item>
+    {#if hiddenCount > 0}
+        <ContextMenuPrimitive.Item onclick={onUnhideAll} class="text-xs py-1.5">
+            <IconEye class="mr-1.5 size-3.5" />
+            Unhide All ({hiddenCount})
+        </ContextMenuPrimitive.Item>
+    {/if}
+
+    <ContextMenuPrimitive.Separator />
+
+    <ContextMenuPrimitive.Label class="text-[10px] py-0.5"
+        >ORDER BY</ContextMenuPrimitive.Label
+    >
+    <ContextMenuPrimitive.Item onclick={onSortAsc} class="text-xs py-1.5">
+        <IconArrowUp class="mr-1.5 size-3.5" />
         Ascending
         <ContextMenuPrimitive.Shortcut>⌥↑</ContextMenuPrimitive.Shortcut>
     </ContextMenuPrimitive.Item>
-    <ContextMenuPrimitive.Item onclick={onSortDesc}>
-        <IconArrowDown class="mr-2 size-4" />
+    <ContextMenuPrimitive.Item onclick={onSortDesc} class="text-xs py-1.5">
+        <IconArrowDown class="mr-1.5 size-3.5" />
         Descending
         <ContextMenuPrimitive.Shortcut>⌥↓</ContextMenuPrimitive.Shortcut>
     </ContextMenuPrimitive.Item>
 
     <ContextMenuPrimitive.Separator />
 
-    <ContextMenuPrimitive.Item onclick={onSetLocalFilter}>
-        <IconFilter class="mr-2 size-4" />
+    <ContextMenuPrimitive.Item
+        onclick={onSetLocalFilter}
+        class="text-xs py-1.5"
+    >
+        <IconFilter class="mr-1.5 size-3.5" />
         Set Local Filter
     </ContextMenuPrimitive.Item>
-    <ContextMenuPrimitive.Item onclick={onClearSort}>
-        <IconX class="mr-2 size-4" />
+    <ContextMenuPrimitive.Item onclick={onClearSort} class="text-xs py-1.5">
+        <IconX class="mr-1.5 size-3.5" />
         Clear Sorting
         <ContextMenuPrimitive.Shortcut>⌥⇧⌘</ContextMenuPrimitive.Shortcut>
     </ContextMenuPrimitive.Item>
 
     <ContextMenuPrimitive.Separator />
-    <ContextMenuPrimitive.Label>Query</ContextMenuPrimitive.Label>
-    <ContextMenuPrimitive.Item onclick={onOpenInQueryEditor}>
-        <IconEdit class="mr-2 size-4" />
+    <ContextMenuPrimitive.Label class="text-[10px] py-0.5"
+        >Query</ContextMenuPrimitive.Label
+    >
+    <ContextMenuPrimitive.Item
+        onclick={onOpenInQueryEditor}
+        class="text-xs py-1.5"
+    >
+        <IconEdit class="mr-1.5 size-3.5" />
         Open in Query Editor
     </ContextMenuPrimitive.Item>
-    <ContextMenuPrimitive.Item onclick={onOpenNewQueryTab}>
-        <IconPlus class="mr-2 size-4" />
+    <ContextMenuPrimitive.Item
+        onclick={onOpenNewQueryTab}
+        class="text-xs py-1.5"
+    >
+        <IconPlus class="mr-1.5 size-3.5" />
         Open in New Query Tab
     </ContextMenuPrimitive.Item>
-
-    <ContextMenuPrimitive.Separator />
-    <ContextMenuPrimitive.Label>View & Layout</ContextMenuPrimitive.Label>
-    {#if isPinned}
-        <ContextMenuPrimitive.Item onclick={onUnpinColumn}>
-            <IconPin class="mr-2 size-4 rotate-45" />
-            Unpin Column
-        </ContextMenuPrimitive.Item>
-    {:else}
-        <ContextMenuPrimitive.Item onclick={onPinColumn}>
-            <IconPin class="mr-2 size-4" />
-            Pin Column (Stay Left)
-        </ContextMenuPrimitive.Item>
-    {/if}
-    <ContextMenuPrimitive.Item onclick={onResetWidth}>
-        <IconRefresh class="mr-2 size-4" />
-        Reset Column Width
-    </ContextMenuPrimitive.Item>
-    <ContextMenuPrimitive.Item onclick={onResetOrder}>
-        <IconRefresh class="mr-2 size-4" />
-        Reset Column Order
-    </ContextMenuPrimitive.Item>
-    <ContextMenuPrimitive.Item onclick={onResetAll} class="text-destructive">
-        <IconX class="mr-2 size-4" />
-        Reset All Customizations
-    </ContextMenuPrimitive.Item>
-
-    <!-- TODO: Add "Set Highlighting Language" if needed -->
 </ContextMenuPrimitive.Content>
