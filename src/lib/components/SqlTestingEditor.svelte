@@ -110,6 +110,7 @@
                     database: schemaStore.selectedDatabase,
                     schema: schemaStore.activeSchema || "public",
                     query: query,
+                    component: "editor",
                 });
                 console.log("Query Result:", result);
                 log("Query completed successfully.");
