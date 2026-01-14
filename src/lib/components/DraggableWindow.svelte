@@ -87,7 +87,10 @@
   }
 
   function swallowKeyDown(e: KeyboardEvent) {
-    e.stopPropagation();
+    // Don't swallow Escape or Enter so they can reach window/modal handlers
+    if (e.key !== "Escape" && e.key !== "Enter") {
+      e.stopPropagation();
+    }
   }
 
   function handleClose(force = false) {
