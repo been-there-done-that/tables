@@ -1,7 +1,6 @@
 <script lang="ts">
     import Table from "$lib/components/table/Table.svelte";
     import TableToolbar from "$lib/components/table/TableToolbar.svelte";
-    import PendingChangesPanel from "$lib/components/table/PendingChangesPanel.svelte";
     import type { Column, DataFetcher } from "$lib/components/table/types";
     import type { EditDelta } from "$lib/components/table/TableEditManager.svelte";
     import { invoke } from "@tauri-apps/api/core";
@@ -9,8 +8,10 @@
     import { schemaStore } from "$lib/stores/schema.svelte";
     import type { MetaTable, MetaColumn } from "$lib/commands/types";
 
+    import { tick } from "svelte";
     import { windowState } from "$lib/stores/window.svelte";
     import { getDefaultDatabase, getDefaultSchema } from "$lib/engine-config";
+    import { pendingChangesStore } from "$lib/stores/pendingChanges.svelte";
 
     interface Props {
         context: {
@@ -65,8 +66,7 @@
     let executionTime = $state<number | undefined>(undefined);
     let error = $state<string | null>(null);
 
-    // Pending changes panel state
-    let showPendingChanges = $state(false);
+    // Pending Changes are now managed globally via pendingChangesStore
     let pendingDeltas = $state<EditDelta[]>([]);
 
     // Computed pending changes count
@@ -95,7 +95,17 @@
         if (tableRef?.getEditDeltas) {
             pendingDeltas = tableRef.getEditDeltas();
         }
-        showPendingChanges = true;
+
+        tick().then(() => {
+            pendingChangesStore.setContext(
+                pendingDeltas,
+                tableName,
+                columns,
+                primaryKeyColumns(), // derived value
+                effectiveSchema,
+            );
+            windowState.openRightPanel("pending-changes");
+        });
     }
 
     function updatePendingCount() {
@@ -108,6 +118,19 @@
         // Update pendingDeltas when edit count changes
         if (tableRef?.getEditDeltas) {
             pendingDeltas = tableRef.getEditDeltas();
+        }
+
+        // If the right panel is open and showing pending changes, sync it live
+        if (windowState.activeRightPanel === "pending-changes") {
+            tick().then(() => {
+                pendingChangesStore.setContext(
+                    pendingDeltas,
+                    tableName,
+                    columns,
+                    primaryKeyColumns(),
+                    effectiveSchema,
+                );
+            });
         }
     }
 
@@ -710,6 +733,7 @@
             console.error("[TablePreview] Failed to cancel query:", error);
         }
     }
+    const EMPTY_COLUMNS: Column[] = [];
 </script>
 
 <div class="h-full w-full flex flex-col" style="isolation: isolate;">
@@ -744,7 +768,7 @@
         <div class="flex-1 min-h-0 relative z-0">
             <Table
                 bind:this={tableRef}
-                columns={[]}
+                columns={EMPTY_COLUMNS}
                 {dataFetcher}
                 {tableName}
                 tableSchema={effectiveSchema}
@@ -758,16 +782,4 @@
             />
         </div>
     {/key}
-
-    <!-- Pending Changes Panel -->
-    {#if showPendingChanges}
-        <PendingChangesPanel
-            deltas={pendingDeltas}
-            {tableName}
-            tableSchema={effectiveSchema}
-            {columns}
-            primaryKeyColumns={primaryKeyColumns()}
-            onClose={() => (showPendingChanges = false)}
-        />
-    {/if}
 </div>
