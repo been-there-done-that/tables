@@ -145,7 +145,7 @@
                         schema: currentSchema,
                         tableName: currentTable,
                         offset: offset ?? 0,
-                        limit: limit ?? 100,
+                        limit: (limit === 0 ? 10_000_000 : limit) ?? 100,
                         whereClause: currentWhere || undefined,
                         orderByClause: currentOrderBy || undefined,
                         fetchTotal: false, // Don't fetch total by default (expensive)

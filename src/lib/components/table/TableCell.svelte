@@ -233,7 +233,7 @@
 <div
     bind:this={cellEl}
     class={cn(
-        "relative flex items-center border-r truncate text-sm select-none text-foreground border-border box-border outline-none focus:outline-none",
+        "relative flex items-center border-r truncate text-xs select-none text-foreground border-border box-border outline-none focus:outline-none",
         // Selection state
         isSelected && "bg-accent/10 border-accent/20",
         // Focus state (keyboard nav)

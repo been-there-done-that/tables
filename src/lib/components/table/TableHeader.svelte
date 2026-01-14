@@ -155,7 +155,7 @@
   }
 </script>
 
-<div class="flex select-none text-sm font-medium text-foreground-muted">
+<div class="flex select-none text-xs font-medium text-foreground-muted">
   <!-- Row Number Header -->
   <div
     class="sticky left-0 z-10 flex items-center justify-center border-r border-border bg-surface py-1.5"
