@@ -23,6 +23,8 @@
     import {
         formatValueForClipboard,
         parseClipboardValue,
+        readClipboardText,
+        writeClipboardText,
     } from "./clipboardUtils";
     import {
         DEFAULT_TOKEN,
@@ -64,83 +66,6 @@
         offset = $bindable(0),
         error = $bindable(null),
     }: Props = $props();
-
-    type ClipboardApi = {
-        readText: () => Promise<string>;
-        writeText: (text: string) => Promise<void>;
-    };
-
-    let clipboardApiPromise: Promise<ClipboardApi> | null = null;
-
-    async function resolveClipboardApi(): Promise<ClipboardApi> {
-        if (clipboardApiPromise) return clipboardApiPromise;
-
-        clipboardApiPromise = (async () => {
-            // Try Tauri native clipboard first to avoid browser-level permission tooltips/bubbles
-            try {
-                // @ts-ignore - plugin might not be in types if browser-only build
-                const mod = await import(
-                    "@tauri-apps/plugin-clipboard-manager"
-                );
-
-                // Test the API to ensure it's actually registered in the backend
-                // If it's not, it'll throw "read_text not allowed" or "Plugin not found"
-                await mod.readText();
-
-                return {
-                    readText: mod.readText,
-                    writeText: (text: string) => mod.writeText(text),
-                };
-            } catch (err) {
-                console.warn(
-                    "[Clipboard] Tauri plugin check failed. Code will fall back to browser API.",
-                    "\nError details:",
-                    err,
-                    "\nType:",
-                    typeof err,
-                );
-            }
-
-            const canUseNavigator =
-                typeof navigator !== "undefined" &&
-                typeof navigator.clipboard?.readText === "function" &&
-                typeof navigator.clipboard?.writeText === "function";
-
-            if (canUseNavigator) {
-                return {
-                    readText: () => navigator.clipboard!.readText(),
-                    writeText: (text: string) =>
-                        navigator.clipboard!.writeText(text),
-                };
-            }
-
-            return {
-                readText: async () => {
-                    toast.error(
-                        "Clipboard access unavailable in this environment",
-                    );
-                    return "";
-                },
-                writeText: async () => {
-                    toast.error(
-                        "Clipboard access unavailable in this environment",
-                    );
-                },
-            };
-        })();
-
-        return clipboardApiPromise;
-    }
-
-    async function readClipboardText() {
-        const api = await resolveClipboardApi();
-        return api.readText();
-    }
-
-    async function writeClipboardText(text: string) {
-        const api = await resolveClipboardApi();
-        return api.writeText(text);
-    }
 
     // State
     // Initialize from viewState if available to prevent re-fetching
@@ -1353,9 +1278,12 @@
         handleCopy();
     }
 
-    function contextPaste() {
-        closeContextMenu();
-        handlePaste();
+    async function contextPaste() {
+        try {
+            await handlePaste();
+        } finally {
+            closeContextMenu();
+        }
     }
 
     function applyValueToSelection(value: any, label: string) {
@@ -1398,6 +1326,102 @@
         applyValueToSelection(DEFAULT_TOKEN, "context-set-default");
     }
 
+    async function handlePaste() {
+        const anchorFn = focusedCell ?? selectionAnchor ?? selectionHead;
+        if (!anchorFn) {
+            toast.error("No cell selected to paste into");
+            return;
+        }
+
+        try {
+            const text = await readClipboardText();
+            if (!text) return;
+
+            const grid = parseClipboardGrid(text);
+            if (!grid.length) return;
+
+            const selection = getSelectionBounds();
+            const anchor = selection ?? {
+                top: anchorFn.rowIndex,
+                bottom: anchorFn.rowIndex,
+                left: anchorFn.columnIndex,
+                right: anchorFn.columnIndex,
+            };
+
+            // Drop header row if multiple rows copied (as before)
+            const rowsData = grid.length > 1 ? grid.slice(1) : grid;
+            const dataRows = rowsData.length;
+            const dataCols = Math.max(...rowsData.map((r) => r.length), 1);
+
+            const selRowCount = anchor.bottom - anchor.top + 1;
+            const selColCount = anchor.right - anchor.left + 1;
+
+            const targetRowCount = selection
+                ? Math.max(selRowCount, dataRows)
+                : dataRows;
+            const targetColCount = selection
+                ? Math.max(selColCount, dataCols)
+                : dataCols;
+
+            const targetBounds: SelectionBounds = {
+                top: anchor.top,
+                left: anchor.left,
+                bottom: anchor.top + targetRowCount - 1,
+                right: anchor.left + targetColCount - 1,
+            };
+
+            const targetRowEnd = Math.min(
+                targetBounds.bottom,
+                filteredRows.length - 1,
+            );
+            const targetColEnd = Math.min(
+                targetBounds.right,
+                visibleColumns.length - 1,
+            );
+
+            const edits: Record<number, Record<string, any>> = {};
+            const originalValues: Record<number, Record<string, any>> = {};
+
+            for (let r = targetBounds.top; r <= targetRowEnd; r++) {
+                const row = filteredRows[r];
+                if (!row) continue;
+                const relativeR = r - anchor.top;
+                const sourceRow = rowsData[relativeR % rowsData.length] ?? [];
+
+                for (let c = targetBounds.left; c <= targetColEnd; c++) {
+                    const column = visibleColumns[c];
+                    if (!column?.editable) continue;
+
+                    const relativeC = c - anchor.left;
+                    const rawValue = sourceRow[relativeC % dataCols] ?? "";
+                    const parsedValue = parseClipboardValue(
+                        rawValue,
+                        column.type,
+                    );
+
+                    // Skip if value is same as current (including pending)
+                    const currentValue = getDisplayValue(row, column.id);
+
+                    if (isSameValue(parsedValue, currentValue)) continue;
+
+                    if (!edits[row._rowId]) edits[row._rowId] = {};
+                    edits[row._rowId][column.id] = parsedValue;
+
+                    // Capture actual original value from the raw data
+                    if (!originalValues[row._rowId])
+                        originalValues[row._rowId] = {};
+                    originalValues[row._rowId][column.id] = row[column.id];
+                }
+            }
+
+            if (Object.keys(edits).length === 0) return;
+
+            applyEditsLocally(edits, "paste", true, originalValues);
+        } catch (e) {
+            console.error("Paste failed", e);
+            toast.error("Failed to paste from clipboard");
+        }
+    }
     function handleEditComplete(
         rowIndex: number,
         columnIndex: number,
@@ -1983,96 +2007,6 @@
         writeClipboardText(lines.join("\n"));
     }
 
-    async function handlePaste() {
-        if (!focusedCell) return;
-        try {
-            const text = await readClipboardText();
-            if (!text) return;
-
-            const grid = parseClipboardGrid(text);
-            if (!grid.length) return;
-
-            const selection = getSelectionBounds();
-            const anchor = selection ?? {
-                top: focusedCell.rowIndex,
-                bottom: focusedCell.rowIndex,
-                left: focusedCell.columnIndex,
-                right: focusedCell.columnIndex,
-            };
-
-            // Drop header row if multiple rows copied (as before)
-            const rowsData = grid.length > 1 ? grid.slice(1) : grid;
-            const dataRows = rowsData.length;
-            const dataCols = Math.max(...rowsData.map((r) => r.length), 1);
-
-            const selRowCount = anchor.bottom - anchor.top + 1;
-            const selColCount = anchor.right - anchor.left + 1;
-
-            const targetRowCount = selection
-                ? Math.max(selRowCount, dataRows)
-                : dataRows;
-            const targetColCount = selection
-                ? Math.max(selColCount, dataCols)
-                : dataCols;
-
-            const targetBounds: SelectionBounds = {
-                top: anchor.top,
-                left: anchor.left,
-                bottom: anchor.top + targetRowCount - 1,
-                right: anchor.left + targetColCount - 1,
-            };
-
-            const targetRowEnd = Math.min(
-                targetBounds.bottom,
-                filteredRows.length - 1,
-            );
-            const targetColEnd = Math.min(
-                targetBounds.right,
-                visibleColumns.length - 1,
-            );
-
-            const edits: Record<number, Record<string, any>> = {};
-            const originalValues: Record<number, Record<string, any>> = {};
-
-            for (let r = targetBounds.top; r <= targetRowEnd; r++) {
-                const row = filteredRows[r];
-                if (!row) continue;
-                const relativeR = r - anchor.top;
-                const sourceRow = rowsData[relativeR % rowsData.length] ?? [];
-
-                for (let c = targetBounds.left; c <= targetColEnd; c++) {
-                    const column = visibleColumns[c];
-                    if (!column?.editable) continue;
-
-                    const relativeC = c - anchor.left;
-                    const rawValue = sourceRow[relativeC % dataCols] ?? "";
-                    const parsedValue = parseClipboardValue(
-                        rawValue,
-                        column.type,
-                    );
-
-                    // Skip if value is same as current (including pending)
-                    const currentValue = getDisplayValue(row, column.id);
-
-                    if (isSameValue(parsedValue, currentValue)) continue;
-
-                    if (!edits[row._rowId]) edits[row._rowId] = {};
-                    edits[row._rowId][column.id] = parsedValue;
-
-                    // Capture actual original value from the raw data
-                    if (!originalValues[row._rowId])
-                        originalValues[row._rowId] = {};
-                    originalValues[row._rowId][column.id] = row[column.id];
-                }
-            }
-
-            if (Object.keys(edits).length === 0) return;
-
-            applyEditsLocally(edits, "paste", true, originalValues);
-        } catch (e) {
-            console.error("Paste failed", e);
-        }
-    }
     export function refresh() {
         loadData();
     }

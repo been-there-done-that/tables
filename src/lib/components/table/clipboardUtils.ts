@@ -1,3 +1,75 @@
+import { toast } from "svelte-sonner";
+
+export type ClipboardApi = {
+    readText: () => Promise<string>;
+    writeText: (text: string) => Promise<void>;
+};
+
+let clipboardApiPromise: Promise<ClipboardApi> | null = null;
+
+export async function resolveClipboardApi(): Promise<ClipboardApi> {
+    if (clipboardApiPromise) return clipboardApiPromise;
+
+    clipboardApiPromise = (async () => {
+        // Try Tauri native clipboard first to avoid browser-level permission tooltips/bubbles
+        try {
+            // @ts-ignore - plugin might not be in types if browser-only build
+            const mod = await import("@tauri-apps/plugin-clipboard-manager");
+
+            // Test the API to ensure it's actually registered in the backend
+            // If it's not, it'll throw "read_text not allowed" or "Plugin not found"
+            await mod.readText();
+
+            return {
+                readText: mod.readText,
+                writeText: (text: string) => mod.writeText(text),
+            };
+        } catch (err) {
+            console.warn(
+                "[Clipboard] Tauri plugin check failed. Code will fall back to browser API.",
+                "\nError details:",
+                err,
+                "\nType:",
+                typeof err,
+            );
+        }
+
+        const canUseNavigator =
+            typeof navigator !== "undefined" &&
+            typeof navigator.clipboard?.readText === "function" &&
+            typeof navigator.clipboard?.writeText === "function";
+
+        if (canUseNavigator) {
+            return {
+                readText: () => navigator.clipboard!.readText(),
+                writeText: (text: string) => navigator.clipboard!.writeText(text),
+            };
+        }
+
+        return {
+            readText: async () => {
+                toast.error("Clipboard access unavailable in this environment");
+                return "";
+            },
+            writeText: async () => {
+                toast.error("Clipboard access unavailable in this environment");
+            },
+        };
+    })();
+
+    return clipboardApiPromise;
+}
+
+export async function readClipboardText() {
+    const api = await resolveClipboardApi();
+    return api.readText();
+}
+
+export async function writeClipboardText(text: string) {
+    const api = await resolveClipboardApi();
+    return api.writeText(text);
+}
+
 export interface ClipboardTypeHandler {
     format(value: any): string;
     parse(text: string): any;

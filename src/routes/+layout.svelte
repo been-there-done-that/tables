@@ -17,6 +17,8 @@
 	import InfoIcon from "$lib/svg/InfoMark.svelte";
 	import WarnIcon from "$lib/svg/WarnMark.svelte";
 
+	import { resolveClipboardApi } from "$lib/components/table/clipboardUtils";
+
 	const appWindow = getCurrentWindow();
 
 	let isFullScreen = $state(false);
@@ -29,6 +31,11 @@
 		let unlisten: () => void;
 
 		const setup = async () => {
+			// Pre-resolve/warm-up clipboard API globally so async checks don't break paste gestures
+			resolveClipboardApi().catch((e) =>
+				console.debug("[Layout] Clipboard warm-up failed", e),
+			);
+
 			await checkFullScreen();
 			unlisten = await appWindow.onResized(checkFullScreen);
 			await windowState.init();
