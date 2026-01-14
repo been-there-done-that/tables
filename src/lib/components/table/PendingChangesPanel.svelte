@@ -1,32 +1,21 @@
 <script lang="ts">
-    import { fly } from "svelte/transition";
     import { cn } from "$lib/utils";
     import IconX from "@tabler/icons-svelte/icons/x";
     import IconCode from "@tabler/icons-svelte/icons/code";
     import IconEye from "@tabler/icons-svelte/icons/eye";
     import IconCopy from "@tabler/icons-svelte/icons/copy";
     import type { EditDelta } from "./TableEditManager.svelte";
-    import type { Column } from "./types";
-
-    interface Props {
-        deltas: EditDelta[];
-        tableName: string;
-        tableSchema?: string;
-        columns: Column[];
-        primaryKeyColumns?: string[];
-        onClose: () => void;
-    }
-
-    let {
-        deltas,
-        tableName,
-        tableSchema,
-        columns,
-        primaryKeyColumns = [],
-        onClose,
-    }: Props = $props();
+    import { pendingChangesStore } from "$lib/stores/pendingChanges.svelte";
+    import { windowState } from "$lib/stores/window.svelte";
 
     let activeTab = $state<"visual" | "sql">("visual");
+
+    // Access state from store
+    const deltas = $derived(pendingChangesStore.deltas);
+    const tableName = $derived(pendingChangesStore.tableName);
+    const tableSchema = $derived(pendingChangesStore.tableSchema);
+    const columns = $derived(pendingChangesStore.columns);
+    const primaryKeyColumns = $derived(pendingChangesStore.primaryKeyColumns);
 
     // Group deltas by rowId
     const groupedDeltas = $derived(() => {
@@ -115,21 +104,20 @@
     }
 </script>
 
-<div
-    class="fixed inset-y-0 right-0 w-[380px] bg-surface border-l border-border shadow-2xl flex flex-col z-50"
-    transition:fly={{ x: 380, duration: 200 }}
->
+<div class="flex h-full w-full flex-col bg-background">
     <!-- Header -->
     <div
-        class="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30"
+        class="h-8 flex items-center justify-between px-3 py-1 border-b border-border bg-muted/30"
     >
-        <h2 class="text-sm font-semibold text-foreground">Pending Changes</h2>
+        <h2 class="text-xs font-semibold text-muted-foreground">
+            Pending Changes
+        </h2>
         <button
             type="button"
-            class="p-1 rounded hover:bg-muted transition-colors"
-            onclick={onClose}
+            class="h-6 w-6 flex items-center justify-center hover:bg-accent rounded text-muted-foreground transition-colors"
+            onclick={() => windowState.closeRightPanel()}
         >
-            <IconX class="size-4 text-muted-foreground" />
+            <IconX class="size-4" />
         </button>
     </div>
 

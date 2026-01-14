@@ -406,6 +406,14 @@
             widthMap[col.id] = finalWidth;
         }
 
+        // Only update if we calculated new widths
+        if (Object.keys(widthMap).length === 0) {
+            console.info(
+                "[Table] autoSizeColumns:skipped, no widths calculated",
+            );
+            return;
+        }
+
         tableColumns = tableColumns.map((c) => {
             if (c.width != null) return c;
             // If freezing is active and we somehow got here, fallback to default rather than content-based
