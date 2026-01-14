@@ -181,7 +181,12 @@ class WindowStateStore {
     private _showSqlEditor = $state(false);
 
     // activeRightPanel: "logs" | "properties" | null
-    activeRightPanel = $state<string | null>(null);
+    get activeRightPanel() {
+        return settingsStore.activeRightPanel;
+    }
+    set activeRightPanel(v: string | null) {
+        settingsStore.activeRightPanel = v;
+    }
 
     openRightPanel(view: string) {
         this.activeRightPanel = view;
