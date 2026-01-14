@@ -7,6 +7,9 @@
     import type { EditDelta } from "./TableEditManager.svelte";
     import { pendingChangesStore } from "$lib/stores/pendingChanges.svelte";
     import { windowState } from "$lib/stores/window.svelte";
+    import { useMonacoEditor } from "$lib/monaco/useMonacoEditor";
+    import { MONACO_THEME_NAME } from "$lib/monaco/monaco-theme";
+    import type { EditorHandle } from "$lib/monaco/editor-types";
 
     let activeTab = $state<"visual" | "sql">("visual");
 
@@ -56,9 +59,18 @@
                 whereClause = primaryKeyColumns
                     .map((pk) => {
                         const delta = rowDeltas.find((d) => d.columnId === pk);
-                        const val = delta
-                            ? formatSqlValue(delta.oldValue)
-                            : `/* unknown ${pk} */`;
+
+                        // If PK is in delta, use old value (it changed)
+                        // If not, and we have a single PK, assume rowId IS the PK value
+                        let val;
+                        if (delta) {
+                            val = formatSqlValue(delta.oldValue);
+                        } else if (primaryKeyColumns.length === 1) {
+                            val = formatSqlValue(rowId);
+                        } else {
+                            val = `/* unknown ${pk} */`;
+                        }
+
                         return `"${pk}" = ${val}`;
                     })
                     .join(" AND ");
@@ -102,6 +114,50 @@
         const col = columns.find((c) => c.id === colId);
         return col?.label || colId;
     }
+
+    // Monaco Editor Integration
+    let editorContainer: HTMLElement;
+    let editorHandle = $state<EditorHandle | null>(null);
+
+    $effect(() => {
+        if (activeTab === "sql" && editorContainer) {
+            useMonacoEditor(
+                {
+                    contextId: "pending-changes-sql",
+                    windowId: "main",
+                    kind: "sql",
+                    modelUri: "file:///pending-changes.sql",
+                    container: () => editorContainer,
+                    options: {
+                        theme: MONACO_THEME_NAME,
+                        minimap: { enabled: false },
+                        automaticLayout: true,
+                        readOnly: true,
+                        renderLineHighlight: "none",
+                        lineNumbers: "off", // Cleaner look for preview
+                        padding: { top: 10, bottom: 10 },
+                        fontSize: 12, // Consistent with other UI
+                        fontFamily: "Geist Mono, monospace",
+                    },
+                },
+                (handle) => {
+                    editorHandle = handle;
+                    handle.editor.setValue(generatedSql());
+                },
+            );
+        }
+    });
+
+    // Update editor content when SQL changes
+    $effect(() => {
+        if (editorHandle && activeTab === "sql") {
+            const currentVal = editorHandle.editor.getValue();
+            const newVal = generatedSql();
+            if (currentVal !== newVal) {
+                editorHandle.editor.setValue(newVal);
+            }
+        }
+    });
 </script>
 
 <div class="flex h-full w-full flex-col bg-background">
@@ -244,8 +300,14 @@
                         Copy
                     </button>
                 </div>
-                <pre
-                    class="flex-1 p-3 text-xs font-mono text-foreground overflow-auto whitespace-pre-wrap">{generatedSql()}</pre>
+                <div
+                    class="flex-1 relative bg-background border-t border-border/50"
+                >
+                    <div
+                        bind:this={editorContainer}
+                        class="absolute inset-0 w-full h-full"
+                    ></div>
+                </div>
             </div>
         {/if}
     </div>
