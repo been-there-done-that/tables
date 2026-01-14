@@ -1,5 +1,6 @@
 <script lang="ts">
-    import { onMount, tick } from "svelte";
+    import { toast } from "svelte-sonner";
+    import { onMount, tick, getContext, setContext } from "svelte";
     import type {
         Column,
         DataFetcher,
@@ -81,14 +82,23 @@
                 const mod = await import(
                     "@tauri-apps/plugin-clipboard-manager"
                 );
-                if (mod && (mod.readText || mod.writeText)) {
-                    return {
-                        readText: mod.readText,
-                        writeText: (text: string) => mod.writeText(text),
-                    };
-                }
+
+                // Test the API to ensure it's actually registered in the backend
+                // If it's not, it'll throw "read_text not allowed" or "Plugin not found"
+                await mod.readText();
+
+                return {
+                    readText: mod.readText,
+                    writeText: (text: string) => mod.writeText(text),
+                };
             } catch (err) {
-                // Not in Tauri or plugin not available, fall through
+                console.warn(
+                    "[Clipboard] Tauri plugin check failed. Code will fall back to browser API.",
+                    "\nError details:",
+                    err,
+                    "\nType:",
+                    typeof err,
+                );
             }
 
             const canUseNavigator =
@@ -105,8 +115,17 @@
             }
 
             return {
-                readText: async () => "",
-                writeText: async () => {},
+                readText: async () => {
+                    toast.error(
+                        "Clipboard access unavailable in this environment",
+                    );
+                    return "";
+                },
+                writeText: async () => {
+                    toast.error(
+                        "Clipboard access unavailable in this environment",
+                    );
+                },
             };
         })();
 
