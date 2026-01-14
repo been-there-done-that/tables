@@ -14,6 +14,7 @@
     } from "./types";
     import TableHeader from "./TableHeader.svelte";
     import TableBody from "./TableBody.svelte";
+    import ColumnListDialog from "./ColumnListDialog.svelte";
     import { TableEditManager } from "./TableEditManager.svelte";
     import { Button } from "$lib/components/ui/button";
     import { cn } from "$lib/utils";
@@ -157,6 +158,7 @@
     let selectedCells = $state<CellSelection[]>([]);
     let selectionHead = $state<SelectionAnchor | null>(null);
     let editingCell = $state<CellSelection | null>(null);
+    let showColumnListDialog = $state(false);
     const editManager = new TableEditManager();
 
     // Derived sorted rows for client-side sorting
@@ -1022,7 +1024,46 @@
     }
 
     function handleShowColumnList() {
-        hiddenColumnIds = new Set();
+        showColumnListDialog = true;
+    }
+
+    function handleCopyColumnData(columnId: string) {
+        const columnData = filteredRows.map((row) => {
+            const val = editManager.hasPendingValue(row._rowId, columnId)
+                ? editManager.getPendingValue(row._rowId, columnId)
+                : row[columnId];
+            return formatValueForClipboard(
+                val,
+                visibleColumns.find((c) => c.id === columnId)?.type || "string",
+            );
+        });
+        writeClipboardText(columnData.join("\n"));
+    }
+
+    function handleColumnListSelect(columnId: string) {
+        // Find the column index
+        const colIndex = visibleColumns.findIndex((c) => c.id === columnId);
+        if (colIndex < 0) return;
+
+        // Focus the first row of that column if we have rows
+        if (filteredRows.length > 0) {
+            focusedCell = { rowIndex: 0, columnIndex: colIndex };
+            setSelection({ rowIndex: 0, columnIndex: colIndex });
+            ensureCellVisible(0, colIndex);
+            tick().then(() => {
+                tableBody?.focusCell(0, colIndex);
+            });
+        }
+    }
+
+    function handleToggleColumnVisibility(columnId: string) {
+        const next = new Set(hiddenColumnIds);
+        if (next.has(columnId)) {
+            next.delete(columnId);
+        } else {
+            next.add(columnId);
+        }
+        hiddenColumnIds = next;
     }
 
     function getUniqueValues(columnId: string) {
@@ -1520,6 +1561,13 @@
 
         if (editingCell) return;
         if (loading) return;
+
+        // ⌘F12 / Ctrl+F12 to open column list
+        if ((e.metaKey || e.ctrlKey) && e.key === "F12") {
+            e.preventDefault();
+            handleShowColumnList();
+            return;
+        }
 
         if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
             e.preventDefault();
@@ -2140,6 +2188,7 @@
                             {sortState}
                             {filters}
                             {pinnedColumnIds}
+                            hiddenCount={hiddenColumnIds.size}
                             onSort={handleSort}
                             onClearSort={handleClearSort}
                             onOpenInQueryEditor={handleOpenInQueryEditor}
@@ -2155,6 +2204,8 @@
                             onHideColumn={handleHideColumn}
                             onHideOtherColumns={handleHideOtherColumns}
                             onShowColumnList={handleShowColumnList}
+                            onCopyColumnData={handleCopyColumnData}
+                            onUnhideAll={() => (hiddenColumnIds = new Set())}
                             {getUniqueValues}
                         />
                     </div>
@@ -2217,4 +2268,15 @@
             </button>
         </div>
     {/if}
+
+    <ColumnListDialog
+        open={showColumnListDialog}
+        columns={visibleColumns}
+        allColumns={tableColumns}
+        {hiddenColumnIds}
+        onSelect={handleColumnListSelect}
+        onToggleVisibility={handleToggleColumnVisibility}
+        onUnhideAll={() => (hiddenColumnIds = new Set())}
+        onClose={() => (showColumnListDialog = false)}
+    />
 </div>

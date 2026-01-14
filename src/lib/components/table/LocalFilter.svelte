@@ -1,8 +1,12 @@
 <script lang="ts">
-    import { Input } from "$lib/components/ui/input";
-    import { Button } from "$lib/components/ui/button";
-    import { Checkbox } from "$lib/components/ui/checkbox";
-    import { IconSearch, IconLoader2 } from "@tabler/icons-svelte";
+    import { onMount, tick } from "svelte";
+    import {
+        IconSearch,
+        IconX,
+        IconLoader2,
+        IconCheck,
+    } from "@tabler/icons-svelte";
+    import { cn } from "$lib/utils";
     import type { Column } from "./types";
 
     interface Props {
@@ -23,7 +27,8 @@
 
     let searchQuery = $state("");
     let selectedValues = $state<Set<string>>(new Set());
-    let selectAll = $state(false);
+    let inputEl = $state<HTMLInputElement | null>(null);
+    let selectedIndex = $state(-1);
 
     let isLoading = $derived(!uniqueValues || uniqueValues.length === 0);
 
@@ -36,6 +41,11 @@
         }
     });
 
+    // Auto-focus search input on mount
+    onMount(() => {
+        tick().then(() => inputEl?.focus());
+    });
+
     let filteredValues = $derived(
         uniqueValues.filter((item) =>
             String(item.value)
@@ -44,27 +54,41 @@
         ),
     );
 
+    // Calculate counts
+    let allCount = $derived(filteredValues.length);
+    let selectedCount = $derived(
+        filteredValues.filter((item) => selectedValues.has(String(item.value)))
+            .length,
+    );
+    let allSelected = $derived(allCount > 0 && selectedCount === allCount);
+
     function toggleValue(value: string) {
-        if (selectedValues.has(value)) {
-            selectedValues.delete(value);
+        const next = new Set(selectedValues);
+        if (next.has(value)) {
+            next.delete(value);
         } else {
-            selectedValues.add(value);
+            next.add(value);
         }
-        selectedValues = new Set(selectedValues); // Trigger reactivity
+        selectedValues = next;
         updateFilter();
     }
 
     function toggleSelectAll() {
-        selectAll = !selectAll;
-        if (selectAll) {
-            filteredValues.forEach((item) =>
-                selectedValues.add(String(item.value)),
-            );
+        const next = new Set(selectedValues);
+        if (allSelected) {
+            // Deselect all filtered
+            filteredValues.forEach((item) => next.delete(String(item.value)));
         } else {
-            selectedValues.clear();
+            // Select all filtered
+            filteredValues.forEach((item) => next.add(String(item.value)));
         }
-        selectedValues = new Set(selectedValues);
+        selectedValues = next;
         updateFilter();
+    }
+
+    function clearFilter() {
+        selectedValues = new Set();
+        onFilterChange(null);
     }
 
     function updateFilter() {
@@ -77,75 +101,187 @@
             });
         }
     }
+
+    function handleKeyDown(e: KeyboardEvent) {
+        if (e.key === "Escape") {
+            e.preventDefault();
+            onClose();
+        } else if (e.key === "ArrowDown") {
+            e.preventDefault();
+            if (selectedIndex < filteredValues.length - 1) {
+                selectedIndex++;
+                scrollToSelected();
+            }
+        } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            if (selectedIndex > 0) {
+                selectedIndex--;
+                scrollToSelected();
+            }
+        } else if (e.key === "Enter" && selectedIndex >= 0) {
+            e.preventDefault();
+            if (filteredValues[selectedIndex]) {
+                toggleValue(String(filteredValues[selectedIndex].value));
+            }
+        } else if (e.key === " " && selectedIndex >= 0) {
+            e.preventDefault();
+            if (filteredValues[selectedIndex]) {
+                toggleValue(String(filteredValues[selectedIndex].value));
+            }
+        }
+    }
+
+    function scrollToSelected() {
+        tick().then(() => {
+            const list = document.querySelector("[data-filter-list]");
+            const selected = list?.querySelector("[data-highlighted=true]");
+            selected?.scrollIntoView({ block: "nearest" });
+        });
+    }
+
+    function formatValue(value: any): string {
+        if (value === null || value === undefined) return "(Blanks)";
+        if (value === "") return "(Empty)";
+        return String(value);
+    }
 </script>
 
-<div class="flex flex-col gap-2 p-2 w-full min-w-[260px]">
-    <div class="text-sm font-semibold">
-        Local Filter for ‘{column.label ?? column.id}’
-    </div>
-
-    <div class="relative">
-        <IconSearch
-            class="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground"
-        />
-        <Input
-            placeholder="Search values..."
-            class="pl-8 h-9"
-            bind:value={searchQuery}
-            disabled={isLoading}
-        />
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div
+    class="flex flex-col w-full max-h-[320px] overflow-hidden bg-(--theme-bg-secondary) rounded-md"
+    onkeydown={handleKeyDown}
+>
+    <!-- Header -->
+    <div class="px-2 py-1.5 border-b border-(--theme-border-default)">
+        <div
+            class="text-[10px] font-medium text-(--theme-fg-secondary) opacity-70 uppercase tracking-wider mb-1"
+        >
+            Filter: {column.label ?? column.id}
+        </div>
+        <div class="relative">
+            <IconSearch
+                class="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-(--theme-fg-secondary) opacity-60"
+            />
+            <input
+                bind:this={inputEl}
+                bind:value={searchQuery}
+                type="text"
+                placeholder="Search values..."
+                class="w-full pl-7 pr-6 py-1 text-xs bg-transparent border border-(--theme-border-default) rounded text-(--theme-fg-default) placeholder:text-(--theme-fg-secondary)/40 focus:outline-none focus:ring-1 focus:ring-(--theme-accent-primary)"
+                disabled={isLoading}
+            />
+            {#if searchQuery}
+                <button
+                    type="button"
+                    class="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-(--theme-bg-hover)"
+                    onclick={() => (searchQuery = "")}
+                >
+                    <IconX class="size-3 text-(--theme-fg-secondary)" />
+                </button>
+            {/if}
+        </div>
     </div>
 
     {#if isLoading}
-        <div class="flex items-center justify-center py-8">
-            <IconLoader2 class="h-6 w-6 animate-spin text-muted-foreground" />
+        <div class="flex items-center justify-center py-6">
+            <IconLoader2
+                class="size-4 animate-spin text-(--theme-fg-secondary) opacity-60"
+            />
         </div>
     {:else}
-        <div
-            class="flex items-center space-x-2 py-2 border-b text-sm font-medium"
+        <!-- Select All Row -->
+        <button
+            type="button"
+            class={cn(
+                "flex items-center gap-1.5 px-2 py-0.5 text-xs border-b border-(--theme-border-default) transition-colors",
+                "hover:bg-(--theme-bg-hover) text-(--theme-fg-default)",
+            )}
+            onclick={toggleSelectAll}
         >
-            <Checkbox
-                id="select-all"
-                checked={selectAll}
-                onCheckedChange={toggleSelectAll}
-            />
-            <label
-                for="select-all"
-                class="flex-1 leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            <div
+                class={cn(
+                    "size-3.5 rounded-sm border flex items-center justify-center transition-colors flex-shrink-0",
+                    allSelected
+                        ? "bg-(--theme-accent-primary) border-(--theme-accent-primary)"
+                        : selectedCount > 0
+                          ? "bg-(--theme-accent-primary)/30 border-(--theme-accent-primary)"
+                          : "border-(--theme-fg-secondary)/50",
+                )}
             >
-                Value
-            </label>
-            <span class="text-xs text-muted-foreground">Count</span>
-        </div>
+                {#if allSelected || selectedCount > 0}
+                    <IconCheck class="size-2.5 text-white" />
+                {/if}
+            </div>
+            <span class="flex-1 text-left font-medium">Select All</span>
+            <span class="text-[9px] text-(--theme-fg-secondary) opacity-60">
+                {selectedCount}/{allCount}
+            </span>
+        </button>
 
-        <div class="flex flex-col gap-2 max-h-72 overflow-y-auto pt-2">
-            {#each filteredValues as item}
-                <div class="flex items-center space-x-2">
-                    <Checkbox
-                        id={`val-${item.value}`}
-                        checked={selectedValues.has(String(item.value))}
-                        onCheckedChange={() => toggleValue(String(item.value))}
-                    />
-                    <label
-                        for={`val-${item.value}`}
-                        class="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex-1 truncate cursor-pointer"
-                    >
-                        {item.value === null ? "(Blanks)" : item.value}
-                    </label>
-                    <span class="text-xs text-muted-foreground"
-                        >{item.count}</span
-                    >
+        <!-- Values List -->
+        <div class="flex-1 overflow-y-auto py-0.5" data-filter-list>
+            {#if filteredValues.length === 0}
+                <div
+                    class="px-2 py-4 text-center text-xs text-(--theme-fg-secondary) opacity-60"
+                >
+                    No values found
                 </div>
-            {/each}
-            {#if filteredValues.length === 0 && !isLoading}
-                <div class="text-sm text-muted-foreground text-center py-4">
-                    No matches found
-                </div>
+            {:else}
+                {#each filteredValues as item, i (String(item.value) + i)}
+                    {@const isChecked = selectedValues.has(String(item.value))}
+                    {@const isHighlighted = i === selectedIndex}
+                    <button
+                        type="button"
+                        data-highlighted={isHighlighted}
+                        class={cn(
+                            "w-full flex items-center gap-1.5 px-2 py-0.5 text-xs transition-colors",
+                            isHighlighted
+                                ? "bg-(--theme-bg-active)"
+                                : "hover:bg-(--theme-bg-hover)",
+                            "text-(--theme-fg-default)",
+                        )}
+                        onclick={() => toggleValue(String(item.value))}
+                        onmouseenter={() => (selectedIndex = i)}
+                    >
+                        <div
+                            class={cn(
+                                "size-3.5 rounded-sm border flex items-center justify-center transition-colors flex-shrink-0",
+                                isChecked
+                                    ? "bg-(--theme-accent-primary) border-(--theme-accent-primary)"
+                                    : "border-(--theme-fg-secondary)/50",
+                            )}
+                        >
+                            {#if isChecked}
+                                <IconCheck class="size-2.5 text-white" />
+                            {/if}
+                        </div>
+                        <span class="flex-1 text-left truncate">
+                            {formatValue(item.value)}
+                        </span>
+                        <span
+                            class="text-[9px] text-(--theme-fg-secondary) opacity-60 font-mono flex-shrink-0"
+                        >
+                            {item.count}
+                        </span>
+                    </button>
+                {/each}
             {/if}
         </div>
 
-        <div class="text-[11px] text-muted-foreground pt-1">
-            Select values to filter rows
+        <!-- Footer -->
+        <div
+            class="px-2 py-1 border-t border-(--theme-border-default) flex items-center justify-between text-[9px] text-(--theme-fg-secondary) opacity-50"
+        >
+            <span>↑↓ Space ↵</span>
+            {#if selectedValues.size > 0}
+                <button
+                    type="button"
+                    class="px-1 py-0.5 rounded text-red-400 hover:bg-red-500/10 transition-colors"
+                    onclick={clearFilter}
+                >
+                    Clear
+                </button>
+            {/if}
         </div>
     {/if}
 </div>
