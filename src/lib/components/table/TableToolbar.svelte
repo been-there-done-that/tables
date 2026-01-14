@@ -420,7 +420,7 @@
                         class={cn(
                             "h-7",
                             currentAutoRefresh > 0 &&
-                                "border-2 border-transparent rounded-md bg-origin-border [background-clip:padding-box,border-box] [background-image:linear-gradient(var(--theme-bg-secondary),var(--theme-bg-secondary)),linear-gradient(to_right,#ef4444,#f97316,#eab308,#22c55e,#3b82f6,#8b5cf6,#ec4899)]",
+                                "border-2 border-transparent rounded-md bg-origin-border [background-clip:padding-box,border-box] bg-[linear-gradient(var(--theme-bg-secondary),var(--theme-bg-secondary)),linear-gradient(to_right,#ef4444,#f97316,#eab308,#22c55e,#3b82f6,#8b5cf6,#ec4899)]",
                         )}
                         title="Auto Refresh"
                     >
