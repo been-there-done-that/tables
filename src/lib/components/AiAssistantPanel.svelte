@@ -2,15 +2,7 @@
     import IconX from "@tabler/icons-svelte/icons/x";
     import IconBrandTesla from "@tabler/icons-svelte/icons/brand-tesla";
     import { windowState } from "$lib/stores/window.svelte";
-    // Picasso-inspired Cubist AI Agent Teaser
-    // Simple Grid Pattern
-    const aiLabSvg = `
-    <svg width="20" height="20" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-        <path d="M 20 0 L 0 0 0 20" fill="none" stroke="currentColor" stroke-width="1" />
-    </svg>
-    `;
-
-    const svgDataUrl = `data:image/svg+xml;utf8,${encodeURIComponent(aiLabSvg)}`;
+    import bgImage from "$lib/svg/image.png";
 </script>
 
 <div class="flex h-full w-full flex-col bg-background relative overflow-hidden">
@@ -35,8 +27,8 @@
 
     <!-- Background Pattern -->
     <div
-        class="absolute inset-0 z-0 opacity-10 pointer-events-none text-foreground"
-        style="background-image: url('{svgDataUrl}'); background-repeat: repeat; background-size: 20px;"
+        class="absolute inset-0 z-0 opacity-20 pointer-events-none text-foreground"
+        style="background-image: url('{bgImage}'); background-repeat: repeat; background-size: 200px; background-position: 0 0;"
     ></div>
 
     <!-- Content -->
