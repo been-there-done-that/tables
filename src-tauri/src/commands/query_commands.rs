@@ -173,6 +173,7 @@ pub async fn fetch_table_preview(
     conn_state: State<'_, ConnectionManagerState>,
     query_state: State<'_, QueryExecutionState>,
     app: AppHandle,
+    component: Option<String>,
 ) -> Result<TablePreviewResult, String> {
     info!(
         "Fetching table preview for {}.{}.{} (offset={}, limit={}, where={:?}, order={:?})",
@@ -263,7 +264,8 @@ pub async fn fetch_table_preview(
         }
     };
 
-    emit_query_start(&app, &correlation_id, &connection_id, &database, &data_query);
+    let component_name = component.as_deref().unwrap_or("preview");
+    emit_query_start(&app, &correlation_id, &connection_id, &database, &data_query, Some(component_name));
 
     // Check if already cancelled before starting query
     if cancel_token.is_cancelled() {
@@ -292,7 +294,7 @@ pub async fn fetch_table_preview(
     if cancel_token.is_cancelled() {
         cleanup_token().await;
         let duration = start.elapsed().as_millis() as u64;
-        log_query_end(&app, &correlation_id, &connection_id, &database, &data_query, duration, "cancelled", Some("Query cancelled by user"), None);
+        log_query_end(&app, &correlation_id, &connection_id, &database, &data_query, duration, "cancelled", Some("Query cancelled by user"), None, Some(component_name));
         return Err("Query cancelled".to_string());
     }
 
@@ -305,7 +307,7 @@ pub async fn fetch_table_preview(
         _ = cancel_future => {
             cleanup_token().await;
             let duration = start.elapsed().as_millis() as u64;
-            log_query_end(&app, &correlation_id, &connection_id, &database, &data_query, duration, "cancelled", Some("Query cancelled by user"), None);
+            log_query_end(&app, &correlation_id, &connection_id, &database, &data_query, duration, "cancelled", Some("Query cancelled by user"), None, Some(component_name));
             return Err("Query cancelled".to_string());
         }
     };
@@ -322,7 +324,7 @@ pub async fn fetch_table_preview(
                 }
             }).collect();
 
-            log_query_end(&app, &correlation_id, &connection_id, &database, &data_query, duration, "success", None, Some(query_result.rows.len()));
+            log_query_end(&app, &correlation_id, &connection_id, &database, &data_query, duration, "success", None, Some(query_result.rows.len()), Some(component_name));
 
             Ok(TablePreviewResult {
                 rows: query_result.rows,
@@ -333,7 +335,7 @@ pub async fn fetch_table_preview(
         }
         Err(e) => {
             let err_msg = format!("{}", e);
-            log_query_end(&app, &correlation_id, &connection_id, &database, &data_query, duration, "error", Some(&err_msg), None);
+            log_query_end(&app, &correlation_id, &connection_id, &database, &data_query, duration, "error", Some(&err_msg), None, Some(component_name));
             Err(err_msg)
         }
     }
@@ -351,17 +353,19 @@ pub async fn execute_query(
     db_state: State<'_, DatabaseState>,
     conn_state: State<'_, ConnectionManagerState>,
     app: AppHandle,
+    component: Option<String>,
 ) -> Result<QueryResult, String> {
     info!("Executing query on {}: {}", database, query);
     
     let correlation_id = uuid::Uuid::new_v4().to_string();
-    emit_query_start(&app, &correlation_id, &connection_id, &database, &query);
+    let component_name = component.as_deref().unwrap_or("editor");
+    emit_query_start(&app, &correlation_id, &connection_id, &database, &query, Some(component_name));
 
     let manager = ConnectionManager::from_state(&db_state, &conn_state);
     let (connection, credentials) = match manager.get_connection(&connection_id) {
         Ok(res) => res,
         Err(e) => {
-             log_query_end(&app, &correlation_id, &connection_id, &database, &query, 0, "error", Some(&e), None);
+             log_query_end(&app, &correlation_id, &connection_id, &database, &query, 0, "error", Some(&e), None, Some(component_name));
              return Err(e);
         }
     };
@@ -369,7 +373,7 @@ pub async fn execute_query(
     let config: serde_json::Value = serde_json::from_str(&connection.config_json)
         .map_err(|e| {
             let err_msg = format!("Failed to parse connection config: {}", e);
-            log_query_end(&app, &correlation_id, &connection_id, &database, &query, 0, "error", Some(&err_msg), None);
+            log_query_end(&app, &correlation_id, &connection_id, &database, &query, 0, "error", Some(&err_msg), None, Some(component_name));
             err_msg
         })?;
 
@@ -389,7 +393,7 @@ pub async fn execute_query(
     let error = result.as_ref().err().map(|e| e.as_str());
     let row_count = result.as_ref().map(|r| r.rows.len()).ok();
 
-    log_query_end(&app, &correlation_id, &connection_id, &database, &query, duration, status, error, row_count);
+    log_query_end(&app, &correlation_id, &connection_id, &database, &query, duration, status, error, row_count, Some(component_name));
 
     result
 }
@@ -746,6 +750,7 @@ fn emit_query_start(
     connection_id: &str,
     database: &str,
     query: &str,
+    component: Option<&str>,
 ) {
     let timestamp = crate::now_ts() * 1000;
     
@@ -755,7 +760,8 @@ fn emit_query_start(
         "connectionId": connection_id,
         "database": database,
         "query": query,
-        "status": "running"
+        "status": "running",
+        "component": component
     }));
 }
 
@@ -769,6 +775,7 @@ fn log_query_end(
     status: &str,
     error: Option<&str>,
     row_count: Option<usize>,
+    component: Option<&str>,
 ) {
     let timestamp = crate::now_ts() * 1000;
     
@@ -782,7 +789,8 @@ fn log_query_end(
         "durationMs": duration_ms,
         "status": status,
         "error": error,
-        "rows": row_count
+        "rows": row_count,
+        "component": component
     }));
 
     // Persist to internal DB
