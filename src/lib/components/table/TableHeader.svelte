@@ -40,6 +40,9 @@
     onHideColumn?: (columnId: string) => void;
     onHideOtherColumns?: (columnId: string) => void;
     onShowColumnList?: () => void;
+    onCopyColumnData?: (columnId: string) => void;
+    onUnhideAll?: () => void;
+    hiddenCount?: number;
     getUniqueValues?: (columnId: string) => { value: any; count: number }[];
     pinnedColumnIds?: string[];
   }
@@ -63,6 +66,9 @@
     onHideColumn,
     onHideOtherColumns,
     onShowColumnList,
+    onCopyColumnData,
+    onUnhideAll,
+    hiddenCount = 0,
     getUniqueValues,
     pinnedColumnIds = [],
   }: Props = $props();
@@ -189,7 +195,7 @@
             )}
             style="width: {column.width ||
               150}px; min-width: {column.minWidth ||
-              50}px; max-width: {column.maxWidth}px; flex-shrink: 0;"
+              50}px; max-width: {column.maxWidth}px; flex-shrink: 0; user-select: none; -webkit-user-select: none;"
             draggable="true"
             role="columnheader"
             tabindex="0"
@@ -203,10 +209,10 @@
             <Tooltip.Root>
               <!-- svelte-ignore a11y_no_static_element_interactions -->
               <Tooltip.Trigger
-                class="flex flex-1 items-center gap-1 truncate text-left focus:outline-none cursor-pointer"
+                class="flex flex-1 items-center gap-1 truncate text-left focus:outline-none cursor-pointer select-none"
                 onclick={(e) => onSort(column.id, e.shiftKey)}
               >
-                <div class="flex flex-col truncate">
+                <div class="flex flex-col truncate select-none">
                   <span class="truncate">{column.label}</span>
                   <span
                     class="text-[9px] text-muted-foreground font-normal truncate opacity-75"
@@ -287,13 +293,12 @@
 
         <HeaderContextMenu
           {column}
-          isPinned={pinnedColumnIds.includes(column.id)}
+          {hiddenCount}
           onCopyName={() => handleCopyName(column.label)}
-          onSelectColumn={() => {
-            /*TODO*/
-          }}
+          onCopyColumnData={() => onCopyColumnData?.(column.id)}
           onHideColumn={() => onHideColumn?.(column.id)}
           onHideOtherColumns={() => onHideOtherColumns?.(column.id)}
+          onUnhideAll={() => onUnhideAll?.()}
           onShowColumnList={() => onShowColumnList?.()}
           onSortAsc={() => onSort(column.id, false, "asc")}
           onSortDesc={() => onSort(column.id, false, "desc")}
@@ -303,11 +308,6 @@
           onSetLocalFilter={() => {
             openFilterColumnId = column.id;
           }}
-          onPinColumn={() => onPinColumn?.(column.id)}
-          onUnpinColumn={() => onUnpinColumn?.(column.id)}
-          onResetWidth={() => onResetColumnWidth?.(column.id)}
-          onResetOrder={() => onResetColumnOrder?.()}
-          onResetAll={() => onResetAll?.()}
         />
       </ContextMenu.Root>
     {/each}
