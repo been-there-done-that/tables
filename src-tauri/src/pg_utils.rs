@@ -155,7 +155,8 @@ pub fn pg_value_to_json(
         }
         Type::TIMESTAMPTZ => {
             if let Ok(Some(v)) = row.try_get::<_, Option<chrono::DateTime<chrono::Utc>>>(idx) {
-                serde_json::Value::String(v.format("%Y-%m-%d %H:%M:%S%.6f").to_string())
+                // Add %:z to include timezone offset (e.g. +00:00)
+                serde_json::Value::String(v.format("%Y-%m-%d %H:%M:%S%.6f %:z").to_string())
             } else {
                 serde_json::Value::Null
             }
@@ -323,7 +324,7 @@ pub fn pg_array_to_json(
                     v.into_iter()
                         .map(|t| {
                             serde_json::Value::String(
-                                t.format("%Y-%m-%d %H:%M:%S%.6f").to_string(),
+                                t.format("%Y-%m-%d %H:%M:%S%.6f %:z").to_string(),
                             )
                         })
                         .collect(),

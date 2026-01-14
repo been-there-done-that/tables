@@ -103,27 +103,51 @@
 
     function formatDateValue(val: any) {
         if (val === null || val === undefined) return "";
+        // Try manual parsing to preserve original components, microseconds, and timezone
+        if (typeof val === "string") {
+            console.log("TableCell parsing:", val);
+            const m =
+                /^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d+))?)?)?(?:\s*(Z|[+-]\d{2}(?::?\d{2})?))?\s*$/.exec(
+                    val,
+                );
+            if (m) {
+                const [, y, mo, d, h, mi, s, frac, tz] = m;
+                // Match screenshot: YYYY-MM-DD
+                const datePart = `${y}-${mo}-${d}`;
+
+                if (column.type === "date") return datePart;
+
+                // Time part
+                if (h) {
+                    const timePart = `${h}:${mi}:${s || "00"}${frac ? "." + frac : ""}`;
+                    const suffix = tz || "";
+                    if (column.type === "time")
+                        return `${timePart}${suffix ? " " + suffix : ""}`;
+                    // Match screenshot: YYYY-MM-DD HH:MM:SS.ssssss +TZ
+                    return `${datePart} ${timePart}${suffix ? " " + suffix : ""}`;
+                }
+                return datePart;
+            }
+        }
+
         const d = val instanceof Date ? val : new Date(val);
         if (Number.isNaN(d.getTime())) return String(val);
-        const opts: Intl.DateTimeFormatOptions =
-            column.type === "date"
-                ? { year: "numeric", month: "2-digit", day: "2-digit" }
-                : column.type === "time"
-                  ? {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        second: "2-digit",
-                    }
-                  : {
-                        year: "numeric",
-                        month: "2-digit",
-                        day: "2-digit",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        second: "2-digit",
-                        timeZoneName: "short",
-                    };
-        return new Intl.DateTimeFormat(undefined, opts).format(d);
+
+        // Fallback for Date objects or non-matching strings
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        const datePart = `${year}-${month}-${day}`;
+
+        if (column.type === "date") return datePart;
+
+        const hour = String(d.getHours()).padStart(2, "0");
+        const minute = String(d.getMinutes()).padStart(2, "0");
+        const second = String(d.getSeconds()).padStart(2, "0");
+
+        if (column.type === "time") return `${hour}:${minute}:${second}`;
+
+        return `${datePart} ${hour}:${minute}:${second}`;
     }
 
     function jsonPreview(val: any) {
