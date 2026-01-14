@@ -1,4 +1,5 @@
 import { commandClient } from './client';
+import { listen } from "@tauri-apps/api/event";
 import type {
   Theme,
   Connection,
@@ -203,6 +204,20 @@ class ConnectionStore {
 
   async refresh() {
     await this.loadConnections();
+  }
+
+  init() {
+    if (typeof window === "undefined") return () => { };
+
+    let unlisten: () => void;
+    listen<void>("connections-changed", () => {
+      console.log("[ConnectionStore] Connections changed event received, reloading...");
+      this.loadConnections();
+    }).then(u => unlisten = u);
+
+    return () => {
+      if (unlisten) unlisten();
+    };
   }
 }
 

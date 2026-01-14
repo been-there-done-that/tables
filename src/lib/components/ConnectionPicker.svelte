@@ -14,28 +14,16 @@
 
     import { schemaStore } from "$lib/stores/schema.svelte";
     import { windowState } from "$lib/stores/window.svelte";
+    import { connectionStore } from "$lib/commands/stores.svelte";
     import IconLoader from "@tabler/icons-svelte/icons/loader";
     import IconLogout from "@tabler/icons-svelte/icons/logout";
 
-    let connections = $state<Connection[]>([]);
     let isOpen = $state(false);
 
-    // Load connections
-    const loadConnectionsData = async () => {
-        try {
-            const response = await listConnections();
-            if (response.success && response.data) {
-                connections = response.data;
-            } else {
-                console.error("Failed to load connections:", response.error);
-            }
-        } catch (e) {
-            console.error("Failed to load connections:", e);
-        }
-    };
-
     onMount(() => {
-        loadConnectionsData();
+        // Load initial connections and setup global listener
+        connectionStore.loadConnections();
+        return connectionStore.init();
     });
 
     const selectConnection = async (
@@ -206,7 +194,7 @@
         >
             <!-- Connections List -->
             <div class="flex-1 overflow-y-auto max-h-[320px] py-1 space-y-0.5">
-                {#if connections.length === 0}
+                {#if connectionStore.connections.length === 0}
                     <div class="p-6 text-center">
                         <p
                             class="text-xs text-(--theme-fg-secondary) opacity-60"
@@ -215,7 +203,7 @@
                         </p>
                     </div>
                 {:else}
-                    {#each connections as conn}
+                    {#each connectionStore.connections as conn}
                         {@const DriverIcon =
                             resolveDriverIcon(conn.engine) || IconDatabase}
                         {@const busy = isBusy(conn.id)}

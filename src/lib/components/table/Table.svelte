@@ -149,15 +149,58 @@
     let columnStats = $state<Record<string, { value: any; count: number }[]>>(
         viewState?.columnStats || {},
     );
+    let sortState = $state<SortState[]>(viewState?.sortState || []);
     let loading = $state(false);
     let loadingMore = $state(false);
-    let sortState = $state<SortState[]>(viewState?.sortState || []);
     let filters = $state<Record<string, any>>(viewState?.filters || {});
     let selectedRows = $state<RowSelection>({});
     let selectedCells = $state<CellSelection[]>([]);
     let selectionHead = $state<SelectionAnchor | null>(null);
     let editingCell = $state<CellSelection | null>(null);
     const editManager = new TableEditManager();
+
+    // Derived sorted rows for client-side sorting
+    let sortedRows = $derived.by(() => {
+        // 1. Start with rows (which might be filtered by local filter logic later,
+        // but currently filters are server-side or local?
+        // Existing implementation: filters passed to server.
+        // But handleFilterChange suggests local modification of 'filters' object.
+        // Let's assume 'rows' contains the current page/batch.
+
+        let processedRows = [...rows];
+
+        // 2. Apply Sort Client-Side
+        if (sortState.length > 0) {
+            processedRows.sort((a, b) => {
+                for (const sort of sortState) {
+                    const colId = sort.columnId;
+                    const valA = a[colId];
+                    const valB = b[colId];
+                    if (valA === valB) continue;
+
+                    // Handle nulls/undefined
+                    if (valA === null || valA === undefined)
+                        return sort.direction === "asc" ? -1 : 1;
+                    if (valB === null || valB === undefined)
+                        return sort.direction === "asc" ? 1 : -1;
+
+                    // Numeric
+                    if (typeof valA === "number" && typeof valB === "number") {
+                        const diff = valA - valB;
+                        return sort.direction === "asc" ? diff : -diff;
+                    }
+
+                    // String
+                    const strA = String(valA).toLowerCase();
+                    const strB = String(valB).toLowerCase();
+                    if (strA < strB) return sort.direction === "asc" ? -1 : 1;
+                    if (strA > strB) return sort.direction === "asc" ? 1 : -1;
+                }
+                return 0;
+            });
+        }
+        return processedRows;
+    });
 
     // Notify parent when edit count changes
     $effect(() => {
@@ -257,13 +300,35 @@
         const canvas = document.createElement("canvas");
         measureCtx = canvas.getContext("2d");
         if (measureCtx) {
-            // Use CSS computed font from document or fallback
-            const computedFont =
-                typeof document !== "undefined"
-                    ? getComputedStyle(document.body).font
-                    : "14px Inter, system-ui, sans-serif";
-            measureCtx.font =
-                computedFont || "14px Inter, system-ui, sans-serif";
+            // Try to find a real table cell to get font
+            // We use the container or a dummy element if needed
+            let computedFont = "13px Inter, system-ui, sans-serif"; // Default fallback
+
+            if (typeof document !== "undefined") {
+                // Try to grab the font from the table container
+                // Ideally we'd look for a .table-cell class but they might not exist yet
+                if (tableContainer) {
+                    const style = window.getComputedStyle(tableContainer);
+                    // We specifically want the font-family and size that cells use.
+                    // Assuming cells inherit or use variable.
+                    // Best way: create a dummy cell
+                    const dummy = document.createElement("div");
+                    dummy.className = "text-sm font-normal"; // Match cell styles
+                    dummy.style.position = "absolute";
+                    dummy.style.visibility = "hidden";
+                    dummy.textContent = "M";
+                    tableContainer.appendChild(dummy);
+                    const dummyStyle = window.getComputedStyle(dummy);
+                    computedFont = `${dummyStyle.fontSize} ${dummyStyle.fontFamily}`;
+                    tableContainer.removeChild(dummy);
+                } else {
+                    // Fallback to body or standard generic
+                    computedFont =
+                        getComputedStyle(document.body).font || computedFont;
+                }
+            }
+
+            measureCtx.font = computedFont;
         }
         return measureCtx;
     }
