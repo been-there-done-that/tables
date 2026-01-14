@@ -1,4 +1,3 @@
-import { browser } from "$app/environment";
 import { commandClient } from "$lib/commands/client";
 import { debounce } from "$lib/utils";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
@@ -75,19 +74,15 @@ function createSettingsStore() {
         },
         set editorFontFamily(v: string) {
             settings.editorFontFamily = v;
-            if (browser) {
-                apply();
-                commandClient.updateAppSetting("editor_font_family", v);
-            }
+            apply();
+            commandClient.updateAppSetting("editor_font_family", v);
         },
         get editorFontSize() {
             return settings.editorFontSize;
         },
         set editorFontSize(v: number) {
             settings.editorFontSize = v;
-            if (browser) {
-                commandClient.updateAppSetting("editor_font_size", v.toString());
-            }
+            commandClient.updateAppSetting("editor_font_size", v.toString());
         },
 
         // Layout settings - left sidebar
@@ -96,18 +91,14 @@ function createSettingsStore() {
         },
         set sidebarLeftVisible(v: boolean) {
             settings.sidebarLeftVisible = v;
-            if (browser) {
-                commandClient.updateAppSetting(`window:${windowLabel}:sidebar_left_visible`, v.toString());
-            }
+            commandClient.updateAppSetting(`window:${windowLabel}:sidebar_left_visible`, v.toString());
         },
         get sidebarLeftRatio() {
             return settings.sidebarLeftRatio;
         },
         set sidebarLeftRatio(v: number) {
             settings.sidebarLeftRatio = v;
-            if (browser) {
-                persistLeftRatio(v);
-            }
+            persistLeftRatio(v);
         },
 
         // Layout settings - right sidebar
@@ -116,18 +107,18 @@ function createSettingsStore() {
         },
         set sidebarRightVisible(v: boolean) {
             settings.sidebarRightVisible = v;
-            if (browser) {
-                commandClient.updateAppSetting(`window:${windowLabel}:sidebar_right_visible`, v.toString());
+            // DON'T persist "visible" if we are opening to pending changes
+            if (v && settings.activeRightPanel === "pending-changes") {
+                return;
             }
+            commandClient.updateAppSetting(`window:${windowLabel}:sidebar_right_visible`, v.toString());
         },
         get sidebarRightRatio() {
             return settings.sidebarRightRatio;
         },
         set sidebarRightRatio(v: number) {
             settings.sidebarRightRatio = v;
-            if (browser) {
-                persistRightRatio(v);
-            }
+            persistRightRatio(v);
         },
 
         // Layout settings - bottom panel
@@ -136,18 +127,14 @@ function createSettingsStore() {
         },
         set sidebarBottomVisible(v: boolean) {
             settings.sidebarBottomVisible = v;
-            if (browser) {
-                commandClient.updateAppSetting(`window:${windowLabel}:sidebar_bottom_visible`, v.toString());
-            }
+            commandClient.updateAppSetting(`window:${windowLabel}:sidebar_bottom_visible`, v.toString());
         },
         get sidebarBottomRatio() {
             return settings.sidebarBottomRatio;
         },
         set sidebarBottomRatio(v: number) {
             settings.sidebarBottomRatio = v;
-            if (browser) {
-                persistBottomRatio(v);
-            }
+            persistBottomRatio(v);
         },
 
         // Active right panel settings
@@ -156,9 +143,11 @@ function createSettingsStore() {
         },
         set activeRightPanel(v: string | null) {
             settings.activeRightPanel = v;
-            if (browser) {
-                commandClient.updateAppSetting(`window:${windowLabel}:active_right_panel`, v || "");
+            // DON'T persist "pending-changes" as an active panel state
+            if (v === "pending-changes") {
+                return;
             }
+            commandClient.updateAppSetting(`window:${windowLabel}:active_right_panel`, v || "");
         },
 
         // Selected database
@@ -167,9 +156,7 @@ function createSettingsStore() {
         },
         set selectedDatabase(v: string | null) {
             settings.selectedDatabase = v;
-            if (browser) {
-                commandClient.updateAppSetting(`window:${windowLabel}:selected_database`, v || "");
-            }
+            commandClient.updateAppSetting(`window:${windowLabel}:selected_database`, v || "");
         },
 
         getExpandedNodes(connId: string): string[] {
@@ -184,9 +171,7 @@ function createSettingsStore() {
             }
 
             settings.expandedNodes[connId] = [...nodes];
-            if (browser) {
-                commandClient.updateAppSetting(`window:${windowLabel}:conn:${connId}:expanded`, nodes.join(","));
-            }
+            commandClient.updateAppSetting(`window:${windowLabel}:conn:${connId}:expanded`, nodes.join(","));
         },
 
         // Utility
@@ -197,10 +182,8 @@ function createSettingsStore() {
         reset() {
             settings = { ...DEFAULT_SETTINGS };
             apply();
-            if (browser) {
-                commandClient.updateAppSetting("editor_font_family", DEFAULT_SETTINGS.editorFontFamily);
-                commandClient.updateAppSetting("editor_font_size", DEFAULT_SETTINGS.editorFontSize.toString());
-            }
+            commandClient.updateAppSetting("editor_font_family", DEFAULT_SETTINGS.editorFontFamily);
+            commandClient.updateAppSetting("editor_font_size", DEFAULT_SETTINGS.editorFontSize.toString());
         },
 
         /** Wait for settings to be loaded from backend */
@@ -212,7 +195,6 @@ function createSettingsStore() {
         },
 
         init(label: string = "main") {
-            if (!browser) return () => { };
             windowLabel = label;
 
             // Fetch initial settings from backend

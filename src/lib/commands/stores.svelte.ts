@@ -85,7 +85,6 @@ class ThemeStore {
   }
 
   init() {
-    if (typeof window === "undefined") return () => { };
 
     let unlisten: () => void;
 
@@ -207,7 +206,6 @@ class ConnectionStore {
   }
 
   init() {
-    if (typeof window === "undefined") return () => { };
 
     let unlisten: () => void;
     listen<void>("connections-changed", () => {
