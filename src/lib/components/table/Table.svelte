@@ -15,6 +15,7 @@
     import TableHeader from "./TableHeader.svelte";
     import TableBody from "./TableBody.svelte";
     import ColumnListDialog from "./ColumnListDialog.svelte";
+    import CellContextMenu from "./CellContextMenu.svelte";
     import { TableEditManager } from "./TableEditManager.svelte";
     import { Button } from "$lib/components/ui/button";
     import { cn } from "$lib/utils";
@@ -74,6 +75,22 @@
         if (clipboardApiPromise) return clipboardApiPromise;
 
         clipboardApiPromise = (async () => {
+            // Try Tauri native clipboard first to avoid browser-level permission tooltips/bubbles
+            try {
+                // @ts-ignore - plugin might not be in types if browser-only build
+                const mod = await import(
+                    "@tauri-apps/plugin-clipboard-manager"
+                );
+                if (mod && (mod.readText || mod.writeText)) {
+                    return {
+                        readText: mod.readText,
+                        writeText: (text: string) => mod.writeText(text),
+                    };
+                }
+            } catch (err) {
+                // Not in Tauri or plugin not available, fall through
+            }
+
             const canUseNavigator =
                 typeof navigator !== "undefined" &&
                 typeof navigator.clipboard?.readText === "function" &&
@@ -87,24 +104,10 @@
                 };
             }
 
-            try {
-                const mod = await import(
-                    "@tauri-apps/plugin-clipboard-manager"
-                );
-                return {
-                    readText: mod.readText,
-                    writeText: (text: string) => mod.writeText(text),
-                };
-            } catch (err) {
-                console.warn(
-                    "Clipboard API unavailable; falling back to noop",
-                    err,
-                );
-                return {
-                    readText: async () => "",
-                    writeText: async () => {},
-                };
-            }
+            return {
+                readText: async () => "",
+                writeText: async () => {},
+            };
         })();
 
         return clipboardApiPromise;
@@ -566,9 +569,9 @@
         return stats;
     }
 
-    // Client-side filtering of loaded rows
+    // Client-side filtering of loaded rows (uses sortedRows to maintain sort order)
     let filteredRows = $derived.by(() => {
-        let result = [...rows];
+        let result = [...sortedRows];
 
         // Apply filters
         Object.entries(filters).forEach(([columnId, filterValue]) => {
@@ -1120,6 +1123,7 @@
     let tableBody: TableBody;
 
     function handleBodyScroll(e: Event) {
+        closeContextMenu();
         if (scrollLock) return;
         const target = e.target as HTMLDivElement;
         scrollLeft = target.scrollLeft;
@@ -2103,6 +2107,9 @@
     oncontextmenu={(event) => event.preventDefault()}
     onkeydown={handleKeyDown}
     onfocusin={(e) => {
+        if (contextMenuState?.open) {
+            return;
+        }
         if (
             !focusedCell &&
             filteredRows.length > 0 &&
@@ -2112,6 +2119,7 @@
             setSelection({ rowIndex: 0, columnIndex: 0 });
         }
     }}
+    onfocusout={(e) => {}}
     onmouseup={handleMouseUp}
     onmousedown={(e) => {
         // Prevent ANY click on the table from auto-focusing the container
@@ -2213,70 +2221,28 @@
             </TableBody>
         {/if}
     </div>
-
-    {#if contextMenuState?.open}
-        <div
-            class="fixed inset-0 z-1500"
-            onclick={closeContextMenu}
-            oncontextmenu={(e) => e.preventDefault()}
-            role="presentation"
-            tabindex="-1"
-            onkeydown={(e) => {
-                if (e.key === "Escape") {
-                    e.preventDefault();
-                    closeContextMenu();
-                }
-            }}
-        ></div>
-        <div
-            class="fixed z-1501 bg-surface border border-border rounded-md shadow-md text-sm min-w-[180px] py-1 text-foreground-muted"
-            style={`top:${contextMenuState.y}px;left:${contextMenuState.x}px`}
-            oncontextmenu={(e) => e.preventDefault()}
-            role="menu"
-            tabindex="-1"
-        >
-            <button
-                class="w-full text-left px-3 py-1.5 hover:bg-muted hover:text-foreground transition-colors"
-                onclick={handleContextEdit}
-            >
-                Edit
-            </button>
-            <button
-                class="w-full text-left px-3 py-1.5 hover:bg-muted hover:text-foreground transition-colors"
-                onclick={contextCopy}
-            >
-                Copy
-            </button>
-            <button
-                class="w-full text-left px-3 py-1.5 hover:bg-muted hover:text-foreground transition-colors"
-                onclick={contextPaste}
-            >
-                Paste
-            </button>
-            <div class="my-1 border-t"></div>
-            <button
-                class="w-full text-left px-3 py-1.5 hover:bg-muted hover:text-foreground transition-colors"
-                onclick={contextSetNull}
-            >
-                Set NULL
-            </button>
-            <button
-                class="w-full text-left px-3 py-1.5 hover:bg-muted hover:text-foreground transition-colors"
-                onclick={contextSetDefault}
-            >
-                Set DEFAULT
-            </button>
-        </div>
-    {/if}
-
-    <ColumnListDialog
-        open={showColumnListDialog}
-        columns={visibleColumns}
-        allColumns={tableColumns}
-        {hiddenColumnIds}
-        onSelect={handleColumnListSelect}
-        onToggleVisibility={handleToggleColumnVisibility}
-        onUnhideAll={() => (hiddenColumnIds = new Set())}
-        onClose={() => (showColumnListDialog = false)}
-    />
 </div>
+
+{#if contextMenuState?.open}
+    <CellContextMenu
+        x={contextMenuState.x}
+        y={contextMenuState.y}
+        onEdit={handleContextEdit}
+        onCopy={contextCopy}
+        onPaste={contextPaste}
+        onSetNull={contextSetNull}
+        onSetDefault={contextSetDefault}
+        onClose={closeContextMenu}
+    />
+{/if}
+
+<ColumnListDialog
+    open={showColumnListDialog}
+    columns={visibleColumns}
+    allColumns={tableColumns}
+    {hiddenColumnIds}
+    onSelect={handleColumnListSelect}
+    onToggleVisibility={handleToggleColumnVisibility}
+    onUnhideAll={() => (hiddenColumnIds = new Set())}
+    onClose={() => (showColumnListDialog = false)}
+/>
