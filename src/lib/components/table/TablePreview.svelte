@@ -5,7 +5,10 @@
     import type { Column, DataFetcher } from "$lib/components/table/types";
     import type { EditDelta } from "$lib/components/table/TableEditManager.svelte";
     import { invoke } from "@tauri-apps/api/core";
+    import { normalizeColumnType } from "$lib/components/table/columnUtils";
     import { schemaStore } from "$lib/stores/schema.svelte";
+    import type { MetaTable, MetaColumn } from "$lib/commands/types";
+
     import { windowState } from "$lib/stores/window.svelte";
     import { getDefaultDatabase, getDefaultSchema } from "$lib/engine-config";
 
@@ -128,37 +131,95 @@
 
             try {
                 error = null; // Reset error on new fetch
-                const result = await invoke<{
-                    rows: any[];
-                    columns: { name: string; type: string }[];
-                    total: number | null;
-                    duration_ms: number;
-                }>("fetch_table_preview", {
-                    connectionId: currentConnectionId,
-                    database: currentDatabase,
-                    schema: currentSchema,
-                    tableName: currentTable,
-                    offset: offset ?? 0,
-                    limit: limit ?? 100,
-                    whereClause: currentWhere || undefined,
-                    orderByClause: currentOrderBy || undefined,
-                    fetchTotal: false, // Don't fetch total by default (expensive)
-                });
+
+                // Parallel fetch: Data Preview + Rich Metadata (to ensure types are accurate)
+                const [result, tableDetails] = await Promise.all([
+                    invoke<{
+                        rows: any[];
+                        columns: { name: string; type: string }[];
+                        total: number | null;
+                        duration_ms: number;
+                    }>("fetch_table_preview", {
+                        connectionId: currentConnectionId,
+                        database: currentDatabase,
+                        schema: currentSchema,
+                        tableName: currentTable,
+                        offset: offset ?? 0,
+                        limit: limit ?? 100,
+                        whereClause: currentWhere || undefined,
+                        orderByClause: currentOrderBy || undefined,
+                        fetchTotal: false, // Don't fetch total by default (expensive)
+                    }),
+                    invoke<MetaTable | null>("get_schema_table_details", {
+                        connectionId: currentConnectionId,
+                        database: currentDatabase,
+                        schema: currentSchema,
+                        tableName: currentTable,
+                    }).catch((e) => {
+                        console.warn(
+                            "[TablePreview] Failed to fetch rich metadata:",
+                            e,
+                        );
+                        return null;
+                    }),
+                ]);
 
                 // Use backend timing
                 executionTime = result.duration_ms;
 
+                // 1. Get rich metadata (prefer fetched details, fallback to store)
+                let tableMeta = tableDetails;
+                if (!tableMeta) {
+                    const dbMeta = schemaStore.databases.find(
+                        (d) => d.name === currentDatabase,
+                    );
+                    const schemaMeta = dbMeta?.schemas.find(
+                        (s) => s.name === currentSchema,
+                    );
+                    tableMeta =
+                        schemaMeta?.tables.find(
+                            (t) => t.table_name === currentTable,
+                        ) || null;
+                }
+
                 // Convert backend column info to Table component format
                 const fetchedColumns: Column[] = result.columns.map(
-                    (col, idx) => ({
-                        id: col.name,
-                        label: col.name,
-                        type: inferColumnType(col.type),
-                        sortable: true,
-                        filterable: true,
-                        pinnable: true,
-                        editable: true,
-                    }),
+                    (col, idx) => {
+                        // Find rich metadata for this column
+                        const richCol = tableMeta?.columns.find(
+                            (c) => c.column_name === col.name,
+                        );
+
+                        // Use rich metadata for better type inference
+                        // Priority: Rich Metadata Raw Type -> Result Type -> 'text'
+                        const rawType = richCol?.raw_type || col.type;
+
+                        // Check for semantic hints (SQLite)
+                        let semanticHint: string | undefined;
+                        if (
+                            richCol?.engine_type?.engine === "sqlite" &&
+                            richCol.engine_type.metadata?.meta?.semantic_hint
+                                ?.kind !== "none"
+                        ) {
+                            semanticHint =
+                                richCol.engine_type.metadata.meta.semantic_hint
+                                    .kind;
+                        }
+
+                        return {
+                            id: col.name,
+                            label: col.name,
+                            type: normalizeColumnType(rawType, semanticHint),
+                            rawType: rawType,
+                            sortable: true,
+                            filterable: true,
+                            pinnable: true,
+                            editable: true,
+                            dbType: rawType,
+                            dbTable: currentTable,
+                            dbSchema: currentSchema,
+                        };
+                    },
                 );
 
                 // Update toolbar state
@@ -198,32 +259,6 @@
             }
         };
     });
-
-    // Infer Table component column type from PostgreSQL/SQLite type strings
-    function inferColumnType(
-        pgType: string,
-    ): import("$lib/components/table/types").ColumnType {
-        const t = pgType.toLowerCase();
-
-        if (t.includes("int") || t.includes("serial")) return "int";
-        if (
-            t.includes("float") ||
-            t.includes("double") ||
-            t.includes("numeric") ||
-            t.includes("decimal") ||
-            t.includes("real")
-        )
-            return "float";
-        if (t.includes("bool")) return "boolean";
-        if (t.includes("json")) return "json";
-        if (t.includes("timestamp") || t.includes("datetime"))
-            return "datetime";
-        if (t.includes("date")) return "date";
-        if (t.includes("time")) return "time";
-        if (t.includes("uuid")) return "text";
-
-        return "text";
-    }
 
     import type { RowEdit, EditResult } from "$lib/components/table/types";
 

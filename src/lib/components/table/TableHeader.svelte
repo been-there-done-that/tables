@@ -206,9 +206,16 @@
                 class="flex flex-1 items-center gap-1 truncate text-left focus:outline-none cursor-pointer"
                 onclick={(e) => onSort(column.id, e.shiftKey)}
               >
-                <span class="truncate">{column.label}</span>
+                <div class="flex flex-col truncate">
+                  <span class="truncate">{column.label}</span>
+                  <span
+                    class="text-[9px] text-muted-foreground font-normal truncate opacity-75"
+                  >
+                    {column.rawType || column.type}
+                  </span>
+                </div>
                 {#if SortIcon}
-                  <SortIcon class="size-3.5" />
+                  <SortIcon class="size-3.5 flex-shrink-0" />
                   {#if sortIndex}
                     <span class="text-[10px]">{sortIndex}</span>
                   {/if}

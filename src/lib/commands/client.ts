@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { emit } from '@tauri-apps/api/event';
 import type {
   CommandResponse,
   Theme,
@@ -63,7 +64,11 @@ export class CommandClient {
 
   // Connection Commands
   async createConnection(request: CreateConnectionRequest): Promise<CommandResponse<string>> {
-    return this.invokeCommand('create_connection', request);
+    const response = await this.invokeCommand<string>('create_connection', request);
+    if (response.success) {
+      await emit('connections-changed');
+    }
+    return response;
   }
 
   async getConnection(id: string): Promise<CommandResponse<[Connection, SecureCredentials]>> {
@@ -79,11 +84,19 @@ export class CommandClient {
   }
 
   async updateConnection(request: UpdateConnectionRequest): Promise<CommandResponse<void>> {
-    return this.invokeCommand('update_connection', request);
+    const response = await this.invokeCommand<void>('update_connection', request);
+    if (response.success) {
+      await emit('connections-changed');
+    }
+    return response;
   }
 
   async deleteConnection(id: string): Promise<CommandResponse<void>> {
-    return this.invokeCommand('delete_connection', { id });
+    const response = await this.invokeCommand<void>('delete_connection', { id });
+    if (response.success) {
+      await emit('connections-changed');
+    }
+    return response;
   }
 
   async testConnection(connection: Connection, credentials?: SecureCredentials): Promise<CommandResponse<ConnectionInfo>> {
