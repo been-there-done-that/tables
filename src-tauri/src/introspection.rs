@@ -160,6 +160,10 @@ impl Introspector {
         // Initialize "main" database and schema
         self.save_database(&tx, connection_id, "main")?;
         self.save_schema(&tx, connection_id, "main", "main", "user", NamespaceKind::LogicalGroup)?;
+        
+        // Clear existing metadata for this connection/schema before re-inserting
+        // This ensures that deleted tables/columns are removed from the cache.
+        self.clear_schema_cache_internal(&tx, connection_id, "main", "main")?;
 
         for table_result in table_iter {
             let (name, ttype) = table_result.map_err(|e| e.to_string())?;
@@ -260,6 +264,10 @@ impl Introspector {
         ).map_err(|e| format!("Table '{}.{}.{}' not found for column save: {}", database, schema, table, e))?;
 
         let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+
+        // Prune existing columns for this table to ensure no stale columns remain
+        tx.execute("DELETE FROM meta_columns WHERE table_id = ?1", params![table_id])
+            .map_err(|e| format!("Failed to prune columns for table_id {}: {}", table_id, e))?;
 
         for col in columns {
             self.save_column_with_id(&tx, table_id, col.clone())?;
@@ -627,8 +635,39 @@ impl Introspector {
         Ok(())
     }
 
+    /// Clear the schema cache for a specific schema within a database and connection.
+    /// This removes all tables in that schema, which triggers cascade deletes for columns, FKs, etc.
+    pub fn clear_schema_cache(&self, connection_id: &str, database: &str, schema: &str) -> Result<(), String> {
+        let conn = self.app_db.lock().map_err(|e| e.to_string())?;
+        self.clear_schema_cache_internal(&conn, connection_id, database, schema)
+    }
+
+    /// Internal version of clear_schema_cache that takes a connection or transaction.
+    fn clear_schema_cache_internal(&self, tx: &SqliteConnection, connection_id: &str, database: &str, schema: &str) -> Result<(), String> {
+        tx.execute(
+            "DELETE FROM meta_tables WHERE connection_id = ?1 AND database = ?2 AND schema = ?3",
+            params![connection_id, database, schema]
+        ).map_err(|e| format!("Failed to clear schema cache for {}.{}: {}", database, schema, e))?;
+        Ok(())
+    }
+
     fn save_table_full(&self, tx: &SqliteConnection, table: &MetaTable) -> Result<(), String> {
         let table_id = self.save_table(tx, table.clone())?;
+
+        // Prune existing children to ensure no stale data remains if we have new data to insert
+        if !table.columns.is_empty() {
+             tx.execute("DELETE FROM meta_columns WHERE table_id = ?1", params![table_id]).map_err(|e| e.to_string())?;
+        }
+        if !table.foreign_keys.is_empty() {
+             tx.execute("DELETE FROM meta_foreign_keys WHERE table_id = ?1", params![table_id]).map_err(|e| e.to_string())?;
+        }
+        if !table.indexes.is_empty() {
+             tx.execute("DELETE FROM meta_indexes WHERE table_id = ?1", params![table_id]).map_err(|e| e.to_string())?;
+        }
+        if !table.triggers.is_empty() {
+             tx.execute("DELETE FROM meta_triggers WHERE table_id = ?1", params![table_id]).map_err(|e| e.to_string())?;
+        }
+
         for col in &table.columns {
             self.save_column_with_id(tx, table_id, col.clone())?;
         }
