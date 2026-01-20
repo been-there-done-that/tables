@@ -315,6 +315,16 @@ impl<A: DatabaseAdapter> ProgressiveIntrospector<A> {
 
         // Cache foundations (Level 2)
         if self.config.save_to_cache {
+            if let Some(ref app_db) = self.app_db {
+                use crate::introspection::Introspector;
+                let introspector = Introspector::new(Arc::clone(app_db));
+                
+                // Clear existing schemas and tables to ensure no stale data remains
+                for schema in &schemas {
+                    let _ = introspector.clear_schema_cache(connection_id, database_name, &schema.name);
+                }
+            }
+            
             let partial_db = MetaDatabase {
                 name: database_name.to_string(),
                 is_connected: true,
@@ -452,6 +462,16 @@ impl<A: DatabaseAdapter> ProgressiveIntrospector<A> {
         let target_schema = schemas.into_iter()
             .find(|s| s.name == schema_name)
             .ok_or_else(|| AdapterError::Internal(format!("Schema '{}' not found", schema_name)))?;
+
+        // Clear existing metadata for this schema before re-inserting
+        // This ensures that deleted tables/columns are removed from the cache.
+        if self.config.save_to_cache {
+            if let Some(ref app_db) = self.app_db {
+                use crate::introspection::Introspector;
+                let introspector = Introspector::new(Arc::clone(app_db));
+                let _ = introspector.clear_schema_cache(connection_id, database_name, schema_name);
+            }
+        }
 
         // 2. Fetch All Data Progressively
         
