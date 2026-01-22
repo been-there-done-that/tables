@@ -187,32 +187,51 @@
 </script>
 
 <div class="flex h-full w-full flex-col bg-background">
-    <!-- Header -->
+    <!-- Header & Tabs -->
     <div
-        class="h-9 flex items-center justify-between px-3 py-1 border-b border-border bg-muted/30"
+        class="h-8 flex items-center justify-between px-2 border-b border-border bg-muted/30"
     >
-        <div class="flex items-center gap-2">
-            <h2 class="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80">
-                Pending Changes
-            </h2>
-            {#if deltas.length > 0}
-                <span class="px-1.5 py-0.5 rounded-full bg-accent/10 text-accent text-[10px] font-bold">
-                    {deltas.length}
-                </span>
-            {/if}
+        <div class="flex items-center gap-0.5 h-full">
+            <button
+                type="button"
+                class={cn(
+                    "h-6 px-3 rounded text-[10px] font-bold transition-all flex items-center gap-1.5",
+                    activeTab === "visual"
+                        ? "bg-accent/15 text-accent"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted/30",
+                )}
+                onclick={() => (activeTab = "visual")}
+            >
+                <IconEye class="size-3.5" />
+                Visual
+            </button>
+            <button
+                type="button"
+                class={cn(
+                    "h-6 px-3 rounded text-[10px] font-bold transition-all flex items-center gap-1.5",
+                    activeTab === "sql"
+                        ? "bg-accent/15 text-accent"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted/30",
+                )}
+                onclick={() => (activeTab = "sql")}
+            >
+                <IconCode class="size-3.5" />
+                SQL
+            </button>
         </div>
+
         <div class="flex items-center gap-1">
             {#if deltas.length > 0}
                 <button
                     type="button"
-                    class="h-6 px-2 flex items-center gap-1.5 hover:bg-red-500/10 text-red-500/80 hover:text-red-500 rounded text-[10px] font-semibold transition-colors"
+                    class="h-6 px-2 flex items-center gap-1.5 hover:bg-red-500/10 text-red-500/80 hover:text-red-500 rounded text-[10px] font-bold transition-colors"
                     onclick={revertAll}
                     title="Discard all changes"
                 >
                     <IconTrash class="size-3" />
                     Discard All
                 </button>
-                <div class="w-px h-3 bg-border mx-1"></div>
+                <div class="w-px h-3 bg-border mx-0.5"></div>
             {/if}
             <button
                 type="button"
@@ -224,43 +243,15 @@
         </div>
     </div>
 
-    <!-- Tabs -->
-    <div class="flex p-1 gap-1 border-b border-border bg-muted/5">
-        <button
-            type="button"
-            class={cn(
-                "flex-1 h-7 rounded-md text-[11px] font-semibold transition-all flex items-center justify-center gap-1.5",
-                activeTab === "visual"
-                    ? "bg-surface shadow-sm text-foreground border border-border/50"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/30",
-            )}
-            onclick={() => (activeTab = "visual")}
-        >
-            <IconEye class="size-3.5" />
-            Visual
-        </button>
-        <button
-            type="button"
-            class={cn(
-                "flex-1 h-7 rounded-md text-[11px] font-semibold transition-all flex items-center justify-center gap-1.5",
-                activeTab === "sql"
-                    ? "bg-surface shadow-sm text-foreground border border-border/50"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/30",
-            )}
-            onclick={() => (activeTab = "sql")}
-        >
-            <IconCode class="size-3.5" />
-            SQL
-        </button>
-    </div>
-
     <!-- Content -->
     <div class="flex-1 overflow-auto bg-muted/5">
         {#if activeTab === "visual"}
             <div class="p-3 space-y-4">
                 {#each [...groupedDeltas()] as [rowId, rowDeltas]}
                     {@const opType = getOperationType(rowDeltas)}
-                    <div class="group rounded-xl border border-border bg-surface shadow-sm overflow-hidden transition-all hover:border-border/80 hover:shadow-md">
+                    <div
+                        class="group rounded-xl border border-border bg-surface shadow-sm overflow-hidden transition-all hover:border-border/80 hover:shadow-md"
+                    >
                         <!-- Row Header -->
                         <div
                             class="flex items-center justify-between px-3 py-2.5 border-b border-border/40 bg-muted/10"
@@ -277,18 +268,30 @@
                                             "bg-red-500/15 text-red-600 border border-red-500/20",
                                     )}
                                 >
-                                    {opType === "U" ? "Update" : opType === "I" ? "Insert" : "Delete"}
+                                    {opType === "U"
+                                        ? "Update"
+                                        : opType === "I"
+                                          ? "Insert"
+                                          : "Delete"}
                                 </span>
                                 <div class="flex flex-col min-w-0">
-                                    <span class="text-[10px] font-bold text-foreground/90 truncate leading-tight">
-                                        {formatPkDescription(rowDeltas[0]?.pkValues) || `Row ${rowId}`}
+                                    <span
+                                        class="text-[10px] font-bold text-foreground/90 truncate leading-tight"
+                                    >
+                                        {formatPkDescription(
+                                            rowDeltas[0]?.pkValues,
+                                        ) || `Row ${rowId}`}
                                     </span>
-                                    <span class="text-[9px] text-muted-foreground truncate leading-tight">
-                                        {tableSchema ? `${tableSchema}.` : ""}{tableName}
+                                    <span
+                                        class="text-[9px] text-muted-foreground truncate leading-tight"
+                                    >
+                                        {tableSchema
+                                            ? `${tableSchema}.`
+                                            : ""}{tableName}
                                     </span>
                                 </div>
                             </div>
-                            
+
                             <button
                                 type="button"
                                 class="size-7 flex items-center justify-center rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-all opacity-0 group-hover:opacity-100"
@@ -308,12 +311,28 @@
                                     >
                                         {getColumnLabel(delta.columnId)}
                                     </div>
-                                    <div class="flex items-center gap-2 text-[11px] font-mono leading-relaxed">
-                                        <div class="flex-1 min-w-0 px-2 py-1 rounded bg-red-500/5 text-red-500/90 border border-red-500/10 truncate" title={formatDisplayValue(delta.oldValue)}>
+                                    <div
+                                        class="flex items-center gap-2 text-[11px] font-mono leading-relaxed"
+                                    >
+                                        <div
+                                            class="flex-1 min-w-0 px-2 py-1 rounded bg-red-500/5 text-red-500/90 border border-red-500/10 truncate"
+                                            title={formatDisplayValue(
+                                                delta.oldValue,
+                                            )}
+                                        >
                                             {formatDisplayValue(delta.oldValue)}
                                         </div>
-                                        <div class="text-muted-foreground/30 font-sans font-bold">→</div>
-                                        <div class="flex-1 min-w-0 px-2 py-1 rounded bg-green-500/5 text-green-500 border border-green-500/10 truncate font-bold" title={formatDisplayValue(delta.newValue)}>
+                                        <div
+                                            class="text-muted-foreground/30 font-sans font-bold"
+                                        >
+                                            →
+                                        </div>
+                                        <div
+                                            class="flex-1 min-w-0 px-2 py-1 rounded bg-green-500/5 text-green-500 border border-green-500/10 truncate font-bold"
+                                            title={formatDisplayValue(
+                                                delta.newValue,
+                                            )}
+                                        >
                                             {formatDisplayValue(delta.newValue)}
                                         </div>
                                     </div>
@@ -324,14 +343,23 @@
                 {/each}
 
                 {#if deltas.length === 0}
-                    <div class="flex flex-col items-center justify-center py-12 px-6 text-center space-y-3">
-                        <div class="size-12 rounded-full bg-muted/20 flex items-center justify-center text-muted-foreground/30">
+                    <div
+                        class="flex flex-col items-center justify-center py-12 px-6 text-center space-y-3"
+                    >
+                        <div
+                            class="size-12 rounded-full bg-muted/20 flex items-center justify-center text-muted-foreground/30"
+                        >
                             <IconEye class="size-6" />
                         </div>
                         <div class="space-y-1">
-                            <h3 class="text-xs font-bold text-foreground/80">No pending changes</h3>
-                            <p class="text-[10px] text-muted-foreground max-w-[180px]">
-                                Your edits will appear here as a visual diff before you commit them.
+                            <h3 class="text-xs font-bold text-foreground/80">
+                                No pending changes
+                            </h3>
+                            <p
+                                class="text-[10px] text-muted-foreground max-w-[180px]"
+                            >
+                                Your edits will appear here as a visual diff
+                                before you commit them.
                             </p>
                         </div>
                     </div>
