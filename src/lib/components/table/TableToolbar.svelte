@@ -460,13 +460,13 @@
             <Button
                 variant="ghost"
                 size="sm"
-                class="h-7 relative"
+                class="h-7 relative px-2"
                 title="View pending changes"
                 onclick={() => onShowChanges?.()}
             >
-                <IconVersions class="size-4 text-amber-500" />
+                <IconVersions class="size-4 text-(--theme-accent-primary)" />
                 <span
-                    class="absolute -top-0.5 -right-0.5 size-4 text-[9px] font-bold bg-amber-500 text-white rounded-full flex items-center justify-center"
+                    class="absolute -top-0.5 -right-0.5 size-4 text-[9px] font-bold bg-(--theme-accent-primary) text-white rounded-full flex items-center justify-center"
                 >
                     {pendingChangesCount > 9 ? "9+" : pendingChangesCount}
                 </span>
