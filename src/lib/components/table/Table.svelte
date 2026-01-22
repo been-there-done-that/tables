@@ -43,6 +43,7 @@
         viewState?: Record<string, any>;
         onViewStateChange?: (state: any) => void;
         onEditChange?: (count: number) => void;
+        primaryKeyColumns?: string[];
         isLoading?: boolean;
         limit?: number;
         offset?: number;
@@ -61,6 +62,7 @@
         viewState = $bindable(),
         onViewStateChange,
         onEditChange,
+        primaryKeyColumns = [],
         isLoading = $bindable(false),
         limit = $bindable(500),
         offset = $bindable(0),
@@ -2039,11 +2041,28 @@
     }
 
     export function getEditDeltas() {
-        return editManager.getDeltas();
+        return editManager.getDeltas((rowId: any) => {
+            const row = baselineRows.get(rowId);
+            if (!row) return {};
+            
+            const pkValues: Record<string, any> = {};
+            primaryKeyColumns.forEach(pk => {
+                pkValues[pk] = row[pk];
+            });
+            return pkValues;
+        });
     }
 
     export function hasPendingEdits() {
         return editManager.hasPendingEdits();
+    }
+
+    export function revertRow(rowId: any) {
+        editManager.revertRow(rowId);
+    }
+
+    export function revertAll() {
+        editManager.clear();
     }
 
     // ... existing handlers ...

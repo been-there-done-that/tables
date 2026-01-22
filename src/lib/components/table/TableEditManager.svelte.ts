@@ -5,6 +5,7 @@ export interface EditDelta {
     columnId: string;
     oldValue: any;
     newValue: any;
+    pkValues?: Record<string, any>; // Original values of PK columns for this row
 }
 
 export class TableEditManager {
@@ -128,6 +129,26 @@ export class TableEditManager {
         this.originalValues.clear();
     }
 
+    revertRow(rowId: any) {
+        const next = { ...this.pendingEdits };
+        if (next[rowId]) {
+            delete next[rowId];
+            
+            // Also clean up original values for this row to prevent memory leaks
+            // though keeping them isn't strictly harmful.
+            const rowIdNum = Number(rowId);
+            for (const key of Array.from(this.originalValues.keys())) {
+                if (key.startsWith(`${rowIdNum}:`)) {
+                    this.originalValues.delete(key);
+                }
+            }
+            
+            this.undoStack.push(this.snapshot());
+            this.pendingEdits = next;
+            this.redoStack = [];
+        }
+    }
+
     getPendingValue(rowId: number, columnId: string): any | undefined {
         return this.pendingEdits[rowId]?.[columnId];
     }
@@ -141,21 +162,21 @@ export class TableEditManager {
     }
 
     // Export current changes as simple deltas
-    getDeltas(): EditDelta[] {
+    getDeltas(getPkValues?: (rowId: any) => Record<string, any>): EditDelta[] {
         const deltas: EditDelta[] = [];
         for (const [rowIdStr, cols] of Object.entries(this.pendingEdits)) {
             const rowId = Number(rowIdStr);
+            const pkValues = getPkValues?.(rowId);
+            
             for (const [colId, newVal] of Object.entries(cols)) {
                 const key = `${rowId}:${colId}`;
-                // Usage of original value might be tricky if we didn't capture it.
-                // Fallback: The consumer (Table) usually knows the original row.
-                // But if we stored it:
                 const oldVal = this.originalValues.get(key);
                 deltas.push({
                     rowId,
                     columnId: colId,
                     oldValue: oldVal,
-                    newValue: newVal
+                    newValue: newVal,
+                    pkValues
                 });
             }
         }
