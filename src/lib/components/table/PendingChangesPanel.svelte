@@ -11,6 +11,7 @@
     import { windowState } from "$lib/stores/window.svelte";
     import { useMonacoEditor } from "$lib/monaco/useMonacoEditor";
     import { MONACO_THEME_NAME } from "$lib/monaco/monaco-theme";
+    import * as Popover from "$lib/components/ui/popover";
     import type { EditorHandle } from "$lib/monaco/editor-types";
 
     let activeTab = $state<"visual" | "sql">("visual");
@@ -269,15 +270,45 @@
                     <IconCopy class="size-3.5" />
                 </button>
                 <div class="w-px h-3 bg-border mx-0.5"></div>
-                <button
-                    type="button"
-                    class="h-6 px-2 flex items-center gap-1.5 hover:bg-red-500/10 text-red-500/80 hover:text-red-500 rounded text-[10px] font-bold transition-colors"
-                    onclick={revertAll}
-                    title="Discard all changes"
-                >
-                    <IconTrash class="size-3" />
-                    Discard All
-                </button>
+                <Popover.Root>
+                    <Popover.Trigger
+                        class="h-6 px-2 flex items-center gap-1.5 hover:bg-red-500/10 text-red-500/80 hover:text-red-500 rounded text-[10px] font-bold transition-colors"
+                        title="Discard all changes"
+                    >
+                        <IconTrash class="size-3" />
+                        Discard All
+                    </Popover.Trigger>
+                    <Popover.Content
+                        class="w-48 p-3 bg-(--theme-bg-secondary) border border-(--theme-border-default) shadow-xl rounded-lg anim-pop"
+                        align="end"
+                        sideOffset={10}
+                    >
+                        <div class="space-y-3">
+                            <p
+                                class="text-[11px] font-medium text-foreground/90 leading-relaxed"
+                            >
+                                Are you sure you want to discard all pending
+                                changes?
+                            </p>
+                            <div class="flex justify-end gap-2">
+                                <Popover.Close
+                                    class="h-6 px-2 rounded text-[10px] font-bold hover:bg-muted transition-colors text-muted-foreground"
+                                >
+                                    Cancel
+                                </Popover.Close>
+                                <button
+                                    type="button"
+                                    class="h-6 px-2 rounded text-[10px] font-bold bg-red-500 text-white hover:bg-red-600 transition-colors"
+                                    onclick={() => {
+                                        revertAll();
+                                    }}
+                                >
+                                    Discard All
+                                </button>
+                            </div>
+                        </div>
+                    </Popover.Content>
+                </Popover.Root>
                 <div class="w-px h-3 bg-border mx-0.5"></div>
             {/if}
             <button
