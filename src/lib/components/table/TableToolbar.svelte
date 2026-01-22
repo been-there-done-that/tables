@@ -18,6 +18,7 @@
         IconClockPlay,
         IconLoader2,
         IconVersions,
+        IconDeviceFloppy,
     } from "@tabler/icons-svelte";
 
     import * as Menu from "$lib/components/ui/dropdown-menu";
@@ -55,6 +56,8 @@
         pendingChangesCount?: number;
         onShowChanges?: () => void;
         onAddRow?: () => void;
+        onSaveChanges?: () => Promise<void>;
+        isSaving?: boolean;
     }
 
     const dispatch = createEventDispatcher();
@@ -86,6 +89,8 @@
         pendingChangesCount = 0,
         onShowChanges,
         onAddRow,
+        onSaveChanges,
+        isSaving = false,
     }: Props = $props();
 
     let exportOpen = $state(false);
@@ -478,28 +483,39 @@
                     </div>
                 </Menu.Content>
             </Menu.Root>
+
+            <!-- Save Button -->
+            <Button
+                variant="ghost"
+                size="sm"
+                disabled={isSaving || pendingChangesCount === 0}
+                class="h-7"
+                title="Save all changes"
+                onclick={() => onSaveChanges?.()}
+            >
+                <IconDeviceFloppy class="size-5" />
+            </Button>
         </div>
 
         <div class="flex-1"></div>
 
         <!-- Changes Button -->
-        {#if pendingChangesCount > 0}
-            <Button
-                variant="ghost"
-                size="sm"
-                class="h-7 relative px-2"
-                title="View pending changes"
-                onclick={() => onShowChanges?.()}
+        <Button
+            variant="ghost"
+            size="sm"
+            class="h-7 relative px-2"
+            disabled={pendingChangesCount === 0}
+            title="View pending changes"
+            onclick={() => onShowChanges?.()}
+        >
+            <IconVersions class="size-4 text-(--theme-accent-primary)" />
+            <span
+                class="absolute -top-0.5 -right-0.5 size-4 text-[9px] font-bold bg-(--theme-accent-primary) text-white rounded-full flex items-center justify-center"
             >
-                <IconVersions class="size-4 text-(--theme-accent-primary)" />
-                <span
-                    class="absolute -top-0.5 -right-0.5 size-4 text-[9px] font-bold bg-(--theme-accent-primary) text-white rounded-full flex items-center justify-center"
-                >
-                    {pendingChangesCount > 9 ? "9+" : pendingChangesCount}
-                </span>
-            </Button>
-            <div class="w-px h-5 bg-border/50"></div>
-        {/if}
+                {pendingChangesCount > 9 ? "9+" : pendingChangesCount}
+            </span>
+        </Button>
+        <div class="w-px h-5 bg-border/50"></div>
 
         <!-- Export Menu -->
 

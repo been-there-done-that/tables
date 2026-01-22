@@ -69,6 +69,7 @@
 
     // Pending Changes are now managed globally via pendingChangesStore
     let pendingDeltas = $state<EditDelta[]>([]);
+    let isSaving = $state(false);
 
     // Computed pending changes count
     const pendingChangesCount = $derived(pendingDeltas.length);
@@ -147,6 +148,20 @@
             success: result.success,
             errors: result.conflicts,
         };
+    }
+
+    // Wrapper for toolbar save button
+    async function handleToolbarSave() {
+        isSaving = true;
+        try {
+            const result = await handleSaveChanges();
+            if (result.success) {
+                // Toast is handled by the panel, but toolbar doesn't open panel
+                // so we could show toast here if needed
+            }
+        } finally {
+            isSaving = false;
+        }
     }
 
     function updatePendingCount() {
@@ -347,17 +362,28 @@
 
         // For persistence, we actually want the deltas which include type (U/I/D)
         const deltas = tableRef?.getEditDeltas?.() ?? [];
+        console.log("[handleApplyEdits] Deltas:", deltas);
         if (deltas.length === 0) return { success: true };
 
         const dbName = effectiveDatabase;
         const schema = effectiveSchema;
         const table = tableName;
 
-        const dbMeta = schemaStore.databases.find((d) => d.name === dbName);
-        const schemaMeta = dbMeta?.schemas.find((s) => s.name === schema);
-        const tableMeta = schemaMeta?.tables.find(
-            (t) => t.table_name === table,
-        );
+        // Prefer local tableMetadata (from API call) over schemaStore
+        let tableMeta = tableMetadata;
+        console.log("[handleApplyEdits] Local tableMetadata:", tableMetadata);
+
+        if (!tableMeta) {
+            // Fallback to schemaStore
+            const dbMeta = schemaStore.databases.find((d) => d.name === dbName);
+            const schemaMeta = dbMeta?.schemas.find((s) => s.name === schema);
+            tableMeta =
+                schemaMeta?.tables.find((t) => t.table_name === table) || null;
+            console.log(
+                "[handleApplyEdits] Fallback to schemaStore, tableMeta:",
+                tableMeta,
+            );
+        }
 
         if (!tableMeta) {
             return {
@@ -370,11 +396,23 @@
             .filter((c) => c.is_primary_key)
             .sort((a, b) => a.ordinal_position - b.ordinal_position);
 
+        console.log(
+            "[handleApplyEdits] PK columns:",
+            pkCols.map((c) => c.column_name),
+        );
+        console.log(
+            "[handleApplyEdits] All columns:",
+            tableMeta.columns.map((c) => ({
+                name: c.column_name,
+                isPK: c.is_primary_key,
+            })),
+        );
+
         const errs: string[] = [];
 
         // Group deltas by rowId to handle inserts as single statements per row if possible
         const grouped = new Map<string, EditDelta[]>();
-        deltas.forEach((d) => {
+        deltas.forEach((d: EditDelta) => {
             const key = String(d.rowId);
             if (!grouped.has(key)) grouped.set(key, []);
             grouped.get(key)!.push(d);
@@ -447,6 +485,12 @@
             }
 
             if (!sql) continue;
+
+            console.log("[handleApplyEdits] Executing SQL:", sql);
+            console.log(
+                "[handleApplyEdits] Delta pkValues:",
+                rowDeltas[0].pkValues,
+            );
 
             try {
                 await invoke("execute_query", {
@@ -726,6 +770,8 @@
         {pendingChangesCount}
         onShowChanges={handleShowChanges}
         onAddRow={handleAddRow}
+        onSaveChanges={handleToolbarSave}
+        {isSaving}
     />
     {#key tableKey}
         <div class="flex-1 min-h-0 relative z-0">

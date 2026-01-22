@@ -671,7 +671,17 @@ async fn execute_postgres_query(
     }
 
     let rows = client.query(query, &[]).await
-        .map_err(|e| format!("Query failed: {}", e))?;
+        .map_err(|e| {
+            error!("[execute_postgres_query] Query failed: {:?}", e);
+            error!("[execute_postgres_query] SQL was: {}", query);
+            if let Some(db_err) = e.as_db_error() {
+                error!("[execute_postgres_query] DB Error details - message: {}, detail: {:?}, hint: {:?}, code: {}", 
+                    db_err.message(), db_err.detail(), db_err.hint(), db_err.code().code());
+                format!("Query failed: {} (code: {})", db_err.message(), db_err.code().code())
+            } else {
+                format!("Query failed: {}", e)
+            }
+        })?;
 
     let columns: Vec<ColumnInfo> = if !rows.is_empty() {
         rows[0].columns().iter().map(|col| {
