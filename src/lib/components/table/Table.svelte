@@ -94,7 +94,7 @@
     });
 
     let rows = $state<any[]>(viewState?.rows || []);
-    let baselineRows = $state<Map<number, any>>(new Map());
+    let baselineRows = $state<Map<string | number, any>>(new Map());
     let totalRows = $state(viewState?.totalRows || 0);
     let columnStats = $state<Record<string, { value: any; count: number }[]>>(
         viewState?.columnStats || {},
@@ -992,8 +992,9 @@
 
     function handleCopyColumnData(columnId: string) {
         const columnData = filteredRows.map((row) => {
-            const val = editManager.hasPendingValue(row._rowId, columnId)
-                ? editManager.getPendingValue(row._rowId, columnId)
+            const rKey = getRowKey(row);
+            const val = editManager.hasPendingValue(rKey, columnId)
+                ? editManager.getPendingValue(rKey, columnId)
                 : row[columnId];
             return formatValueForClipboard(
                 val,
@@ -1049,7 +1050,9 @@
         if (viewState && viewState.rows && viewState.rows.length > 0) {
             // If we have persisted baseline rows, we might want to restore them too
             // For now, simpler reconstruction:
-            baselineRows = new Map(rows.map((row) => [row._rowId, { ...row }]));
+            baselineRows = new Map(
+                rows.map((row) => [getRowKey(row), { ...row }]),
+            );
         } else {
             loadData();
         }
@@ -1492,7 +1495,7 @@
             return;
         }
 
-        const rowId = row._rowId;
+        const rowId = getRowKey(row);
         const column = visibleColumns[columnIndex];
         if (!column) {
             requestAnimationFrame(() => (scrollLock = false));
@@ -1554,7 +1557,7 @@
 
         if (editingCell) {
             targetRowIndex = filteredRows.findIndex(
-                (r: any) => r._rowId === editingCell?.rowId,
+                (r: any) => getRowKey(r) === editingCell?.rowId,
             );
             targetColIndex = visibleColumns.findIndex(
                 (c: Column) => c.id === editingCell?.columnId,
@@ -1825,7 +1828,7 @@
             };
 
             const cellId = {
-                rowId: filteredRows[newRowIndex]._rowId,
+                rowId: getRowKey(filteredRows[newRowIndex]),
                 columnId: visibleColumns[newColumnIndex].id,
             };
             const existing = selectedCells.findIndex(
@@ -1897,7 +1900,7 @@
         const container = tableBody.getContainer?.();
         if (!container) return;
 
-        const targetRowId = filteredRows[rowIndex]?._rowId;
+        const targetRowId = getRowKey(filteredRows[rowIndex]);
         const targetEl =
             targetRowId && container
                 ? container.querySelector(`[data-row-id="${targetRowId}"]`)

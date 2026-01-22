@@ -422,25 +422,40 @@
                         <div class="divide-y divide-border/20">
                             {#if opType === "D"}
                                 {@const rowData = rowDeltas[0].oldValue}
-                                {#each columns as column}
-                                    <div class="px-3 py-2.5 space-y-2">
-                                        <div
-                                            class="text-[9px] uppercase tracking-widest text-muted-foreground/70 font-bold"
-                                        >
-                                            {column.label || column.id}
-                                        </div>
-                                        <div
-                                            class="text-[11px] font-mono leading-relaxed px-2 py-1 rounded bg-red-500/5 text-red-500/90 border border-red-500/10 truncate font-bold"
-                                            title={formatDisplayValue(
-                                                rowData?.[column.id],
-                                            )}
-                                        >
-                                            {formatDisplayValue(
-                                                rowData?.[column.id],
-                                            )}
-                                        </div>
-                                    </div>
-                                {/each}
+                                <div class="px-3 py-2">
+                                    <table
+                                        class="w-full text-[10px] border-collapse"
+                                    >
+                                        <tbody>
+                                            {#each columns as column}
+                                                <tr
+                                                    class="border-b border-border/10 last:border-0 hover:bg-red-500/5 transition-colors"
+                                                >
+                                                    <td
+                                                        class="py-1.5 pr-3 font-bold text-muted-foreground/80 truncate max-w-[100px] align-top"
+                                                    >
+                                                        {column.label ||
+                                                            column.id}
+                                                    </td>
+                                                    <td
+                                                        class="py-1.5 pl-1 font-mono text-red-500/90 truncate align-top break-all whitespace-pre-wrap"
+                                                        title={formatDisplayValue(
+                                                            rowData?.[
+                                                                column.id
+                                                            ],
+                                                        )}
+                                                    >
+                                                        {formatDisplayValue(
+                                                            rowData?.[
+                                                                column.id
+                                                            ],
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            {/each}
+                                        </tbody>
+                                    </table>
+                                </div>
                             {:else}
                                 {#each rowDeltas as delta}
                                     <div class="px-3 py-2.5 space-y-2">
