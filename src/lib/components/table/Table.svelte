@@ -1340,7 +1340,7 @@
         if (!row) return;
 
         const rowId = getRowKey(row);
-        editManager.trackDeletion(rowId);
+        editManager.trackDeletion(rowId, row);
         closeContextMenu();
         toast.success("Row marked for deletion");
     }

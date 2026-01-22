@@ -21,6 +21,7 @@ export class TableEditManager {
     // Reactive state
     pendingEdits = $state<Record<string, Record<string, any>>>({});
     deletedRowIds = $state<Set<string>>(new Set());
+    deletedRowsData = $state<Record<string, any>>({});
     insertedRows = $state<any[]>([]);
 
     undoStack = $state<any[]>([]);
@@ -72,12 +73,15 @@ export class TableEditManager {
         this.pendingEdits = currentEdits;
     }
 
-    trackDeletion(rowId: any) {
+    trackDeletion(rowId: any, rowData?: any) {
         const rId = String(rowId);
         const next = new Set(this.deletedRowIds);
         if (next.has(rId)) return;
 
         next.add(rId);
+        if (rowData) {
+            this.deletedRowsData[rId] = { ...rowData };
+        }
         this.recordHistory();
         this.deletedRowIds = next;
     }
@@ -160,6 +164,7 @@ export class TableEditManager {
         return {
             pendingEdits: $state.snapshot(this.pendingEdits),
             deletedRowIds: Array.from(this.deletedRowIds),
+            deletedRowsData: $state.snapshot(this.deletedRowsData),
             insertedRows: $state.snapshot(this.insertedRows)
         };
     }
@@ -168,12 +173,14 @@ export class TableEditManager {
         if (!state) return;
         this.pendingEdits = state.pendingEdits;
         this.deletedRowIds = new Set(state.deletedRowIds);
+        this.deletedRowsData = state.deletedRowsData || {};
         this.insertedRows = state.insertedRows;
     }
 
     clear() {
         this.pendingEdits = {};
         this.deletedRowIds = new Set();
+        this.deletedRowsData = {};
         this.insertedRows = [];
         this.undoStack = [];
         this.redoStack = [];
@@ -194,6 +201,7 @@ export class TableEditManager {
             const nextDel = new Set(this.deletedRowIds);
             nextDel.delete(rId);
             this.deletedRowIds = nextDel;
+            delete this.deletedRowsData[rId];
             changed = true;
         }
 
@@ -245,14 +253,28 @@ export class TableEditManager {
 
         // Deletions
         for (const rowId of this.deletedRowIds) {
-            deltas.push({
-                rowId,
-                columnId: "*",
-                oldValue: null,
-                newValue: null,
-                pkValues: getPkValues?.(rowId),
-                type: "D"
-            });
+            const rowData = this.deletedRowsData[rowId];
+            if (rowData) {
+                // If we have row data, we can emit deltas for all columns
+                // or just attach the old data. The panel likes to see old data.
+                deltas.push({
+                    rowId,
+                    columnId: "*",
+                    oldValue: rowData, // Pass full row as oldValue
+                    newValue: null,
+                    pkValues: getPkValues?.(rowId),
+                    type: "D"
+                });
+            } else {
+                deltas.push({
+                    rowId,
+                    columnId: "*",
+                    oldValue: null,
+                    newValue: null,
+                    pkValues: getPkValues?.(rowId),
+                    type: "D"
+                });
+            }
         }
 
         // Insertions
