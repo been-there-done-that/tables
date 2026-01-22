@@ -123,10 +123,30 @@
                         tableRef?.revertAll?.();
                         handleEditChange(0); // Trigger sync
                     },
+                    onSaveChanges: handleSaveChanges,
                 },
             );
             windowState.openRightPanel("pending-changes");
         });
+    }
+
+    async function handleSaveChanges(): Promise<{
+        success: boolean;
+        errors?: string[];
+    }> {
+        const result = await handleApplyEdits([]);
+
+        if (result.success) {
+            // Clear edit manager and refresh table data
+            tableRef?.clearEdits?.();
+            tableRef?.refresh?.();
+            pendingDeltas = [];
+        }
+
+        return {
+            success: result.success,
+            errors: result.conflicts,
+        };
     }
 
     function updatePendingCount() {
@@ -159,6 +179,7 @@
                             tableRef?.revertAll?.();
                             handleEditChange(0); // Trigger sync
                         },
+                        onSaveChanges: handleSaveChanges,
                     },
                 );
             });

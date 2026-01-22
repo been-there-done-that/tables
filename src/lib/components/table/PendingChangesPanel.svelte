@@ -6,6 +6,9 @@
     import IconCopy from "@tabler/icons-svelte/icons/copy";
     import IconArrowBackUp from "@tabler/icons-svelte/icons/arrow-back-up";
     import IconTrash from "@tabler/icons-svelte/icons/trash";
+    import IconDeviceFloppy from "@tabler/icons-svelte/icons/device-floppy";
+    import IconLoader2 from "@tabler/icons-svelte/icons/loader-2";
+    import { toast } from "svelte-sonner";
     import type { EditDelta } from "./TableEditManager.svelte";
     import { pendingChangesStore } from "$lib/stores/pendingChanges.svelte";
     import { windowState } from "$lib/stores/window.svelte";
@@ -22,6 +25,30 @@
     const tableSchema = $derived(pendingChangesStore.tableSchema);
     const columns = $derived(pendingChangesStore.columns);
     const primaryKeyColumns = $derived(pendingChangesStore.primaryKeyColumns);
+    const isSaving = $derived(pendingChangesStore.isSaving);
+
+    async function saveChanges() {
+        if (!pendingChangesStore.onSaveChanges) {
+            toast.error("Save not available");
+            return;
+        }
+
+        pendingChangesStore.isSaving = true;
+        try {
+            const result = await pendingChangesStore.onSaveChanges();
+            if (result.success) {
+                toast.success("Changes saved successfully");
+                windowState.closeRightPanel();
+            } else {
+                const errMsg = result.errors?.join(", ") || "Unknown error";
+                toast.error(`Failed to save: ${errMsg}`);
+            }
+        } catch (e: any) {
+            toast.error(`Save failed: ${e.message || String(e)}`);
+        } finally {
+            pendingChangesStore.isSaving = false;
+        }
+    }
 
     // Group deltas by rowId
     const groupedDeltas = $derived(() => {
@@ -335,6 +362,22 @@
                         </div>
                     </Popover.Content>
                 </Popover.Root>
+                <div class="w-px h-3 bg-border mx-0.5"></div>
+                <button
+                    type="button"
+                    class="h-6 px-3 flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white rounded text-[10px] font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    onclick={saveChanges}
+                    disabled={isSaving}
+                    title="Save all changes to database"
+                >
+                    {#if isSaving}
+                        <IconLoader2 class="size-3 animate-spin" />
+                        Saving...
+                    {:else}
+                        <IconDeviceFloppy class="size-3" />
+                        Save
+                    {/if}
+                </button>
                 <div class="w-px h-3 bg-border mx-0.5"></div>
             {/if}
             <button

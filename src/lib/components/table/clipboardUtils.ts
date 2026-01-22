@@ -18,19 +18,43 @@ export async function resolveClipboardApi(): Promise<ClipboardApi> {
 
             // Test the API to ensure it's actually registered in the backend
             // If it's not, it'll throw "read_text not allowed" or "Plugin not found"
-            await mod.readText();
+            try {
+                await mod.readText();
+            } catch (testErr: any) {
+                // If the error is just that the clipboard is empty, the plugin IS working
+                const errorStr = String(testErr);
+                const isEmptyError =
+                    errorStr.includes("empty") ||
+                    errorStr.includes("not available in the requested format") ||
+                    errorStr.includes("no content");
+
+                if (!isEmptyError) {
+                    // This is a real "plugin missing" or "no permission" error
+                    throw testErr;
+                }
+            }
 
             return {
-                readText: mod.readText,
+                readText: async () => {
+                    try {
+                        return await mod.readText();
+                    } catch (readErr: any) {
+                        const errorStr = String(readErr);
+                        const isEmptyError =
+                            errorStr.includes("empty") ||
+                            errorStr.includes("not available in the requested format") ||
+                            errorStr.includes("no content");
+                        if (isEmptyError) return "";
+                        throw readErr;
+                    }
+                },
                 writeText: (text: string) => mod.writeText(text),
             };
         } catch (err) {
             console.warn(
-                "[Clipboard] Tauri plugin check failed. Code will fall back to browser API.",
+                "[Clipboard] Tauri plugin check failed or not available. Code will fall back to browser API.",
                 "\nError details:",
                 err,
-                "\nType:",
-                typeof err,
             );
         }
 
