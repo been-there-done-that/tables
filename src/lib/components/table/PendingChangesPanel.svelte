@@ -4,7 +4,7 @@
     import IconCode from "@tabler/icons-svelte/icons/code";
     import IconEye from "@tabler/icons-svelte/icons/eye";
     import IconCopy from "@tabler/icons-svelte/icons/copy";
-    import IconRotate from "@tabler/icons-svelte/icons/rotate";
+    import IconArrowBackUp from "@tabler/icons-svelte/icons/arrow-back-up";
     import IconTrash from "@tabler/icons-svelte/icons/trash";
     import type { EditDelta } from "./TableEditManager.svelte";
     import { pendingChangesStore } from "$lib/stores/pendingChanges.svelte";
@@ -121,6 +121,44 @@
         }
     }
 
+    async function copyRowToClipboard(rowId: any) {
+        try {
+            const rowDeltas = groupedDeltas().get(rowId);
+            if (!rowDeltas) return;
+
+            const fullTableName = tableSchema
+                ? `"${tableSchema}"."${tableName}"`
+                : `"${tableName}"`;
+
+            const setClause = rowDeltas
+                .map((d) => {
+                    const val = formatSqlValue(d.newValue);
+                    return `"${d.columnId}" = ${val}`;
+                })
+                .join(", ");
+
+            // Build WHERE clause (reuse logic or simplify for row)
+            let whereClause = "";
+            const firstDelta = rowDeltas[0];
+            const pkValues = firstDelta?.pkValues;
+
+            if (pkValues && Object.keys(pkValues).length > 0) {
+                whereClause = Object.entries(pkValues)
+                    .map(([pk, val]) => {
+                        return `"${pk}" = ${formatSqlValue(val)}`;
+                    })
+                    .join(" AND ");
+            } else {
+                whereClause = `/* row ${rowId} - no primary key defined */`;
+            }
+
+            const sql = `UPDATE ${fullTableName}\nSET ${setClause}\nWHERE ${whereClause};`;
+            await navigator.clipboard.writeText(sql);
+        } catch (e) {
+            console.error("Failed to copy row", e);
+        }
+    }
+
     function revertRow(rowId: any) {
         pendingChangesStore.onRevertRow?.(rowId);
     }
@@ -224,6 +262,15 @@
             {#if deltas.length > 0}
                 <button
                     type="button"
+                    class="h-6 w-6 flex items-center justify-center hover:bg-accent rounded text-muted-foreground transition-colors"
+                    onclick={copyToClipboard}
+                    title="Copy all SQL"
+                >
+                    <IconCopy class="size-3.5" />
+                </button>
+                <div class="w-px h-3 bg-border mx-0.5"></div>
+                <button
+                    type="button"
                     class="h-6 px-2 flex items-center gap-1.5 hover:bg-red-500/10 text-red-500/80 hover:text-red-500 rounded text-[10px] font-bold transition-colors"
                     onclick={revertAll}
                     title="Discard all changes"
@@ -292,14 +339,26 @@
                                 </div>
                             </div>
 
-                            <button
-                                type="button"
-                                class="size-7 flex items-center justify-center rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-all opacity-0 group-hover:opacity-100"
-                                onclick={() => revertRow(rowId)}
-                                title="Revert this row"
+                            <div
+                                class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
                             >
-                                <IconRotate class="size-4" />
-                            </button>
+                                <button
+                                    type="button"
+                                    class="size-7 flex items-center justify-center rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                                    onclick={() => copyRowToClipboard(rowId)}
+                                    title="Copy row SQL"
+                                >
+                                    <IconCopy class="size-3.5" />
+                                </button>
+                                <button
+                                    type="button"
+                                    class="size-7 flex items-center justify-center rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors"
+                                    onclick={() => revertRow(rowId)}
+                                    title="Revert this row"
+                                >
+                                    <IconArrowBackUp class="size-4" />
+                                </button>
+                            </div>
                         </div>
 
                         <!-- Column Diffs -->
