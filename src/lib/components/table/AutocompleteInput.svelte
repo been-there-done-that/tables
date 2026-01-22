@@ -202,29 +202,34 @@
         {#if showSuggestions}
             <div
                 bind:this={listRef}
-                class="absolute left-0 top-full mt-1 z-50 w-full min-w-[180px] max-h-[200px] overflow-auto border border-(--theme-border-default) bg-(--theme-bg-secondary) rounded-md shadow-lg backdrop-blur-none"
+                class="absolute left-0 top-full mt-1.5 z-50 w-full min-w-[200px] max-h-[240px] overflow-auto border border-border/50 bg-surface/95 rounded-xl shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-top-1 duration-200"
             >
-                {#each filteredSuggestions() as suggestion, idx}
-                    <button
-                        class="w-full text-left px-2.5 py-1.5 text-xs cursor-pointer transition-colors flex items-center justify-between gap-4 {idx ===
-                        highlightedIndex
-                            ? 'bg-accent text-accent-foreground'
-                            : 'text-foreground hover:bg-accent/10'}"
-                        onmouseenter={() => (highlightedIndex = idx)}
-                        onmousedown={(e) => {
-                            e.preventDefault(); // Prevent blur
-                            selectSuggestion(suggestion.value);
-                        }}
-                    >
-                        <span>{suggestion.value}</span>
-                        {#if suggestion.type}
-                            <span
-                                class="opacity-50 text-[10px] font-mono lowercase"
-                                >{suggestion.type}</span
-                            >
-                        {/if}
-                    </button>
-                {/each}
+                <div class="p-1 flex flex-col gap-0.5">
+                    {#each filteredSuggestions() as suggestion, idx}
+                        <button
+                            class="w-full text-left px-3 py-2 text-xs cursor-pointer transition-all flex items-center justify-between gap-4 rounded-lg {idx ===
+                            highlightedIndex
+                                ? 'bg-accent text-accent-foreground shadow-sm'
+                                : 'text-foreground/90 hover:bg-muted/50 hover:text-foreground'}"
+                            onmouseenter={() => (highlightedIndex = idx)}
+                            onmousedown={(e) => {
+                                e.preventDefault(); // Prevent blur
+                                selectSuggestion(suggestion.value);
+                            }}
+                        >
+                            <span class="font-medium">{suggestion.value}</span>
+                            {#if suggestion.type}
+                                <span
+                                    class="text-[9px] font-mono lowercase tracking-tight opacity-40 {idx ===
+                                    highlightedIndex
+                                        ? 'text-accent-foreground/70'
+                                        : 'text-muted-foreground'}"
+                                    >{suggestion.type}</span
+                                >
+                            {/if}
+                        </button>
+                    {/each}
+                </div>
             </div>
         {/if}
     </div>
