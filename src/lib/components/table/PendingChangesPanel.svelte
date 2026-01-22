@@ -4,6 +4,8 @@
     import IconCode from "@tabler/icons-svelte/icons/code";
     import IconEye from "@tabler/icons-svelte/icons/eye";
     import IconCopy from "@tabler/icons-svelte/icons/copy";
+    import IconRotate from "@tabler/icons-svelte/icons/rotate";
+    import IconTrash from "@tabler/icons-svelte/icons/trash";
     import type { EditDelta } from "./TableEditManager.svelte";
     import { pendingChangesStore } from "$lib/stores/pendingChanges.svelte";
     import { windowState } from "$lib/stores/window.svelte";
@@ -55,7 +57,16 @@
 
             // Build WHERE clause using primary keys if available
             let whereClause = "";
-            if (primaryKeyColumns.length > 0) {
+            const firstDelta = rowDeltas[0];
+            const pkValues = firstDelta?.pkValues;
+
+            if (pkValues && Object.keys(pkValues).length > 0) {
+                whereClause = Object.entries(pkValues)
+                    .map(([pk, val]) => {
+                        return `"${pk}" = ${formatSqlValue(val)}`;
+                    })
+                    .join(" AND ");
+            } else if (primaryKeyColumns.length > 0) {
                 whereClause = primaryKeyColumns
                     .map((pk) => {
                         const delta = rowDeltas.find((d) => d.columnId === pk);
@@ -110,9 +121,24 @@
         }
     }
 
+    function revertRow(rowId: any) {
+        pendingChangesStore.onRevertRow?.(rowId);
+    }
+
+    function revertAll() {
+        pendingChangesStore.onRevertAll?.();
+    }
+
     function getColumnLabel(colId: string): string {
         const col = columns.find((c) => c.id === colId);
         return col?.label || colId;
+    }
+
+    function formatPkDescription(pkValues?: Record<string, any>): string {
+        if (!pkValues || Object.keys(pkValues).length === 0) return "";
+        return Object.entries(pkValues)
+            .map(([k, v]) => `${k}=${v}`)
+            .join(", ");
     }
 
     // Monaco Editor Integration
@@ -163,28 +189,49 @@
 <div class="flex h-full w-full flex-col bg-background">
     <!-- Header -->
     <div
-        class="h-8 flex items-center justify-between px-3 py-1 border-b border-border bg-muted/30"
+        class="h-9 flex items-center justify-between px-3 py-1 border-b border-border bg-muted/30"
     >
-        <h2 class="text-xs font-semibold text-muted-foreground">
-            Pending Changes
-        </h2>
-        <button
-            type="button"
-            class="h-6 w-6 flex items-center justify-center hover:bg-accent rounded text-muted-foreground transition-colors"
-            onclick={() => windowState.closeRightPanel()}
-        >
-            <IconX class="size-4" />
-        </button>
+        <div class="flex items-center gap-2">
+            <h2 class="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80">
+                Pending Changes
+            </h2>
+            {#if deltas.length > 0}
+                <span class="px-1.5 py-0.5 rounded-full bg-accent/10 text-accent text-[10px] font-bold">
+                    {deltas.length}
+                </span>
+            {/if}
+        </div>
+        <div class="flex items-center gap-1">
+            {#if deltas.length > 0}
+                <button
+                    type="button"
+                    class="h-6 px-2 flex items-center gap-1.5 hover:bg-red-500/10 text-red-500/80 hover:text-red-500 rounded text-[10px] font-semibold transition-colors"
+                    onclick={revertAll}
+                    title="Discard all changes"
+                >
+                    <IconTrash class="size-3" />
+                    Discard All
+                </button>
+                <div class="w-px h-3 bg-border mx-1"></div>
+            {/if}
+            <button
+                type="button"
+                class="h-6 w-6 flex items-center justify-center hover:bg-accent rounded text-muted-foreground transition-colors"
+                onclick={() => windowState.closeRightPanel()}
+            >
+                <IconX class="size-4" />
+            </button>
+        </div>
     </div>
 
     <!-- Tabs -->
-    <div class="flex border-b border-border bg-muted/10">
+    <div class="flex p-1 gap-1 border-b border-border bg-muted/5">
         <button
             type="button"
             class={cn(
-                "flex-1 px-4 py-2 text-xs font-medium transition-colors flex items-center justify-center gap-1.5",
+                "flex-1 h-7 rounded-md text-[11px] font-semibold transition-all flex items-center justify-center gap-1.5",
                 activeTab === "visual"
-                    ? "bg-surface border-b-2 border-accent text-foreground"
+                    ? "bg-surface shadow-sm text-foreground border border-border/50"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/30",
             )}
             onclick={() => (activeTab = "visual")}
@@ -195,9 +242,9 @@
         <button
             type="button"
             class={cn(
-                "flex-1 px-4 py-2 text-xs font-medium transition-colors flex items-center justify-center gap-1.5",
+                "flex-1 h-7 rounded-md text-[11px] font-semibold transition-all flex items-center justify-center gap-1.5",
                 activeTab === "sql"
-                    ? "bg-surface border-b-2 border-accent text-foreground"
+                    ? "bg-surface shadow-sm text-foreground border border-border/50"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/30",
             )}
             onclick={() => (activeTab = "sql")}
@@ -208,70 +255,67 @@
     </div>
 
     <!-- Content -->
-    <div class="flex-1 overflow-auto">
+    <div class="flex-1 overflow-auto bg-muted/5">
         {#if activeTab === "visual"}
-            <div class="p-3 space-y-3">
+            <div class="p-3 space-y-4">
                 {#each [...groupedDeltas()] as [rowId, rowDeltas]}
                     {@const opType = getOperationType(rowDeltas)}
-                    <div class="rounded-lg border border-border bg-muted/20">
+                    <div class="group rounded-xl border border-border bg-surface shadow-sm overflow-hidden transition-all hover:border-border/80 hover:shadow-md">
                         <!-- Row Header -->
                         <div
-                            class="flex items-center gap-2 px-3 py-2 border-b border-border/50"
+                            class="flex items-center justify-between px-3 py-2.5 border-b border-border/40 bg-muted/10"
                         >
-                            <span
-                                class={cn(
-                                    "size-5 rounded text-[10px] font-bold flex items-center justify-center",
-                                    opType === "U" &&
-                                        "bg-amber-500/20 text-amber-500",
-                                    opType === "I" &&
-                                        "bg-green-500/20 text-green-500",
-                                    opType === "D" &&
-                                        "bg-red-500/20 text-red-500",
-                                )}
+                            <div class="flex items-center gap-2.5 min-w-0">
+                                <span
+                                    class={cn(
+                                        "px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-tighter",
+                                        opType === "U" &&
+                                            "bg-amber-500/15 text-amber-600 border border-amber-500/20",
+                                        opType === "I" &&
+                                            "bg-green-500/15 text-green-600 border border-green-500/20",
+                                        opType === "D" &&
+                                            "bg-red-500/15 text-red-600 border border-red-500/20",
+                                    )}
+                                >
+                                    {opType === "U" ? "Update" : opType === "I" ? "Insert" : "Delete"}
+                                </span>
+                                <div class="flex flex-col min-w-0">
+                                    <span class="text-[10px] font-bold text-foreground/90 truncate leading-tight">
+                                        {formatPkDescription(rowDeltas[0]?.pkValues) || `Row ${rowId}`}
+                                    </span>
+                                    <span class="text-[9px] text-muted-foreground truncate leading-tight">
+                                        {tableSchema ? `${tableSchema}.` : ""}{tableName}
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <button
+                                type="button"
+                                class="size-7 flex items-center justify-center rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-all opacity-0 group-hover:opacity-100"
+                                onclick={() => revertRow(rowId)}
+                                title="Revert this row"
                             >
-                                {opType}
-                            </span>
-                            <span class="text-xs text-muted-foreground">
-                                {tableSchema
-                                    ? `${tableSchema}.`
-                                    : ""}{tableName}
-                            </span>
-                            <span class="text-muted-foreground/50">›</span>
-                            <span class="text-xs font-mono text-foreground">
-                                row {rowId}
-                            </span>
+                                <IconRotate class="size-4" />
+                            </button>
                         </div>
 
                         <!-- Column Diffs -->
-                        <div class="divide-y divide-border/30">
+                        <div class="divide-y divide-border/20">
                             {#each rowDeltas as delta}
-                                <div class="px-3 py-2 space-y-1">
+                                <div class="px-3 py-2.5 space-y-2">
                                     <div
-                                        class="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold"
+                                        class="text-[9px] uppercase tracking-widest text-muted-foreground/70 font-bold"
                                     >
                                         {getColumnLabel(delta.columnId)}
                                     </div>
-                                    <div
-                                        class="flex items-start gap-2 text-xs font-mono"
-                                    >
-                                        <span
-                                            class="text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded flex-1 break-all"
-                                        >
-                                            - {formatDisplayValue(
-                                                delta.oldValue,
-                                            )}
-                                        </span>
-                                    </div>
-                                    <div
-                                        class="flex items-start gap-2 text-xs font-mono"
-                                    >
-                                        <span
-                                            class="text-green-400 bg-green-500/10 px-1.5 py-0.5 rounded flex-1 break-all"
-                                        >
-                                            + {formatDisplayValue(
-                                                delta.newValue,
-                                            )}
-                                        </span>
+                                    <div class="flex items-center gap-2 text-[11px] font-mono leading-relaxed">
+                                        <div class="flex-1 min-w-0 px-2 py-1 rounded bg-red-500/5 text-red-500/90 border border-red-500/10 truncate" title={formatDisplayValue(delta.oldValue)}>
+                                            {formatDisplayValue(delta.oldValue)}
+                                        </div>
+                                        <div class="text-muted-foreground/30 font-sans font-bold">→</div>
+                                        <div class="flex-1 min-w-0 px-2 py-1 rounded bg-green-500/5 text-green-500 border border-green-500/10 truncate font-bold" title={formatDisplayValue(delta.newValue)}>
+                                            {formatDisplayValue(delta.newValue)}
+                                        </div>
                                     </div>
                                 </div>
                             {/each}
@@ -280,8 +324,16 @@
                 {/each}
 
                 {#if deltas.length === 0}
-                    <div class="text-center text-muted-foreground py-8 text-sm">
-                        No pending changes
+                    <div class="flex flex-col items-center justify-center py-12 px-6 text-center space-y-3">
+                        <div class="size-12 rounded-full bg-muted/20 flex items-center justify-center text-muted-foreground/30">
+                            <IconEye class="size-6" />
+                        </div>
+                        <div class="space-y-1">
+                            <h3 class="text-xs font-bold text-foreground/80">No pending changes</h3>
+                            <p class="text-[10px] text-muted-foreground max-w-[180px]">
+                                Your edits will appear here as a visual diff before you commit them.
+                            </p>
+                        </div>
                     </div>
                 {/if}
             </div>

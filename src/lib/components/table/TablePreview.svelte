@@ -114,6 +114,16 @@
                 columns,
                 primaryKeyColumns(), // derived value
                 effectiveSchema,
+                {
+                    onRevertRow: (rowId) => {
+                        tableRef?.revertRow?.(rowId);
+                        handleEditChange(0); // Trigger sync
+                    },
+                    onRevertAll: () => {
+                        tableRef?.revertAll?.();
+                        handleEditChange(0); // Trigger sync
+                    }
+                }
             );
             windowState.openRightPanel("pending-changes");
         });
@@ -140,6 +150,16 @@
                     columns,
                     primaryKeyColumns(),
                     effectiveSchema,
+                    {
+                        onRevertRow: (rowId) => {
+                            tableRef?.revertRow?.(rowId);
+                            handleEditChange(0); // Trigger sync
+                        },
+                        onRevertAll: () => {
+                            tableRef?.revertAll?.();
+                            handleEditChange(0); // Trigger sync
+                        }
+                    }
                 );
             });
         }
@@ -675,6 +695,7 @@
                 onViewStateChange={() => windowState.requestSave()}
                 onApplyEdits={handleApplyEdits}
                 onEditChange={handleEditChange}
+                primaryKeyColumns={primaryKeyColumns()}
                 bind:isLoading
                 limit={pageSize}
                 bind:offset={currentOffset}
