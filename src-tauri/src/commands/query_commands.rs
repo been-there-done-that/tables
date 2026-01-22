@@ -1,3 +1,4 @@
+
 use tauri::{State, AppHandle, Emitter, Manager};
 use serde::{Deserialize, Serialize};
 use log::{debug, error, info, warn};
@@ -666,9 +667,9 @@ async fn execute_postgres_query(
         client
     };
 
-    if !schema.is_empty() && schema != "public" {
-        let _ = client.execute(&format!("SET search_path TO \"{}\"", schema), &[]).await;
-    }
+    // Note: We don't set search_path here because:
+    // 1. Queries should use fully-qualified table names (schema.table)
+    // 2. Overriding search_path can break triggers that need public schema access (e.g., hstore extension)
 
     let rows = client.query(query, &[]).await
         .map_err(|e| {

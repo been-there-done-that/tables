@@ -139,7 +139,7 @@
 
         if (result.success) {
             // Clear edit manager and refresh table data
-            tableRef?.clearEdits?.();
+            tableRef?.revertAll?.();
             tableRef?.refresh?.();
             pendingDeltas = [];
         }
