@@ -7,10 +7,12 @@ class PendingChangesStore {
     tableSchema = $state<string | undefined>(undefined);
     columns = $state<Column[]>([]);
     primaryKeyColumns = $state<string[]>([]);
-    
+    isSaving = $state(false);
+
     // Callbacks for actions
     onRevertRow?: (rowId: any) => void;
     onRevertAll?: () => void;
+    onSaveChanges?: () => Promise<{ success: boolean; errors?: string[] }>;
 
     // Actions
     setContext(
@@ -22,6 +24,7 @@ class PendingChangesStore {
         callbacks?: {
             onRevertRow?: (rowId: any) => void;
             onRevertAll?: () => void;
+            onSaveChanges?: () => Promise<{ success: boolean; errors?: string[] }>;
         }
     ) {
         this.deltas = deltas;
@@ -31,6 +34,7 @@ class PendingChangesStore {
         this.primaryKeyColumns = primaryKeyColumns;
         this.onRevertRow = callbacks?.onRevertRow;
         this.onRevertAll = callbacks?.onRevertAll;
+        this.onSaveChanges = callbacks?.onSaveChanges;
     }
 
     clear() {
@@ -41,6 +45,8 @@ class PendingChangesStore {
         this.primaryKeyColumns = [];
         this.onRevertRow = undefined;
         this.onRevertAll = undefined;
+        this.onSaveChanges = undefined;
+        this.isSaving = false;
     }
 }
 
