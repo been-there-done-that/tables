@@ -37,8 +37,7 @@
 
     // Determine operation type for each row
     function getOperationType(rowDeltas: EditDelta[]): "U" | "I" | "D" {
-        // For now, assume all are updates. Insert/Delete can be added later.
-        return "U";
+        return rowDeltas[0]?.type || "U";
     }
 
     // Generate SQL statements
@@ -49,51 +48,65 @@
             : `"${tableName}"`;
 
         for (const [rowId, rowDeltas] of groupedDeltas()) {
-            const setClause = rowDeltas
-                .map((d) => {
-                    const val = formatSqlValue(d.newValue);
-                    return `"${d.columnId}" = ${val}`;
-                })
-                .join(", ");
+            const type = getOperationType(rowDeltas);
+            let sql = "";
 
-            // Build WHERE clause using primary keys if available
-            let whereClause = "";
-            const firstDelta = rowDeltas[0];
-            const pkValues = firstDelta?.pkValues;
+            if (type === "I") {
+                const cols: string[] = [];
+                const vals: string[] = [];
+                rowDeltas.forEach((d) => {
+                    if (d.newValue === undefined) return;
+                    cols.push(`"${d.columnId}"`);
+                    vals.push(formatSqlValue(d.newValue));
+                });
+                if (cols.length > 0) {
+                    sql = `INSERT INTO ${fullTableName} (${cols.join(", ")}) VALUES (${vals.join(", ")});`;
+                }
+            } else if (type === "D") {
+                const firstDelta = rowDeltas[0];
+                const pkValues = firstDelta?.pkValues;
+                let whereClause = "";
 
-            if (pkValues && Object.keys(pkValues).length > 0) {
-                whereClause = Object.entries(pkValues)
-                    .map(([pk, val]) => {
-                        return `"${pk}" = ${formatSqlValue(val)}`;
-                    })
-                    .join(" AND ");
-            } else if (primaryKeyColumns.length > 0) {
-                whereClause = primaryKeyColumns
-                    .map((pk) => {
-                        const delta = rowDeltas.find((d) => d.columnId === pk);
-
-                        // If PK is in delta, use old value (it changed)
-                        // If not, and we have a single PK, assume rowId IS the PK value
-                        let val;
-                        if (delta) {
-                            val = formatSqlValue(delta.oldValue);
-                        } else if (primaryKeyColumns.length === 1) {
-                            val = formatSqlValue(rowId);
-                        } else {
-                            val = `/* unknown ${pk} */`;
-                        }
-
-                        return `"${pk}" = ${val}`;
-                    })
-                    .join(" AND ");
+                if (pkValues && Object.keys(pkValues).length > 0) {
+                    whereClause = Object.entries(pkValues)
+                        .map(([pk, val]) => `"${pk}" = ${formatSqlValue(val)}`)
+                        .join(" AND ");
+                } else if (primaryKeyColumns.length > 0) {
+                    whereClause = primaryKeyColumns
+                        .map((pk) => `"${pk}" = ${formatSqlValue(rowId)}`)
+                        .join(" AND ");
+                } else {
+                    whereClause = `/* row ${rowId} - no primary key */`;
+                }
+                sql = `DELETE FROM ${fullTableName} WHERE ${whereClause};`;
             } else {
-                // Fallback: use rowId (not ideal)
-                whereClause = `/* row ${rowId} - no primary key defined */`;
+                // UPDATE
+                const setClause = rowDeltas
+                    .map(
+                        (d) =>
+                            `"${d.columnId}" = ${formatSqlValue(d.newValue)}`,
+                    )
+                    .join(", ");
+
+                let whereClause = "";
+                const firstDelta = rowDeltas[0];
+                const pkValues = firstDelta?.pkValues;
+
+                if (pkValues && Object.keys(pkValues).length > 0) {
+                    whereClause = Object.entries(pkValues)
+                        .map(([pk, val]) => `"${pk}" = ${formatSqlValue(val)}`)
+                        .join(" AND ");
+                } else if (primaryKeyColumns.length > 0) {
+                    whereClause = primaryKeyColumns
+                        .map((pk) => `"${pk}" = ${formatSqlValue(rowId)}`)
+                        .join(" AND ");
+                } else {
+                    whereClause = `/* row ${rowId} - no primary key */`;
+                }
+                sql = `UPDATE ${fullTableName}\nSET ${setClause}\nWHERE ${whereClause};`;
             }
 
-            statements.push(
-                `UPDATE ${fullTableName}\nSET ${setClause}\nWHERE ${whereClause};`,
-            );
+            if (sql) statements.push(sql);
         }
 
         return statements.join("\n\n");
@@ -125,35 +138,48 @@
     async function copyRowToClipboard(rowId: any) {
         try {
             const rowDeltas = groupedDeltas().get(rowId);
-            if (!rowDeltas) return;
+            if (!rowDeltas || rowDeltas.length === 0) return;
 
+            const type = getOperationType(rowDeltas);
             const fullTableName = tableSchema
                 ? `"${tableSchema}"."${tableName}"`
                 : `"${tableName}"`;
 
-            const setClause = rowDeltas
-                .map((d) => {
-                    const val = formatSqlValue(d.newValue);
-                    return `"${d.columnId}" = ${val}`;
-                })
-                .join(", ");
-
-            // Build WHERE clause (reuse logic or simplify for row)
-            let whereClause = "";
-            const firstDelta = rowDeltas[0];
-            const pkValues = firstDelta?.pkValues;
-
-            if (pkValues && Object.keys(pkValues).length > 0) {
-                whereClause = Object.entries(pkValues)
-                    .map(([pk, val]) => {
-                        return `"${pk}" = ${formatSqlValue(val)}`;
-                    })
-                    .join(" AND ");
+            let sql = "";
+            if (type === "I") {
+                const cols = rowDeltas.map((d) => `"${d.columnId}"`);
+                const vals = rowDeltas.map((d) => formatSqlValue(d.newValue));
+                sql = `INSERT INTO ${fullTableName} (${cols.join(", ")}) VALUES (${vals.join(", ")});`;
+            } else if (type === "D") {
+                const pkValues = rowDeltas[0].pkValues;
+                let whereClause = "";
+                if (pkValues) {
+                    whereClause = Object.entries(pkValues)
+                        .map(([pk, val]) => `"${pk}" = ${formatSqlValue(val)}`)
+                        .join(" AND ");
+                } else {
+                    whereClause = `/* row ${rowId} */`;
+                }
+                sql = `DELETE FROM ${fullTableName} WHERE ${whereClause};`;
             } else {
-                whereClause = `/* row ${rowId} - no primary key defined */`;
+                const setClause = rowDeltas
+                    .map(
+                        (d) =>
+                            `"${d.columnId}" = ${formatSqlValue(d.newValue)}`,
+                    )
+                    .join(", ");
+                const pkValues = rowDeltas[0].pkValues;
+                let whereClause = "";
+                if (pkValues) {
+                    whereClause = Object.entries(pkValues)
+                        .map(([pk, val]) => `"${pk}" = ${formatSqlValue(val)}`)
+                        .join(" AND ");
+                } else {
+                    whereClause = `/* row ${rowId} */`;
+                }
+                sql = `UPDATE ${fullTableName}\nSET ${setClause}\nWHERE ${whereClause};`;
             }
 
-            const sql = `UPDATE ${fullTableName}\nSET ${setClause}\nWHERE ${whereClause};`;
             await navigator.clipboard.writeText(sql);
         } catch (e) {
             console.error("Failed to copy row", e);
@@ -394,40 +420,69 @@
 
                         <!-- Column Diffs -->
                         <div class="divide-y divide-border/20">
-                            {#each rowDeltas as delta}
-                                <div class="px-3 py-2.5 space-y-2">
-                                    <div
-                                        class="text-[9px] uppercase tracking-widest text-muted-foreground/70 font-bold"
-                                    >
-                                        {getColumnLabel(delta.columnId)}
-                                    </div>
-                                    <div
-                                        class="flex items-center gap-2 text-[11px] font-mono leading-relaxed"
-                                    >
+                            {#if opType === "D"}
+                                {@const rowData = rowDeltas[0].oldValue}
+                                {#each columns as column}
+                                    <div class="px-3 py-2.5 space-y-2">
                                         <div
-                                            class="flex-1 min-w-0 px-2 py-1 rounded bg-red-500/5 text-red-500/90 border border-red-500/10 truncate"
+                                            class="text-[9px] uppercase tracking-widest text-muted-foreground/70 font-bold"
+                                        >
+                                            {column.label || column.id}
+                                        </div>
+                                        <div
+                                            class="text-[11px] font-mono leading-relaxed px-2 py-1 rounded bg-red-500/5 text-red-500/90 border border-red-500/10 truncate font-bold"
                                             title={formatDisplayValue(
-                                                delta.oldValue,
+                                                rowData?.[column.id],
                                             )}
                                         >
-                                            {formatDisplayValue(delta.oldValue)}
-                                        </div>
-                                        <div
-                                            class="text-muted-foreground/30 font-sans font-bold"
-                                        >
-                                            →
-                                        </div>
-                                        <div
-                                            class="flex-1 min-w-0 px-2 py-1 rounded bg-green-500/5 text-green-500 border border-green-500/10 truncate font-bold"
-                                            title={formatDisplayValue(
-                                                delta.newValue,
+                                            {formatDisplayValue(
+                                                rowData?.[column.id],
                                             )}
-                                        >
-                                            {formatDisplayValue(delta.newValue)}
                                         </div>
                                     </div>
-                                </div>
-                            {/each}
+                                {/each}
+                            {:else}
+                                {#each rowDeltas as delta}
+                                    <div class="px-3 py-2.5 space-y-2">
+                                        <div
+                                            class="text-[9px] uppercase tracking-widest text-muted-foreground/70 font-bold"
+                                        >
+                                            {getColumnLabel(delta.columnId)}
+                                        </div>
+                                        <div
+                                            class="flex items-center gap-2 text-[11px] font-mono leading-relaxed"
+                                        >
+                                            {#if opType !== "I"}
+                                                <div
+                                                    class="flex-1 min-w-0 px-2 py-1 rounded bg-red-500/5 text-red-500/90 border border-red-500/10 truncate"
+                                                    title={formatDisplayValue(
+                                                        delta.oldValue,
+                                                    )}
+                                                >
+                                                    {formatDisplayValue(
+                                                        delta.oldValue,
+                                                    )}
+                                                </div>
+                                                <div
+                                                    class="text-muted-foreground/30 font-sans font-bold"
+                                                >
+                                                    →
+                                                </div>
+                                            {/if}
+                                            <div
+                                                class="flex-1 min-w-0 px-2 py-1 rounded bg-green-500/5 text-green-500 border border-green-500/10 truncate font-bold"
+                                                title={formatDisplayValue(
+                                                    delta.newValue,
+                                                )}
+                                            >
+                                                {formatDisplayValue(
+                                                    delta.newValue,
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                {/each}
+                            {/if}
                         </div>
                     </div>
                 {/each}
