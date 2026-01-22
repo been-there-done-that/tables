@@ -83,6 +83,7 @@
         DEFAULT_TOKEN,
         NULL_TOKEN,
         displayBooleanValue,
+        isSpecialToken,
     } from "./valueUtils";
 
     const LONG_TEXT_THRESHOLD = 120;
@@ -102,7 +103,8 @@
         column.type === "datetime";
 
     function formatDateValue(val: any) {
-        if (val === null || val === undefined) return "";
+        if (val === null || val === undefined || val === NULL_TOKEN) return "";
+        if (val === DEFAULT_TOKEN) return "DEFAULT";
         // Try manual parsing to preserve original components, microseconds, and timezone
         if (typeof val === "string") {
             console.log("TableCell parsing:", val);
@@ -152,6 +154,8 @@
 
     function jsonPreview(val: any) {
         try {
+            if (isSpecialToken(val))
+                return val === NULL_TOKEN ? "NULL" : "DEFAULT";
             const str =
                 typeof val === "string" ? val : JSON.stringify(val, null, 0);
             return str.length > 80 ? str.slice(0, 80) + "…" : str;
@@ -162,6 +166,8 @@
 
     function jsonPretty(val: any) {
         try {
+            if (isSpecialToken(val))
+                return val === NULL_TOKEN ? "NULL" : "DEFAULT";
             return JSON.stringify(val, null, 2);
         } catch {
             return String(val);
@@ -169,8 +175,9 @@
     }
 
     function binaryInfo(val: any) {
-        if (val === null || val === undefined)
+        if (val === null || val === undefined || val === NULL_TOKEN)
             return { length: 0, preview: "" };
+        if (val === DEFAULT_TOKEN) return { length: 0, preview: "DEFAULT" };
         if (typeof val === "string") {
             return {
                 length: val.length,
@@ -195,6 +202,9 @@
         if (typeof value === "function") {
             return "[fn]";
         }
+        if (value === NULL_TOKEN || value === null) return "NULL";
+        if (value === DEFAULT_TOKEN) return "DEFAULT";
+
         if (isBoolean()) {
             return displayBooleanValue(value);
         }
@@ -298,34 +308,66 @@
             <span
                 class="truncate select-none px-2 py-1 w-full h-full block text-xs"
             >
-                {displayValue}
+                <span
+                    class={cn(
+                        isSpecialToken(value) &&
+                            "text-muted-foreground/60 italic font-medium",
+                    )}
+                >
+                    {displayValue}
+                </span>
             </span>
         {:else if isJson() || Array.isArray(value)}
             <span
                 class="truncate select-none px-2 py-1 w-full h-full block font-mono text-xs text-muted-foreground"
             >
-                {jsonPreview(value)}
+                <span class={cn(isSpecialToken(value) && "italic font-medium")}>
+                    {jsonPreview(value)}
+                </span>
             </span>
         {:else if isBinary()}
             {@const info = binaryInfo(value)}
             <span
                 class="truncate select-none px-2 py-1 w-full h-full block font-mono text-xs text-muted-foreground"
             >
-                {`len ${info.length}${info.preview ? ` · ${info.preview}` : ""}`}
+                <span class={cn(isSpecialToken(value) && "italic font-medium")}>
+                    {`len ${info.length}${info.preview ? ` · ${info.preview}` : ""}`}
+                </span>
             </span>
         {:else if isDateLike()}
             <span class="truncate select-none px-2 py-1 w-full h-full block">
-                {formatDateValue(value)}
+                <span
+                    class={cn(
+                        isSpecialToken(value) &&
+                            "text-muted-foreground/60 italic font-medium",
+                    )}
+                >
+                    {formatDateValue(value)}
+                </span>
             </span>
         {:else if isLongText}
             <span class="truncate select-none px-2 py-1 w-full h-full block">
-                {typeof displayValue === "string"
-                    ? displayValue.slice(0, LONG_TEXT_THRESHOLD) + "…"
-                    : displayValue}
+                <span
+                    class={cn(
+                        isSpecialToken(value) &&
+                            "text-muted-foreground/60 italic font-medium",
+                    )}
+                >
+                    {typeof displayValue === "string"
+                        ? displayValue.slice(0, LONG_TEXT_THRESHOLD) + "…"
+                        : displayValue}
+                </span>
             </span>
         {:else}
             <span class="truncate select-none px-2 py-1 w-full h-full block">
-                {displayValue}
+                <span
+                    class={cn(
+                        isSpecialToken(value) &&
+                            "text-muted-foreground/60 italic font-medium",
+                    )}
+                >
+                    {displayValue}
+                </span>
             </span>
         {/if}
     </div>

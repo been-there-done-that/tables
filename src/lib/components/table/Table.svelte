@@ -163,6 +163,15 @@
         null,
     );
 
+    function getRowKey(row: any): string {
+        if (!row) return "";
+        if (row._tempId) return row._tempId;
+        if (primaryKeyColumns.length > 0) {
+            return primaryKeyColumns.map((col) => String(row[col])).join(":");
+        }
+        return String(row._rowId);
+    }
+
     // Layout stability flags
     let scrollLock = false;
     let columnWidthsFrozen = false;
@@ -444,12 +453,12 @@
             if (append) {
                 rows = [...rows, ...mappedRows];
                 mappedRows.forEach((row) => {
-                    baselineRows.set(row._rowId, { ...row });
+                    baselineRows.set(getRowKey(row), { ...row });
                 });
             } else {
                 rows = mappedRows;
                 baselineRows = new Map(
-                    rows.map((row) => [row._rowId, { ...row }]),
+                    rows.map((row) => [getRowKey(row), { ...row }]),
                 );
                 // Reset undo stack via manager
                 editManager.undoStack = [];
@@ -519,6 +528,11 @@
     let filteredRows = $derived.by(() => {
         let result = [...sortedRows];
 
+        // Include new rows (they only appear locally until committed)
+        if (editManager.insertedRows.length > 0) {
+            result = [...result, ...editManager.insertedRows];
+        }
+
         // Apply filters
         Object.entries(filters).forEach(([columnId, filterValue]) => {
             if (!filterValue) return;
@@ -539,7 +553,6 @@
                         .includes(String(filterValue.value).toLowerCase()),
                 );
             }
-            // Add more filter types as needed
         });
 
         return result;
@@ -569,10 +582,11 @@
         for (let r = bounds.top; r <= bounds.bottom; r++) {
             const row = filteredRows[r];
             if (!row) continue;
+            const rKey = getRowKey(row);
             for (let c = bounds.left; c <= bounds.right; c++) {
                 const column = visibleColumns[c];
                 if (!column) continue;
-                cells.push({ rowId: row._rowId, columnId: column.id });
+                cells.push({ rowId: rKey, columnId: column.id });
             }
         }
         return cells;
@@ -1019,12 +1033,12 @@
         return columnStats[columnId] || [];
     }
 
-    function handleRowSelect(rowId: number, multi: boolean, range: boolean) {
-        // TODO: Implement complex selection logic (shift/ctrl click)
+    function handleRowSelect(rowId: any, multi: boolean, range: boolean) {
+        const id = String(rowId);
         if (multi) {
-            selectedRows = { ...selectedRows, [rowId]: !selectedRows[rowId] };
+            selectedRows = { ...selectedRows, [id]: !selectedRows[id] };
         } else {
-            selectedRows = { [rowId]: true };
+            selectedRows = { [id]: true };
         }
         // Clear cell selection when selecting rows
         selectedCells = [];
@@ -1114,7 +1128,7 @@
         } else if (event.metaKey || event.ctrlKey) {
             // Toggle individual cell without losing prior range selection
             const cellId = {
-                rowId: filteredRows[rowIndex]._rowId,
+                rowId: getRowKey(filteredRows[rowIndex]),
                 columnId: visibleColumns[columnIndex].id,
             };
             const exists = selectedCells.findIndex(
@@ -1232,7 +1246,7 @@
 
         if (canEdit) {
             editingCell = {
-                rowId: filteredRows[rowIndex]._rowId,
+                rowId: getRowKey(filteredRows[rowIndex]),
                 columnId: col.id,
             };
             scrollLock = true; // Lock scroll during edit
@@ -1306,16 +1320,46 @@
         for (let r = bounds.top; r <= targetRowEnd; r++) {
             const row = filteredRows[r];
             if (!row) continue;
+            const rKey = getRowKey(row);
             for (let c = bounds.left; c <= targetColEnd; c++) {
                 const column = visibleColumns[c];
                 if (!column?.editable) continue;
-                if (!edits[row._rowId]) edits[row._rowId] = {};
-                edits[row._rowId][column.id] = value;
+                if (!edits[rKey]) edits[rKey] = {};
+                edits[rKey][column.id] = value;
             }
         }
 
         if (Object.keys(edits).length === 0) return;
         applyEditsLocally(edits, label, true);
+    }
+
+    function handleDeleteRow() {
+        if (!contextMenuState) return;
+        const { rowIndex } = contextMenuState;
+        const row = filteredRows[rowIndex];
+        if (!row) return;
+
+        const rowId = getRowKey(row);
+        editManager.trackDeletion(rowId);
+        closeContextMenu();
+        toast.success("Row marked for deletion");
+    }
+
+    function handleAddRow() {
+        const tempId = `new-${Date.now()}`;
+        const newRow: any = { _tempId: tempId };
+
+        // Initialize with nulls/defaults
+        tableColumns.forEach((col) => {
+            newRow[col.id] = null;
+        });
+
+        editManager.insertRow(newRow);
+        toast.success("New row added");
+
+        // Auto focus the first editable cell of the new row?
+        // New rows are at the end currently? Or start?
+        // Let's assume insertedRows are rendered at the end.
     }
 
     function contextSetNull() {
@@ -1401,18 +1445,23 @@
                         column.type,
                     );
 
+                    const normalizedValue =
+                        column.type === "boolean"
+                            ? commitBooleanValue(parsedValue)
+                            : parsedValue;
+                    const rowId = getRowKey(row);
+
                     // Skip if value is same as current (including pending)
                     const currentValue = getDisplayValue(row, column.id);
 
-                    if (isSameValue(parsedValue, currentValue)) continue;
+                    if (isSameValue(normalizedValue, currentValue)) continue;
 
-                    if (!edits[row._rowId]) edits[row._rowId] = {};
-                    edits[row._rowId][column.id] = parsedValue;
+                    if (!edits[rowId]) edits[rowId] = {};
+                    edits[rowId][column.id] = normalizedValue;
 
                     // Capture actual original value from the raw data
-                    if (!originalValues[row._rowId])
-                        originalValues[row._rowId] = {};
-                    originalValues[row._rowId][column.id] = row[column.id];
+                    if (!originalValues[rowId]) originalValues[rowId] = {};
+                    originalValues[rowId][column.id] = row[column.id];
                 }
             }
 
@@ -1964,8 +2013,9 @@
     }
 
     function getDisplayValue(row: any, columnId: string) {
-        return editManager.hasPendingValue(row._rowId, columnId)
-            ? editManager.getPendingValue(row._rowId, columnId)
+        const rKey = getRowKey(row);
+        return editManager.hasPendingValue(rKey, columnId)
+            ? editManager.getPendingValue(rKey, columnId)
             : row[columnId];
     }
 
@@ -2044,9 +2094,9 @@
         return editManager.getDeltas((rowId: any) => {
             const row = baselineRows.get(rowId);
             if (!row) return {};
-            
+
             const pkValues: Record<string, any> = {};
-            primaryKeyColumns.forEach(pk => {
+            primaryKeyColumns.forEach((pk) => {
                 pkValues[pk] = row[pk];
             });
             return pkValues;
@@ -2150,6 +2200,8 @@
                 {focusedCell}
                 {editingCell}
                 pendingEdits={editManager.pendingEdits}
+                deletedRowIds={editManager.deletedRowIds}
+                {getRowKey}
                 {loading}
                 onRowSelect={handleRowSelect}
                 onScroll={handleBodyScroll}
@@ -2204,6 +2256,7 @@
         onPaste={contextPaste}
         onSetNull={contextSetNull}
         onSetDefault={contextSetDefault}
+        onDeleteRow={handleDeleteRow}
         onClose={closeContextMenu}
     />
 {/if}

@@ -8,19 +8,29 @@ export interface EditDelta {
     pkValues?: Record<string, any>; // Original values of PK columns for this row
 }
 
+export interface EditDelta {
+    rowId: any;
+    columnId: string;
+    oldValue: any;
+    newValue: any;
+    pkValues?: Record<string, any>;
+    type?: "U" | "I" | "D";
+}
+
 export class TableEditManager {
     // Reactive state
-    pendingEdits = $state<Record<number, Record<string, any>>>({});
-    undoStack = $state<Record<number, Record<string, any>>[]>([]);
-    redoStack = $state<Record<number, Record<string, any>>[]>([]);
+    pendingEdits = $state<Record<string, Record<string, any>>>({});
+    deletedRowIds = $state<Set<string>>(new Set());
+    insertedRows = $state<any[]>([]);
+
+    undoStack = $state<any[]>([]);
+    redoStack = $state<any[]>([]);
 
     // Non-reactive helper for original values to compute deltas against
-    // We populate this when an edit starts or when data is loaded if needed
     private originalValues = new Map<string, any>();
 
     constructor() { }
 
-    // Track original value before first edit
     private ensureOriginalValue(rowId: any, columnId: string, value: any) {
         const key = `${rowId}:${columnId}`;
         if (!this.originalValues.has(key)) {
@@ -37,153 +47,228 @@ export class TableEditManager {
         }
     }
 
-    setPendingEdit(rowId: number, columnId: string, newValue: any, originalValue: any) {
-        // Track original for delta 
-        this.ensureOriginalValue(rowId, columnId, originalValue);
+    setPendingEdit(rowId: any, columnId: string, newValue: any, originalValue: any) {
+        const rId = String(rowId);
+        this.ensureOriginalValue(rId, columnId, originalValue);
 
         const currentEdits = { ...this.pendingEdits };
+        const baseline = this.originalValues.get(`${rId}:${columnId}`);
 
-        const baseline = this.originalValues.get(`${rowId}:${columnId}`);
         if (this.isEqual(newValue, baseline)) {
-            // Reverting to original - prune the edit
-            if (currentEdits[rowId]) {
-                delete currentEdits[rowId][columnId];
-                if (Object.keys(currentEdits[rowId]).length === 0) {
-                    delete currentEdits[rowId];
+            if (currentEdits[rId]) {
+                delete currentEdits[rId][columnId];
+                if (Object.keys(currentEdits[rId]).length === 0) {
+                    delete currentEdits[rId];
                 }
             }
         } else {
-            if (!currentEdits[rowId]) {
-                currentEdits[rowId] = {};
+            if (!currentEdits[rId]) {
+                currentEdits[rId] = {};
             }
-            currentEdits[rowId][columnId] = newValue;
+            currentEdits[rId][columnId] = newValue;
         }
 
-        this.undoStack.push(this.snapshot());
-        this.redoStack = [];
+        this.recordHistory();
         this.pendingEdits = currentEdits;
     }
 
+    trackDeletion(rowId: any) {
+        const rId = String(rowId);
+        const next = new Set(this.deletedRowIds);
+        if (next.has(rId)) return;
+
+        next.add(rId);
+        this.recordHistory();
+        this.deletedRowIds = next;
+    }
+
+    untrackDeletion(rowId: any) {
+        const rId = String(rowId);
+        const next = new Set(this.deletedRowIds);
+        if (!next.has(rId)) return;
+
+        next.delete(rId);
+        this.recordHistory();
+        this.deletedRowIds = next;
+    }
+
+    insertRow(row: any) {
+        this.recordHistory();
+        this.insertedRows = [...this.insertedRows, row];
+    }
+
+    removeInsertedRow(tempId: string) {
+        this.recordHistory();
+        this.insertedRows = this.insertedRows.filter(r => r._tempId !== tempId);
+    }
+
     applyEditsLocally(
-        edits: Record<number, Record<string, any>>,
+        edits: Record<string, Record<string, any>>,
         mode: "paste" | "input" = "input",
-        originalValues?: Record<number, Record<string, any>>
+        originalValues?: Record<string, Record<string, any>>
     ) {
-        this.undoStack.push(this.snapshot());
+        this.recordHistory();
 
         if (originalValues) {
             for (const [rowId, cols] of Object.entries(originalValues)) {
-                const rId = Number(rowId);
                 for (const [colId, val] of Object.entries(cols)) {
-                    this.ensureOriginalValue(rId, colId, val);
+                    this.ensureOriginalValue(rowId, colId, val);
                 }
             }
         }
 
         const next = { ...this.pendingEdits };
         for (const [rowId, cols] of Object.entries(edits)) {
-            const rId = Number(rowId);
-            if (!next[rId]) next[rId] = {};
+            if (!next[rowId]) next[rowId] = {};
 
             for (const [colId, val] of Object.entries(cols)) {
-                const baseline = this.originalValues.get(`${rId}:${colId}`);
+                const baseline = this.originalValues.get(`${rowId}:${colId}`);
                 if (this.isEqual(val, baseline)) {
-                    delete next[rId][colId];
+                    delete next[rowId][colId];
                 } else {
-                    next[rId][colId] = val;
+                    next[rowId][colId] = val;
                 }
             }
 
-            if (Object.keys(next[rId]).length === 0) {
-                delete next[rId];
+            if (Object.keys(next[rowId]).length === 0) {
+                delete next[rowId];
             }
         }
         this.pendingEdits = next;
-        this.redoStack = [];
     }
 
     undo() {
         if (this.undoStack.length === 0) return;
-        const current = this.snapshot();
-        this.redoStack.push(current);
+        this.redoStack.push(this.snapshot());
         const prev = this.undoStack.pop();
-        if (prev) {
-            this.pendingEdits = prev;
-        }
+        this.restore(prev);
     }
 
     redo() {
         if (this.redoStack.length === 0) return;
-        const current = this.snapshot();
-        this.undoStack.push(current);
+        this.undoStack.push(this.snapshot());
         const next = this.redoStack.pop();
-        if (next) {
-            this.pendingEdits = next;
-        }
+        this.restore(next);
+    }
+
+    private recordHistory() {
+        this.undoStack.push(this.snapshot());
+        this.redoStack = [];
+    }
+
+    private snapshot() {
+        return {
+            pendingEdits: $state.snapshot(this.pendingEdits),
+            deletedRowIds: Array.from(this.deletedRowIds),
+            insertedRows: $state.snapshot(this.insertedRows)
+        };
+    }
+
+    private restore(state: any) {
+        if (!state) return;
+        this.pendingEdits = state.pendingEdits;
+        this.deletedRowIds = new Set(state.deletedRowIds);
+        this.insertedRows = state.insertedRows;
     }
 
     clear() {
         this.pendingEdits = {};
+        this.deletedRowIds = new Set();
+        this.insertedRows = [];
         this.undoStack = [];
         this.redoStack = [];
         this.originalValues.clear();
     }
 
     revertRow(rowId: any) {
+        const rId = String(rowId);
         const next = { ...this.pendingEdits };
-        if (next[rowId]) {
-            delete next[rowId];
-            
-            // Also clean up original values for this row to prevent memory leaks
-            // though keeping them isn't strictly harmful.
-            const rowIdNum = Number(rowId);
-            for (const key of Array.from(this.originalValues.keys())) {
-                if (key.startsWith(`${rowIdNum}:`)) {
-                    this.originalValues.delete(key);
-                }
-            }
-            
-            this.undoStack.push(this.snapshot());
+        let changed = false;
+
+        if (next[rId]) {
+            delete next[rId];
+            changed = true;
+        }
+
+        if (this.deletedRowIds.has(rId)) {
+            const nextDel = new Set(this.deletedRowIds);
+            nextDel.delete(rId);
+            this.deletedRowIds = nextDel;
+            changed = true;
+        }
+
+        if (changed) {
+            this.recordHistory();
             this.pendingEdits = next;
-            this.redoStack = [];
         }
     }
 
-    getPendingValue(rowId: number, columnId: string): any | undefined {
-        return this.pendingEdits[rowId]?.[columnId];
+    getPendingValue(rowId: any, columnId: string): any | undefined {
+        return this.pendingEdits[String(rowId)]?.[columnId];
     }
 
-    hasPendingValue(rowId: number, columnId: string): boolean {
-        return this.pendingEdits[rowId] && columnId in this.pendingEdits[rowId];
+    hasPendingValue(rowId: any, columnId: string): boolean {
+        const rId = String(rowId);
+        return this.pendingEdits[rId] && columnId in this.pendingEdits[rId];
+    }
+
+    isDeleted(rowId: any): boolean {
+        return this.deletedRowIds.has(String(rowId));
     }
 
     hasPendingEdits(): boolean {
-        return Object.keys(this.pendingEdits).length > 0;
+        return (
+            Object.keys(this.pendingEdits).length > 0 ||
+            this.deletedRowIds.size > 0 ||
+            this.insertedRows.length > 0
+        );
     }
 
-    // Export current changes as simple deltas
     getDeltas(getPkValues?: (rowId: any) => Record<string, any>): EditDelta[] {
         const deltas: EditDelta[] = [];
-        for (const [rowIdStr, cols] of Object.entries(this.pendingEdits)) {
-            const rowId = Number(rowIdStr);
+
+        // Updates
+        for (const [rowId, cols] of Object.entries(this.pendingEdits)) {
             const pkValues = getPkValues?.(rowId);
-            
             for (const [colId, newVal] of Object.entries(cols)) {
-                const key = `${rowId}:${colId}`;
-                const oldVal = this.originalValues.get(key);
+                const oldVal = this.originalValues.get(`${rowId}:${colId}`);
                 deltas.push({
                     rowId,
                     columnId: colId,
                     oldValue: oldVal,
                     newValue: newVal,
-                    pkValues
+                    pkValues,
+                    type: "U"
                 });
             }
         }
-        return deltas;
-    }
 
-    private snapshot() {
-        return $state.snapshot(this.pendingEdits);
+        // Deletions
+        for (const rowId of this.deletedRowIds) {
+            deltas.push({
+                rowId,
+                columnId: "*",
+                oldValue: null,
+                newValue: null,
+                pkValues: getPkValues?.(rowId),
+                type: "D"
+            });
+        }
+
+        // Insertions
+        for (const row of this.insertedRows) {
+            for (const [colId, val] of Object.entries(row)) {
+                if (colId === "_tempId") continue;
+                deltas.push({
+                    rowId: row._tempId,
+                    columnId: colId,
+                    oldValue: null,
+                    newValue: val,
+                    type: "I"
+                });
+            }
+        }
+
+        return deltas;
     }
 }

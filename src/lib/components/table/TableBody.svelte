@@ -13,8 +13,10 @@
         selectedCells: CellSelection[];
         focusedCell: { rowIndex: number; columnIndex: number } | null;
         editingCell: CellSelection | null;
-        pendingEdits: Record<number, any>;
-        onRowSelect: (rowId: number, multi: boolean, range: boolean) => void;
+        pendingEdits: Record<string, any>;
+        deletedRowIds: Set<string>;
+        getRowKey: (row: any) => string;
+        onRowSelect: (rowId: any, multi: boolean, range: boolean) => void;
         loading?: boolean;
         emptyTitle?: string;
         emptyDescription?: string;
@@ -65,6 +67,8 @@
         onCellContextMenu,
         onEditComplete,
         onEditCancel,
+        deletedRowIds,
+        getRowKey,
         header,
     }: Props = $props();
 
@@ -154,11 +158,13 @@
                     {row}
                     {columns}
                     rowIndex={index}
-                    selected={!!selectedRows[row._rowId]}
+                    selected={!!selectedRows[getRowKey(row)]}
                     {selectedCells}
                     {focusedCell}
                     {editingCell}
                     {pendingEdits}
+                    {deletedRowIds}
+                    {getRowKey}
                     disabled={loading}
                     {onRowSelect}
                     {onCellClick}

@@ -1,12 +1,17 @@
 export const NULL_TOKEN = "<null>";
 export const DEFAULT_TOKEN = "<default>";
 
+export type SpecialToken = typeof NULL_TOKEN | typeof DEFAULT_TOKEN;
+
+export function isSpecialToken(val: any): val is SpecialToken {
+    return val === NULL_TOKEN || val === DEFAULT_TOKEN;
+}
+
 export type BooleanLike =
     | true
     | false
     | null
-    | typeof NULL_TOKEN
-    | typeof DEFAULT_TOKEN
+    | SpecialToken
     | undefined;
 
 export function normalizeIncomingBoolean(val: any): BooleanLike {
@@ -25,7 +30,7 @@ export function commitBooleanValue(val: BooleanLike): any {
 
 export function displayBooleanValue(val: BooleanLike): string {
     const normalized = normalizeIncomingBoolean(val);
-    if (normalized === NULL_TOKEN) return "<null>";
-    if (normalized === DEFAULT_TOKEN) return "<default>";
+    if (normalized === NULL_TOKEN) return "NULL";
+    if (normalized === DEFAULT_TOKEN) return "DEFAULT";
     return String(normalized ?? "");
 }
