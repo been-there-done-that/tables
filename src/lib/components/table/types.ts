@@ -96,7 +96,7 @@ export interface EditResult {
 }
 
 export interface RowEdit {
-    rowId: number;
+    rowId: any;
     originalRow: any;
     changes: Record<string, any>;
 }
@@ -104,11 +104,11 @@ export interface RowEdit {
 export type OnApplyEdits = (edits: RowEdit[]) => Promise<EditResult>;
 
 export interface RowSelection {
-    [rowId: number]: boolean;
+    [rowId: string]: boolean;
 }
 
 export interface CellSelection {
-    rowId: number;
+    rowId: any;
     columnId: string;
 }
 

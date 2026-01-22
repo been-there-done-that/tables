@@ -19,6 +19,7 @@
         onPaste: () => void;
         onSetNull: () => void;
         onSetDefault: () => void;
+        onDeleteRow: () => void;
         onClose: () => void;
     }
 
@@ -30,6 +31,7 @@
         onPaste,
         onSetNull,
         onSetDefault,
+        onDeleteRow,
         onClose,
     }: Props = $props();
 
@@ -150,5 +152,31 @@
     >
         <IconRestore class="mr-2 size-3.5" />
         Set DEFAULT
+    </button>
+    <div class="-mx-1 my-1 h-px bg-(--theme-border-default)"></div>
+    <button
+        class="relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-xs outline-none hover:bg-red-500/10 text-red-500 focus:bg-red-500/10 focus:text-red-500 data-disabled:pointer-events-none data-disabled:opacity-50"
+        onclick={onDeleteRow}
+    >
+        <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="mr-2"
+        >
+            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+            <path d="M4 7l16 0" />
+            <path d="M10 11l0 6" />
+            <path d="M14 11l0 6" />
+            <path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" />
+            <path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3" />
+        </svg>
+        Delete Row
     </button>
 </div>

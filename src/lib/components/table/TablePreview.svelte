@@ -122,8 +122,8 @@
                     onRevertAll: () => {
                         tableRef?.revertAll?.();
                         handleEditChange(0); // Trigger sync
-                    }
-                }
+                    },
+                },
             );
             windowState.openRightPanel("pending-changes");
         });
@@ -158,8 +158,8 @@
                         onRevertAll: () => {
                             tableRef?.revertAll?.();
                             handleEditChange(0); // Trigger sync
-                        }
-                    }
+                        },
+                    },
                 );
             });
         }
@@ -324,12 +324,14 @@
         if (!connectionId)
             return { success: false, conflicts: ["No active connection"] };
 
+        // For persistence, we actually want the deltas which include type (U/I/D)
+        const deltas = tableRef?.getEditDeltas?.() ?? [];
+        if (deltas.length === 0) return { success: true };
+
         const dbName = effectiveDatabase;
         const schema = effectiveSchema;
         const table = tableName;
 
-        // Find table metadata to get Primary Keys and Column Types
-        // We look in schemaStore.databases
         const dbMeta = schemaStore.databases.find((d) => d.name === dbName);
         const schemaMeta = dbMeta?.schemas.find((s) => s.name === schema);
         const tableMeta = schemaMeta?.tables.find(
@@ -349,78 +351,93 @@
 
         const errs: string[] = [];
 
-        for (const edit of edits) {
-            const { originalRow, changes } = edit;
+        // Group deltas by rowId to handle inserts as single statements per row if possible
+        const grouped = new Map<string, EditDelta[]>();
+        deltas.forEach((d) => {
+            const key = String(d.rowId);
+            if (!grouped.has(key)) grouped.set(key, []);
+            grouped.get(key)!.push(d);
+        });
 
-            // 1. Build SET clause
-            const setClauses: string[] = [];
-            for (const [colName, newValue] of Object.entries(changes)) {
-                // Find column meta for type-aware formatting
-                const colMeta = tableMeta.columns.find(
-                    (c) => c.column_name === colName,
-                );
-                const formattedVal = formatSqlValue(
-                    newValue,
-                    colMeta?.raw_type,
-                );
-                setClauses.push(`"${colName}" = ${formattedVal}`);
-            }
+        for (const [rowId, rowDeltas] of grouped.entries()) {
+            const type = rowDeltas[0].type;
+            let sql = "";
 
-            if (setClauses.length === 0) continue;
-
-            // 2. Build WHERE clause
-            const whereClauses: string[] = [];
-
-            if (pkCols.length > 0) {
-                // Use Primary Keys
-                for (const pk of pkCols) {
-                    const val = originalRow[pk.column_name];
-                    const formattedVal = formatSqlValue(val, pk.raw_type);
-                    whereClauses.push(`"${pk.column_name}" = ${formattedVal}`);
-                }
-            } else {
-                // Fallback: Use all columns (optimistic concurrency match)
-                // We shouldn't use _rowId as it's synthetic
-                for (const [key, val] of Object.entries(originalRow)) {
-                    if (key === "_rowId") continue;
-                    // Skip if value is complex object/array as strict equality might fail in SQL without casting?
-                    // For now, try best effort.
+            if (type === "I") {
+                // INSERT
+                const cols: string[] = [];
+                const vals: string[] = [];
+                rowDeltas.forEach((d) => {
+                    if (d.newValue === undefined) return;
+                    cols.push(`"${d.columnId}"`);
                     const colMeta = tableMeta.columns.find(
-                        (c) => c.column_name === key,
+                        (c) => c.column_name === d.columnId,
                     );
-                    if (val === null) {
-                        whereClauses.push(`"${key}" IS NULL`);
-                    } else {
-                        const formattedVal = formatSqlValue(
-                            val,
-                            colMeta?.raw_type,
+                    vals.push(formatSqlValue(d.newValue, colMeta?.raw_type));
+                });
+                if (cols.length === 0) continue;
+                sql = `INSERT INTO "${schema}"."${table}" (${cols.join(", ")}) VALUES (${vals.join(", ")})`;
+            } else if (type === "D") {
+                // DELETE
+                const whereClauses: string[] = [];
+                if (pkCols.length > 0) {
+                    for (const pk of pkCols) {
+                        const val = rowDeltas[0].pkValues?.[pk.column_name];
+                        whereClauses.push(
+                            `"${pk.column_name}" = ${formatSqlValue(val, pk.raw_type)}`,
                         );
-                        whereClauses.push(`"${key}" = ${formattedVal}`);
                     }
+                } else {
+                    // Fallback to all columns if no PK
+                    // Note: This matches existing UPDATE fallback logic
+                    errs.push(
+                        `Cannot delete row ${rowId} without primary keys (not yet supported for safety)`,
+                    );
+                    continue;
                 }
+                sql = `DELETE FROM "${schema}"."${table}" WHERE ${whereClauses.join(" AND ")}`;
+            } else {
+                // UPDATE
+                const setClauses: string[] = [];
+                rowDeltas.forEach((d) => {
+                    const colMeta = tableMeta.columns.find(
+                        (c) => c.column_name === d.columnId,
+                    );
+                    setClauses.push(
+                        `"${d.columnId}" = ${formatSqlValue(d.newValue, colMeta?.raw_type)}`,
+                    );
+                });
+
+                const whereClauses: string[] = [];
+                if (pkCols.length > 0) {
+                    for (const pk of pkCols) {
+                        const val = rowDeltas[0].pkValues?.[pk.column_name];
+                        whereClauses.push(
+                            `"${pk.column_name}" = ${formatSqlValue(val, pk.raw_type)}`,
+                        );
+                    }
+                } else {
+                    errs.push(
+                        `Cannot update row ${rowId} without primary keys (safety)`,
+                    );
+                    continue;
+                }
+                sql = `UPDATE "${schema}"."${table}" SET ${setClauses.join(", ")} WHERE ${whereClauses.join(" AND ")}`;
             }
 
-            if (whereClauses.length === 0) {
-                errs.push(`Cannot determine identity for row ${edit.rowId}`);
-                continue;
-            }
-
-            const sql = `UPDATE "${schema}"."${table}" SET ${setClauses.join(", ")} WHERE ${whereClauses.join(" AND ")}`;
-            console.log("[TablePreview] Executing update:", sql);
+            if (!sql) continue;
 
             try {
-                const res = await invoke("execute_query", {
+                await invoke("execute_query", {
                     connectionId,
                     database: dbName,
                     schema,
                     query: sql,
                     component: "preview",
                 });
-                // Check res? execute_query returns QueryResult.
-                // If it didn't throw, it's likely success.
             } catch (e: any) {
-                console.error("Update failed", e);
-                errs.push(String(e));
+                console.error("Operation failed", e);
+                errs.push(`${type} failed: ${String(e)}`);
             }
         }
 
@@ -485,6 +502,10 @@
 
     function handleOrderByChange(value: string) {
         orderByClause = value;
+    }
+
+    function handleAddRow() {
+        tableRef?.handleAddRow?.();
     }
 
     let isCountLoading = $state(false);
@@ -683,6 +704,7 @@
         {executionTime}
         {pendingChangesCount}
         onShowChanges={handleShowChanges}
+        onAddRow={handleAddRow}
     />
     {#key tableKey}
         <div class="flex-1 min-h-0 relative z-0">
