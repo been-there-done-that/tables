@@ -38,7 +38,7 @@
             const result = await pendingChangesStore.onSaveChanges();
             if (result.success) {
                 toast.success("Changes saved successfully");
-                windowState.closeRightPanel();
+                // Panel stays open to show cleared state
             } else {
                 const errMsg = result.errors?.join(", ") || "Unknown error";
                 toast.error(`Failed to save: ${errMsg}`);
