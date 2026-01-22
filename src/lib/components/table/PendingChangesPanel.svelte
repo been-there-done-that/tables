@@ -572,18 +572,6 @@
             <!-- SQL Tab -->
             <div class="flex flex-col h-full">
                 <div
-                    class="flex items-center justify-end px-3 py-2 border-b border-border/50"
-                >
-                    <button
-                        type="button"
-                        class="flex items-center gap-1 px-2 py-1 text-xs rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-                        onclick={copyToClipboard}
-                    >
-                        <IconCopy class="size-3" />
-                        Copy
-                    </button>
-                </div>
-                <div
                     class="flex-1 relative bg-background border-t border-border/50"
                 >
                     <div

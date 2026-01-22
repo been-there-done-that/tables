@@ -22,8 +22,8 @@
 
     import { untrack } from "svelte";
 
-    let expandedId = $state<number | null>(null);
-    let copiedId = $state<number | null>(null);
+    let expandedId = $state<string | null>(null);
+    let copiedId = $state<string | null>(null);
     let scrollContainer = $state<HTMLElement | null>(null);
     let confirmClearAll = $state(false);
     let isDeleting = $state(false);
@@ -82,7 +82,7 @@
         untrack(() => logsStore.init(connId));
     });
 
-    function toggleExpand(id: number) {
+    function toggleExpand(id: string) {
         if (expandedId === id) {
             expandedId = null;
         } else {
@@ -173,9 +173,14 @@
                     <div
                         class={cn(
                             "group flex flex-col border-b border-border/40 hover:bg-muted/30 cursor-pointer transition-colors",
-                            expandedId === log.timestamp && "bg-muted/40",
+                            expandedId ===
+                                (log.correlationId || `ts-${log.timestamp}`) &&
+                                "bg-muted/40",
                         )}
-                        onclick={() => toggleExpand(log.timestamp)}
+                        onclick={() =>
+                            toggleExpand(
+                                log.correlationId || `ts-${log.timestamp}`,
+                            )}
                     >
                         <!-- Concise Row -->
                         <div class="flex items-center gap-2 p-2 min-w-0">
@@ -236,7 +241,7 @@
                         </div>
 
                         <!-- Expanded Details -->
-                        {#if expandedId === log.timestamp}
+                        {#if expandedId === (log.correlationId || `ts-${log.timestamp}`)}
                             <div
                                 class="px-2 pb-3 pt-0 animate-in slide-in-from-top-1 duration-200"
                             >
@@ -250,7 +255,9 @@
                                             navigator.clipboard.writeText(
                                                 log.query,
                                             );
-                                            copiedId = log.timestamp;
+                                            copiedId =
+                                                log.correlationId ||
+                                                `ts-${log.timestamp}`;
                                             setTimeout(
                                                 () => (copiedId = null),
                                                 2000,
@@ -258,7 +265,7 @@
                                         }}
                                         title="Copy Query"
                                     >
-                                        {#if copiedId === log.timestamp}
+                                        {#if copiedId === (log.correlationId || `ts-${log.timestamp}`)}
                                             <IconCheck
                                                 class="size-3 text-emerald-500"
                                             />
