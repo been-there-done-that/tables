@@ -209,7 +209,7 @@
                         <button
                             class="w-full text-left px-3 py-2 text-xs cursor-pointer transition-all flex items-center justify-between gap-4 rounded-lg {idx ===
                             highlightedIndex
-                                ? 'bg-accent text-accent-foreground shadow-sm'
+                                ? 'bg-accent/15 text-accent font-semibold'
                                 : 'text-foreground/90 hover:bg-muted/50 hover:text-foreground'}"
                             onmouseenter={() => (highlightedIndex = idx)}
                             onmousedown={(e) => {
@@ -222,7 +222,7 @@
                                 <span
                                     class="text-[9px] font-mono lowercase tracking-tight opacity-40 {idx ===
                                     highlightedIndex
-                                        ? 'text-accent-foreground/70'
+                                        ? 'text-accent/70'
                                         : 'text-muted-foreground'}"
                                     >{suggestion.type}</span
                                 >
