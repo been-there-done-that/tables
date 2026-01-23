@@ -379,29 +379,31 @@
 
         <div class="w-px h-5 bg-border/50"></div>
 
-        <!-- Execute Button -->
-        <div class="flex items-center">
+        <div class="w-px h-4 bg-border/40 mx-1"></div>
+
+        <div class="flex items-center gap-1">
             <Button
                 variant="ghost"
                 size="sm"
-                class="h-7"
+                class="h-7 px-2 flex items-center gap-1.5 hover:bg-green-500/10 hover:text-green-500 transition-colors"
                 title="Run (⌘+Enter)"
                 onclick={handleExecute}
             >
                 <IconPlayerPlayFilled class="size-5 text-green-500" />
+                <span class="text-xs font-medium">Execute</span>
             </Button>
 
             <Button
                 variant="ghost"
                 size="sm"
-                class="h-7"
+                class="h-7 px-2 flex items-center gap-1.5 hover:bg-blue-500/10 hover:text-blue-500 transition-colors"
                 title="Add Row"
                 onclick={() => onAddRow?.()}
             >
                 <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    width="20"
-                    height="20"
+                    width="18"
+                    height="18"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -414,34 +416,38 @@
                     <path d="M12 5l0 14" />
                     <path d="M5 12l14 0" />
                 </svg>
+                <span class="text-xs font-medium">Add Row</span>
             </Button>
+
+            {#if isLoading}
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    class="h-7 px-2 flex items-center gap-1.5 text-red-500 hover:bg-red-500/10 transition-colors"
+                    title="Cancel query (Esc)"
+                    onclick={handleCancel}
+                >
+                    <IconPlayerStopFilled class="size-5" />
+                    <span class="text-xs font-medium">Cancel</span>
+                </Button>
+            {/if}
+
+            <div class="w-px h-4 bg-border/40 mx-1"></div>
 
             <Button
                 variant="ghost"
                 size="sm"
-                class="h-7"
-                title="Cancel query (Esc)"
-                onclick={handleCancel}
-                disabled={!isLoading}
-            >
-                <IconPlayerStopFilled
-                    class="size-5 {isLoading
-                        ? 'text-red-500'
-                        : 'text-muted-foreground/40'}"
-                />
-            </Button>
-
-            <Button
-                variant="ghost"
-                size="sm"
-                class="h-7"
+                class="h-7 px-2 flex items-center gap-1.5"
                 title="Refresh"
                 onclick={handleRefresh}
                 disabled={isLoading}
             >
                 <IconRefresh
-                    class="size-5 {isLoading ? 'animate-spin-reverse' : ''}"
+                    class="size-5 {isLoading
+                        ? 'animate-spin-reverse'
+                        : 'opacity-70'}"
                 />
+                <span class="text-xs font-medium">Refresh</span>
             </Button>
 
             <Menu.Root>
@@ -450,13 +456,14 @@
                         variant="ghost"
                         size="sm"
                         class={cn(
-                            "h-7",
+                            "h-7 px-2 flex items-center gap-1.5",
                             currentAutoRefresh > 0 &&
                                 "border-2 border-transparent rounded-md bg-origin-border [background-clip:padding-box,border-box] bg-[linear-gradient(var(--theme-bg-secondary),var(--theme-bg-secondary)),linear-gradient(to_right,#ef4444,#f97316,#eab308,#22c55e,#3b82f6,#8b5cf6,#ec4899)]",
                         )}
                         title="Auto Refresh"
                     >
-                        <IconClockPlay class="size-5" />
+                        <IconClockPlay class="size-5 opacity-70" />
+                        <span class="text-xs font-medium">Auto</span>
                     </Button>
                 </Menu.Trigger>
                 <Menu.Content
@@ -484,38 +491,48 @@
                 </Menu.Content>
             </Menu.Root>
 
+            <div class="w-px h-4 bg-border/40 mx-1"></div>
+
             <!-- Save Button -->
             <Button
                 variant="ghost"
                 size="sm"
                 disabled={isSaving || pendingChangesCount === 0}
-                class="h-7"
+                class="h-7 px-2 flex items-center gap-1.5 hover:text-green-500"
                 title="Save all changes"
                 onclick={() => onSaveChanges?.()}
             >
-                <IconDeviceFloppy class="size-5" />
+                {#if isSaving}
+                    <IconLoader2 class="size-5 animate-spin" />
+                {:else}
+                    <IconDeviceFloppy class="size-5 opacity-70" />
+                {/if}
+                <span class="text-xs font-medium">Save</span>
             </Button>
             <!-- Changes Button -->
             <Button
                 variant="ghost"
                 size="sm"
-                class="h-7 relative px-2"
+                class="h-7 relative px-2 flex items-center gap-1.5"
                 disabled={pendingChangesCount === 0}
                 title="View pending changes"
                 onclick={() => onShowChanges?.()}
             >
-                <IconVersions class="size-5" />
-                <span
-                    class="absolute -top-0.5 -right-0.5 size-4 text-[9px] font-bold bg-(--theme-accent-primary) text-white rounded-full flex items-center justify-center"
-                >
-                    {pendingChangesCount}
-                </span>
+                <IconVersions class="size-5 opacity-70" />
+                <span class="text-xs font-medium">Changes</span>
+                {#if pendingChangesCount > 0}
+                    <span
+                        class="size-4 text-[9px] font-bold bg-(--theme-accent-primary) text-white rounded-full flex items-center justify-center ml-0.5"
+                    >
+                        {pendingChangesCount}
+                    </span>
+                {/if}
             </Button>
         </div>
 
         <div class="flex-1"></div>
 
-        <div class="w-px h-5 bg-border/50"></div>
+        <div class="w-px h-5 bg-border/40 mx-1"></div>
 
         <!-- Export Menu -->
 
@@ -523,11 +540,12 @@
             <Menu.Trigger>
                 <Button
                     variant="ghost"
-                    size="icon"
-                    class="h-7 w-7"
+                    size="sm"
+                    class="h-7 px-2 flex items-center gap-1.5"
                     title="Export"
                 >
-                    <IconDownload class="h-4 w-4 opacity-70" />
+                    <IconDownload class="h-5 w-5 opacity-70" />
+                    <span class="text-xs font-medium">Export</span>
                 </Button>
             </Menu.Trigger>
             <Menu.Content

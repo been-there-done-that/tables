@@ -118,9 +118,7 @@
                 <div class="flex h-full flex-col bg-muted/10">
                   <div
                     class="flex h-8 flex-none items-center border-b border-border px-4"
-                  >
-                    <h2 class="text-sm font-semibold">Properties</h2>
-                  </div>
+                  ></div>
                   <div class="flex-1 overflow-auto p-4">
                     <p class="text-xs">Property details...</p>
                   </div>

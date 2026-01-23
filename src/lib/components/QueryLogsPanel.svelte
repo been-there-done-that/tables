@@ -22,8 +22,8 @@
 
     import { untrack } from "svelte";
 
-    let expandedId = $state<string | null>(null);
-    let copiedId = $state<string | null>(null);
+    let expandedId = $state<number | null>(null);
+    let copiedId = $state<number | null>(null);
     let scrollContainer = $state<HTMLElement | null>(null);
     let confirmClearAll = $state(false);
     let isDeleting = $state(false);
@@ -82,7 +82,8 @@
         untrack(() => logsStore.init(connId));
     });
 
-    function toggleExpand(id: string) {
+    function toggleExpand(id: number | undefined) {
+        if (id === undefined) return;
         if (expandedId === id) {
             expandedId = null;
         } else {
@@ -159,7 +160,7 @@
 
             {#each groupedLogs() as group}
                 <div
-                    class="sticky top-0 z-10 bg-muted/90 backdrop-blur-sm px-3 py-1.5 border-b border-border/20 text-[9px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2"
+                    class="sticky top-0 z-10 bg-muted/90 backdrop-blur-sm px-3 py-2 border-b border-border/20 text-[9px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2"
                 >
                     <div
                         class="size-1 rounded-full bg-accent-primary opacity-50"
@@ -167,20 +168,17 @@
                     {group.label}
                 </div>
 
-                {#each group.logs as log, i (log.timestamp + i)}
+                {#each group.logs as log (log.id ?? log.timestamp)}
                     <!-- svelte-ignore a11y_click_events_have_key_events -->
                     <!-- svelte-ignore a11y_no_static_element_interactions -->
                     <div
                         class={cn(
                             "group flex flex-col border-b border-border/40 hover:bg-muted/30 cursor-pointer transition-colors",
-                            expandedId ===
-                                (log.correlationId || `ts-${log.timestamp}`) &&
+                            log.id !== undefined &&
+                                expandedId === log.id &&
                                 "bg-muted/40",
                         )}
-                        onclick={() =>
-                            toggleExpand(
-                                log.correlationId || `ts-${log.timestamp}`,
-                            )}
+                        onclick={() => toggleExpand(log.id)}
                     >
                         <!-- Concise Row -->
                         <div class="flex items-center gap-2 p-2 min-w-0">
@@ -241,7 +239,7 @@
                         </div>
 
                         <!-- Expanded Details -->
-                        {#if expandedId === (log.correlationId || `ts-${log.timestamp}`)}
+                        {#if log.id !== undefined && expandedId === log.id}
                             <div
                                 class="px-2 pb-3 pt-0 animate-in slide-in-from-top-1 duration-200"
                             >
@@ -252,12 +250,11 @@
                                         class="absolute bg-background cursor-pointer rounded-md right-1 top-1 p-1 opacity-0 group-hover/code:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
                                         onclick={(e) => {
                                             e.stopPropagation();
+                                            if (log.id === undefined) return;
                                             navigator.clipboard.writeText(
                                                 log.query,
                                             );
-                                            copiedId =
-                                                log.correlationId ||
-                                                `ts-${log.timestamp}`;
+                                            copiedId = log.id;
                                             setTimeout(
                                                 () => (copiedId = null),
                                                 2000,
@@ -265,7 +262,7 @@
                                         }}
                                         title="Copy Query"
                                     >
-                                        {#if copiedId === (log.correlationId || `ts-${log.timestamp}`)}
+                                        {#if log.id !== undefined && copiedId === log.id}
                                             <IconCheck
                                                 class="size-3 text-emerald-500"
                                             />
@@ -289,6 +286,8 @@
                     </div>
                 {/each}
             {/each}
+            <!-- Over-scroll spacer: allow the last row to be scrolled to the center -->
+            <div class="h-[50%] w-full pointer-events-none"></div>
         </div>
     </div>
 {/if}
