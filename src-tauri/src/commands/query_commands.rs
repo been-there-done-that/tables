@@ -789,25 +789,12 @@ fn log_query_end(
     component: Option<&str>,
 ) {
     let timestamp = crate::now_ts() * 1000;
-    
-    // Emit event
-    let _ = app.emit("query-log", serde_json::json!({
-        "timestamp": timestamp, // End timestamp? or use original? Used for sorting...
-        "correlationId": correlation_id,
-        "connectionId": connection_id,
-        "database": database,
-        "query": query,
-        "durationMs": duration_ms,
-        "status": status,
-        "error": error,
-        "rows": row_count,
-        "component": component
-    }));
+    let mut log_id = None;
 
-    // Persist to internal DB
+    // Persist to internal DB first to get the ID
     if let Some(db_state) = app.try_state::<DatabaseState>() {
         if let Ok(conn) = db_state.conn.lock() {
-            let _ = conn.execute(
+            let res = conn.execute(
                 "INSERT INTO query_logs (connection_id, connection_name, database_name, timestamp, query_text, duration_ms, row_count, status, error_message)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                 rusqlite::params![
@@ -822,6 +809,24 @@ fn log_query_end(
                     error
                 ]
             );
+            if res.is_ok() {
+                log_id = Some(conn.last_insert_rowid());
+            }
         }
     }
+    
+    // Emit event with the ID
+    let _ = app.emit("query-log", serde_json::json!({
+        "id": log_id,
+        "timestamp": timestamp,
+        "correlationId": correlation_id,
+        "connectionId": connection_id,
+        "database": database,
+        "query": query,
+        "durationMs": duration_ms,
+        "status": status,
+        "error": error,
+        "rows": row_count,
+        "component": component
+    }));
 }
