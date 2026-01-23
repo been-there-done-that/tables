@@ -495,26 +495,26 @@
             >
                 <IconDeviceFloppy class="size-5" />
             </Button>
+            <!-- Changes Button -->
+            <Button
+                variant="ghost"
+                size="sm"
+                class="h-7 relative px-2"
+                disabled={pendingChangesCount === 0}
+                title="View pending changes"
+                onclick={() => onShowChanges?.()}
+            >
+                <IconVersions class="size-5" />
+                <span
+                    class="absolute -top-0.5 -right-0.5 size-4 text-[9px] font-bold bg-(--theme-accent-primary) text-white rounded-full flex items-center justify-center"
+                >
+                    {pendingChangesCount}
+                </span>
+            </Button>
         </div>
 
         <div class="flex-1"></div>
 
-        <!-- Changes Button -->
-        <Button
-            variant="ghost"
-            size="sm"
-            class="h-7 relative px-2"
-            disabled={pendingChangesCount === 0}
-            title="View pending changes"
-            onclick={() => onShowChanges?.()}
-        >
-            <IconVersions class="size-4 text-(--theme-accent-primary)" />
-            <span
-                class="absolute -top-0.5 -right-0.5 size-4 text-[9px] font-bold bg-(--theme-accent-primary) text-white rounded-full flex items-center justify-center"
-            >
-                {pendingChangesCount > 9 ? "9+" : pendingChangesCount}
-            </span>
-        </Button>
         <div class="w-px h-5 bg-border/50"></div>
 
         <!-- Export Menu -->
