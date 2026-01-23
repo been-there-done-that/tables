@@ -12,7 +12,7 @@
     import type { EditDelta } from "./TableEditManager.svelte";
     import { pendingChangesStore } from "$lib/stores/pendingChanges.svelte";
     import { windowState } from "$lib/stores/window.svelte";
-    import { NULL_TOKEN } from "./valueUtils";
+    import { NULL_TOKEN, DEFAULT_TOKEN } from "./valueUtils";
     import { useMonacoEditor } from "$lib/monaco/useMonacoEditor";
     import { MONACO_THEME_NAME } from "$lib/monaco/monaco-theme";
     import * as Popover from "$lib/components/ui/popover";
@@ -143,6 +143,7 @@
     function formatSqlValue(val: any): string {
         if (val === null || val === undefined || val === NULL_TOKEN)
             return "NULL";
+        if (val === DEFAULT_TOKEN) return "DEFAULT";
         if (typeof val === "number") return String(val);
         if (typeof val === "boolean") return val ? "TRUE" : "FALSE";
         if (typeof val === "string") return `'${val.replace(/'/g, "''")}'`;
@@ -151,6 +152,7 @@
 
     function formatDisplayValue(val: any): string {
         if (val === null || val === NULL_TOKEN) return "NULL";
+        if (val === DEFAULT_TOKEN) return "DEFAULT";
         if (val === undefined) return "undefined";
         if (typeof val === "object") return JSON.stringify(val);
         return String(val);
