@@ -12,6 +12,7 @@
     import { windowState } from "$lib/stores/window.svelte";
     import { getDefaultDatabase, getDefaultSchema } from "$lib/engine-config";
     import { pendingChangesStore } from "$lib/stores/pendingChanges.svelte";
+    import { NULL_TOKEN } from "$lib/components/table/valueUtils";
 
     interface Props {
         context: {
@@ -514,7 +515,8 @@
     }
 
     function formatSqlValue(val: any, rawType?: string): string {
-        if (val === null || val === undefined) return "NULL";
+        if (val === null || val === undefined || val === NULL_TOKEN)
+            return "NULL";
         if (typeof val === "boolean") return val ? "TRUE" : "FALSE";
         if (typeof val === "number") return String(val);
 
