@@ -276,7 +276,8 @@
         isPendingEdit &&
             "bg-amber-500/10 italic border-l-2 border-l-amber-500 pl-1.5",
         // Editing state (active input)
-        isEditing && "z-9 bg-surface ring-2 ring-inset ring-accent shadow-lg",
+        isEditing &&
+            "z-9 bg-surface ring-[3px] ring-inset ring-accent shadow-xl",
         // Disabled
         disabled && "opacity-50 cursor-not-allowed",
     )}
