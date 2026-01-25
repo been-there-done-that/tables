@@ -150,8 +150,8 @@
     tabindex="-1"
     onkeydown={handleKeydown}
     class={cn(
-        "popover-editor fixed rounded-lg shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] flex flex-col p-1",
-        "bg-surface border border-accent/20 ring-1 ring-accent/10 transition-opacity duration-150",
+        "popover-editor fixed rounded-lg shadow-[0_12px_48px_-12px_rgba(0,0,0,0.6),0_0_0_1px_rgba(0,0,0,0.05)] flex flex-col p-1",
+        "bg-surface border border-accent/40 ring-1 ring-accent/30 transition-opacity duration-150",
         isVisible ? "opacity-100 anim-pop" : "opacity-0 pointer-events-none",
         className,
     )}
