@@ -12,6 +12,7 @@
     import type { EditDelta } from "./TableEditManager.svelte";
     import { pendingChangesStore } from "$lib/stores/pendingChanges.svelte";
     import { windowState } from "$lib/stores/window.svelte";
+    import { settingsStore } from "$lib/stores/settings.svelte";
     import { NULL_TOKEN, DEFAULT_TOKEN } from "./valueUtils";
     import { useMonacoEditor } from "$lib/monaco/useMonacoEditor";
     import { MONACO_THEME_NAME } from "$lib/monaco/monaco-theme";
@@ -245,10 +246,10 @@
         if (activeTab === "sql" && editorContainer) {
             useMonacoEditor(
                 {
-                    contextId: "pending-changes-sql",
-                    windowId: "main",
+                    contextId: `pending-changes-sql-${windowState.label}`,
+                    windowId: windowState.label,
                     kind: "sql",
-                    modelUri: "file:///pending-changes.sql",
+                    modelUri: `file:///pending-changes-${windowState.label}.sql`,
                     container: () => editorContainer,
                     options: {
                         theme: MONACO_THEME_NAME,
@@ -258,8 +259,8 @@
                         renderLineHighlight: "none",
                         lineNumbers: "off", // Cleaner look for preview
                         padding: { top: 10, bottom: 10 },
-                        fontSize: 12, // Consistent with other UI
-                        fontFamily: "Geist Mono, monospace",
+                        fontSize: settingsStore.editorFontSize,
+                        fontFamily: settingsStore.editorFontFamily,
                     },
                 },
                 (handle) => {
@@ -267,6 +268,16 @@
                     handle.editor.setValue(generatedSql());
                 },
             );
+        }
+    });
+
+    // Reactive font settings
+    $effect(() => {
+        if (editorHandle?.editor) {
+            editorHandle.editor.updateOptions({
+                fontFamily: settingsStore.editorFontFamily,
+                fontSize: settingsStore.editorFontSize,
+            });
         }
     });
 

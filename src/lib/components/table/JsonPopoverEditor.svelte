@@ -7,6 +7,8 @@
     import IconX from "@tabler/icons-svelte/icons/x";
     import type * as Monaco from "monaco-editor";
     import { MONACO_THEME_NAME } from "$lib/monaco/monaco-theme";
+    import { windowState } from "$lib/stores/window.svelte";
+    import { settingsStore } from "$lib/stores/settings.svelte";
 
     interface Props {
         value: any;
@@ -66,8 +68,8 @@
 
     useMonacoEditor(
         {
-            contextId: "json-popover",
-            windowId: "main",
+            contextId: `json-popover-${crypto.randomUUID()}`,
+            windowId: windowState.label,
             kind: "json",
             modelUri: modelUri,
             container: () => editorContainer,
@@ -80,13 +82,12 @@
                 scrollBeyondLastLine: false,
                 lineNumbers: "on",
                 tabSize: 2,
-                fontSize: 12,
+                fontSize: settingsStore.editorFontSize,
+                fontFamily: settingsStore.editorFontFamily,
                 scrollbar: {
                     horizontal: "auto",
                     vertical: "auto",
                 },
-                fontFamily:
-                    "Fira Code, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
                 padding: { bottom: 28 },
             },
         },
@@ -94,6 +95,16 @@
             setupEditorInteractions(handle);
         },
     );
+
+    // Reactive font settings
+    $effect(() => {
+        if (editorInstance) {
+            editorInstance.updateOptions({
+                fontFamily: settingsStore.editorFontFamily,
+                fontSize: settingsStore.editorFontSize,
+            });
+        }
+    });
 
     function setupEditorInteractions(handle: EditorHandle) {
         const editor = handle.editor;

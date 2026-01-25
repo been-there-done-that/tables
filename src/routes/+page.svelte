@@ -68,7 +68,10 @@
                         <div class="flex-1 relative overflow-hidden">
                           {#each activeSession.views as view (view.id)}
                             {#if view.id === activeSession.activeViewId}
-                              <SqlTestingEditor bind:context={view.data} />
+                              <SqlTestingEditor
+                                id={view.id}
+                                bind:context={view.data}
+                              />
                             {/if}
                           {/each}
                         </div>
@@ -77,7 +80,10 @@
                           {#if view.id === activeSession.activeViewId}
                             <div class="flex-1 overflow-hidden relative">
                               {#if view.type === "editor"}
-                                <SqlTestingEditor context={view.data} />
+                                <SqlTestingEditor
+                                  id={view.id}
+                                  context={view.data}
+                                />
                               {:else if view.type === "table"}
                                 <TablePreview bind:context={view.data} />
                               {:else}
