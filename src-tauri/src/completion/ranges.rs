@@ -59,21 +59,41 @@ pub fn find_current_statement_range(tree: &Tree, cursor_offset: usize) -> Option
 
 /// Find ALL SQL statement ranges in the document.
 /// Used for CodeLens/glyph margin to show run buttons on each query.
-/// Filters out comment-only nodes.
-pub fn find_all_statement_ranges(tree: &Tree) -> Vec<StatementRangeWithBytes> {
+/// Filters out comment-only nodes and invalid fragments.
+pub fn find_all_statement_ranges(tree: &Tree, text_source: &str) -> Vec<StatementRangeWithBytes> {
     let root = tree.root_node();
     let mut cursor = root.walk();
     let mut ranges = Vec::new();
 
     for child in root.children(&mut cursor) {
-        // Skip comment nodes - they're not executable statements
+        // Skip comment nodes
         let node_kind = child.kind();
         if node_kind == "comment" || node_kind == "line_comment" || node_kind == "block_comment" {
             continue;
         }
         
-        // Also skip empty/whitespace-only nodes
+        // Skip empty nodes
         if child.start_byte() == child.end_byte() {
+            continue;
+        }
+
+        // HEURISTIC: Check if it's a valid statement start
+        // Tree-sitter sometimes breaks on complex queries and emits fragments like "AND ..." as new statements.
+        // We only want run buttons on actual start commands.
+        let node_text = child.utf8_text(text_source.as_bytes()).unwrap_or("").trim().to_uppercase();
+        
+        // List of valid statement starters
+        let valid_starts = [
+            "SELECT", "WITH", "INSERT", "UPDATE", "DELETE", 
+            "CREATE", "DROP", "ALTER", "PRAGMA", "TRUNCATE",
+            "EXPLAIN", "DESCRIBE", "SHOW", "USE", "BEGIN", 
+            "COMMIT", "ROLLBACK", "TABLE", "VALUES"
+        ];
+
+        let starts_valid = valid_starts.iter().any(|start| node_text.starts_with(start));
+        
+        // If it doesn't start with a valid keyword, skip it (likely a fragment like "AND x=y")
+        if !starts_valid {
             continue;
         }
 
