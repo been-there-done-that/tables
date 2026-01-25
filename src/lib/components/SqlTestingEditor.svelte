@@ -21,6 +21,8 @@
         loadEditorSession,
         createDebouncedSave,
     } from "$lib/services/editor-persistence";
+    import { enableQueryCodeLens } from "$lib/monaco/query-codelens";
+    import { enableQueryGlyphMargin } from "$lib/monaco/query-glyph";
 
     let { id = "playground", context = $bindable({}) } = $props<{
         id?: string;
@@ -138,6 +140,38 @@
             }
         } else {
             log("No query to execute");
+        }
+    }
+
+    // Execute a specific query text (used by inline run buttons)
+    async function executeQueryText(queryText: string) {
+        if (!queryText.trim()) {
+            log("No query to execute");
+            return;
+        }
+
+        log(
+            `Executing (inline button) in ${schemaStore.selectedDatabase}.${schemaStore.activeSchema}:\n${queryText}`,
+        );
+
+        if (!schemaStore.activeConnection) {
+            log("No active connection selected.");
+            return;
+        }
+
+        try {
+            const result = await invoke("execute_query", {
+                connectionId: schemaStore.activeConnection.id,
+                database: schemaStore.selectedDatabase,
+                schema: schemaStore.activeSchema || "public",
+                query: queryText,
+                component: "editor",
+            });
+            console.log("Query Result:", result);
+            log("Query completed successfully.");
+        } catch (e) {
+            console.error("Query execution failed:", e);
+            log(`Query failed: ${e}`);
         }
     }
 
@@ -313,11 +347,37 @@
                 contentChangeDisposable,
                 cursorChangeDisposable,
             ];
+
+            // Enable inline query run buttons (Glyph Margin only)
+            // Note: CodeLens is disabled to avoid duplicate buttons
+            const executeQuery = (
+                queryText: string,
+                startLine: number,
+                endLine: number,
+            ) => {
+                console.log(
+                    `[Execute] Running query from inline button (lines ${startLine}-${endLine}):`,
+                    queryText.substring(0, 50),
+                );
+                executeQueryText(queryText);
+            };
+
+            // CodeLens ("▷ Run" text above each query)
+            codeLensCleanup = enableQueryCodeLens(handle.editor, monaco, {
+                onExecute: executeQuery,
+            });
+
+            // Glyph Margin (play icon in left margin)
+            glyphCleanup = enableQueryGlyphMargin(handle.editor, {
+                onExecute: executeQuery,
+            });
         },
     );
 
     // Track disposables for cleanup
     let editorDisposables: { dispose: () => void }[] = [];
+    let codeLensCleanup: (() => void) | null = null;
+    let glyphCleanup: (() => void) | null = null;
 
     // Flush pending saves and dispose event listeners on destroy
     onDestroy(() => {
@@ -330,6 +390,9 @@
         // CRITICAL: Dispose all Monaco event subscriptions to prevent leaks
         editorDisposables.forEach((d) => d.dispose());
         editorDisposables = [];
+        // Cleanup inline query button provider
+        codeLensCleanup?.();
+        glyphCleanup?.();
     });
 </script>
 

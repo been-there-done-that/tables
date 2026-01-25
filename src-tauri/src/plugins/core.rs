@@ -258,6 +258,7 @@ macro_rules! aggregate_plugin_commands {
             update_completion_schema,
             clear_completion_schema,
             get_current_statement,
+            get_all_statements,
             request_diagnostics,
 
             // Font commands
