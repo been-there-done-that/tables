@@ -21,12 +21,10 @@
         loadEditorSession,
         createDebouncedSave,
     } from "$lib/services/editor-persistence";
-    import { enableQueryCodeLens } from "$lib/monaco/query-codelens";
-    import { enableQueryGlyphMargin } from "$lib/monaco/query-glyph";
     import {
-        enableQueryStatusLens,
-        type QueryStatus,
-    } from "$lib/monaco/query-status-lens";
+        enableQueryHeaders,
+        type QueryHeaderController,
+    } from "$lib/monaco/query-headers";
 
     let { id = "playground", context = $bindable({}) } = $props<{
         id?: string;
@@ -38,16 +36,7 @@
     let logs: string[] = $state([]);
     let isLoadingSession = $state(true);
 
-    // Track execution status for each line (startLine -> Status)
-    let queryStatuses = $state<Map<number, QueryStatus>>(new Map());
-    const getQueryStatuses = () => Array.from(queryStatuses.values());
-    const getRunningLines = () => {
-        const running = new Set<number>();
-        for (const [line, status] of queryStatuses.entries()) {
-            if (status.state === "running") running.add(line);
-        }
-        return running;
-    };
+    let headerController: QueryHeaderController | null = null;
 
     // Debounced save for editor content
     const debouncedSave = createDebouncedSave(2000);
@@ -180,17 +169,8 @@
         }
 
         // Mark as running
-        if (startLine && endLine) {
-            queryStatuses.set(startLine, {
-                state: "running",
-                ranges: { startLine, endLine },
-            });
-            // Trigger reactivity (Map mutation needs help or re-assignment in Svelte 5 proxies if deep,
-            // but Map itself usually needs new instance or specific signal.
-            // In Svelte 5 $state, Map methods are reactive if the Map is proxied?
-            // Actually, Svelte 5 Maps are reactive. But let's verify.)
-            // Just to be safe for array derivation:
-            queryStatuses = new Map(queryStatuses);
+        if (startLine && endLine && headerController) {
+            headerController.updateStatus(startLine, { state: "running" });
         }
 
         const startTime = performance.now();
@@ -207,26 +187,21 @@
             const duration = performance.now() - startTime;
 
             // Mark success
-            if (startLine && endLine) {
-                queryStatuses.set(startLine, {
+            if (startLine && endLine && headerController) {
+                headerController.updateStatus(startLine, {
                     state: "success",
-                    durationMs: duration,
-                    ranges: { startLine, endLine },
+                    duration,
                 });
-                queryStatuses = new Map(queryStatuses);
             }
 
             console.log("Query Result:", result);
             log("Query completed successfully.");
         } catch (e) {
             // Mark error
-            if (startLine && endLine) {
-                queryStatuses.set(startLine, {
+            if (startLine && endLine && headerController) {
+                headerController.updateStatus(startLine, {
                     state: "error",
-                    errorMessage: String(e),
-                    ranges: { startLine, endLine },
                 });
-                queryStatuses = new Map(queryStatuses);
             }
 
             console.error("Query execution failed:", e);
@@ -407,46 +382,29 @@
                 cursorChangeDisposable,
             ];
 
-            // Enable inline query run buttons (Glyph Margin only)
+            // Enable Rich Headers (ViewZones above queries)
             const executeQuery = (
                 queryText: string,
                 startLine: number,
                 endLine: number,
             ) => {
-                console.log(
-                    `[Execute] Running query from inline button (lines ${startLine}-${endLine}):`,
-                    queryText.substring(0, 50),
-                );
                 executeQueryText(queryText, startLine, endLine);
             };
 
             const stopQuery = (startLine: number, endLine: number) => {
-                log(
-                    "Stop functionality not fully implemented yet (needs cancellation ID)",
-                );
-                // In future: invoke("cancel_query", { queryId })
+                log("Stop functionality not fully implemented yet");
             };
 
-            // Status Lens (Running... / Success 123ms)
-            statusLensCleanup = enableQueryStatusLens(
+            headerController = enableQueryHeaders(
                 handle.editor,
-                monaco,
-                getQueryStatuses,
+                executeQuery,
+                stopQuery,
             );
-
-            // Glyph Margin (play/stop icons)
-            glyphCleanup = enableQueryGlyphMargin(handle.editor, {
-                onExecute: executeQuery,
-                onStop: stopQuery,
-                getRunningLines: getRunningLines,
-            });
         },
     );
 
     // Track disposables for cleanup
     let editorDisposables: { dispose: () => void }[] = [];
-    let statusLensCleanup: (() => void) | null = null;
-    let glyphCleanup: (() => void) | null = null;
 
     // Flush pending saves and dispose event listeners on destroy
     onDestroy(() => {
@@ -459,10 +417,9 @@
         // CRITICAL: Dispose all Monaco event subscriptions to prevent leaks
         editorDisposables.forEach((d) => d.dispose());
         editorDisposables = [];
-        // Cleanup inline query button provider
-        // Cleanup inline query button provider
-        statusLensCleanup?.();
-        glyphCleanup?.();
+        // Dispose headers
+        headerController?.dispose();
+        headerController = null;
     });
 </script>
 
