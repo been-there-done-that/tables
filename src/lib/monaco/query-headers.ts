@@ -18,6 +18,7 @@ interface StatementRangeWithBytes {
 export interface HeaderStatus {
     state: 'idle' | 'running' | 'success' | 'error';
     duration?: number;
+    errorMessage?: string;
 }
 
 interface HeaderInstance {
@@ -73,6 +74,7 @@ export class QueryHeaderController {
                 props: {
                     status: status.state,
                     duration: status.duration,
+                    errorMessage: status.errorMessage,
                     onRun: () => this.handleRun(line),
                     onStop: () => this.handleStop(line)
                 }
@@ -164,6 +166,7 @@ export class QueryHeaderController {
                     props: {
                         status: currentStatus.state,
                         duration: currentStatus.duration,
+                        errorMessage: currentStatus.errorMessage,
                         onRun,
                         onStop
                     }

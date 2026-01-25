@@ -201,6 +201,7 @@
             if (startLine && endLine && headerController) {
                 headerController.updateStatus(startLine, {
                     state: "error",
+                    errorMessage: String(e),
                 });
             }
 
