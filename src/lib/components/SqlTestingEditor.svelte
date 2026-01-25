@@ -16,6 +16,11 @@
     import { windowState } from "$lib/stores/window.svelte";
 
     import { invoke } from "@tauri-apps/api/core";
+    import {
+        saveEditorSession,
+        loadEditorSession,
+        createDebouncedSave,
+    } from "$lib/services/editor-persistence";
 
     let { id = "playground", context = $bindable({}) } = $props<{
         id?: string;
@@ -25,6 +30,10 @@
     let editorContainer: HTMLElement;
     let editorHandle = $state<EditorHandle | null>(null);
     let logs: string[] = $state([]);
+    let isLoadingSession = $state(true);
+
+    // Debounced save for editor content
+    const debouncedSave = createDebouncedSave(2000);
 
     // Stable context and URI derived from ID
     const stableContextId = $derived(`sql-playground-${id}`);
@@ -152,6 +161,15 @@
             },
         },
         (handle) => {
+            console.log("[EDITOR-DEBUG] ========== CALLBACK START ==========");
+            console.log("[EDITOR-DEBUG] Editor callback received for:", {
+                id,
+                stableModelUri,
+                stableContextId,
+                editorId: handle.editorId,
+                contentOnCallback: handle.editor.getValue().substring(0, 100),
+            });
+
             editorHandle = handle;
             log("Editor initialized");
 
@@ -163,39 +181,156 @@
                 },
             );
 
-            // Only set value if empty
-            if (!handle.editor.getValue()) {
-                if (context?.content) {
-                    handle.editor.setValue(context.content);
-                } else {
-                    handle.editor.setValue(
-                        `-- SQL Auto-Completion Playground\n-- Context: ${schemaStore.selectedDatabase}.${schemaStore.activeSchema}\n-- Type 'SELECT' or table names from your active connection\n\nSELECT * FROM `,
+            // Load session from backend
+            console.log("[EDITOR-DEBUG] Loading session for id:", id);
+            loadEditorSession(id)
+                .then((session) => {
+                    isLoadingSession = false;
+                    console.log("[EDITOR-DEBUG] Session loaded:", {
+                        hasSession: !!session,
+                        sessionContent:
+                            session?.content?.substring(0, 100) || "null",
+                        currentEditorContent: handle.editor
+                            .getValue()
+                            .substring(0, 100),
+                    });
+
+                    if (session) {
+                        log(
+                            `Restored session from ${new Date(session.lastOpenedAt * 1000).toLocaleString()}`,
+                        );
+                        console.log(
+                            "[EDITOR-DEBUG] Setting content from session",
+                        );
+                        handle.editor.setValue(session.content);
+                        handle.editor.setPosition({
+                            lineNumber: session.cursorLine,
+                            column: session.cursorColumn,
+                        });
+                        if (context) {
+                            context.content = session.content;
+                        }
+                        console.log(
+                            "[EDITOR-DEBUG] After setValue from session:",
+                            handle.editor.getValue().substring(0, 100),
+                        );
+                    } else {
+                        // No saved session - ALWAYS set content to clear stale pooled content
+                        log(
+                            "No saved session, initializing with default content",
+                        );
+                        if (context?.content) {
+                            console.log(
+                                "[EDITOR-DEBUG] Setting content from context:",
+                                context.content.substring(0, 100),
+                            );
+                            handle.editor.setValue(context.content);
+                        } else {
+                            const defaultContent = `-- SQL Auto-Completion Playground\n-- Context: ${schemaStore.selectedDatabase}.${schemaStore.activeSchema}\n-- Type 'SELECT' or table names from your active connection\n\nSELECT * FROM `;
+                            console.log(
+                                "[EDITOR-DEBUG] Setting default content",
+                            );
+                            handle.editor.setValue(defaultContent);
+                            handle.editor.setPosition({
+                                lineNumber: 4,
+                                column: 15,
+                            });
+                        }
+                        console.log(
+                            "[EDITOR-DEBUG] After setValue default:",
+                            handle.editor.getValue().substring(0, 100),
+                        );
+                    }
+                    handle.editor.focus();
+                    console.log(
+                        "[EDITOR-DEBUG] ========== CALLBACK COMPLETE ==========",
                     );
-                    handle.editor.setPosition({ lineNumber: 4, column: 15 });
-                }
-            } else if (
-                context?.content &&
-                handle.editor.getValue() !== context.content
-            ) {
-                // Should we overwrite if editor has content? Usually creating new editor starts empty.
-                // But if restoring, it should be empty initially.
-                // Safe to assume we can set it if provided and we are just initing.
-                handle.editor.setValue(context.content);
-            }
+                })
+                .catch((e) => {
+                    isLoadingSession = false;
+                    console.error("[EDITOR-DEBUG] Failed to load session:", e);
+                    handle.editor.focus();
+                });
 
-            // Listen for content changes
-            handle.editor.onDidChangeModelContent(() => {
-                const val = handle.editor.getValue();
-                if (context) {
-                    context.content = val;
-                }
-                // Trigger save
-                windowState.requestSave();
-            });
+            // Store disposables for cleanup - CRITICAL to prevent event listener leaks!
+            // Monaco subscriptions return IDisposable objects that MUST be disposed
+            // when the component unmounts, otherwise they accumulate across pool reuse.
+            const contentChangeDisposable =
+                handle.editor.onDidChangeModelContent(() => {
+                    const val = handle.editor.getValue();
+                    const capturedId = id; // Capture current id value NOW
+                    if (context) {
+                        context.content = val;
+                    }
+                    // Trigger frontend state save
+                    windowState.requestSave();
+                    // Debounced backend save
+                    const pos = handle.editor.getPosition();
+                    console.log(
+                        "[SAVE-DEBUG] Scheduling save for id:",
+                        capturedId,
+                        "content preview:",
+                        val.substring(0, 50),
+                    );
+                    debouncedSave.save(() => {
+                        console.log(
+                            "[SAVE-DEBUG] Executing save for id:",
+                            capturedId,
+                        );
+                        return saveEditorSession(
+                            capturedId,
+                            windowState.label,
+                            val,
+                            pos?.lineNumber ?? 1,
+                            pos?.column ?? 1,
+                            schemaStore.activeConnection?.id,
+                            schemaStore.activeSchema,
+                        );
+                    });
+                });
 
-            handle.editor.focus();
+            // Also save cursor position changes (debounced)
+            const cursorChangeDisposable =
+                handle.editor.onDidChangeCursorPosition(() => {
+                    const pos = handle.editor.getPosition();
+                    const val = handle.editor.getValue();
+                    const capturedId = id;
+                    debouncedSave.save(() => {
+                        return saveEditorSession(
+                            capturedId,
+                            windowState.label,
+                            val,
+                            pos?.lineNumber ?? 1,
+                            pos?.column ?? 1,
+                            schemaStore.activeConnection?.id,
+                            schemaStore.activeSchema,
+                        );
+                    });
+                });
+
+            // Store disposables for cleanup on unmount
+            editorDisposables = [
+                contentChangeDisposable,
+                cursorChangeDisposable,
+            ];
         },
     );
+
+    // Track disposables for cleanup
+    let editorDisposables: { dispose: () => void }[] = [];
+
+    // Flush pending saves and dispose event listeners on destroy
+    onDestroy(() => {
+        console.log(
+            "[EDITOR-DEBUG] Component destroying, disposing",
+            editorDisposables.length,
+            "listeners",
+        );
+        debouncedSave.flush();
+        // CRITICAL: Dispose all Monaco event subscriptions to prevent leaks
+        editorDisposables.forEach((d) => d.dispose());
+        editorDisposables = [];
+    });
 </script>
 
 <div class="flex h-full w-full flex-col bg-background">

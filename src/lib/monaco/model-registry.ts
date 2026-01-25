@@ -18,15 +18,30 @@ export class ModelRegistry {
         uri: string,
         language: string,
         kind: EditorKind,
-        initialValue = ""
+        initialValue = "",
+        forceCleanContent = false
     ): monaco.editor.ITextModel {
+        console.log("[MODEL-DEBUG] getOrCreate called:", { uri, language, kind, forceCleanContent, initialValueLen: initialValue.length });
+
         const existing = this.models.get(uri);
         if (existing) {
+            console.log("[MODEL-DEBUG] Found existing model:", {
+                uri,
+                refCount: existing.refCount,
+                contentBefore: existing.model.getValue().substring(0, 100)
+            });
             existing.refCount++;
             existing.lastAccessed = Date.now();
+            // Clear stale content when requested to prevent content bleeding between editors
+            if (forceCleanContent) {
+                console.log("[MODEL-DEBUG] Clearing content due to forceCleanContent");
+                existing.model.setValue(initialValue);
+                console.log("[MODEL-DEBUG] Content after clear:", existing.model.getValue().substring(0, 100) || "(empty)");
+            }
             return existing.model;
         }
 
+        console.log("[MODEL-DEBUG] Creating NEW model for uri:", uri);
         const model = this.monacoInstance.editor.createModel(
             initialValue,
             language,
@@ -46,6 +61,7 @@ export class ModelRegistry {
         });
 
         this.models.set(uri, entry);
+        console.log("[MODEL-DEBUG] New model created and stored:", { uri, totalModels: this.models.size });
         return model;
     }
 

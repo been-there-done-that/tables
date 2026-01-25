@@ -26,3 +26,5 @@ pub use font_commands::*;
 pub mod settings_commands;
 pub use settings_commands::*;
 pub mod debug_commands;
+pub mod editor_commands;
+pub use editor_commands::*;

@@ -36,23 +36,37 @@ export class EditorPool {
     ) { }
 
     acquire(context: EditorContext): EditorHandle {
-        console.log("[EditorPool] acquire called", { modelUri: context.modelUri, kind: context.kind });
+        console.log("[POOL-DEBUG] ========== ACQUIRE START ==========");
+        console.log("[POOL-DEBUG] Context:", { modelUri: context.modelUri, contextId: context.contextId, windowId: context.windowId, kind: context.kind });
 
         const pooled = this.getReusableEditor();
-        console.log("[EditorPool] Got pooled editor", { editorId: pooled.editorId, active: pooled.active });
+        const currentModel = pooled.editor.getModel();
+        console.log("[POOL-DEBUG] Pooled editor state:", {
+            editorId: pooled.editorId,
+            active: pooled.active,
+            currentModelUri: currentModel?.uri.toString() || "null",
+            currentContent: currentModel?.getValue().substring(0, 100) || "null"
+        });
 
         const model = this.modelRegistry.getOrCreate(
             context.modelUri,
             context.kind === "sql" ? "sql" : "json",
-            context.kind
+            context.kind,
+            "", // initialValue - empty since content will be loaded by the component
+            true // forceCleanContent - clear stale content to prevent bleeding between editors
         );
-        console.log("[EditorPool] Model created/retrieved", { uri: model.uri.toString(), lineCount: model.getLineCount() });
+        console.log("[POOL-DEBUG] Model after getOrCreate:", {
+            uri: model.uri.toString(),
+            lineCount: model.getLineCount(),
+            contentPreview: model.getValue().substring(0, 100)
+        });
 
         pooled.editor.setModel(model);
+        console.log("[POOL-DEBUG] After setModel, editor content:", pooled.editor.getValue().substring(0, 100));
 
         if (pooled.snapshot?.modelUri === context.modelUri) {
             pooled.editor.restoreViewState(pooled.snapshot.viewState);
-            console.log("[EditorPool] Restored view state");
+            console.log("[POOL-DEBUG] Restored view state for", context.modelUri);
         }
 
         const container = typeof context.container === 'function' ? context.container() : context.container;
@@ -98,8 +112,11 @@ export class EditorPool {
         // Focus after attach + layout
         pooled.editor.focus();
 
-        console.log("[EditorPool] Acquire complete", {
+        console.log("[POOL-DEBUG] ========== ACQUIRE COMPLETE ==========");
+        console.log("[POOL-DEBUG] Final state:", {
             editorId: pooled.editorId,
+            modelUri: context.modelUri,
+            contentPreview: pooled.editor.getValue().substring(0, 100),
             hasTextFocus: pooled.editor.hasTextFocus()
         });
 
@@ -111,6 +128,13 @@ export class EditorPool {
     }
 
     private release(pooled: PooledEditor, context: EditorContext) {
+        console.log("[POOL-DEBUG] ========== RELEASE START ==========");
+        console.log("[POOL-DEBUG] Releasing:", {
+            editorId: pooled.editorId,
+            modelUri: context.modelUri,
+            contentBeforeRelease: pooled.editor.getValue().substring(0, 100)
+        });
+
         pooled.snapshot = {
             modelUri: context.modelUri,
             viewState: pooled.editor.saveViewState(),
@@ -128,8 +152,9 @@ export class EditorPool {
         if (poolContainer) {
             pooled.containerDiv.style.display = 'block';
             poolContainer.appendChild(pooled.containerDiv);
-            console.log("[EditorPool] Editor released back to pool");
+            console.log("[POOL-DEBUG] Editor released back to pool container");
         }
+        console.log("[POOL-DEBUG] ========== RELEASE COMPLETE ==========");
     }
 
     private getReusableEditor(): PooledEditor {
@@ -184,12 +209,14 @@ export class EditorPool {
             };
 
             this.pool.push(pooled);
-            console.log("[EditorPool] New editor created", { editorId: pooled.editorId });
+            console.log("[POOL-DEBUG] New editor created in pool", { editorId: pooled.editorId, poolSize: this.pool.length });
             return pooled;
         }
 
         // LRU eviction
-        return this.pool.sort((a, b) => a.lastUsed - b.lastUsed)[0];
+        const lru = this.pool.sort((a, b) => a.lastUsed - b.lastUsed)[0];
+        console.log("[POOL-DEBUG] LRU eviction returning:", { editorId: lru.editorId, active: lru.active });
+        return lru;
     }
 }
 

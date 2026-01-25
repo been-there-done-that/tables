@@ -276,7 +276,13 @@ macro_rules! aggregate_plugin_commands {
             execute_query,
             fetch_query_logs,
             clear_query_logs,
-            cancel_query
+            cancel_query,
+
+            // Editor session commands
+            save_editor_session,
+            load_editor_session,
+            list_editor_sessions,
+            delete_editor_session
         ]
     };
 }
