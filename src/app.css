@@ -26,6 +26,8 @@
   --color-border-focus: var(--theme-border-focus);
   --color-primary: var(--theme-accent-primary);
   --color-primary-foreground: var(--theme-fg-primary);
+  --color-popover: var(--theme-bg-secondary);
+  --color-popover-foreground: var(--theme-fg-primary);
 
   --radius-lg: 0.5rem;
   --radius-md: calc(0.5rem - 2px);

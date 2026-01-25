@@ -7,11 +7,13 @@
     let {
         status = "idle",
         duration = 0,
+        errorMessage = "",
         onRun,
         onStop,
     } = $props<{
         status: "idle" | "running" | "success" | "error";
         duration?: number;
+        errorMessage?: string;
         onRun: () => void;
         onStop: () => void;
     }>();
@@ -22,7 +24,9 @@
     }
 </script>
 
-<div class="flex items-center gap-3 py-0.5 px-2 select-none">
+<div
+    class="flex flex-row items-center gap-2 py-0.5 px-2 select-none whitespace-nowrap w-max"
+>
     <!-- Action Button -->
     <button
         class={cn(
@@ -53,12 +57,18 @@
     {:else if status === "success" || status === "error"}
         <div
             class={cn(
-                "flex items-center gap-1.5 text-xs",
+                "flex items-center gap-1.5 text-xs overflow-hidden",
                 status === "error" ? "text-red-400" : "text-emerald-400",
             )}
+            title={status === "error"
+                ? errorMessage
+                : `Execution time: ${duration}ms`}
         >
             {#if status === "error"}
-                <span>Failed</span>
+                <span class="font-medium">Failed:</span>
+                <span class="truncate max-w-[200px] opacity-80"
+                    >{errorMessage || "Unknown error"}</span
+                >
             {:else}
                 <span>Took {formatDuration(duration || 0)}</span>
             {/if}
