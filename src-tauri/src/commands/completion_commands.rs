@@ -411,7 +411,7 @@ pub async fn get_all_statements(
 ) -> Result<Vec<StatementRangeWithBytes>, String> {
     let result = tokio::task::spawn_blocking(move || {
         let tree = parse_sql(&text, None);
-        tree.map(|t| find_all_statement_ranges(&t)).unwrap_or_default()
+        tree.map(|t| find_all_statement_ranges(&t, &text)).unwrap_or_default()
     }).await.map_err(|e| e.to_string())?;
 
     Ok(result)
