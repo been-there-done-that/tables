@@ -65,12 +65,19 @@ export const persistenceStore = {
                 explorerState: {
                     expanded: Array.from(s.explorerState.expanded)
                 },
-                views: s.views.map(v => ({
-                    id: v.id,
-                    type: v.type,
-                    title: v.title,
-                    data: safeSerialize(v.data)
-                }))
+                views: s.views.map(v => {
+                    const data = safeSerialize(v.data);
+                    // EXCLUDE large rows from persistent storage to prevent bottlenecks
+                    if (data && typeof data === 'object' && 'rows' in data) {
+                        delete data.rows;
+                    }
+                    return {
+                        id: v.id,
+                        type: v.type,
+                        title: v.title,
+                        data: data
+                    };
+                })
             }))
         };
 

@@ -83,15 +83,23 @@
 
     // Measure first row to keep virtual scroll math aligned with DOM
     $effect(() => {
+        // Track rows to re-measure when data arrives
+        const rowCount = rows.length;
+        if (rowCount === 0) return;
+
         tick().then(() => {
             const firstRow = container?.querySelector(
                 "[data-row]",
             ) as HTMLElement | null;
             if (!firstRow) return;
+
             const h = firstRow.getBoundingClientRect().height;
             if (h && Math.abs(h - measuredItemHeight) > 0.5) {
                 measuredItemHeight = h;
-                console.info("[TableBody] measured itemHeight", { h });
+                console.info("[TableBody] reactive measured itemHeight", {
+                    h,
+                    rowCount,
+                });
             }
         });
     });

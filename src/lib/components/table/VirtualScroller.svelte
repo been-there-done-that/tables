@@ -26,7 +26,7 @@
     let scrollTimeout: ReturnType<typeof setTimeout> | null = null;
 
     // Add buffer to prevent blank states during fast scrolling
-    const BUFFER_SIZE = 20;
+    const BUFFER_SIZE = 40;
 
     let totalHeight = $derived(items.length * itemHeight);
     let startIndex = $derived(

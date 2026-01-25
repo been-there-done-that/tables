@@ -1081,9 +1081,9 @@
         };
     });
 
-    let tableContainer: HTMLDivElement;
+    let tableContainer = $state<HTMLDivElement>();
     // let headerContainer: HTMLDivElement; // Removed in Unified Scroll refactor
-    let tableBody: TableBody;
+    let tableBody = $state<TableBody>();
 
     function handleBodyScroll(e: Event) {
         closeContextMenu();
