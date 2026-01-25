@@ -18,6 +18,18 @@ export class EditorPool {
     public pool: PooledEditor[] = []; // Changed to public for dev-only health probe access
     private MAX = 3;
 
+    private RESET_OPTIONS: monaco.editor.IStandaloneEditorConstructionOptions = {
+        minimap: { enabled: false },
+        lineNumbers: "on",
+        scrollBeyondLastLine: true,
+        readOnly: false,
+        automaticLayout: true,
+        padding: { top: 0, bottom: 0 },
+        renderLineHighlight: "all",
+        contextmenu: true,
+        tabSize: 4,
+    };
+
     constructor(
         private monacoInstance: typeof monaco,
         private modelRegistry: ModelRegistry
@@ -65,6 +77,9 @@ export class EditorPool {
                 pooled.editor.layout({ width: w, height: h });
             }
         }
+
+        // Reset to base state to prevent settings leakage from previous acquisition
+        pooled.editor.updateOptions(this.RESET_OPTIONS);
 
         if (context.options) {
             pooled.editor.updateOptions(context.options);

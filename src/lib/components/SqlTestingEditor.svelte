@@ -17,11 +17,20 @@
 
     import { invoke } from "@tauri-apps/api/core";
 
-    let { context = $bindable({}) } = $props<{ context?: any }>();
+    let { id = "playground", context = $bindable({}) } = $props<{
+        id?: string;
+        context?: any;
+    }>();
 
     let editorContainer: HTMLElement;
     let editorHandle = $state<EditorHandle | null>(null);
     let logs: string[] = $state([]);
+
+    // Stable context and URI derived from ID
+    const stableContextId = $derived(`sql-playground-${id}`);
+    const stableModelUri = $derived(
+        context?.modelUri || `file:///playground-${id}.sql`,
+    );
 
     // Toolbar state
     // Use schemaStore.activeSchema instead of local state
@@ -129,10 +138,10 @@
 
     useMonacoEditor(
         {
-            contextId: "sql-main-playground",
-            windowId: "main",
+            contextId: stableContextId,
+            windowId: windowState.label,
             kind: "sql",
-            modelUri: "file:///playground.sql",
+            modelUri: stableModelUri,
             container: () => editorContainer,
             options: {
                 theme: MONACO_THEME_NAME,
