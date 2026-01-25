@@ -53,7 +53,16 @@
         `${connectionId}:${effectiveDatabase}:${effectiveSchema}:${tableName}`,
     );
 
-    // Toolbar state
+    // Clean up pending changes context when this tab is closed to prevent memory leaks
+    $effect(() => {
+        return () => {
+            console.log(
+                "[TablePreview] Destroying, clearing pendingChangesStore",
+            );
+            pendingChangesStore.clear();
+        };
+    });
+
     let tableRef: any = $state(null);
     let currentOffset = $state(0);
     // currentBatchSize: number of rows returned in the last fetch
@@ -787,6 +796,7 @@
                 {dataFetcher}
                 {tableName}
                 tableSchema={effectiveSchema}
+                bind:viewState={context}
                 onViewStateChange={() => windowState.requestSave()}
                 onApplyEdits={handleApplyEdits}
                 onEditChange={handleEditChange}
