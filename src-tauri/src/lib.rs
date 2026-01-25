@@ -46,6 +46,7 @@ use commands::settings_commands::*;
 use commands::debug_commands::*;
 use commands::query_commands::*;
 use commands::query_commands::QueryExecutionState;
+use commands::editor_commands::*;
 use plugins::{PluginDiscovery, get_available_plugins, enable_plugin, disable_plugin, get_plugin_info, initialize_all_plugins};
 use credential_manager::CredentialManager;
 use metrics::{MetricsRegistry, SystemMonitor, start_metrics_emitter};
