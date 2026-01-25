@@ -16,32 +16,31 @@ interface StatementRangeWithBytes {
 interface QueryGlyphOptions {
     /** Callback when glyph is clicked */
     onExecute: (queryText: string, startLine: number, endLine: number) => void;
+    /** Callback when stop is clicked */
+    onStop?: (startLine: number, endLine: number) => void;
+    /** Function to check which lines are currently running */
+    getRunningLines?: () => Set<number>;
 }
 
-// CSS class for the run glyph
-const GLYPH_CLASS = 'query-run-glyph';
+// CSS classes
+const RUN_CLASS = 'query-run-glyph';
+const STOP_CLASS = 'query-stop-glyph';
 
-/**
- * Enables glyph margin decorations for SQL queries.
- * 
- * IMPORTANT: CSS must be added for `.query-run-glyph`:
- * ```css
- * .query-run-glyph {
- *   background: url('data:image/svg+xml,...') center center no-repeat;
- *   cursor: pointer;
- * }
- * ```
- */
 export function enableQueryGlyphMargin(
     editor: monaco.editor.IStandaloneCodeEditor,
     options: QueryGlyphOptions
 ): () => void {
-    // Ensure glyph margin is NOT forced (we using line/gutter decorations now)
-    // editor.updateOptions({ glyphMargin: true }); 
-
     const decorationCollection = editor.createDecorationsCollection([]);
     let statementRanges: StatementRangeWithBytes[] = [];
     let debounceTimer: any;
+    // We need to re-render decorations when running state changes
+    // This is triggered externally by re-calling updateGlyphs or similar mechanism if we exposed it,
+    // but here we might need a way to force update.
+    // For now, let's rely on the parent component triggering updates or just polling/event.
+    // Actually, simply re-running updateGlyphs() will fetch the latest state.
+
+    // To allow external trigger, we can attach this to the editor instance or return it.
+    // But for simplicity, we'll just use the getRunningLines() inside updateGlyphs.
 
     const updateGlyphs = async () => {
         const model = editor.getModel();
@@ -51,6 +50,7 @@ export function enableQueryGlyphMargin(
         }
 
         const text = model.getValue();
+        const runningLines = options.getRunningLines ? options.getRunningLines() : new Set<number>();
 
         try {
             statementRanges = await invoke<StatementRangeWithBytes[]>('get_all_statements', { text });
@@ -60,13 +60,16 @@ export function enableQueryGlyphMargin(
                     const queryText = text.substring(range.start_byte, range.end_byte);
                     return queryText.trim().length > 0;
                 })
-                .map(range => ({
-                    range: new monaco.Range(range.start_line, 1, range.start_line, 1),
-                    options: {
-                        linesDecorationsClassName: GLYPH_CLASS, // Use line decorations (right of line numbers)
-                        stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
-                    }
-                }));
+                .map(range => {
+                    const isRunning = runningLines.has(range.start_line);
+                    return {
+                        range: new monaco.Range(range.start_line, 1, range.start_line, 1),
+                        options: {
+                            linesDecorationsClassName: isRunning ? STOP_CLASS : RUN_CLASS,
+                            stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+                        }
+                    };
+                });
 
             decorationCollection.set(decorations);
         } catch (e) {
@@ -77,6 +80,34 @@ export function enableQueryGlyphMargin(
     const debouncedUpdate = () => {
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(updateGlyphs, 100);
+    };
+
+    // Poll for running state changes (simple approach since we don't have a signal)
+    const runningStateInterval = setInterval(() => {
+        // Only update if we have statements, to avoid expensive calls
+        if (statementRanges.length > 0 && options.getRunningLines) {
+            // In a perfect world we'd diff the state, but re-setting decorations is fast enough
+            // optimization: only update if running set size changed or specific lines changed?
+            // For now, just re-run updateGlyphs sync part (we can split it).
+            // Let's just call updateGlyphs() - if it invokes tauri every time it's bad.
+            // Refactor: split parsing and decoration setting.
+            updateDecorationsOnly();
+        }
+    }, 200);
+
+    const updateDecorationsOnly = () => {
+        const runningLines = options.getRunningLines ? options.getRunningLines() : new Set<number>();
+        const decorations: monaco.editor.IModelDeltaDecoration[] = statementRanges.map(range => {
+            const isRunning = runningLines.has(range.start_line);
+            return {
+                range: new monaco.Range(range.start_line, 1, range.start_line, 1),
+                options: {
+                    linesDecorationsClassName: isRunning ? STOP_CLASS : RUN_CLASS,
+                    stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+                }
+            };
+        });
+        decorationCollection.set(decorations);
     };
 
     // Handle glyph click
@@ -103,7 +134,16 @@ export function enableQueryGlyphMargin(
             if (matchingRange) {
                 const queryText = text.substring(matchingRange.start_byte, matchingRange.end_byte);
                 if (queryText.trim()) {
-                    options.onExecute(queryText, matchingRange.start_line, matchingRange.end_line);
+                    const runningLines = options.getRunningLines ? options.getRunningLines() : new Set<number>();
+                    if (runningLines.has(matchingRange.start_line)) {
+                        // Stop query
+                        if (options.onStop) {
+                            options.onStop(matchingRange.start_line, matchingRange.end_line);
+                        }
+                    } else {
+                        // Run query
+                        options.onExecute(queryText, matchingRange.start_line, matchingRange.end_line);
+                    }
                 }
             }
         }
