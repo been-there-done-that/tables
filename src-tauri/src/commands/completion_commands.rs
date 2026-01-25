@@ -21,7 +21,7 @@ use crate::completion::analysis::build_semantic_model;
 use crate::completion::engine::{CompletionItem, CompletionKind};
 use crate::completion::document::Dialect;
 use crate::completion::engines::create_engine;
-use crate::completion::ranges::{find_current_statement_range, StatementRange};
+use crate::completion::ranges::{find_current_statement_range, find_all_statement_ranges, StatementRange, StatementRangeWithBytes};
 use crate::completion::diagnostics::{Diagnostic, DiagnosticEngine};
 
 /// Shared state for completion.
@@ -398,6 +398,20 @@ pub async fn request_diagnostics(
             Some(t) => DiagnosticEngine::check(&t, &text, &schema),
             None => vec![],
         }
+    }).await.map_err(|e| e.to_string())?;
+
+    Ok(result)
+}
+
+/// Get all SQL statement ranges in the document.
+/// Used for CodeLens/glyph margin to show run buttons on each query.
+#[tauri::command]
+pub async fn get_all_statements(
+    text: String,
+) -> Result<Vec<StatementRangeWithBytes>, String> {
+    let result = tokio::task::spawn_blocking(move || {
+        let tree = parse_sql(&text, None);
+        tree.map(|t| find_all_statement_ranges(&t)).unwrap_or_default()
     }).await.map_err(|e| e.to_string())?;
 
     Ok(result)

@@ -1,22 +1,37 @@
 use tree_sitter::Tree;
 
-#[derive(serde::Serialize)]
+/// Range of a SQL statement (1-based line numbers for Monaco)
+#[derive(serde::Serialize, Clone)]
 pub struct StatementRange {
     pub start_line: u32, // 1-based for Monaco
     pub end_line: u32,
 }
 
+/// Extended range including byte offsets (for extracting query text)
+#[derive(serde::Serialize, Clone)]
+pub struct StatementRangeWithBytes {
+    pub start_line: u32,   // 1-based for Monaco
+    pub end_line: u32,
+    pub start_byte: usize, // For extracting text
+    pub end_byte: usize,
+}
+
+/// Find the SQL statement range containing the cursor.
+/// 
+/// Handles edge case: cursor immediately after semicolon (e.g., `SELECT 1;|`)
+/// is considered part of that statement for highlighting purposes.
 pub fn find_current_statement_range(tree: &Tree, cursor_offset: usize) -> Option<StatementRange> {
     let root = tree.root_node();
     let mut cursor = root.walk();
+    let mut last_statement: Option<StatementRange> = None;
 
     // Iterate over top-level statements only
     for child in root.children(&mut cursor) {
         let start_byte = child.start_byte();
         let end_byte = child.end_byte();
 
-        // Check if our cursor is inside this statement
-        // Note: We use <= end_byte to include the semicolon at the end
+        // Check if cursor is inside this statement OR immediately after it
+        // The +1 allows cursor right after semicolon to still match
         if cursor_offset >= start_byte && cursor_offset <= end_byte {
             let start_point = child.start_position();
             let end_point = child.end_position();
@@ -26,10 +41,56 @@ pub fn find_current_statement_range(tree: &Tree, cursor_offset: usize) -> Option
                 end_line: (end_point.row + 1) as u32,
             });
         }
+
+        // Track last statement in case cursor is right after it
+        if cursor_offset == end_byte + 1 {
+            let start_point = child.start_position();
+            let end_point = child.end_position();
+            last_statement = Some(StatementRange {
+                start_line: (start_point.row + 1) as u32,
+                end_line: (end_point.row + 1) as u32,
+            });
+        }
     }
     
-    None
+    // Return last statement if cursor was immediately after it
+    last_statement
 }
+
+/// Find ALL SQL statement ranges in the document.
+/// Used for CodeLens/glyph margin to show run buttons on each query.
+/// Filters out comment-only nodes.
+pub fn find_all_statement_ranges(tree: &Tree) -> Vec<StatementRangeWithBytes> {
+    let root = tree.root_node();
+    let mut cursor = root.walk();
+    let mut ranges = Vec::new();
+
+    for child in root.children(&mut cursor) {
+        // Skip comment nodes - they're not executable statements
+        let node_kind = child.kind();
+        if node_kind == "comment" || node_kind == "line_comment" || node_kind == "block_comment" {
+            continue;
+        }
+        
+        // Also skip empty/whitespace-only nodes
+        if child.start_byte() == child.end_byte() {
+            continue;
+        }
+
+        let start_point = child.start_position();
+        let end_point = child.end_position();
+
+        ranges.push(StatementRangeWithBytes {
+            start_line: (start_point.row + 1) as u32,
+            end_line: (end_point.row + 1) as u32,
+            start_byte: child.start_byte(),
+            end_byte: child.end_byte(),
+        });
+    }
+
+    ranges
+}
+
 
 #[cfg(test)]
 mod tests {
