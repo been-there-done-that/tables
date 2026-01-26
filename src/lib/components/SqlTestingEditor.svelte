@@ -25,6 +25,7 @@
         enableQueryHeaders,
         type QueryHeaderController,
     } from "$lib/monaco/query-headers";
+    import QueryEditorToolbar from "./editor/QueryEditorToolbar.svelte";
 
     let { id = "playground", context = $bindable({}) } = $props<{
         id?: string;
@@ -35,6 +36,8 @@
     let editorHandle = $state<EditorHandle | null>(null);
     let logs: string[] = $state([]);
     let isLoadingSession = $state(true);
+    let isRunning = $state(false);
+    let executionTime = $state(0);
 
     let headerController: QueryHeaderController | null = null;
 
@@ -140,6 +143,7 @@
             const startTime = performance.now();
 
             try {
+                isRunning = true;
                 const result = await invoke<any>("execute_query", {
                     connectionId: schemaStore.activeConnection.id,
                     sessionId: id,
@@ -148,9 +152,11 @@
                     query: query,
                     component: "editor",
                 });
-
-                const duration =
+                isRunning = false;
+                executionTime =
                     result.duration_ms ?? performance.now() - startTime;
+
+                const duration = executionTime;
 
                 if (startLine && headerController) {
                     headerController.updateStatus(startLine, query, {
@@ -170,6 +176,8 @@
                 }
                 console.error("Query execution failed:", e);
                 log(`Query failed: ${e}`);
+            } finally {
+                isRunning = false;
             }
         } else {
             log("No query to execute");
@@ -207,6 +215,7 @@
         const startTime = performance.now();
 
         try {
+            isRunning = true;
             const result = await invoke<any>("execute_query", {
                 connectionId: schemaStore.activeConnection.id,
                 sessionId: id,
@@ -215,10 +224,11 @@
                 query: queryText,
                 component: "editor",
             });
+            isRunning = false;
 
             // Use backend duration if available (more accurate), else fallback to frontend measure
-            const duration =
-                result.duration_ms ?? performance.now() - startTime;
+            executionTime = result.duration_ms ?? performance.now() - startTime;
+            const duration = executionTime;
 
             // Mark success
             if (startLine && endLine && headerController) {
@@ -241,11 +251,97 @@
 
             console.error("Query execution failed:", e);
             log(`Query failed: ${e}`);
+        } finally {
+            isRunning = false;
         }
     }
 
     function handleExplain(raw: boolean = false) {
-        log(`Explain ${raw ? "(Raw)" : ""} functionality not implemented yet.`);
+        log(`Executing Explain ${raw ? "(Raw)" : ""}...`);
+        const editor = editorHandle?.editor;
+        if (!editor) return;
+
+        const selection = editor.getSelection();
+        const model = editor.getModel();
+        if (!model) return;
+
+        let query = "";
+        if (selection && !selection.isEmpty()) {
+            query = model.getValueInRange(selection);
+        } else {
+            query = editor.getValue();
+        }
+
+        if (!query.trim()) return;
+
+        const explainQuery = raw
+            ? `EXPLAIN (FORMAT JSON) ${query}`
+            : `EXPLAIN ${query}`;
+
+        executeQueryText(explainQuery);
+    }
+
+    async function handleFormat() {
+        if (!editorHandle) return;
+
+        // Clear headers before format to prevent visual glitches
+        if (headerController) {
+            headerController.clearAll();
+        }
+
+        const sql = editorHandle.editor.getValue();
+        try {
+            const formatted = await invoke<string>("format_sql", { sql });
+
+            // Apply formatting via edit operation to maintain undo stack
+            const model = editorHandle.editor.getModel();
+            if (model) {
+                editorHandle.editor.executeEdits("formatter", [
+                    {
+                        range: model.getFullModelRange(),
+                        text: formatted,
+                        forceMoveMarkers: true,
+                    },
+                ]);
+            }
+
+            log("Code formatted (backend)");
+        } catch (e) {
+            log(`Formatting failed: ${e}`);
+            // Fallback to monaco built-in just in case
+            editorHandle.editor
+                .getAction("editor.action.formatDocument")
+                ?.run();
+        }
+    }
+
+    function handleClear() {
+        if (!editorHandle) return;
+
+        // Clear headers
+        if (headerController) {
+            headerController.clearAll();
+        }
+
+        editorHandle.editor.setValue("");
+        log("Editor cleared");
+    }
+
+    async function handleStop() {
+        if (!schemaStore.activeConnection) return;
+        log("Requesting query cancellation...");
+        try {
+            await invoke("cancel_query", {
+                connectionId: schemaStore.activeConnection.id,
+            });
+            // Optimization: clear headers on stop to force fresh state
+            if (headerController) {
+                headerController.clearAll();
+            }
+        } catch (e) {
+            log(`Failed to cancel query: ${e}`);
+            console.error("Cancel failed:", e);
+        }
     }
 
     useMonacoEditor(
@@ -427,17 +523,7 @@
             };
 
             const stopQuery = async (startLine: number, endLine: number) => {
-                if (!schemaStore.activeConnection) return;
-                log("Requesting query cancellation...");
-                try {
-                    await invoke("cancel_query", {
-                        connectionId: schemaStore.activeConnection.id,
-                    });
-                    // UI status update handled by headerController via cancel result or event
-                } catch (e) {
-                    log(`Failed to cancel query: ${e}`);
-                    console.error("Cancel failed:", e);
-                }
+                await handleStop();
             };
 
             headerController = enableQueryHeaders(
@@ -476,73 +562,17 @@
 </script>
 
 <div class="flex h-full w-full flex-col bg-background">
-    <!-- Toolbar -->
-    <div
-        class="flex h-8 items-center justify-between border-b border-border bg-muted/20 px-2 gap-2"
-    >
-        <div class="flex items-center gap-2">
-            <button
-                class="flex items-center gap-1 rounded bg-(--theme-accent-primary) px-3 py-1 text-xs font-semibold text-white hover:opacity-90 transition-opacity"
-                onclick={executeCurrent}
-                title="Run (Cmd+Enter)"
-            >
-                <IconPlayerPlay class="size-3 fill-current" />
-                Run
-            </button>
-
-            <DropdownMenu.Root>
-                <DropdownMenu.Trigger
-                    class="flex items-center gap-1 rounded border border-border bg-background px-3 py-1 text-xs font-medium hover:bg-accent hover:text-accent-foreground transition-colors"
-                >
-                    Explain
-                    <IconChevronDown class="size-3 text-muted-foreground" />
-                </DropdownMenu.Trigger>
-                <DropdownMenu.Content align="start">
-                    <DropdownMenu.Item onclick={() => handleExplain(false)}
-                        >Explain Plan</DropdownMenu.Item
-                    >
-                    <DropdownMenu.Item onclick={() => handleExplain(true)}
-                        >Explain Plan (Raw)</DropdownMenu.Item
-                    >
-                </DropdownMenu.Content>
-            </DropdownMenu.Root>
-        </div>
-
-        <div class="flex items-center gap-2">
-            <!-- Schema Picker -->
-            <DropdownMenu.Root>
-                <DropdownMenu.Trigger
-                    class="flex items-center gap-1.5 rounded border border-border bg-background px-3 py-1 text-xs font-medium hover:bg-accent hover:text-accent-foreground transition-colors"
-                    title="Select Schema"
-                >
-                    <IconSchema class="size-3 text-muted-foreground" />
-                    <span class="truncate max-w-[150px]"
-                        >{schemaStore.activeSchema || "public"}</span
-                    >
-                    <IconChevronDown
-                        class="ml-auto size-3 text-muted-foreground"
-                    />
-                </DropdownMenu.Trigger>
-                <DropdownMenu.Content
-                    align="end"
-                    class="min-w-[120px] w-max max-w-[300px] max-h-[300px] overflow-auto"
-                >
-                    <DropdownMenu.Label>Schemas</DropdownMenu.Label>
-                    <DropdownMenu.Separator />
-                    <DropdownMenu.RadioGroup
-                        value={schemaStore.activeSchema || undefined}
-                        onValueChange={(v) => (schemaStore.activeSchema = v)}
-                    >
-                        {#each currentSchemas as schema (schema.name)}
-                            <DropdownMenu.RadioItem value={schema.name}>
-                                {schema.name}
-                            </DropdownMenu.RadioItem>
-                        {/each}
-                    </DropdownMenu.RadioGroup>
-                </DropdownMenu.Content>
-            </DropdownMenu.Root>
-        </div>
-    </div>
+    <QueryEditorToolbar
+        {isRunning}
+        {executionTime}
+        activeSchema={schemaStore.activeSchema || "public"}
+        onExecute={executeCurrent}
+        onStop={handleStop}
+        onFormat={handleFormat}
+        onClear={handleClear}
+        onExplain={handleExplain}
+        onSchemaChange={(v) => (schemaStore.activeSchema = v)}
+    />
 
     <div class="flex-1 relative">
         <div

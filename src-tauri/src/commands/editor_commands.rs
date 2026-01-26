@@ -152,3 +152,12 @@ pub fn delete_editor_session(
         .map_err(|e| e.to_string())?;
     Ok(())
 }
+
+#[tauri::command]
+pub fn format_sql(sql: String) -> Result<String, String> {
+    let options = sqlformat::FormatOptions {
+        lines_between_queries: 2,
+        ..sqlformat::FormatOptions::default()
+    };
+    Ok(sqlformat::format(&sql, &sqlformat::QueryParams::None, &options))
+}

@@ -166,6 +166,14 @@ export class QueryHeaderController {
             if (newRange) {
                 // Same line, same header. Update text if needed.
                 const queryText = text.substring(newRange.start_byte, newRange.end_byte);
+
+                // Track if it moved (Monaco moved the decoration)
+                if (instance.line !== range.startLineNumber) {
+                    this.updateViewZone(instance, range.startLineNumber);
+                    instance.line = range.startLineNumber;
+                    this.editor.layoutContentWidget(instance.widget);
+                }
+
                 if (instance.lastText !== queryText) {
                     this.statuses.set(id, { state: 'idle' });
                     instance.lastText = queryText;
@@ -199,7 +207,7 @@ export class QueryHeaderController {
             this.editor.changeViewZones(accessor => {
                 viewZoneId = accessor.addZone({
                     afterLineNumber: line - 1,
-                    heightInLines: 1.6,
+                    heightInLines: 1.8,
                     domNode: document.createElement('div'),
                 });
             });
@@ -209,10 +217,13 @@ export class QueryHeaderController {
             const widget: monaco.editor.IContentWidget = {
                 getId: () => widgetId,
                 getDomNode: () => domNode,
-                getPosition: () => ({
-                    position: { lineNumber: line, column: 1 },
-                    preference: [monaco.editor.ContentWidgetPositionPreference.ABOVE]
-                })
+                getPosition: () => {
+                    const r = model.getDecorationRange(id);
+                    return {
+                        position: { lineNumber: r ? r.startLineNumber : line, column: 1 },
+                        preference: [monaco.editor.ContentWidgetPositionPreference.ABOVE]
+                    };
+                }
             };
             this.editor.addContentWidget(widget);
 
@@ -236,6 +247,17 @@ export class QueryHeaderController {
         this.headers = nextHeaders;
     }
 
+    private updateViewZone(instance: HeaderInstance, newLine: number) {
+        this.editor.changeViewZones(accessor => {
+            accessor.removeZone(instance.viewZoneId);
+            instance.viewZoneId = accessor.addZone({
+                afterLineNumber: newLine - 1,
+                heightInLines: 1.6,
+                domNode: document.createElement('div'),
+            });
+        });
+    }
+
     private removeHeader(id: string) {
         const h = this.headers.get(id);
         if (h) {
@@ -251,7 +273,7 @@ export class QueryHeaderController {
         }
     }
 
-    private clearAll() {
+    public clearAll() {
         for (const id of Array.from(this.headers.keys())) {
             this.removeHeader(id);
         }
