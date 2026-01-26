@@ -25,20 +25,37 @@ export class ModelRegistry {
 
         const existing = this.models.get(uri);
         if (existing) {
-            console.log("[MODEL-DEBUG] Found existing model:", {
+            console.log("[MODEL-DEBUG] Found existing model in local registry:", {
                 uri,
                 refCount: existing.refCount,
                 contentBefore: existing.model.getValue().substring(0, 100)
             });
             existing.refCount++;
             existing.lastAccessed = Date.now();
-            // Clear stale content when requested to prevent content bleeding between editors
             if (forceCleanContent) {
-                console.log("[MODEL-DEBUG] Clearing content due to forceCleanContent");
                 existing.model.setValue(initialValue);
-                console.log("[MODEL-DEBUG] Content after clear:", existing.model.getValue().substring(0, 100) || "(empty)");
             }
             return existing.model;
+        }
+
+        // Check if monaco already knows about this model even if we don't
+        // This can happen during hot reloads or pooling edge cases
+        const parsedUri = this.monacoInstance.Uri.parse(uri);
+        const existingMonacoModel = this.monacoInstance.editor.getModel(parsedUri);
+        if (existingMonacoModel) {
+            console.log("[MODEL-DEBUG] Model exists in Monaco, adopting into registry:", uri);
+            const entry: ModelEntry = {
+                model: existingMonacoModel,
+                refCount: 1,
+                kind,
+                dirty: false,
+                lastAccessed: Date.now()
+            };
+            this.models.set(uri, entry);
+            if (forceCleanContent) {
+                existingMonacoModel.setValue(initialValue);
+            }
+            return existingMonacoModel;
         }
 
         console.log("[MODEL-DEBUG] Creating NEW model for uri:", uri);
