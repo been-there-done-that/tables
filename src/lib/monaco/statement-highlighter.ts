@@ -33,7 +33,8 @@ export function enableQueryHighlighting(editor: monaco.editor.IStandaloneCodeEdi
                         range: new monaco.Range(range.start_line, 1, range.end_line, 1),
                         options: {
                             isWholeLine: true,
-                            className: 'current-query-highlight',
+                            linesDecorationsClassName: 'current-query-highlight-lines',
+                            className: 'current-query-highlight-bg',
                         }
                     }
                 ]);
