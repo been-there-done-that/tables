@@ -36,7 +36,6 @@
                 : "bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20",
         )}
         onclick={() => {
-            console.log("[Svelte] Button clicked, status:", status);
             if (status === "running") onStop();
             else onRun();
         }}

@@ -25,6 +25,33 @@ impl Default for QueryExecutionState {
     }
 }
 
+pub enum DBSession {
+    Postgres(Arc<tokio_postgres::Client>),
+    Sqlite(Arc<Mutex<rusqlite::Connection>>),
+}
+
+/// State for tracking active database sessions per editor window
+#[derive(Clone)]
+pub struct QuerySessionManager {
+    /// Active sessions: (connection_id, session_id) → DBSession
+    pub sessions: Arc<Mutex<HashMap<(String, String), DBSession>>>,
+}
+
+impl Default for QuerySessionManager {
+    fn default() -> Self {
+        Self {
+            sessions: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+}
+
+impl QuerySessionManager {
+    pub async fn remove_sessions_for_window(&self, session_id: &str) {
+        let mut sessions = self.sessions.lock().await;
+        sessions.retain(|(_, sid), _| sid != session_id);
+    }
+}
+
 /// Cancel an active query for a connection
 #[tauri::command]
 pub async fn cancel_query(
@@ -350,11 +377,13 @@ pub async fn fetch_table_preview(
 #[tauri::command]
 pub async fn execute_query(
     connection_id: String,
+    session_id: String,
     database: String,
     schema: String, // Context, used for search path or logging
     query: String,
     db_state: State<'_, DatabaseState>,
     conn_state: State<'_, ConnectionManagerState>,
+    session_state: State<'_, QuerySessionManager>,
     app: AppHandle,
     component: Option<String>,
 ) -> Result<QueryResult, String> {
@@ -364,31 +393,58 @@ pub async fn execute_query(
     let component_name = component.as_deref().unwrap_or("editor");
     emit_query_start(&app, &correlation_id, &connection_id, &database, &query, Some(component_name));
 
-    let manager = ConnectionManager::from_state(&db_state, &conn_state);
-    let (connection, credentials) = match manager.get_connection(&connection_id) {
-        Ok(res) => res,
-        Err(e) => {
-             log_query_end(&app, &correlation_id, &connection_id, &database, &query, 0, "error", Some(&e), None, Some(component_name));
-             return Err(e);
+    // 1. Check if session already exists to avoid redundant DB hits for metadata/creds
+    let mut session_found = None;
+    {
+        let sessions = session_state.sessions.lock().await;
+        if let Some(session) = sessions.get(&(connection_id.clone(), session_id.clone())) {
+            session_found = Some(match session {
+                DBSession::Postgres(_) => "postgres",
+                DBSession::Sqlite(_) => "sqlite",
+            });
         }
-    };
-
-    let config: serde_json::Value = serde_json::from_str(&connection.config_json)
-        .map_err(|e| {
-            let err_msg = format!("Failed to parse connection config: {}", e);
-            log_query_end(&app, &correlation_id, &connection_id, &database, &query, 0, "error", Some(&err_msg), None, Some(component_name));
-            err_msg
-        })?;
+    }
 
     let start = Instant::now();
-    let result = match connection.engine.as_str() {
-        "postgres" | "postgresql" => {
-            execute_postgres_query(&config, &credentials, &database, &schema, &query).await
+
+    let result = if let Some(engine) = session_found {
+        // Session exists, skip connection/credential retrieval from local DB
+        match engine {
+            "postgres" => {
+                execute_postgres_query(&session_state, &connection_id, &session_id, None, None, &database, &schema, &query).await
+            }
+            "sqlite" => {
+                execute_sqlite_query(&session_state, &connection_id, &session_id, None, &query).await
+            }
+            _ => Err(format!("Engine '{}' is not supported", engine)),
         }
-        "sqlite" => {
-            execute_sqlite_query(&config, &query)
+    } else {
+        // No session, perform full retrieval from local DB
+        let manager = ConnectionManager::from_state(&db_state, &conn_state);
+        let (connection, credentials) = match manager.get_connection(&connection_id) {
+            Ok(res) => res,
+            Err(e) => {
+                 log_query_end(&app, &correlation_id, &connection_id, &database, &query, 0, "error", Some(&e), None, Some(component_name));
+                 return Err(e);
+            }
+        };
+
+        let config: serde_json::Value = serde_json::from_str(&connection.config_json)
+            .map_err(|e| {
+                let err_msg = format!("Failed to parse connection config: {}", e);
+                log_query_end(&app, &correlation_id, &connection_id, &database, &query, 0, "error", Some(&err_msg), None, Some(component_name));
+                err_msg
+            })?;
+
+        match connection.engine.as_str() {
+            "postgres" | "postgresql" => {
+                execute_postgres_query(&session_state, &connection_id, &session_id, Some(&config), Some(&credentials), &database, &schema, &query).await
+            }
+            "sqlite" => {
+                execute_sqlite_query(&session_state, &connection_id, &session_id, Some(&config), &query).await
+            }
+            _ => Err(format!("Engine '{}' is not supported for query execution", connection.engine)),
         }
-        _ => Err(format!("Engine '{}' is not supported for query execution", connection.engine)),
     };
     let duration = start.elapsed().as_millis() as u64;
 
@@ -625,13 +681,28 @@ fn postgres_value_to_json(row: &tokio_postgres::Row, idx: usize) -> serde_json::
     crate::pg_utils::pg_value_to_json(row, idx, col)
 }
 
-async fn execute_postgres_query(
-    config: &serde_json::Value,
-    credentials: &crate::connection::SecureCredentials,
+async fn get_or_create_postgres_client(
+    session_manager: &QuerySessionManager,
+    connection_id: &str,
+    session_id: &str,
+    config: Option<&serde_json::Value>,
+    credentials: Option<&crate::connection::SecureCredentials>,
     database: &str,
-    schema: &str,
-    query: &str,
-) -> Result<QueryResult, String> {
+) -> Result<Arc<tokio_postgres::Client>, String> {
+    let key = (connection_id.to_string(), session_id.to_string());
+    
+    // 1. Try to get existing
+    {
+        let sessions = session_manager.sessions.lock().await;
+        if let Some(DBSession::Postgres(client)) = sessions.get(&key) {
+            return Ok(client.clone());
+        }
+    }
+
+    // 2. Create new (must have config/creds)
+    let config = config.ok_or("Cannot create new session: Missing config")?;
+    let credentials = credentials.ok_or("Cannot create new session: Missing credentials")?;
+    
     let db = config.get("db").ok_or("Missing 'db' config")?;
     let host = db.get("host").and_then(|v| v.as_str()).ok_or("Missing host")?;
     let port = db.get("port").and_then(|v| v.as_u64()).unwrap_or(5432) as u16;
@@ -672,6 +743,29 @@ async fn execute_postgres_query(
         });
         client
     };
+
+    let client = Arc::new(client);
+
+    // Store in manager
+    {
+        let mut sessions = session_manager.sessions.lock().await;
+        sessions.insert(key, DBSession::Postgres(client.clone()));
+    }
+
+    Ok(client)
+}
+
+async fn execute_postgres_query(
+    session_manager: &QuerySessionManager,
+    connection_id: &str,
+    session_id: &str,
+    config: Option<&serde_json::Value>,
+    credentials: Option<&crate::connection::SecureCredentials>,
+    database: &str,
+    schema: &str,
+    query: &str,
+) -> Result<QueryResult, String> {
+    let client = get_or_create_postgres_client(session_manager, connection_id, session_id, config, credentials, database).await?;
 
     // Split query and execute
     let tree = parse_sql(query, None);
@@ -760,16 +854,50 @@ async fn execute_single_postgres_query(client: &tokio_postgres::Client, query: &
     })
 }
 
-fn execute_sqlite_query(
-    config: &serde_json::Value,
-    query: &str,
-) -> Result<QueryResult, String> {
+async fn get_or_create_sqlite_conn(
+    session_manager: &QuerySessionManager,
+    connection_id: &str,
+    session_id: &str,
+    config: Option<&serde_json::Value>,
+) -> Result<Arc<Mutex<rusqlite::Connection>>, String> {
+    let key = (connection_id.to_string(), session_id.to_string());
+
+    // 1. Try to get existing
+    {
+        let sessions = session_manager.sessions.lock().await;
+        if let Some(DBSession::Sqlite(conn)) = sessions.get(&key) {
+            return Ok(conn.clone());
+        }
+    }
+
+    // 2. Create new
+    let config = config.ok_or("Cannot create new session: Missing config")?;
     let sqlite_path = config.get("file")
         .and_then(|v| v.as_str())
         .ok_or("Missing SQLite file path in config")?;
 
     let conn = rusqlite::Connection::open(sqlite_path)
         .map_err(|e| crate::sqlite_utils::format_sqlite_error(&e))?;
+    let conn = Arc::new(Mutex::new(conn));
+
+    // Store in manager
+    {
+        let mut sessions = session_manager.sessions.lock().await;
+        sessions.insert(key, DBSession::Sqlite(conn.clone()));
+    }
+
+    Ok(conn)
+}
+
+async fn execute_sqlite_query(
+    session_manager: &QuerySessionManager,
+    connection_id: &str,
+    session_id: &str,
+    config: Option<&serde_json::Value>,
+    query: &str,
+) -> Result<QueryResult, String> {
+    let conn_arc = get_or_create_sqlite_conn(session_manager, connection_id, session_id, config).await?;
+    let conn = conn_arc.lock().await;
 
     // Split query and execute
     let tree = parse_sql(query, None);

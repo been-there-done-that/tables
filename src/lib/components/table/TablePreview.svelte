@@ -508,6 +508,7 @@
             try {
                 await invoke("execute_query", {
                     connectionId,
+                    sessionId: tableKey,
                     database: dbName,
                     schema,
                     query: sql,
@@ -598,6 +599,7 @@
             const sql = `SELECT COUNT(*) as count FROM "${effectiveSchema}"."${tableName}" ${whereClause ? `WHERE ${whereClause}` : ""}`;
             const res = await invoke<{ rows: any[] }>("execute_query", {
                 connectionId,
+                sessionId: tableKey,
                 database: effectiveDatabase,
                 schema: effectiveSchema,
                 query: sql,
@@ -663,6 +665,7 @@
                     "execute_query",
                     {
                         connectionId,
+                        sessionId: tableKey,
                         database: effectiveDatabase,
                         schema: effectiveSchema,
                         query: countSql,
@@ -695,6 +698,7 @@
                     "execute_query",
                     {
                         connectionId,
+                        sessionId: tableKey,
                         database: effectiveDatabase,
                         schema: effectiveSchema,
                         query: sql,

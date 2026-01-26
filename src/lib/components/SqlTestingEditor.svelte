@@ -85,7 +85,6 @@
     }
 
     async function executeCurrent() {
-        console.log("[SQL] executeCurrent triggered");
         if (!editorHandle) return;
         const editor = editorHandle.editor;
         const model = editor.getModel();
@@ -143,6 +142,7 @@
             try {
                 const result = await invoke<any>("execute_query", {
                     connectionId: schemaStore.activeConnection.id,
+                    sessionId: id,
                     database: schemaStore.selectedDatabase,
                     schema: schemaStore.activeSchema || "public",
                     query: query,
@@ -183,9 +183,6 @@
         startLine?: number,
         endLine?: number,
     ) {
-        console.log(`[SQL] executeQueryText called for line ${startLine}`, {
-            queryText,
-        });
         if (!queryText.trim()) {
             log("No query to execute");
             return;
@@ -212,6 +209,7 @@
         try {
             const result = await invoke<any>("execute_query", {
                 connectionId: schemaStore.activeConnection.id,
+                sessionId: id,
                 database: schemaStore.selectedDatabase,
                 schema: schemaStore.activeSchema || "public",
                 query: queryText,
