@@ -207,7 +207,7 @@ export class QueryHeaderController {
             this.editor.changeViewZones(accessor => {
                 viewZoneId = accessor.addZone({
                     afterLineNumber: line - 1,
-                    heightInLines: 1.8,
+                    heightInLines: 1.4, // Slightly more compact for ghost design
                     domNode: document.createElement('div'),
                 });
             });
@@ -252,7 +252,7 @@ export class QueryHeaderController {
             accessor.removeZone(instance.viewZoneId);
             instance.viewZoneId = accessor.addZone({
                 afterLineNumber: newLine - 1,
-                heightInLines: 1.6,
+                heightInLines: 1.4,
                 domNode: document.createElement('div'),
             });
         });
