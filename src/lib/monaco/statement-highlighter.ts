@@ -28,15 +28,52 @@ export function enableQueryHighlighting(editor: monaco.editor.IStandaloneCodeEdi
             });
 
             if (range) {
-                decorationCollection.set([
-                    {
-                        range: new monaco.Range(range.start_line, 1, range.end_line, 1),
+                const decorations: monaco.editor.IModelDeltaDecoration[] = [];
+                const start = range.start_line;
+                const end = range.end_line;
+
+                if (start === end) {
+                    // Single line
+                    decorations.push({
+                        range: new monaco.Range(start, 1, start, 1),
                         options: {
                             isWholeLine: true,
-                            className: 'current-query-border',
+                            className: 'query-border-full current-query-box',
                         }
+                    });
+                } else {
+                    // Multi-line
+                    // Top line
+                    decorations.push({
+                        range: new monaco.Range(start, 1, start, 1),
+                        options: {
+                            isWholeLine: true,
+                            className: 'query-border-top current-query-box',
+                        }
+                    });
+
+                    // Middle lines
+                    if (end - start > 1) {
+                        decorations.push({
+                            range: new monaco.Range(start + 1, 1, end - 1, 1),
+                            options: {
+                                isWholeLine: true,
+                                className: 'query-border-middle current-query-box',
+                            }
+                        });
                     }
-                ]);
+
+                    // Bottom line
+                    decorations.push({
+                        range: new monaco.Range(end, 1, end, 1),
+                        options: {
+                            isWholeLine: true,
+                            className: 'query-border-bottom current-query-box',
+                        }
+                    });
+                }
+
+                decorationCollection.set(decorations);
             } else {
                 decorationCollection.clear();
             }
