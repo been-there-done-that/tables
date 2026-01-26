@@ -258,7 +258,6 @@
             options: {
                 theme: MONACO_THEME_NAME,
                 minimap: { enabled: false },
-                automaticLayout: true,
                 fontSize: settingsStore.editorFontSize,
                 fontFamily: settingsStore.editorFontFamily,
             },
@@ -426,8 +425,18 @@
                 executeQueryText(queryText, startLine, endLine);
             };
 
-            const stopQuery = (startLine: number, endLine: number) => {
-                log("Stop functionality not fully implemented yet");
+            const stopQuery = async (startLine: number, endLine: number) => {
+                if (!schemaStore.activeConnection) return;
+                log("Requesting query cancellation...");
+                try {
+                    await invoke("cancel_query", {
+                        connectionId: schemaStore.activeConnection.id,
+                    });
+                    // UI status update handled by headerController via cancel result or event
+                } catch (e) {
+                    log(`Failed to cancel query: ${e}`);
+                    console.error("Cancel failed:", e);
+                }
             };
 
             headerController = enableQueryHeaders(
@@ -435,6 +444,13 @@
                 executeQuery,
                 stopQuery,
             );
+
+            // Add ResizeObserver for robust layout updates
+            const observer = new ResizeObserver(() => {
+                handle.editor.layout();
+            });
+            observer.observe(editorContainer);
+            editorDisposables.push({ dispose: () => observer.disconnect() });
         },
     );
 

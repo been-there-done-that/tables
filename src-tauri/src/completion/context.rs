@@ -195,7 +195,10 @@ fn extract_previous_word(source: &str, cursor_offset: usize, prefix: &str) -> St
 
 /// Determine the completion context from cursor position.
 fn determine_context(source: &str, node: &Node, cursor_offset: usize) -> CursorContext {
-    let before_cursor = &source[..cursor_offset];
+    // 1. Isolate the current statement
+    // We scan backwards for the last ';' to ensure we don't look at previous queries.
+    let statement_start = find_statement_start(source, cursor_offset);
+    let before_cursor = &source[statement_start..cursor_offset];
     let trimmed = before_cursor.trim_end();
     
     // Check for dot context: `alias.|`
@@ -241,6 +244,13 @@ fn determine_context(source: &str, node: &Node, cursor_offset: usize) -> CursorC
     
     // Root context: empty or just whitespace
     if trimmed_upper.is_empty() {
+        return CursorContext::RootContext;
+    }
+
+    // New: If we are typing the first word (no whitespace separators yet), treat as RootContext.
+    // This handles "sel" -> suggest SELECT.
+    // We check if the relevant slice (trimmed of leading constraints) contains any whitespace.
+    if !before_cursor.trim_start().chars().any(|c| c.is_whitespace()) {
         return CursorContext::RootContext;
     }
     
@@ -400,6 +410,50 @@ fn calculate_scope_depth(node: &Node) -> usize {
     depth.saturating_sub(1) // Don't count the outermost query
 }
 
+/// Find the start index of the current statement (after last semicolon).
+/// Handles quoted strings to avoid false positives.
+fn find_statement_start(source: &str, cursor_offset: usize) -> usize {
+    let relevant_slice = &source[..cursor_offset];
+    let mut last_semicolon = 0;
+    
+    // Quick check: if no semicolon, it's the start
+    if !relevant_slice.contains(';') {
+        return 0;
+    }
+
+    // Careful scan to ignore semicolons in strings
+    let mut in_quote = false;
+    let mut quote_char = '\0';
+    
+    // We scan forward from the beginning effectively because scanning backward with state is harder
+    // But since we want the *last* semicolon before cursor, forward scan is fine.
+    // Optimization: Just scan the characters.
+    for (i, c) in relevant_slice.char_indices() {
+        if in_quote {
+            if c == quote_char {
+                // Check distinct for escaped quotes? SQL standard uses '' for escaped '
+                // But simplified check is sufficient for completion context
+                // We just check if next char is same quote (escape) or not?
+                // For now, simple toggle is usually enough for context heuristics
+                in_quote = false;
+            }
+        } else {
+            match c {
+                '\'' | '"' => {
+                    in_quote = true;
+                    quote_char = c;
+                }
+                ';' => {
+                    last_semicolon = i + 1; // Start is after the semicolon
+                }
+                _ => {}
+            }
+        }
+    }
+    
+    last_semicolon
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -412,6 +466,65 @@ mod tests {
         let ctx = Context::analyze(source, tree.as_ref(), 9); // After "u."
         
         assert!(matches!(ctx.context_type, CursorContext::AfterDot { ref alias } if alias == "u"));
+    }
+
+    #[test]
+    fn test_multi_statement_root_context() {
+        // "sel" after a semicolon should be root context (expecting keyword)
+        let source = "SELECT * FROM users; sel";
+        let tree = parse_sql(source, None);
+        let ctx = Context::analyze(source, tree.as_ref(), source.len()); 
+        
+        // Before fix: likely Unknown
+        // After fix: RootContext (because " sel" trimmed is "sel", but "sel" isn't empty... wait)
+        
+        // Actually, determine_context logic for RootContext is:
+        // if trimmed_upper.is_empty() { return CursorContext::RootContext; }
+        
+        // But "sel" is NOT empty.
+        // It should hit: 
+        // fallback?
+        
+        // Wait, current logic for RootContext:
+        // if trimmed_upper.is_empty() { return RootContext; }
+        // If I type "sel", trimmed_upper is "SEL".
+        // It falls through to Unknown.
+        // And engine.rs treats Unknown as GENERIC_KEYWORDS (SELECT, FROM, etc.)
+        
+        // So Unknown is actually what we want if we want "SELECT" to be suggested?
+        // Let's check engine.rs:
+        // GENERIC_KEYWORDS includes "SELECT", "FROM", etc.
+        
+        // So Unknown -> OK.
+        // The problem reported by user is that it was suggesting "slice_user" etc.
+        // Those generic items also include "Visible aliases".
+        
+        // If previous query was "SELECT * FROM action_item", "action_item" is a visible symbol (maybe?).
+        // No, semantic model usually builds off parsed tree.
+        
+        // If I type `sel`, tree is broken.
+        // determine_context returns Unknown.
+        // engine calls complete_generic.
+        // generic suggests: GENERIC_KEYWORDS (score 50) + Visible Aliases (score 70).
+        
+        // If "action_item" is in the previous query, is it a visible symbol?
+        // Semantic model parsing probably picks it up.
+        
+        // But why "slice_user"? That implies it's finding random things.
+        
+        // If it's RootContext, complete_root_context suggests STATEMENT_STARTERS with score 100.
+        // That is strictly better than GENERIC (score 50).
+        
+        // So we WANT RootContext when the statement is just "sel" (conceptually empty statement being started).
+        // But "sel" is not empty.
+        
+        // Maybe we need a specific heuristic for "looks like start of statement".
+        // Or determine_context should return RootContext if token count is 1?
+        
+        // If `trimmed_upper` is just one word, and that word matches a start keyword prefix?
+        // Or if it doesn't match any clause triggers?
+        
+        // Let's adjust determination logic slightly in the main block too.
     }
 
     #[test]

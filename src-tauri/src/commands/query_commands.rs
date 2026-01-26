@@ -337,7 +337,7 @@ pub async fn fetch_table_preview(
         _ = cancel_future => {
             cleanup_token().await;
             let duration = start.elapsed().as_millis() as u64;
-            log_query_end(&app, &correlation_id, &connection_id, &database, &data_query, duration, "cancelled", Some("Query cancelled by user"), None, Some(component_name));
+            log_query_end(&app, &correlation_id, &connection_id, &database, &data_query, duration, "error", Some("Query cancelled by user"), None, Some(component_name));
             return Err("Query cancelled".to_string());
         }
     };
@@ -384,6 +384,7 @@ pub async fn execute_query(
     db_state: State<'_, DatabaseState>,
     conn_state: State<'_, ConnectionManagerState>,
     session_state: State<'_, QuerySessionManager>,
+    query_state: State<'_, QueryExecutionState>,
     app: AppHandle,
     component: Option<String>,
 ) -> Result<QueryResult, String> {
@@ -405,48 +406,87 @@ pub async fn execute_query(
         }
     }
 
+    // Create cancellation token and register it
+    let cancel_token = CancellationToken::new();
+    {
+        let mut queries = query_state.active_queries.lock().await;
+        if let Some(old_token) = queries.remove(&connection_id) {
+            old_token.cancel();
+        }
+        queries.insert(connection_id.clone(), cancel_token.clone());
+    }
+    
+    // Cleanup function
+    let cleanup_token = || async {
+        let mut queries = query_state.active_queries.lock().await;
+        queries.remove(&connection_id);
+    };
+
+    // Check if cancelled before starting
+    if cancel_token.is_cancelled() {
+        cleanup_token().await;
+        return Err("Query cancelled".to_string());
+    }
+
     let start = Instant::now();
 
-    let result = if let Some(engine) = session_found {
-        // Session exists, skip connection/credential retrieval from local DB
-        match engine {
-            "postgres" => {
-                execute_postgres_query(&session_state, &connection_id, &session_id, None, None, &database, &schema, &query).await
+    // Wrap execution in tokio::select for cancellation
+    let execution_future = async {
+        if let Some(engine) = session_found {
+            // Session exists, skip connection/credential retrieval from local DB
+            match engine {
+                "postgres" => {
+                    execute_postgres_query(&session_state, &connection_id, &session_id, None, None, &database, &schema, &query).await
+                }
+                "sqlite" => {
+                    execute_sqlite_query(&session_state, &connection_id, &session_id, None, &query).await
+                }
+                _ => Err(format!("Engine '{}' is not supported", engine)),
             }
-            "sqlite" => {
-                execute_sqlite_query(&session_state, &connection_id, &session_id, None, &query).await
+        } else {
+            // No session, perform full retrieval from local DB
+            let manager = ConnectionManager::from_state(&db_state, &conn_state);
+            let (connection, credentials) = match manager.get_connection(&connection_id) {
+                Ok(res) => res,
+                Err(e) => {
+                     log_query_end(&app, &correlation_id, &connection_id, &database, &query, 0, "error", Some(&e), None, Some(component_name));
+                     return Err(e);
+                }
+            };
+    
+            let config: serde_json::Value = serde_json::from_str(&connection.config_json)
+                .map_err(|e| {
+                    let err_msg = format!("Failed to parse connection config: {}", e);
+                    log_query_end(&app, &correlation_id, &connection_id, &database, &query, 0, "error", Some(&err_msg), None, Some(component_name));
+                    err_msg
+                })?;
+    
+            match connection.engine.as_str() {
+                "postgres" | "postgresql" => {
+                    execute_postgres_query(&session_state, &connection_id, &session_id, Some(&config), Some(&credentials), &database, &schema, &query).await
+                }
+                "sqlite" => {
+                    execute_sqlite_query(&session_state, &connection_id, &session_id, Some(&config), &query).await
+                }
+                _ => Err(format!("Engine '{}' is not supported for query execution", connection.engine)),
             }
-            _ => Err(format!("Engine '{}' is not supported", engine)),
-        }
-    } else {
-        // No session, perform full retrieval from local DB
-        let manager = ConnectionManager::from_state(&db_state, &conn_state);
-        let (connection, credentials) = match manager.get_connection(&connection_id) {
-            Ok(res) => res,
-            Err(e) => {
-                 log_query_end(&app, &correlation_id, &connection_id, &database, &query, 0, "error", Some(&e), None, Some(component_name));
-                 return Err(e);
-            }
-        };
-
-        let config: serde_json::Value = serde_json::from_str(&connection.config_json)
-            .map_err(|e| {
-                let err_msg = format!("Failed to parse connection config: {}", e);
-                log_query_end(&app, &correlation_id, &connection_id, &database, &query, 0, "error", Some(&err_msg), None, Some(component_name));
-                err_msg
-            })?;
-
-        match connection.engine.as_str() {
-            "postgres" | "postgresql" => {
-                execute_postgres_query(&session_state, &connection_id, &session_id, Some(&config), Some(&credentials), &database, &schema, &query).await
-            }
-            "sqlite" => {
-                execute_sqlite_query(&session_state, &connection_id, &session_id, Some(&config), &query).await
-            }
-            _ => Err(format!("Engine '{}' is not supported for query execution", connection.engine)),
         }
     };
+
+    let cancel_future = cancel_token.cancelled();
+
+    let result = tokio::select! {
+        res = execution_future => res,
+        _ = cancel_future => {
+            cleanup_token().await;
+            let duration = start.elapsed().as_millis() as u64;
+            log_query_end(&app, &correlation_id, &connection_id, &database, &query, duration, "error", Some("Query cancelled by user"), None, Some(component_name));
+            return Err("Query cancelled".to_string());
+        }
+    };
+
     let duration = start.elapsed().as_millis() as u64;
+    cleanup_token().await;
 
     let status = if result.is_ok() { "success" } else { "error" };
     let error = result.as_ref().err().map(|e| e.as_str());
