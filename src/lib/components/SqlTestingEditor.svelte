@@ -27,6 +27,11 @@
     } from "$lib/monaco/query-headers";
     import QueryEditorToolbar from "./editor/QueryEditorToolbar.svelte";
 
+    // Table imports
+    import Table from "$lib/components/table/Table.svelte";
+    import { normalizeColumnType } from "$lib/components/table/columnUtils";
+    import type { Column, DataFetcher } from "$lib/components/table/types";
+
     let { id = "playground", context = $bindable({}) } = $props<{
         id?: string;
         context?: any;
@@ -40,6 +45,96 @@
     let executionTime = $state(0);
 
     let headerController: QueryHeaderController | null = null;
+
+    // Result Table State
+    let resultRows = $state<any[]>([]);
+    let resultColumns = $state<Column[]>([]);
+    let resultTotal = $state(0);
+    let resultExecutionTime = $state(0);
+    let showResultTable = $state(false);
+    let tableRef: any = $state(null);
+    let resultLoading = $state(false);
+
+    // Derived DataFetcher for Table component
+    const resultDataFetcher: DataFetcher = $derived(async (params) => {
+        const { offset, limit, sort, filters } = params;
+
+        let processed = [...resultRows];
+
+        // 1. Client-side Sort
+        if (sort && sort.length > 0) {
+            processed.sort((a, b) => {
+                for (const s of sort) {
+                    const colId = s.columnId;
+                    const valA = a[colId];
+                    const valB = b[colId];
+                    if (valA === valB) continue;
+
+                    // Handle nulls
+                    if (valA === null || valA === undefined)
+                        return s.direction === "asc" ? -1 : 1;
+                    if (valB === null || valB === undefined)
+                        return s.direction === "asc" ? 1 : -1;
+
+                    if (typeof valA === "number" && typeof valB === "number") {
+                        const diff = valA - valB;
+                        return s.direction === "asc" ? diff : -diff;
+                    }
+
+                    const strA = String(valA).toLowerCase();
+                    const strB = String(valB).toLowerCase();
+                    if (strA < strB) return s.direction === "asc" ? -1 : 1;
+                    if (strA > strB) return s.direction === "asc" ? 1 : -1;
+                }
+                return 0;
+            });
+        }
+
+        // 2. Client-side Filter
+        if (filters && Object.keys(filters).length > 0) {
+            // Note: Table component handles filtering efficiently too,
+            // but if Table calls fetcher with filters, we must apply them here for correctness if we return a subset.
+            // Since we're client-side, we can just return the filtered page.
+
+            // Simplified filter implemention matching Table.svelte's logic
+            Object.entries(filters).forEach(([columnId, filterValue]) => {
+                if (!filterValue) return;
+
+                if (filterValue.type === "in" && filterValue.values) {
+                    processed = processed.filter((row) => {
+                        const cellValue = String(row[columnId]);
+                        return filterValue.values.includes(cellValue);
+                    });
+                } else if (filterValue.type === "equals") {
+                    processed = processed.filter(
+                        (row) => row[columnId] === filterValue.value,
+                    );
+                } else if (filterValue.type === "contains") {
+                    processed = processed.filter((row) =>
+                        String(row[columnId])
+                            .toLowerCase()
+                            .includes(String(filterValue.value).toLowerCase()),
+                    );
+                }
+            });
+        }
+
+        const filteredTotal = processed.length;
+        const page = processed.slice(offset, offset + (limit || 1000));
+
+        // Add rowId if missing
+        const rowsWithId = page.map((r, i) => ({
+            ...r,
+            _rowId: (offset || 0) + i,
+        }));
+
+        return {
+            rows: rowsWithId,
+            total: filteredTotal,
+            columns: resultColumns,
+            columnStats: undefined, // Let table compute stats
+        };
+    });
 
     // Debounced save for editor content
     const debouncedSave = createDebouncedSave(2000);
@@ -151,6 +246,7 @@
 
             try {
                 isRunning = true;
+                resultLoading = true;
                 const result = await invoke<any>("execute_query", {
                     connectionId: schemaStore.activeConnection.id,
                     sessionId: id,
@@ -173,6 +269,48 @@
                 }
 
                 console.log("Query Result:", result);
+
+                // Populate Result Table
+                if (result.rows && result.columns) {
+                    resultRows = result.rows;
+                    resultColumns = result.columns.map((c: any) => ({
+                        id: c.name,
+                        label: c.name,
+                        type: normalizeColumnType(c.type),
+                        rawType: c.type,
+                        sortable: true,
+                        filterable: true,
+                        pinnable: true,
+                        width: undefined, // Auto-size
+                    }));
+                    resultTotal = result.rows.length;
+                    showResultTable = true;
+                    // Force refresh table logic if needed, usually dataFetcher updates handle it
+                    if (tableRef) tableRef.refresh();
+                } else if (
+                    Array.isArray(result) &&
+                    result.length > 0 &&
+                    result[0].rows
+                ) {
+                    // Handle multi-result (batch)? Just take last for now
+                    const last = result[result.length - 1];
+                    if (last.rows && last.columns) {
+                        resultRows = last.rows;
+                        resultColumns = last.columns.map((c: any) => ({
+                            id: c.name,
+                            label: c.name,
+                            type: normalizeColumnType(c.type),
+                            rawType: c.type,
+                            sortable: true,
+                            filterable: true,
+                            pinnable: true,
+                        }));
+                        resultTotal = last.rows.length;
+                        showResultTable = true;
+                        if (tableRef) tableRef.refresh();
+                    }
+                }
+
                 log("Query completed successfully.");
             } catch (e) {
                 if (startLine && headerController) {
@@ -185,6 +323,7 @@
                 log(`Query failed: ${e}`);
             } finally {
                 isRunning = false;
+                resultLoading = false;
             }
         } else {
             log("No query to execute");
@@ -223,6 +362,7 @@
 
         try {
             isRunning = true;
+            resultLoading = true;
             const result = await invoke<any>("execute_query", {
                 connectionId: schemaStore.activeConnection.id,
                 sessionId: id,
@@ -246,6 +386,45 @@
             }
 
             console.log("Query Result:", result);
+
+            // Populate Result Table
+            if (result.rows && result.columns) {
+                resultRows = result.rows;
+                resultColumns = result.columns.map((c: any) => ({
+                    id: c.name,
+                    label: c.name,
+                    type: normalizeColumnType(c.type),
+                    rawType: c.type,
+                    sortable: true,
+                    filterable: true,
+                    pinnable: true,
+                }));
+                resultTotal = result.rows.length;
+                showResultTable = true;
+                if (tableRef) tableRef.refresh();
+            } else if (
+                Array.isArray(result) &&
+                result.length > 0 &&
+                result[0].rows
+            ) {
+                const last = result[result.length - 1];
+                if (last.rows && last.columns) {
+                    resultRows = last.rows;
+                    resultColumns = last.columns.map((c: any) => ({
+                        id: c.name,
+                        label: c.name,
+                        type: normalizeColumnType(c.type),
+                        rawType: c.type,
+                        sortable: true,
+                        filterable: true,
+                        pinnable: true,
+                    }));
+                    resultTotal = last.rows.length;
+                    showResultTable = true;
+                    if (tableRef) tableRef.refresh();
+                }
+            }
+
             log("Query completed successfully.");
         } catch (e) {
             // Mark error
@@ -260,6 +439,7 @@
             log(`Query failed: ${e}`);
         } finally {
             isRunning = false;
+            resultLoading = false;
         }
     }
 
@@ -609,11 +789,35 @@
         onSchemaChange={(v) => (schemaStore.activeSchema = v)}
     />
 
-    <div class="flex-1 relative">
-        <div
-            bind:this={editorContainer}
-            class="absolute inset-0 w-full h-full sql-editor-container"
-        ></div>
+    <div class="flex-1 flex flex-col min-h-0">
+        <!-- Editor Area -->
+        <div class="flex-1 relative min-h-[200px]">
+            <div
+                bind:this={editorContainer}
+                class="absolute inset-0 w-full h-full sql-editor-container"
+            ></div>
+        </div>
+
+        <!-- Result Table Area -->
+        {#if showResultTable}
+            <div
+                class="flex-1 relative border-t border-border min-h-[200px] flex flex-col"
+            >
+                <div
+                    class="flex items-center px-4 py-1 border-b text-xs font-semibold bg-muted/20"
+                >
+                    Query Results ({resultTotal} rows)
+                </div>
+                <div class="flex-1 relative">
+                    <Table
+                        bind:this={tableRef}
+                        columns={resultColumns}
+                        dataFetcher={resultDataFetcher}
+                        isLoading={resultLoading}
+                    />
+                </div>
+            </div>
+        {/if}
     </div>
 </div>
 
