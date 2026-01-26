@@ -40,6 +40,10 @@ export class QueryHeaderController {
     private onStopCallback: (startLine: number, endLine: number) => void;
     private isDisposed = false;
 
+    // Cache for active detection
+    private cachedRanges: StatementRangeWithBytes[] = [];
+    private activeLine: number = 0;
+
     constructor(
         editor: monaco.editor.IStandaloneCodeEditor,
         onRun: (text: string, start: number, end: number) => void,
@@ -53,11 +57,20 @@ export class QueryHeaderController {
         editor.onDidChangeModelContent(() => this.scheduleUpdate(200));
         editor.onDidChangeModel(() => {
             this.clearAll();
+            this.cachedRanges = [];
             this.updateHeaders();
         });
 
         // Initial load
         this.updateHeaders();
+    }
+
+    public onCursor(line: number) {
+        if (this.activeLine === line) return;
+        this.activeLine = line;
+
+        // Re-evaluate headers without re-parsing
+        this.reconcileHeaders();
     }
 
     public updateStatus(line: number, text: string, status: HeaderStatus) {
@@ -67,6 +80,8 @@ export class QueryHeaderController {
 
         let targetId: string | null = null;
         for (const [id, instance] of this.headers.entries()) {
+            // We can check instance.line directly if it's reliable, 
+            // but getting range is safer for moved code
             const range = model.getDecorationRange(id);
             if (range && range.startLineNumber === line) {
                 targetId = id;
@@ -88,9 +103,6 @@ export class QueryHeaderController {
         const model = this.editor.getModel();
         if (!model) return;
 
-        const range = model.getDecorationRange(decorationId);
-        if (!range) return;
-
         // Unmount old if exists
         if (header.component) {
             unmount(header.component);
@@ -107,7 +119,6 @@ export class QueryHeaderController {
                 onRun: () => {
                     const latestRange = model.getDecorationRange(decorationId);
                     if (latestRange) {
-                        // Expand the range to cover full width of lines
                         const fullRange = new monaco.Range(
                             latestRange.startLineNumber,
                             1,
@@ -116,8 +127,6 @@ export class QueryHeaderController {
                         );
                         const latestText = model.getValueInRange(fullRange);
                         this.onRunCallback(latestText, latestRange.startLineNumber, latestRange.endLineNumber);
-                    } else {
-                        console.warn(`[Header] No range found for decoration ${decorationId}`);
                     }
                 },
                 onStop: () => {
@@ -141,110 +150,147 @@ export class QueryHeaderController {
         if (!model || model.getLanguageId() !== 'sql') return;
 
         const text = model.getValue();
-        let ranges: StatementRangeWithBytes[] = [];
-
         try {
-            ranges = await invoke<StatementRangeWithBytes[]>('get_all_statements', { text });
+            this.cachedRanges = await invoke<StatementRangeWithBytes[]>('get_all_statements', { text });
         } catch (e) {
             console.error("Failed to parse statements:", e);
             return;
         }
 
-        const nextHeaders: Map<string, HeaderInstance> = new Map();
-        const rangeMap: Map<number, StatementRangeWithBytes> = new Map();
-        ranges.forEach(r => rangeMap.set(r.start_line, r));
+        this.reconcileHeaders();
+    }
 
-        // 1. Reconcile existing headers
+    /**
+     * Reconciles the visible headers based on cachedRanges and activeLine.
+     * ONLY the active statement gets a header.
+     */
+    private reconcileHeaders() {
+        if (this.isDisposed) return;
+        const model = this.editor.getModel();
+        if (!model) return;
+
+        const text = model.getValue();
+        const nextHeaders: Map<string, HeaderInstance> = new Map();
+
+        // Find which range is active
+        // Use a simpler check: is cursor line within [start, end]?
+        const activeRange = this.cachedRanges.find(r =>
+            this.activeLine >= r.start_line && this.activeLine <= r.end_line
+        );
+
+        // If we have an active range, we want 1 header for it.
+        // If not, we want 0 headers.
+
+        // NOTE: If we have multiple headers (e.g. from previous state), logic needs to:
+        // 1. Identify which existing header matches the active range (to preserve status/state).
+        // 2. Remove all others.
+        // 3. Create new if needed.
+
+        // Map existing headers to ranges for easier lookup
+        type ExistingHeader = { id: string, instance: HeaderInstance, startLine: number };
+        const existing: ExistingHeader[] = [];
+
         for (const [id, instance] of this.headers.entries()) {
             const range = model.getDecorationRange(id);
             if (!range) {
+                // Invalid decoration, clean up immediately
                 this.removeHeader(id);
                 continue;
             }
+            existing.push({ id, instance, startLine: range.startLineNumber });
+        }
 
-            const newRange = rangeMap.get(range.startLineNumber);
-            if (newRange) {
-                // Same line, same header. Update text if needed.
-                const queryText = text.substring(newRange.start_byte, newRange.end_byte);
+        // Logic for Active Range
+        if (activeRange) {
+            // Check if we already have a header for this line
+            const match = existing.find(e => e.startLine === activeRange.start_line);
 
-                // Track if it moved (Monaco moved the decoration)
-                if (instance.line !== range.startLineNumber) {
-                    this.updateViewZone(instance, range.startLineNumber);
-                    instance.line = range.startLineNumber;
-                    this.editor.layoutContentWidget(instance.widget);
-                }
+            if (match) {
+                // KEEP existing
+                const { id, instance } = match;
 
+                // Update text tracking
+                const queryText = text.substring(activeRange.start_byte, activeRange.end_byte);
                 if (instance.lastText !== queryText) {
                     this.statuses.set(id, { state: 'idle' });
                     instance.lastText = queryText;
                     this.refreshComponent(id);
                 }
+
                 nextHeaders.set(id, instance);
-                rangeMap.delete(range.startLineNumber); // Marked as used
+
+                // Remove it from 'existing' so we know what to delete
+                const idx = existing.indexOf(match);
+                if (idx > -1) existing.splice(idx, 1);
             } else {
-                // Gone or moved. Remove.
-                this.removeHeader(id);
+                // CREATE new
+                const queryText = text.substring(activeRange.start_byte, activeRange.end_byte);
+                this.createHeader(activeRange.start_line, activeRange.end_line, queryText, nextHeaders);
             }
         }
 
-        // 2. Create new headers for remaining ranges
-        for (const [line, range] of rangeMap.entries()) {
-            const queryText = text.substring(range.start_byte, range.end_byte);
-
-            // Add Decoration
-            const decorationIds = model.deltaDecorations([], [{
-                range: new monaco.Range(line, 1, range.end_line, 1),
-                options: { isWholeLine: true }
-            }]);
-            const id = decorationIds[0];
-
-            // Create DOM node
-            const domNode = document.createElement('div');
-            domNode.className = 'query-header-widget';
-
-            // Add ViewZone
-            let viewZoneId = '';
-            this.editor.changeViewZones(accessor => {
-                viewZoneId = accessor.addZone({
-                    afterLineNumber: line - 1,
-                    heightInLines: 1.4, // Slightly more compact for ghost design
-                    domNode: document.createElement('div'),
-                });
-            });
-
-            // Add ContentWidget
-            const widgetId = `query.header.${id}.${Date.now()}`;
-            const widget: monaco.editor.IContentWidget = {
-                getId: () => widgetId,
-                getDomNode: () => domNode,
-                getPosition: () => {
-                    const r = model.getDecorationRange(id);
-                    return {
-                        position: { lineNumber: r ? r.startLineNumber : line, column: 1 },
-                        preference: [monaco.editor.ContentWidgetPositionPreference.ABOVE]
-                    };
-                }
-            };
-            this.editor.addContentWidget(widget);
-
-            const instance: HeaderInstance = {
-                decorationId: id,
-                line,
-                viewZoneId,
-                widget,
-                domNode,
-                component: null,
-                lastText: queryText
-            };
-
-            nextHeaders.set(id, instance);
-            this.statuses.set(id, { state: 'idle' });
-            this.headers.set(id, instance); // Update primary map
-            this.refreshComponent(id);
+        // DELETE all remaining (non-active)
+        for (const item of existing) {
+            this.removeHeader(item.id);
         }
 
-        // Final sync
         this.headers = nextHeaders;
+    }
+
+    private createHeader(startLine: number, endLine: number, text: string, collection: Map<string, HeaderInstance>) {
+        const model = this.editor.getModel();
+        if (!model) return;
+
+        // Add Decoration
+        const decorationIds = model.deltaDecorations([], [{
+            range: new monaco.Range(startLine, 1, endLine, 1),
+            options: { isWholeLine: true }
+        }]);
+        const id = decorationIds[0];
+
+        // Create DOM node
+        const domNode = document.createElement('div');
+        domNode.className = 'query-header-widget';
+
+        // Add ViewZone
+        let viewZoneId = '';
+        this.editor.changeViewZones(accessor => {
+            viewZoneId = accessor.addZone({
+                afterLineNumber: startLine - 1,
+                heightInLines: 1.4,
+                domNode: document.createElement('div'),
+            });
+        });
+
+        // Add ContentWidget
+        const widgetId = `query.header.${id}.${Date.now()}`;
+        const widget: monaco.editor.IContentWidget = {
+            getId: () => widgetId,
+            getDomNode: () => domNode,
+            getPosition: () => {
+                const r = model.getDecorationRange(id);
+                return {
+                    position: { lineNumber: r ? r.startLineNumber : startLine, column: 1 },
+                    preference: [monaco.editor.ContentWidgetPositionPreference.ABOVE]
+                };
+            }
+        };
+        this.editor.addContentWidget(widget);
+
+        const instance: HeaderInstance = {
+            decorationId: id,
+            line: startLine,
+            viewZoneId,
+            widget,
+            domNode,
+            component: null,
+            lastText: text
+        };
+
+        collection.set(id, instance);
+        this.statuses.set(id, { state: 'idle' });
+        this.headers.set(id, instance);
+        this.refreshComponent(id);
     }
 
     private updateViewZone(instance: HeaderInstance, newLine: number) {

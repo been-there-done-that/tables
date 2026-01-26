@@ -113,7 +113,14 @@
             );
 
             if (highlight) {
-                query = model.getValueInRange(highlight.range);
+                // Ensure we get the full text of the last line
+                const fullRange = new monaco.Range(
+                    highlight.range.startLineNumber,
+                    1,
+                    highlight.range.endLineNumber,
+                    model.getLineMaxColumn(highlight.range.endLineNumber),
+                );
+                query = model.getValueInRange(fullRange);
                 source = "auto-highlighted statement";
                 startLine = highlight.range.startLineNumber;
             } else {
@@ -503,8 +510,12 @@
 
             // Also save cursor position changes (debounced)
             const cursorChangeDisposable =
-                handle.editor.onDidChangeCursorPosition(() => {
+                handle.editor.onDidChangeCursorPosition((e) => {
                     const pos = handle.editor.getPosition();
+                    if (pos && headerController) {
+                        headerController.onCursor(pos.lineNumber);
+                    }
+
                     const val = handle.editor.getValue();
                     const capturedId = id;
                     debouncedSave.save(() => {
@@ -520,10 +531,19 @@
                     });
                 });
 
+            // Listen for mouse down to trigger header update immediately on click
+            // (Cursor position event fires too, but this can feel snappier for UI toggles)
+            const mouseDownDisposable = handle.editor.onMouseDown((e) => {
+                if (e.target.position && headerController) {
+                    headerController.onCursor(e.target.position.lineNumber);
+                }
+            });
+
             // Store disposables for cleanup on unmount
             editorDisposables = [
                 contentChangeDisposable,
                 cursorChangeDisposable,
+                mouseDownDisposable,
             ];
 
             // Enable Rich Headers (ViewZones above queries)
