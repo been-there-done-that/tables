@@ -262,9 +262,14 @@
   border-right: 1px solid var(--theme-border-subtle);
 }
 
-/* The border on the left side (like DataGrip) */
-.current-query-highlight {
-  border-left: 2px solid var(--theme-accent-primary);
+/* The vertical line in the gutter (contiguous) */
+.current-query-highlight-lines {
+  border-right: 4px solid var(--theme-accent-primary);
+  width: 100%;
+}
+
+/* The background tint in the text area */
+.current-query-highlight-bg {
   background: color-mix(in srgb, var(--theme-accent-primary) 5%, transparent);
 }
 

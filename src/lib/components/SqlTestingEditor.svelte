@@ -109,7 +109,7 @@
                 new monaco.Range(1, 1, model.getLineCount(), 1),
             );
             const highlight = decorations?.find(
-                (d) => d.options.className === "current-query-highlight",
+                (d) => d.options.className === "current-query-highlight-bg",
             );
 
             if (highlight) {
@@ -356,7 +356,7 @@
                 minimap: { enabled: false },
                 padding: { top: 16, bottom: 16, left: 16 } as any,
                 lineNumbersMinChars: 3,
-                lineDecorationsWidth: 0,
+                lineDecorationsWidth: 8,
                 glyphMargin: true,
             },
         },
