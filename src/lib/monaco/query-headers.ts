@@ -22,18 +22,19 @@ export interface HeaderStatus {
 }
 
 interface HeaderInstance {
-    id: string;
+    decorationId: string;
     line: number;
     viewZoneId: string;
     widget: monaco.editor.IContentWidget;
     component: any; // Svelte component instance
     domNode: HTMLElement;
+    lastText: string;
 }
 
 export class QueryHeaderController {
     private editor: monaco.editor.IStandaloneCodeEditor;
-    private headers: HeaderInstance[] = [];
-    private statuses: Map<number, HeaderStatus> = new Map(); // line -> status
+    private headers: Map<string, HeaderInstance> = new Map(); // decorationId -> instance
+    private statuses: Map<string, HeaderStatus> = new Map(); // decorationId -> status
     private debounceTimer: any;
     private onRunCallback: (text: string, startLine: number, endLine: number) => void;
     private onStopCallback: (startLine: number, endLine: number) => void;
@@ -49,42 +50,91 @@ export class QueryHeaderController {
         this.onStopCallback = onStop;
 
         // Listen for changes
-        editor.onDidChangeModelContent(() => this.scheduleUpdate());
-        editor.onDidChangeModel(() => this.updateHeaders()); // Immediate on model switch
+        editor.onDidChangeModelContent(() => this.scheduleUpdate(200));
+        editor.onDidChangeModel(() => {
+            this.clearAll();
+            this.updateHeaders();
+        });
 
         // Initial load
         this.updateHeaders();
     }
 
-    public updateStatus(line: number, status: HeaderStatus) {
-        this.statuses.set(line, status);
+    public updateStatus(line: number, text: string, status: HeaderStatus) {
+        if (this.isDisposed) return;
+        const model = this.editor.getModel();
+        if (!model) return;
 
-        // Update existing component props directly if found
-        const header = this.headers.find(h => h.line === line);
-        if (header && header.component) {
-            // In Svelte 5 with $props, we can't easily update props from outside unless we use accessors
-            // OR re-mount. But simpler: just force full update since this is rare event (start/end)
-            // Ideally we'd validly update the component props.
-            // Let's re-mount for correctness for now, or use a store if we passed one.
-            // Actually, we can just re-create the component on the existing node.
+        let targetId: string | null = null;
+        for (const [id, instance] of this.headers.entries()) {
+            const range = model.getDecorationRange(id);
+            if (range && range.startLineNumber === line) {
+                targetId = id;
+                break;
+            }
+        }
 
-            unmount(header.component);
-            header.component = mount(QueryHeader, {
-                target: header.domNode,
-                props: {
-                    status: status.state,
-                    duration: status.duration,
-                    errorMessage: status.errorMessage,
-                    onRun: () => this.handleRun(line),
-                    onStop: () => this.handleStop(line)
-                }
-            });
+        if (targetId) {
+            this.statuses.set(targetId, status);
+            this.refreshComponent(targetId);
         }
     }
 
-    private scheduleUpdate() {
+    private refreshComponent(decorationId: string) {
+        const header = this.headers.get(decorationId);
+        if (!header) return;
+
+        const status = this.statuses.get(decorationId) || { state: 'idle' };
+        const model = this.editor.getModel();
+        if (!model) return;
+
+        const range = model.getDecorationRange(decorationId);
+        if (!range) return;
+
+        // Unmount old if exists
+        if (header.component) {
+            unmount(header.component);
+            header.component = null;
+        }
+
+        // Mount Svelte Component
+        header.component = mount(QueryHeader, {
+            target: header.domNode,
+            props: {
+                status: status.state,
+                duration: status.duration,
+                errorMessage: status.errorMessage,
+                onRun: () => {
+                    console.log(`[Header] Click on line ${decorationId}`);
+                    const latestRange = model.getDecorationRange(decorationId);
+                    if (latestRange) {
+                        // Expand the range to cover full width of lines
+                        const fullRange = new monaco.Range(
+                            latestRange.startLineNumber,
+                            1,
+                            latestRange.endLineNumber,
+                            model.getLineMaxColumn(latestRange.endLineNumber)
+                        );
+                        const latestText = model.getValueInRange(fullRange);
+                        console.log(`[Header] Found text for ${decorationId}, calling onRunCallback`, { length: latestText.length });
+                        this.onRunCallback(latestText, latestRange.startLineNumber, latestRange.endLineNumber);
+                    } else {
+                        console.warn(`[Header] No range found for decoration ${decorationId}`);
+                    }
+                },
+                onStop: () => {
+                    const latestRange = model.getDecorationRange(decorationId);
+                    if (latestRange) {
+                        this.onStopCallback(latestRange.startLineNumber, latestRange.endLineNumber);
+                    }
+                }
+            }
+        });
+    }
+
+    private scheduleUpdate(ms: number) {
         clearTimeout(this.debounceTimer);
-        this.debounceTimer = setTimeout(() => this.updateHeaders(), 300);
+        this.debounceTimer = setTimeout(() => this.updateHeaders(), ms);
     }
 
     private async updateHeaders() {
@@ -102,107 +152,118 @@ export class QueryHeaderController {
             return;
         }
 
-        // Diff and reconcile headers
-        // Simple approach: Clear all and rebuild. 
-        // Optimization: In real prod we'd diff, but for < 100 queries this is fast enough.
+        const nextHeaders: Map<string, HeaderInstance> = new Map();
+        const rangeMap: Map<number, StatementRangeWithBytes> = new Map();
+        ranges.forEach(r => rangeMap.set(r.start_line, r));
 
-        // 1. Remove old ViewZones and Widgets
-        this.editor.changeViewZones(accessor => {
-            this.headers.forEach(h => {
+        // 1. Reconcile existing headers
+        for (const [id, instance] of this.headers.entries()) {
+            const range = model.getDecorationRange(id);
+            if (!range) {
+                this.removeHeader(id);
+                continue;
+            }
+
+            const newRange = rangeMap.get(range.startLineNumber);
+            if (newRange) {
+                // Same line, same header. Update text if needed.
+                const queryText = text.substring(newRange.start_byte, newRange.end_byte);
+                if (instance.lastText !== queryText) {
+                    this.statuses.set(id, { state: 'idle' });
+                    instance.lastText = queryText;
+                    this.refreshComponent(id);
+                }
+                nextHeaders.set(id, instance);
+                rangeMap.delete(range.startLineNumber); // Marked as used
+            } else {
+                // Gone or moved. Remove.
+                this.removeHeader(id);
+            }
+        }
+
+        // 2. Create new headers for remaining ranges
+        for (const [line, range] of rangeMap.entries()) {
+            const queryText = text.substring(range.start_byte, range.end_byte);
+
+            // Add Decoration
+            const decorationIds = model.deltaDecorations([], [{
+                range: new monaco.Range(line, 1, range.end_line, 1),
+                options: { isWholeLine: true }
+            }]);
+            const id = decorationIds[0];
+
+            // Create DOM node
+            const domNode = document.createElement('div');
+            domNode.className = 'query-header-widget';
+
+            // Add ViewZone
+            let viewZoneId = '';
+            this.editor.changeViewZones(accessor => {
+                viewZoneId = accessor.addZone({
+                    afterLineNumber: line - 1,
+                    heightInLines: 1.6,
+                    domNode: document.createElement('div'),
+                });
+            });
+
+            // Add ContentWidget
+            const widgetId = `query.header.${id}.${Date.now()}`;
+            const widget: monaco.editor.IContentWidget = {
+                getId: () => widgetId,
+                getDomNode: () => domNode,
+                getPosition: () => ({
+                    position: { lineNumber: line, column: 1 },
+                    preference: [monaco.editor.ContentWidgetPositionPreference.ABOVE]
+                })
+            };
+            this.editor.addContentWidget(widget);
+
+            const instance: HeaderInstance = {
+                decorationId: id,
+                line,
+                viewZoneId,
+                widget,
+                domNode,
+                component: null,
+                lastText: queryText
+            };
+
+            nextHeaders.set(id, instance);
+            this.statuses.set(id, { state: 'idle' });
+            this.headers.set(id, instance); // Update primary map
+            this.refreshComponent(id);
+        }
+
+        // Final sync
+        this.headers = nextHeaders;
+    }
+
+    private removeHeader(id: string) {
+        const h = this.headers.get(id);
+        if (h) {
+            this.editor.changeViewZones(accessor => {
                 accessor.removeZone(h.viewZoneId);
-                this.editor.removeContentWidget(h.widget);
-                unmount(h.component);
             });
-        });
-        this.headers = [];
-
-        // 2. Add new ViewZones and Widgets
-        this.editor.changeViewZones(accessor => {
-            ranges.forEach(range => {
-                const line = range.start_line;
-
-                // Skip if line invalid
-                if (line > model.getLineCount()) return;
-
-                // Create DOM node for widget
-                const domNode = document.createElement('div');
-                domNode.className = 'query-header-widget';
-
-                // Insert ViewZone (space)
-                const viewZoneId = accessor.addZone({
-                    afterLineNumber: line - 1, // Insert above the line
-                    heightInLines: 1.6, // Enough space for button
-                    domNode: document.createElement('div'), // Placeholder
-                });
-
-                // Create Content Widget
-                const widgetId = `query.header.${line}.${Date.now()}`;
-                const widget: monaco.editor.IContentWidget = {
-                    getId: () => widgetId,
-                    getDomNode: () => domNode,
-                    getPosition: () => ({
-                        position: { lineNumber: line, column: 1 },
-                        preference: [monaco.editor.ContentWidgetPositionPreference.ABOVE]
-                    })
-                };
-
-                this.editor.addContentWidget(widget);
-
-                // Mount Svelte Component
-                const currentStatus = this.statuses.get(line) || { state: 'idle' };
-
-                // Helper execution handlers
-                const onRun = () => {
-                    const queryText = text.substring(range.start_byte, range.end_byte);
-                    this.onRunCallback(queryText, range.start_line, range.end_line);
-                };
-
-                const onStop = () => {
-                    this.onStopCallback(range.start_line, range.end_line);
-                };
-
-                const component = mount(QueryHeader, {
-                    target: domNode,
-                    props: {
-                        status: currentStatus.state,
-                        duration: currentStatus.duration,
-                        errorMessage: currentStatus.errorMessage,
-                        onRun,
-                        onStop
-                    }
-                });
-
-                this.headers.push({
-                    id: widgetId,
-                    line,
-                    viewZoneId,
-                    widget,
-                    component,
-                    domNode
-                });
-            });
-        });
+            this.editor.removeContentWidget(h.widget);
+            if (h.component) unmount(h.component);
+            const model = this.editor.getModel();
+            if (model) model.deltaDecorations([id], []);
+            this.headers.delete(id);
+            this.statuses.delete(id);
+        }
     }
 
-    private handleRun(line: number) {
-        // Find range from current headers (bit redundant but safe)
-        // Accessing from closure in mount() is cleaner, see above.
-    }
-
-    private handleStop(line: number) {
-        // Accessing from closure in mount() is cleaner.
+    private clearAll() {
+        for (const id of Array.from(this.headers.keys())) {
+            this.removeHeader(id);
+        }
+        this.headers.clear();
+        this.statuses.clear();
     }
 
     public dispose() {
         this.isDisposed = true;
-        this.editor.changeViewZones(accessor => {
-            this.headers.forEach(h => {
-                accessor.removeZone(h.viewZoneId);
-                this.editor.removeContentWidget(h.widget);
-                unmount(h.component);
-            });
-        });
-        this.headers = [];
+        this.clearAll();
     }
 }
 

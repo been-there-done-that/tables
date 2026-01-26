@@ -85,6 +85,7 @@
     }
 
     async function executeCurrent() {
+        console.log("[SQL] executeCurrent triggered");
         if (!editorHandle) return;
         const editor = editorHandle.editor;
         const model = editor.getModel();
@@ -92,12 +93,14 @@
 
         let query = "";
         let source = "";
+        let startLine: number | undefined;
 
         // 1. Check for manual selection first
         const selection = editor.getSelection();
         if (selection && !selection.isEmpty()) {
             query = model.getValueInRange(selection);
             source = "manual selection";
+            startLine = selection.startLineNumber;
         } else {
             // 2. Fallback to auto-highlighted statement
             const decorations = editor.getDecorationsInRange(
@@ -110,6 +113,7 @@
             if (highlight) {
                 query = model.getValueInRange(highlight.range);
                 source = "auto-highlighted statement";
+                startLine = highlight.range.startLineNumber;
             } else {
                 // 3. Fallback to full text
                 query = editor.getValue();
@@ -128,17 +132,42 @@
                 return;
             }
 
+            if (startLine && headerController) {
+                headerController.updateStatus(startLine, query, {
+                    state: "running",
+                });
+            }
+
+            const startTime = performance.now();
+
             try {
-                const result = await invoke("execute_query", {
+                const result = await invoke<any>("execute_query", {
                     connectionId: schemaStore.activeConnection.id,
                     database: schemaStore.selectedDatabase,
                     schema: schemaStore.activeSchema || "public",
                     query: query,
                     component: "editor",
                 });
+
+                const duration =
+                    result.duration_ms ?? performance.now() - startTime;
+
+                if (startLine && headerController) {
+                    headerController.updateStatus(startLine, query, {
+                        state: "success",
+                        duration,
+                    });
+                }
+
                 console.log("Query Result:", result);
                 log("Query completed successfully.");
             } catch (e) {
+                if (startLine && headerController) {
+                    headerController.updateStatus(startLine, query, {
+                        state: "error",
+                        errorMessage: String(e),
+                    });
+                }
                 console.error("Query execution failed:", e);
                 log(`Query failed: ${e}`);
             }
@@ -154,6 +183,9 @@
         startLine?: number,
         endLine?: number,
     ) {
+        console.log(`[SQL] executeQueryText called for line ${startLine}`, {
+            queryText,
+        });
         if (!queryText.trim()) {
             log("No query to execute");
             return;
@@ -170,7 +202,9 @@
 
         // Mark as running
         if (startLine && endLine && headerController) {
-            headerController.updateStatus(startLine, { state: "running" });
+            headerController.updateStatus(startLine, queryText, {
+                state: "running",
+            });
         }
 
         const startTime = performance.now();
@@ -190,7 +224,7 @@
 
             // Mark success
             if (startLine && endLine && headerController) {
-                headerController.updateStatus(startLine, {
+                headerController.updateStatus(startLine, queryText, {
                     state: "success",
                     duration,
                 });
@@ -201,7 +235,7 @@
         } catch (e) {
             // Mark error
             if (startLine && endLine && headerController) {
-                headerController.updateStatus(startLine, {
+                headerController.updateStatus(startLine, queryText, {
                     state: "error",
                     errorMessage: String(e),
                 });

@@ -8,6 +8,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
+use crate::completion::parsing::parse_sql;
+use crate::completion::ranges::find_all_statement_ranges;
 
 /// State for tracking running queries per connection
 pub struct QueryExecutionState {
@@ -671,22 +673,64 @@ async fn execute_postgres_query(
         client
     };
 
-    // Note: We don't set search_path here because:
-    // 1. Queries should use fully-qualified table names (schema.table)
-    // 2. Overriding search_path can break triggers that need public schema access (e.g., hstore extension)
+    // Split query and execute
+    let tree = parse_sql(query, None);
+    let statements = tree.map(|t| find_all_statement_ranges(&t, query)).unwrap_or_default();
 
-    let rows = client.query(query, &[]).await
-        .map_err(|e| {
-            error!("[execute_postgres_query] Query failed: {:?}", e);
-            error!("[execute_postgres_query] SQL was: {}", query);
-            if let Some(db_err) = e.as_db_error() {
-                error!("[execute_postgres_query] DB Error details - message: {}, detail: {:?}, hint: {:?}, code: {}", 
-                    db_err.message(), db_err.detail(), db_err.hint(), db_err.code().code());
-                format!("Query failed: {} (code: {})", db_err.message(), db_err.code().code())
+    if statements.is_empty() {
+        return execute_single_postgres_query(&client, query).await;
+    }
+
+    let mut last_result = None;
+    for (i, range) in statements.iter().enumerate() {
+        let stmt_text = &query[range.start_byte..range.end_byte];
+        let rows = client.query(stmt_text, &[]).await
+            .map_err(|e| {
+                error!("[execute_postgres_query] Statement {} failed: {:?}", i+1, e);
+                if let Some(db_err) = e.as_db_error() {
+                    format!("Query failed at statement {}: {} (code: {})", i+1, db_err.message(), db_err.code().code())
+                } else {
+                    format!("Query failed at statement {}: {}", i+1, e)
+                }
+            })?;
+        
+        // Only the last statement's columns and rows are returned for now
+        if i == statements.len() - 1 {
+            let columns: Vec<ColumnInfo> = if !rows.is_empty() {
+                rows[0].columns().iter().map(|col| {
+                    ColumnInfo {
+                        name: col.name().to_string(),
+                        column_type: format!("{:?}", col.type_()),
+                    }
+                }).collect()
             } else {
-                format!("Query failed: {}", e)
-            }
-        })?;
+                vec![]
+            };
+
+            let json_rows: Vec<serde_json::Value> = rows.iter().map(|row| {
+                let mut obj = serde_json::Map::new();
+                for (i, col) in row.columns().iter().enumerate() {
+                    let value = postgres_value_to_json(row, i);
+                    obj.insert(col.name().to_string(), value);
+                }
+                serde_json::Value::Object(obj)
+            }).collect();
+
+            last_result = Some(QueryResult {
+                rows: json_rows,
+                columns,
+                affected_rows: None,
+                duration_ms: 0,
+            });
+        }
+    }
+
+    last_result.ok_or_else(|| "No statements found to execute".to_string())
+}
+
+async fn execute_single_postgres_query(client: &tokio_postgres::Client, query: &str) -> Result<QueryResult, String> {
+    let rows = client.query(query, &[]).await
+        .map_err(|e| format!("Query failed: {}", e))?;
 
     let columns: Vec<ColumnInfo> = if !rows.is_empty() {
         rows[0].columns().iter().map(|col| {
@@ -711,8 +755,8 @@ async fn execute_postgres_query(
     Ok(QueryResult {
         rows: json_rows,
         columns,
-        affected_rows: None, // explicit query returns rows
-        duration_ms: 0, // calculated by caller
+        affected_rows: None,
+        duration_ms: 0,
     })
 }
 
@@ -727,14 +771,55 @@ fn execute_sqlite_query(
     let conn = rusqlite::Connection::open(sqlite_path)
         .map_err(|e| crate::sqlite_utils::format_sqlite_error(&e))?;
 
+    // Split query and execute
+    let tree = parse_sql(query, None);
+    let statements = tree.map(|t| find_all_statement_ranges(&t, query)).unwrap_or_default();
+
+    if statements.is_empty() {
+        return execute_single_sqlite_query(&conn, query);
+    }
+
+    let mut last_result = None;
+    for (i, range) in statements.iter().enumerate() {
+        let stmt_text = &query[range.start_byte..range.end_byte];
+        let mut stmt = conn.prepare(stmt_text)
+            .map_err(|e| format!("Failed to prepare statement at indices {}-{}: {}", range.start_byte, range.end_byte, e))?;
+
+        let column_names: Vec<String> = stmt.column_names().into_iter().map(|s| s.to_string()).collect();
+        let columns: Vec<ColumnInfo> = column_names.iter().map(|name| ColumnInfo {
+            name: name.clone(),
+            column_type: "UNKNOWN".to_string()
+        }).collect();
+
+        let rows: Vec<serde_json::Value> = stmt.query_map([], |row| {
+            let mut obj = serde_json::Map::new();
+            for (i, name) in column_names.iter().enumerate() {
+                let value = crate::sqlite_utils::sqlite_value_to_json(row, i);
+                obj.insert(name.clone(), value);
+            }
+            Ok(serde_json::Value::Object(obj))
+        }).map_err(|e| crate::sqlite_utils::format_sqlite_error(&e))?
+          .filter_map(|r| r.ok())
+          .collect();
+
+        if i == statements.len() - 1 {
+            last_result = Some(QueryResult {
+                rows,
+                columns,
+                affected_rows: None,
+                duration_ms: 0,
+            });
+        }
+    }
+
+    last_result.ok_or_else(|| "No statements found to execute".to_string())
+}
+
+fn execute_single_sqlite_query(conn: &rusqlite::Connection, query: &str) -> Result<QueryResult, String> {
     let mut stmt = conn.prepare(query)
         .map_err(|e| crate::sqlite_utils::format_sqlite_error(&e))?;
 
-    let column_count = stmt.column_count();
     let column_names: Vec<String> = stmt.column_names().into_iter().map(|s| s.to_string()).collect();
-    
-    // SQLite doesn't give types easily in dynamic query without PRAGMA or parsing
-    // using placeholder types
     let columns: Vec<ColumnInfo> = column_names.iter().map(|name| ColumnInfo {
         name: name.clone(),
         column_type: "UNKNOWN".to_string()
