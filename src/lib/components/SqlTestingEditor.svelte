@@ -344,6 +344,18 @@
         }
     }
 
+    function handleUndo() {
+        if (!editorHandle?.editor) return;
+        editorHandle.editor.trigger("toolbar", "undo", null);
+        editorHandle.editor.focus();
+    }
+
+    function handleRedo() {
+        if (!editorHandle?.editor) return;
+        editorHandle.editor.trigger("toolbar", "redo", null);
+        editorHandle.editor.focus();
+    }
+
     useMonacoEditor(
         {
             contextId: stableContextId,
@@ -354,7 +366,7 @@
             options: {
                 theme: MONACO_THEME_NAME,
                 minimap: { enabled: false },
-                padding: { top: 16, bottom: 16, left: 16 } as any,
+                padding: { top: 4, bottom: 16, left: 16 } as any,
                 lineNumbersMinChars: 3,
                 lineDecorationsWidth: 8,
                 glyphMargin: true,
@@ -571,6 +583,8 @@
         onStop={handleStop}
         onFormat={handleFormat}
         onClear={handleClear}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
         onExplain={handleExplain}
         onSchemaChange={(v) => (schemaStore.activeSchema = v)}
     />

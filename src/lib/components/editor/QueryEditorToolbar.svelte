@@ -13,6 +13,8 @@
         IconSchema,
         IconStopwatch,
         IconLoader2,
+        IconArrowBackUp,
+        IconArrowForwardUp,
     } from "@tabler/icons-svelte";
     import { schemaStore } from "$lib/stores/schema.svelte";
 
@@ -24,6 +26,8 @@
         onStop: () => void;
         onFormat: () => void;
         onClear: () => void;
+        onUndo: () => void;
+        onRedo: () => void;
         onExplain: (raw: boolean) => void;
         onSchemaChange: (schema: string) => void;
     }
@@ -36,6 +40,8 @@
         onStop,
         onFormat,
         onClear,
+        onUndo,
+        onRedo,
         onExplain,
         onSchemaChange,
     }: Props = $props();
@@ -100,6 +106,31 @@
         >
             <IconClearAll class="size-4" />
             <span class="text-xs font-medium">Clear</span>
+        </Button>
+
+        <div class="w-px h-4 bg-border/40 mx-1"></div>
+
+        <!-- Undo/Redo -->
+        <Button
+            variant="ghost"
+            size="sm"
+            class="h-7 px-2 flex items-center gap-1.5 opacity-70 hover:opacity-100"
+            onclick={onUndo}
+            title="Undo (Cmd+Z)"
+        >
+            <IconArrowBackUp class="size-4" />
+            <span class="text-xs font-medium">Undo</span>
+        </Button>
+
+        <Button
+            variant="ghost"
+            size="sm"
+            class="h-7 px-2 flex items-center gap-1.5 opacity-70 hover:opacity-100"
+            onclick={onRedo}
+            title="Redo (Cmd+Shift+Z)"
+        >
+            <IconArrowForwardUp class="size-4" />
+            <span class="text-xs font-medium">Redo</span>
         </Button>
 
         <div class="w-px h-4 bg-border/40 mx-1"></div>
