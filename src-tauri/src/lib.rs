@@ -13,6 +13,8 @@ mod introspection;
 mod db_test;
 mod completion;
 mod settings;
+#[cfg(test)]
+mod backend_tests;
 pub mod constants;
 pub mod schema_types;
 pub mod adapter;
