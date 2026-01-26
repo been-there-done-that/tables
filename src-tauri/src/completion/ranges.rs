@@ -23,7 +23,8 @@ pub struct StatementRangeWithBytes {
 /// - Cursor on semicolon node → returns preceding statement  
 /// - Cursor immediately after semicolon → returns preceding statement
 /// - Cursor on new line below statement → returns None
-pub fn find_current_statement_range(tree: &Tree, cursor_offset: usize) -> Option<StatementRange> {
+/// - Cursor on new line below statement → returns None
+pub fn find_current_statement_range(tree: &Tree, text_source: &str, cursor_offset: usize) -> Option<StatementRange> {
     let root = tree.root_node();
     let mut cursor = root.walk();
     
@@ -41,6 +42,15 @@ pub fn find_current_statement_range(tree: &Tree, cursor_offset: usize) -> Option
         if cursor_offset < start_byte {
             // Return last statement if cursor is within 2 chars of its end
             if let Some(ref last) = last_statement {
+                // If the gap contains a newline, assume meaningful separation
+                // This prevents `SELECT 1;\n|` from counting as part of the previous statement
+                if last_statement_end_byte <= cursor_offset && cursor_offset <= text_source.len() {
+                    let gap = &text_source[last_statement_end_byte..cursor_offset];
+                    if gap.contains('\n') {
+                        return None;
+                    }
+                }
+
                 if cursor_offset <= last_statement_end_byte + 2 {
                     return Some(last.clone());
                 }
@@ -161,7 +171,7 @@ mod tests {
         let source = sql.replace('|', "");
         let tree = parse_sql(&source, None).unwrap();
         
-        let range = find_current_statement_range(&tree, cursor).unwrap();
+        let range = find_current_statement_range(&tree, &source, cursor).unwrap();
         assert_eq!(range.start_line, 1);
         assert_eq!(range.end_line, 1);
     }
@@ -173,7 +183,7 @@ mod tests {
         let source = sql.replace('|', "");
         let tree = parse_sql(&source, None).unwrap();
         
-        let range = find_current_statement_range(&tree, cursor).unwrap();
+        let range = find_current_statement_range(&tree, &source, cursor).unwrap();
         assert_eq!(range.start_line, 2);
         assert_eq!(range.end_line, 2);
     }
@@ -185,7 +195,7 @@ mod tests {
         let source = sql.replace('|', "");
         let tree = parse_sql(&source, None).unwrap();
         
-        let range = find_current_statement_range(&tree, cursor).unwrap();
+        let range = find_current_statement_range(&tree, &source, cursor).unwrap();
         assert_eq!(range.start_line, 1);
         assert_eq!(range.end_line, 1);
     }
@@ -198,7 +208,7 @@ mod tests {
         let tree = parse_sql(&source, None).unwrap();
         
         // Should include the semicolon
-        let range = find_current_statement_range(&tree, cursor).unwrap();
+        let range = find_current_statement_range(&tree, &source, cursor).unwrap();
         assert_eq!(range.start_line, 1);
         assert_eq!(range.end_line, 1);
     }
@@ -210,7 +220,7 @@ mod tests {
         let source = sql.replace('|', "");
         let tree = parse_sql(&source, None).unwrap();
         
-        let range = find_current_statement_range(&tree, cursor);
+        let range = find_current_statement_range(&tree, &source, cursor);
         // Cursor is on a new line (more than 2 chars from end of statement 1)
         // So it should return None, not highlight the previous statement.
         assert!(range.is_none());
@@ -247,7 +257,7 @@ LIMIT
         }
         println!("===========================");
         
-        let range = find_current_statement_range(&tree, cursor);
+        let range = find_current_statement_range(&tree, &source, cursor);
         println!("Test 1 - Cursor at end of semicolon:");
         println!("  cursor_offset = {}", cursor);
         println!("  range = {:?}", range);
@@ -276,7 +286,7 @@ LIMIT
         let source = sql.replace('|', "");
         let tree = parse_sql(&source, None).unwrap();
         
-        let range = find_current_statement_range(&tree, cursor);
+        let range = find_current_statement_range(&tree, &source, cursor);
         println!("Test 2 - Cursor one line below semicolon:");
         println!("  cursor_offset = {}", cursor);
         println!("  range = {:?}", range);
@@ -300,7 +310,7 @@ LIMIT
         let source = sql.replace('|', "");
         let tree = parse_sql(&source, None).unwrap();
         
-        let range = find_current_statement_range(&tree, cursor);
+        let range = find_current_statement_range(&tree, &source, cursor);
         println!("Test 3 - Cursor after '2 ' (space before semicolon):");
         println!("  cursor_offset = {}", cursor);
         println!("  range = {:?}", range);

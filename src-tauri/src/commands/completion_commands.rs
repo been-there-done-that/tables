@@ -364,7 +364,7 @@ pub async fn get_current_statement(
 ) -> Result<Option<StatementRange>, String> {
     let result = tokio::task::spawn_blocking(move || {
         let tree = parse_sql(&text, None);
-        tree.as_ref().and_then(|t| find_current_statement_range(t, cursor_offset))
+        tree.as_ref().and_then(|t| find_current_statement_range(t, &text, cursor_offset))
     }).await.map_err(|e| e.to_string())?;
 
     Ok(result)
