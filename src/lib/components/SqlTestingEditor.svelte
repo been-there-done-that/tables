@@ -108,14 +108,27 @@
             const decorations = editor.getDecorationsInRange(
                 new monaco.Range(1, 1, model.getLineCount(), 1),
             );
-            const highlight = decorations?.find(
-                (d) => d.options.className === "current-query-border",
+            const queryDecorations = decorations?.filter((d) =>
+                d.options.className?.includes("current-query-box"),
             );
 
-            if (highlight) {
-                query = model.getValueInRange(highlight.range);
+            if (queryDecorations && queryDecorations.length > 0) {
+                // Find min start and max end line among all box segments
+                let minLine = Infinity;
+                let maxLine = -Infinity;
+                for (const d of queryDecorations) {
+                    minLine = Math.min(minLine, d.range.startLineNumber);
+                    maxLine = Math.max(maxLine, d.range.endLineNumber);
+                }
+                const fullRange = new monaco.Range(
+                    minLine,
+                    1,
+                    maxLine,
+                    model.getLineMaxColumn(maxLine),
+                );
+                query = model.getValueInRange(fullRange);
                 source = "auto-highlighted statement";
-                startLine = highlight.range.startLineNumber;
+                startLine = minLine;
             } else {
                 // 3. Fallback to full text
                 query = editor.getValue();
