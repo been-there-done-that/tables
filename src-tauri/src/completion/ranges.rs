@@ -1,7 +1,7 @@
 use tree_sitter::Tree;
 
 /// Range of a SQL statement (1-based line numbers for Monaco)
-#[derive(serde::Serialize, Clone)]
+#[derive(serde::Serialize, Clone, Debug)]
 pub struct StatementRange {
     pub start_line: u32, // 1-based for Monaco
     pub end_line: u32,
@@ -18,21 +18,49 @@ pub struct StatementRangeWithBytes {
 
 /// Find the SQL statement range containing the cursor.
 /// 
-/// Handles edge case: cursor immediately after semicolon (e.g., `SELECT 1;|`)
-/// is considered part of that statement for highlighting purposes.
+/// Handles edge cases:
+/// - Cursor inside statement → returns that statement
+/// - Cursor on semicolon node → returns preceding statement  
+/// - Cursor immediately after semicolon → returns preceding statement
+/// - Cursor on new line below statement → returns None
 pub fn find_current_statement_range(tree: &Tree, cursor_offset: usize) -> Option<StatementRange> {
     let root = tree.root_node();
     let mut cursor = root.walk();
+    
+    // Track the last actual statement (not semicolon nodes)
     let mut last_statement: Option<StatementRange> = None;
+    let mut last_statement_end_byte: usize = 0;
 
-    // Iterate over top-level statements only
+    // Iterate over top-level children
     for child in root.children(&mut cursor) {
         let start_byte = child.start_byte();
         let end_byte = child.end_byte();
+        let kind = child.kind();
 
-        // Check if cursor is inside this statement OR immediately after it
-        // The +1 allows cursor right after semicolon to still match
+        // If cursor is BEFORE this node begins
+        if cursor_offset < start_byte {
+            // Return last statement if cursor is within 2 chars of its end
+            if let Some(ref last) = last_statement {
+                if cursor_offset <= last_statement_end_byte + 2 {
+                    return Some(last.clone());
+                }
+            }
+            return None;
+        }
+
+        // Check if cursor is inside this node
         if cursor_offset >= start_byte && cursor_offset <= end_byte {
+            // If this is a semicolon node, return the preceding statement
+            if kind == ";" {
+                return last_statement;
+            }
+            
+            // Skip comment nodes
+            if kind == "comment" || kind == "line_comment" || kind == "block_comment" {
+                continue;
+            }
+
+            // This is a real statement node
             let start_point = child.start_position();
             let end_point = child.end_position();
 
@@ -42,19 +70,26 @@ pub fn find_current_statement_range(tree: &Tree, cursor_offset: usize) -> Option
             });
         }
 
-        // Track last statement in case cursor is right after it
-        if cursor_offset == end_byte + 1 {
+        // Track last statement (excluding semicolons and comments)
+        if kind != ";" && kind != "comment" && kind != "line_comment" && kind != "block_comment" {
             let start_point = child.start_position();
             let end_point = child.end_position();
             last_statement = Some(StatementRange {
                 start_line: (start_point.row + 1) as u32,
                 end_line: (end_point.row + 1) as u32,
             });
+            last_statement_end_byte = end_byte;
         }
     }
     
-    // Return last statement if cursor was immediately after it
-    last_statement
+    // If cursor is after all nodes, check if close to last statement
+    if let Some(ref last) = last_statement {
+        if cursor_offset <= last_statement_end_byte + 2 {
+            return Some(last.clone());
+        }
+    }
+    
+    None
 }
 
 /// Find ALL SQL statement ranges in the document.
@@ -176,8 +211,103 @@ mod tests {
         let tree = parse_sql(&source, None).unwrap();
         
         let range = find_current_statement_range(&tree, cursor);
-        // Ideally should be None if strictly between, or nearest.
-        // Tree-sitter root children might not cover whitespace perfectly.
+        // Cursor is on a new line (more than 2 chars from end of statement 1)
+        // So it should return None, not highlight the previous statement.
         assert!(range.is_none());
+    }
+
+    // ============ USER-REQUESTED TEST CASES ============
+
+    /// Multi-line query, cursor at end of semicolon
+    /// Expected: Should highlight the full query (lines 1-8)
+    #[test]
+    fn test_multiline_cursor_at_end_of_semicolon() {
+        let sql = r#"SELECT
+  *
+FROM
+  production.tasks t
+WHERE
+  t.id IS NOT NULL
+LIMIT
+  2 ;|"#;
+        let cursor = sql.find('|').unwrap();
+        let source = sql.replace('|', "");
+        let tree = parse_sql(&source, None).unwrap();
+        
+        // Debug: Print tree structure
+        println!("=== TREE STRUCTURE DEBUG ===");
+        println!("Source length: {}", source.len());
+        println!("Cursor offset: {}", cursor);
+        let root = tree.root_node();
+        let mut walker = root.walk();
+        for (i, child) in root.children(&mut walker).enumerate() {
+            println!("Child {}: kind='{}' start_byte={} end_byte={} start_line={} end_line={}", 
+                i, child.kind(), child.start_byte(), child.end_byte(), 
+                child.start_position().row + 1, child.end_position().row + 1);
+        }
+        println!("===========================");
+        
+        let range = find_current_statement_range(&tree, cursor);
+        println!("Test 1 - Cursor at end of semicolon:");
+        println!("  cursor_offset = {}", cursor);
+        println!("  range = {:?}", range);
+        
+        assert!(range.is_some(), "Should highlight when cursor is at end of semicolon");
+        let r = range.unwrap();
+        // The range should cover the full query
+        assert_eq!(r.start_line, 1, "Should start at line 1");
+        assert_eq!(r.end_line, 8, "Should end at line 8");
+    }
+
+    /// Multi-line query, cursor one line BELOW the semicolon
+    /// Expected: Should NOT highlight (cursor is on empty line below statement)
+    #[test]
+    fn test_multiline_cursor_one_line_below() {
+        let sql = r#"SELECT
+  *
+FROM
+  production.tasks t
+WHERE
+  t.id IS NOT NULL
+LIMIT
+  2 ;
+|"#;
+        let cursor = sql.find('|').unwrap();
+        let source = sql.replace('|', "");
+        let tree = parse_sql(&source, None).unwrap();
+        
+        let range = find_current_statement_range(&tree, cursor);
+        println!("Test 2 - Cursor one line below semicolon:");
+        println!("  cursor_offset = {}", cursor);
+        println!("  range = {:?}", range);
+        
+        assert!(range.is_none(), "Should NOT highlight when cursor is on line below statement");
+    }
+
+    /// Multi-line query, cursor after `2` and one space, BEFORE semicolon
+    /// Expected: Should highlight the full query (cursor is still inside statement text area)
+    #[test]
+    fn test_multiline_cursor_after_2_and_space() {
+        let sql = r#"SELECT
+  *
+FROM
+  production.tasks t
+WHERE
+  t.id IS NOT NULL
+LIMIT
+  2 |;"#;
+        let cursor = sql.find('|').unwrap();
+        let source = sql.replace('|', "");
+        let tree = parse_sql(&source, None).unwrap();
+        
+        let range = find_current_statement_range(&tree, cursor);
+        println!("Test 3 - Cursor after '2 ' (space before semicolon):");
+        println!("  cursor_offset = {}", cursor);
+        println!("  range = {:?}", range);
+        
+        assert!(range.is_some(), "Should highlight when cursor is before semicolon");
+        let r = range.unwrap();
+        assert_eq!(r.start_line, 1);
+        assert_eq!(r.end_line, 8);
     }
 }
