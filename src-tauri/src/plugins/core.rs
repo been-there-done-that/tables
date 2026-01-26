@@ -283,7 +283,8 @@ macro_rules! aggregate_plugin_commands {
             save_editor_session,
             load_editor_session,
             list_editor_sessions,
-            delete_editor_session
+            delete_editor_session,
+            format_sql
         ]
     };
 }

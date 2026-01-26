@@ -25,7 +25,7 @@
 </script>
 
 <div
-    class="flex flex-row items-center gap-2 py-0.5 px-2 select-none whitespace-nowrap w-max"
+    class="flex flex-row items-center gap-2 py-1 px-2 select-none whitespace-nowrap w-max"
 >
     <!-- Action Button -->
     <button
