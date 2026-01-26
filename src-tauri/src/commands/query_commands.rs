@@ -805,66 +805,101 @@ async fn execute_postgres_query(
     schema: &str,
     query: &str,
 ) -> Result<QueryResult, String> {
-    let client = get_or_create_postgres_client(session_manager, connection_id, session_id, config, credentials, database).await?;
+    for attempt in 0..2 {
+        let client = get_or_create_postgres_client(session_manager, connection_id, session_id, config, credentials, database).await?;
 
-    // Split query and execute
-    let tree = parse_sql(query, None);
-    let statements = tree.map(|t| find_all_statement_ranges(&t, query)).unwrap_or_default();
+        // Split query and execute
+        let tree = parse_sql(query, None);
+        let statements = tree.map(|t| find_all_statement_ranges(&t, query)).unwrap_or_default();
 
-    if statements.is_empty() {
-        return execute_single_postgres_query(&client, query).await;
-    }
+        let result: Result<QueryResult, tokio_postgres::Error> = if statements.is_empty() {
+             execute_single_postgres_query(&client, query).await
+        } else {
+             let mut last_result = None;
+             let mut loop_err = None;
+             for (i, range) in statements.iter().enumerate() {
+                let stmt_text = &query[range.start_byte..range.end_byte];
+                // Execute statement
+                let rows_res = client.query(stmt_text, &[]).await;
+                
+                match rows_res {
+                    Ok(rows) => {
+                         if i == statements.len() - 1 {
+                             // Process success for last statement
+                             let columns: Vec<ColumnInfo> = if !rows.is_empty() {
+                                rows[0].columns().iter().map(|col| {
+                                    ColumnInfo {
+                                        name: col.name().to_string(),
+                                        column_type: format!("{:?}", col.type_()),
+                                    }
+                                }).collect()
+                            } else {
+                                vec![]
+                            };
 
-    let mut last_result = None;
-    for (i, range) in statements.iter().enumerate() {
-        let stmt_text = &query[range.start_byte..range.end_byte];
-        let rows = client.query(stmt_text, &[]).await
-            .map_err(|e| {
-                error!("[execute_postgres_query] Statement {} failed: {:?}", i+1, e);
-                if let Some(db_err) = e.as_db_error() {
-                    format!("Query failed at statement {}: {} (code: {})", i+1, db_err.message(), db_err.code().code())
-                } else {
-                    format!("Query failed at statement {}: {}", i+1, e)
-                }
-            })?;
-        
-        // Only the last statement's columns and rows are returned for now
-        if i == statements.len() - 1 {
-            let columns: Vec<ColumnInfo> = if !rows.is_empty() {
-                rows[0].columns().iter().map(|col| {
-                    ColumnInfo {
-                        name: col.name().to_string(),
-                        column_type: format!("{:?}", col.type_()),
+                            let json_rows: Vec<serde_json::Value> = rows.iter().map(|row| {
+                                let mut obj = serde_json::Map::new();
+                                for (i, col) in row.columns().iter().enumerate() {
+                                    let value = postgres_value_to_json(row, i);
+                                    obj.insert(col.name().to_string(), value);
+                                }
+                                serde_json::Value::Object(obj)
+                            }).collect();
+
+                            last_result = Some(QueryResult {
+                                rows: json_rows,
+                                columns,
+                                affected_rows: None,
+                                duration_ms: 0,
+                            });
+                         }
                     }
-                }).collect()
-            } else {
-                vec![]
-            };
-
-            let json_rows: Vec<serde_json::Value> = rows.iter().map(|row| {
-                let mut obj = serde_json::Map::new();
-                for (i, col) in row.columns().iter().enumerate() {
-                    let value = postgres_value_to_json(row, i);
-                    obj.insert(col.name().to_string(), value);
+                    Err(e) => {
+                         loop_err = Some(e);
+                         break; 
+                    }
                 }
-                serde_json::Value::Object(obj)
-            }).collect();
+             }
+             
+             if let Some(e) = loop_err {
+                 Err(e)
+             } else {
+                 Ok(last_result.unwrap_or_else(|| QueryResult {
+                     rows: vec![],
+                     columns: vec![],
+                     affected_rows: None,
+                     duration_ms: 0
+                 }))
+             }
+        };
 
-            last_result = Some(QueryResult {
-                rows: json_rows,
-                columns,
-                affected_rows: None,
-                duration_ms: 0,
-            });
+        match result {
+             Ok(res) => return Ok(res),
+             Err(e) => {
+                 if e.is_closed() && attempt == 0 {
+                      warn!("Postgres connection closed, attempting reconnect...");
+                      {
+                          let mut sessions = session_manager.sessions.lock().await;
+                          sessions.remove(&(connection_id.to_string(), session_id.to_string()));
+                      }
+                      continue; 
+                 }
+                 
+                 // Map error to string
+                 if let Some(db_err) = e.as_db_error() {
+                     return Err(format!("Query failed: {} (code: {})", db_err.message(), db_err.code().code()));
+                 } else {
+                     return Err(format!("Query failed: {}", e));
+                 }
+             }
         }
     }
-
-    last_result.ok_or_else(|| "No statements found to execute".to_string())
+    
+    Err("Connection closed and reconnection failed.".to_string())
 }
 
-async fn execute_single_postgres_query(client: &tokio_postgres::Client, query: &str) -> Result<QueryResult, String> {
-    let rows = client.query(query, &[]).await
-        .map_err(|e| format!("Query failed: {}", e))?;
+async fn execute_single_postgres_query(client: &tokio_postgres::Client, query: &str) -> Result<QueryResult, tokio_postgres::Error> {
+    let rows = client.query(query, &[]).await?;
 
     let columns: Vec<ColumnInfo> = if !rows.is_empty() {
         rows[0].columns().iter().map(|col| {
