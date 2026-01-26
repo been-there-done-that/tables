@@ -176,7 +176,7 @@
         const startTime = performance.now();
 
         try {
-            const result = await invoke("execute_query", {
+            const result = await invoke<any>("execute_query", {
                 connectionId: schemaStore.activeConnection.id,
                 database: schemaStore.selectedDatabase,
                 schema: schemaStore.activeSchema || "public",
@@ -184,7 +184,9 @@
                 component: "editor",
             });
 
-            const duration = performance.now() - startTime;
+            // Use backend duration if available (more accurate), else fallback to frontend measure
+            const duration =
+                result.duration_ms ?? performance.now() - startTime;
 
             // Mark success
             if (startLine && endLine && headerController) {

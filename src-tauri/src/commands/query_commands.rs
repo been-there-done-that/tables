@@ -396,7 +396,11 @@ pub async fn execute_query(
 
     log_query_end(&app, &correlation_id, &connection_id, &database, &query, duration, status, error, row_count, Some(component_name));
 
-    result
+    // Update the duration in the result before returning
+    result.map(|mut r| {
+        r.duration_ms = duration;
+        r
+    })
 }
 
 // ... helper functions (fetch_postgres_preview, fetch_sqlite_preview, etc.) ...
