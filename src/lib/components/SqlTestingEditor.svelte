@@ -27,10 +27,13 @@
     } from "$lib/monaco/query-headers";
     import QueryEditorToolbar from "./editor/QueryEditorToolbar.svelte";
 
-    // Table imports
     import Table from "$lib/components/table/Table.svelte";
+    import TableToolbar from "$lib/components/table/TableToolbar.svelte";
     import { normalizeColumnType } from "$lib/components/table/columnUtils";
     import type { Column, DataFetcher } from "$lib/components/table/types";
+    import type { EditDelta } from "$lib/components/table/TableEditManager.svelte";
+    import { pendingChangesStore } from "$lib/stores/pendingChanges.svelte";
+    import { tick } from "svelte";
 
     let { id = "playground", context = $bindable({}) } = $props<{
         id?: string;
@@ -50,10 +53,25 @@
     let resultRows = $state<any[]>([]);
     let resultColumns = $state<Column[]>([]);
     let resultTotal = $state(0);
-    let resultExecutionTime = $state(0);
     let showResultTable = $state(false);
     let tableRef: any = $state(null);
     let resultLoading = $state(false);
+
+    // Toolbar & Pagination State
+    let pageSize = $state(100);
+    let currentOffset = $state(0);
+    let currentBatchSize = $state(0);
+    let isExactTotal = $state(true);
+    let isCountLoading = $state(false);
+    let whereClause = $state("");
+    let orderByClause = $state("");
+    let lastExecutedQuery = $state("");
+    let detectedTable = $state<{ schema: string; table: string } | null>(null);
+
+    // Editing state
+    let pendingDeltas = $state<EditDelta[]>([]);
+    let isSaving = $state(false);
+    const pendingChangesCount = $derived(pendingDeltas.length);
 
     // Derived DataFetcher for Table component
     const resultDataFetcher: DataFetcher = $derived(async (params) => {
@@ -121,6 +139,9 @@
 
         const filteredTotal = processed.length;
         const page = processed.slice(offset, offset + (limit || 1000));
+
+        currentBatchSize = page.length;
+        resultTotal = filteredTotal;
 
         // Add rowId if missing
         const rowsWithId = page.map((r, i) => ({
@@ -281,6 +302,7 @@
                         sortable: true,
                         filterable: true,
                         pinnable: true,
+                        editable: true,
                         width: undefined, // Auto-size
                     }));
                     resultTotal = result.rows.length;
@@ -304,6 +326,7 @@
                             sortable: true,
                             filterable: true,
                             pinnable: true,
+                            editable: true,
                         }));
                         resultTotal = last.rows.length;
                         showResultTable = true;
@@ -398,6 +421,7 @@
                     sortable: true,
                     filterable: true,
                     pinnable: true,
+                    editable: true,
                 }));
                 resultTotal = result.rows.length;
                 showResultTable = true;
@@ -418,12 +442,16 @@
                         sortable: true,
                         filterable: true,
                         pinnable: true,
+                        editable: true,
                     }));
                     resultTotal = last.rows.length;
                     showResultTable = true;
                     if (tableRef) tableRef.refresh();
                 }
             }
+
+            lastExecutedQuery = queryText;
+            detectedTable = detectTableFromQuery(queryText);
 
             log("Query completed successfully.");
         } catch (e) {
@@ -440,6 +468,242 @@
         } finally {
             isRunning = false;
             resultLoading = false;
+        }
+    }
+
+    // Detect if a query is editable (simple SELECT * FROM <table>)
+    function detectTableFromQuery(
+        queryStr: string,
+    ): { schema: string; table: string } | null {
+        const match = queryStr.match(
+            /^\s*SELECT\s+\*\s+FROM\s+(?:"?(\w+)"?\.)?"?(\w+)"?\s*(?:WHERE|LIMIT|ORDER|;|$)/i,
+        );
+        if (match) {
+            const schema = match[1] || schemaStore.activeSchema || "public";
+            const table = match[2];
+            return { schema, table };
+        }
+        return null;
+    }
+
+    async function fetchPkColumns(
+        schema: string,
+        table: string,
+    ): Promise<string[]> {
+        try {
+            const tableDetails = await invoke<any>("get_schema_table_details", {
+                connectionId: schemaStore.activeConnection?.id,
+                database: schemaStore.selectedDatabase,
+                schema: schema,
+                tableName: table,
+            });
+            if (tableDetails && tableDetails.columns) {
+                return tableDetails.columns
+                    .filter((c: any) => c.is_primary_key)
+                    .map((c: any) => c.column_name);
+            }
+        } catch (e) {
+            console.warn(
+                "[SqlEditor] Failed to fetch table details for PK detection:",
+                e,
+            );
+        }
+        return [];
+    }
+
+    function formatSqlValue(val: any, rawType?: string): string {
+        if (val === null || val === undefined) return "NULL";
+        if (typeof val === "boolean") return val ? "TRUE" : "FALSE";
+        if (typeof val === "number") return String(val);
+        const strVal = String(val).replace(/'/g, "''");
+        return `'${strVal}'`;
+    }
+
+    // Toolbar & Editing Handlers
+    function handleExecute() {
+        executeCurrent();
+    }
+
+    function handleRefresh() {
+        executeCurrent();
+    }
+
+    function handlePageChange(newOffset: number) {
+        currentOffset = newOffset;
+        if (tableRef) tableRef.refresh();
+    }
+
+    function handlePageSizeChange(newSize: number) {
+        pageSize = newSize;
+        currentOffset = 0;
+        if (tableRef) tableRef.refresh();
+    }
+
+    function handleWhereChange(value: string) {
+        whereClause = value;
+    }
+
+    function handleOrderByChange(value: string) {
+        orderByClause = value;
+    }
+
+    async function handleCountUpdate() {
+        // For arbitrary results, we don't have a reliable way to get total count
+        // unless we wrapped the query in a CTE or subquery.
+        // For now, we use resultTotal from the fetched buffer.
+        isCountLoading = true;
+        await new Promise((r) => setTimeout(r, 200));
+        isCountLoading = false;
+    }
+
+    function handleExport(format: string) {
+        console.log("Export requested:", format);
+        log(`Exporting results to ${format} (stub)`);
+    }
+
+    function handleShowDdl() {
+        log("Show DDL not supported for arbitrary queries.");
+    }
+
+    async function handleApplyEdits(
+        edits: any[],
+    ): Promise<{ success: boolean; conflicts?: string[] }> {
+        if (!detectedTable) {
+            return {
+                success: false,
+                conflicts: [
+                    "Editing is only supported for 'SELECT * FROM table' queries.",
+                ],
+            };
+        }
+
+        const deltas = tableRef?.getEditDeltas?.() ?? [];
+        if (deltas.length === 0) return { success: true };
+
+        const pkCols = await fetchPkColumns(
+            detectedTable.schema,
+            detectedTable.table,
+        );
+        if (pkCols.length === 0) {
+            // Check if there is an 'id' column anyway as an anchor point per user suggestion
+            if (resultColumns.find((c) => c.id.toLowerCase() === "id")) {
+                pkCols.push(
+                    resultColumns.find((c) => c.id.toLowerCase() === "id")!.id,
+                );
+            } else {
+                return {
+                    success: false,
+                    conflicts: [
+                        "No primary keys found for table. Please refresh schema or add an 'id' column.",
+                    ],
+                };
+            }
+        }
+
+        const errors: string[] = [];
+        for (const delta of deltas) {
+            let sql = "";
+            const { type, rowId, columnId, newValue, pkValues } = delta;
+
+            if (type === "U") {
+                const setClause = `"${columnId}" = ${formatSqlValue(newValue)}`;
+                const whereClauses = pkCols.map(
+                    (pk) => `"${pk}" = ${formatSqlValue(pkValues[pk])}`,
+                );
+                sql = `UPDATE "${detectedTable.schema}"."${detectedTable.table}" SET ${setClause} WHERE ${whereClauses.join(" AND ")};`;
+            } else if (type === "D") {
+                const whereClauses = pkCols.map(
+                    (pk) => `"${pk}" = ${formatSqlValue(pkValues[pk])}`,
+                );
+                sql = `DELETE FROM "${detectedTable.schema}"."${detectedTable.table}" WHERE ${whereClauses.join(" AND ")};`;
+            } else if (type === "I") {
+                // Bulk insert handled as a single row for simplicity here
+                // We'd need to gather all columns for a full insert if we support 'Add Row' properly
+                errors.push("INSERT not yet supported in playground results.");
+                continue;
+            }
+
+            try {
+                log(`Applying edit: ${sql}`);
+                await invoke("execute_query", {
+                    connectionId: schemaStore.activeConnection?.id,
+                    sessionId: id,
+                    database: schemaStore.selectedDatabase,
+                    schema: detectedTable.schema,
+                    query: sql,
+                });
+            } catch (e) {
+                errors.push(`Failed to apply edit for row ${rowId}: ${e}`);
+            }
+        }
+
+        if (errors.length > 0) return { success: false, conflicts: errors };
+
+        // Re-run original query to see changes
+        executeCurrent();
+        return { success: true };
+    }
+
+    async function handleSaveChanges(): Promise<{
+        success: boolean;
+        errors?: string[];
+    }> {
+        isSaving = true;
+        const res = await handleApplyEdits([]);
+        isSaving = false;
+        if (res.success) {
+            tableRef?.revertAll?.();
+        }
+        return {
+            success: res.success,
+            errors: res.conflicts,
+        };
+    }
+
+    async function handleToolbarSave(): Promise<void> {
+        await handleSaveChanges();
+    }
+
+    function handleShowChanges() {
+        if (tableRef?.getEditDeltas) {
+            pendingDeltas = tableRef.getEditDeltas();
+        }
+        tick().then(() => {
+            pendingChangesStore.setContext(
+                pendingDeltas,
+                detectedTable?.table || "query_result",
+                resultColumns,
+                [], // PKs not strictly tracked in store here
+                detectedTable?.schema || "",
+                {
+                    onRevertRow: (rid) => tableRef?.revertRow?.(rid),
+                    onRevertAll: () => tableRef?.revertAll?.(),
+                    onSaveChanges: handleSaveChanges,
+                },
+            );
+            windowState.openRightPanel("pending-changes");
+        });
+    }
+
+    function handleAddRow() {
+        log("Manual Add Row not yet supported in playground.");
+    }
+
+    function handleEditChange() {
+        if (tableRef?.getEditDeltas) {
+            pendingDeltas = tableRef.getEditDeltas();
+        }
+    }
+
+    async function handleCancel() {
+        if (!schemaStore.activeConnection) return;
+        try {
+            await invoke("cancel_query", {
+                connectionId: schemaStore.activeConnection.id,
+            });
+            log("Query cancellation requested.");
+        } catch (e) {
+            console.error("Cancel failed:", e);
         }
     }
 
@@ -803,17 +1067,43 @@
             <div
                 class="flex-1 relative border-t border-border min-h-[200px] flex flex-col"
             >
-                <div
-                    class="flex items-center px-4 py-1 border-b text-xs font-semibold bg-muted/20"
-                >
-                    Query Results ({resultTotal} rows)
-                </div>
+                <TableToolbar
+                    bind:tableRef
+                    columns={resultColumns}
+                    {currentOffset}
+                    totalRows={resultTotal}
+                    {pageSize}
+                    {whereClause}
+                    {orderByClause}
+                    onExecute={handleExecute}
+                    onRefresh={handleRefresh}
+                    onPageChange={handlePageChange}
+                    onPageSizeChange={handlePageSizeChange}
+                    onExport={handleExport}
+                    onShowDdl={handleShowDdl}
+                    onWhereChange={handleWhereChange}
+                    onOrderByChange={handleOrderByChange}
+                    onCancel={handleCancel}
+                    onCountUpdate={handleCountUpdate}
+                    {currentBatchSize}
+                    {isExactTotal}
+                    {isCountLoading}
+                    isLoading={resultLoading}
+                    {executionTime}
+                    {pendingChangesCount}
+                    onShowChanges={handleShowChanges}
+                    onAddRow={handleAddRow}
+                    onSaveChanges={handleToolbarSave}
+                    {isSaving}
+                />
                 <div class="flex-1 relative">
                     <Table
                         bind:this={tableRef}
                         columns={resultColumns}
                         dataFetcher={resultDataFetcher}
                         isLoading={resultLoading}
+                        onEditChange={handleEditChange}
+                        onApplyEdits={handleApplyEdits}
                     />
                 </div>
             </div>
