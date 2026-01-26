@@ -260,6 +260,7 @@
                 minimap: { enabled: false },
                 fontSize: settingsStore.editorFontSize,
                 fontFamily: settingsStore.editorFontFamily,
+                padding: { top: 16, bottom: 16 },
             },
         },
         (handle) => {
@@ -546,7 +547,18 @@
     <div class="flex-1 relative">
         <div
             bind:this={editorContainer}
-            class="absolute inset-0 w-full h-full"
+            class="absolute inset-0 w-full h-full sql-editor-container"
         ></div>
     </div>
 </div>
+
+<style>
+    /* Add padding to the left of the lines content in Monaco */
+    /* This is the standard way to add left padding before the text without breaking coordinates */
+    :global(.sql-editor-container .monaco-editor .view-lines) {
+        padding-left: 4px !important;
+    }
+
+    /* Ensure view zone widgets (like our query headers) also align if needed */
+    /* However, headers are typically full-width. */
+</style>
