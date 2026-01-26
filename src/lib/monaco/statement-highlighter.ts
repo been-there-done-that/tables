@@ -16,6 +16,23 @@ export function enableQueryHighlighting(editor: monaco.editor.IStandaloneCodeEdi
             return;
         }
 
+        // 1. Check for manual selection
+        const selection = editor.getSelection();
+        if (selection && !selection.isEmpty()) {
+            decorationCollection.set([
+                {
+                    range: new monaco.Range(selection.startLineNumber, 1, selection.endLineNumber, 1),
+                    options: {
+                        isWholeLine: true,
+                        linesDecorationsClassName: 'current-query-highlight-lines',
+                        className: 'current-query-highlight-bg',
+                    }
+                }
+            ]);
+            return;
+        }
+
+        // 2. Fallback to cursor auto-detection
         const position = editor.getPosition();
         if (!position) return;
 
@@ -53,8 +70,9 @@ export function enableQueryHighlighting(editor: monaco.editor.IStandaloneCodeEdi
 
     const listeners = [
         editor.onDidChangeCursorPosition(debouncedUpdate),
+        editor.onDidChangeCursorSelection(debouncedUpdate),
         editor.onDidChangeModelContent(debouncedUpdate),
-        editor.onDidChangeModel(debouncedUpdate) // Also update on model swap
+        editor.onDidChangeModel(debouncedUpdate)
     ];
 
     // Initial highlight
