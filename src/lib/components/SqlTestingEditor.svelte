@@ -354,9 +354,10 @@
             options: {
                 theme: MONACO_THEME_NAME,
                 minimap: { enabled: false },
-                fontSize: settingsStore.editorFontSize,
-                fontFamily: settingsStore.editorFontFamily,
-                padding: { top: 16, bottom: 16 },
+                padding: { top: 16, bottom: 16, left: 16 } as any,
+                lineNumbersMinChars: 3,
+                lineDecorationsWidth: 0,
+                glyphMargin: true,
             },
         },
         (handle) => {
@@ -583,12 +584,6 @@
 </div>
 
 <style>
-    /* Add padding to the left of the lines content in Monaco */
-    /* This is the standard way to add left padding before the text without breaking coordinates */
-    :global(.sql-editor-container .monaco-editor .view-lines) {
-        padding-left: 4px !important;
-    }
-
-    /* Ensure view zone widgets (like our query headers) also align if needed */
-    /* However, headers are typically full-width. */
+    /* No custom CSS padding on .view-lines as it breaks cursor coordinates. */
+    /* Monaco's native 'padding' and 'lineDecorationsWidth' handle this correctly. */
 </style>
