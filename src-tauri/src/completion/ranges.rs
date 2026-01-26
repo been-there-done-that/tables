@@ -87,7 +87,9 @@ pub fn find_all_statement_ranges(tree: &Tree, text_source: &str) -> Vec<Statemen
             "SELECT", "WITH", "INSERT", "UPDATE", "DELETE", 
             "CREATE", "DROP", "ALTER", "PRAGMA", "TRUNCATE",
             "EXPLAIN", "DESCRIBE", "SHOW", "USE", "BEGIN", 
-            "COMMIT", "ROLLBACK", "TABLE", "VALUES"
+            "COMMIT", "ROLLBACK", "TABLE", "VALUES", "SET",
+            "GRANT", "REVOKE", "REINDEX", "VACUUM", "ANALYZE",
+            "RENAME", "COMMENT", "CALL", "DO", "DECLARE"
         ];
 
         let starts_valid = valid_starts.iter().any(|start| node_text.starts_with(start));

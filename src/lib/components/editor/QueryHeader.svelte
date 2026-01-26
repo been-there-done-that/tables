@@ -35,7 +35,11 @@
                 ? "bg-red-500/10 text-red-500 hover:bg-red-500/20"
                 : "bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20",
         )}
-        onclick={status === "running" ? onStop : onRun}
+        onclick={() => {
+            console.log("[Svelte] Button clicked, status:", status);
+            if (status === "running") onStop();
+            else onRun();
+        }}
     >
         {#if status === "running"}
             <IconSquare class="size-3 fill-current" />
@@ -77,9 +81,10 @@
 </div>
 
 <style>
-    /* Ensure the component takes up the space Monaco allocates */
+    /* Ensure the component takes up the space Monaco allocates and is clickable */
     :global(.monaco-editor .query-header-widget) {
-        z-index: 10;
+        z-index: 50 !important;
+        pointer-events: auto !important;
         width: 100%;
     }
 </style>
