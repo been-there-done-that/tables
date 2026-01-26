@@ -105,7 +105,6 @@ export class QueryHeaderController {
                 duration: status.duration,
                 errorMessage: status.errorMessage,
                 onRun: () => {
-                    console.log(`[Header] Click on line ${decorationId}`);
                     const latestRange = model.getDecorationRange(decorationId);
                     if (latestRange) {
                         // Expand the range to cover full width of lines
@@ -116,7 +115,6 @@ export class QueryHeaderController {
                             model.getLineMaxColumn(latestRange.endLineNumber)
                         );
                         const latestText = model.getValueInRange(fullRange);
-                        console.log(`[Header] Found text for ${decorationId}, calling onRunCallback`, { length: latestText.length });
                         this.onRunCallback(latestText, latestRange.startLineNumber, latestRange.endLineNumber);
                     } else {
                         console.warn(`[Header] No range found for decoration ${decorationId}`);

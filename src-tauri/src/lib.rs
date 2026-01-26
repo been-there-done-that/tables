@@ -45,7 +45,7 @@ use commands::font_commands::*;
 use commands::settings_commands::*;
 use commands::debug_commands::*;
 use commands::query_commands::*;
-use commands::query_commands::QueryExecutionState;
+use commands::query_commands::{QueryExecutionState, QuerySessionManager};
 use commands::editor_commands::*;
 use plugins::{PluginDiscovery, get_available_plugins, enable_plugin, disable_plugin, get_plugin_info, initialize_all_plugins};
 use credential_manager::CredentialManager;
@@ -214,6 +214,7 @@ pub fn run() {
             debug!("Initializing query execution state");
             // Initialize query execution state for cancellation support
             app.manage(QueryExecutionState::default());
+            app.manage(QuerySessionManager::default());
 
             debug!("Initializing plugin system");
             // Initialize plugin system and discover all plugins
@@ -312,7 +313,15 @@ pub fn run() {
                     let _ = app.emit("active-connections-changed", manager.get_active_connections_map());
                 }
 
-                let _ = app.emit("window-destroyed", label);
+                let _ = app.emit("window-destroyed", label.clone());
+
+                if let Some(session_manager) = app.try_state::<QuerySessionManager>() {
+                    let sm = session_manager.inner().clone();
+                    let l = label.clone();
+                    tokio::spawn(async move {
+                        sm.remove_sessions_for_window(&l).await;
+                    });
+                }
             }
         })
         .invoke_handler(aggregate_plugin_commands!())
