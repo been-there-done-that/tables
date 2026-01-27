@@ -7,6 +7,7 @@
     IconFilter,
     IconDots,
     IconHash,
+    IconKey,
   } from "@tabler/icons-svelte";
   import * as Tooltip from "$lib/components/ui/tooltip";
   import * as ContextMenu from "$lib/components/ui/context-menu";
@@ -220,6 +221,9 @@
                     {column.rawType || column.type}
                   </span>
                 </div>
+                {#if column.isPrimaryKey}
+                  <IconKey class="size-3 text-yellow-500 flex-shrink-0" />
+                {/if}
                 {#if SortIcon}
                   <SortIcon class="size-3.5 flex-shrink-0" />
                   {#if sortIndex}

@@ -10,6 +10,11 @@
 
     const results = $derived(view.data?.results);
     const controller = $derived(view.data?.controller);
+    const primaryKeyColumns = $derived(
+        results?.columns
+            ?.filter((c: any) => c.isPrimaryKey)
+            .map((c: any) => c.id) || [],
+    );
 
     let tableRef: any = $state(null);
 
@@ -93,6 +98,7 @@
                 isLoading={results.loading}
                 onEditChange={controller.editChange}
                 onApplyEdits={controller.applyEdits}
+                {primaryKeyColumns}
             />
         </div>
     </div>

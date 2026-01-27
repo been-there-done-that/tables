@@ -183,6 +183,10 @@ pub struct ColumnInfo {
     pub name: String,
     #[serde(rename = "type")]
     pub column_type: String,
+    pub source_schema: Option<String>,
+    pub source_table: Option<String>,
+    pub source_column: Option<String>,
+    pub is_primary_key: bool,
 }
 
 /// Fetches a preview of table data using SELECT * with LIMIT/OFFSET
@@ -351,6 +355,7 @@ pub async fn fetch_table_preview(
                 ColumnInfo {
                     name: c.name.clone(),
                     column_type: c.column_type.clone(),
+                    source_schema: None, source_table: None, source_column: None, is_primary_key: false,
                 }
             }).collect();
 
@@ -605,6 +610,7 @@ async fn fetch_postgres_preview(
             ColumnInfo {
                 name: col.name().to_string(),
                 column_type: format!("{:?}", col.type_()),
+                source_schema: None, source_table: None, source_column: None, is_primary_key: false,
             }
         }).collect()
     } else {
@@ -618,6 +624,10 @@ async fn fetch_postgres_preview(
             ColumnInfo {
                 name: row.get(0),
                 column_type: row.get(1),
+                source_schema: Some(schema.to_string()),
+                source_table: Some(table_name.to_string()),
+                source_column: Some(row.get::<_, String>(0)), 
+                is_primary_key: false, // TODO: fetch this?
             }
         }).collect()
     };
@@ -679,6 +689,7 @@ fn fetch_sqlite_preview(
         Ok(ColumnInfo {
             name: row.get(1)?,
             column_type: row.get(2)?,
+            source_schema: None, source_table: Some(table_name.to_string()), source_column: Some(row.get::<_, String>(1)?), is_primary_key: row.get::<_, i32>(5)? > 0,
         })
     }).map_err(|e| crate::sqlite_utils::format_sqlite_error(&e))?
       .filter_map(|r| r.ok())
@@ -802,7 +813,7 @@ async fn execute_postgres_query(
     config: Option<&serde_json::Value>,
     credentials: Option<&crate::connection::SecureCredentials>,
     database: &str,
-    schema: &str,
+    _schema: &str,
     query: &str,
 ) -> Result<QueryResult, String> {
     for attempt in 0..2 {
@@ -826,32 +837,45 @@ async fn execute_postgres_query(
                     Ok(rows) => {
                          if i == statements.len() - 1 {
                              // Process success for last statement
-                             let columns: Vec<ColumnInfo> = if !rows.is_empty() {
-                                rows[0].columns().iter().map(|col| {
-                                    ColumnInfo {
-                                        name: col.name().to_string(),
-                                        column_type: format!("{:?}", col.type_()),
-                                    }
-                                }).collect()
-                            } else {
-                                vec![]
-                            };
+                             let raw_columns = if !rows.is_empty() {
+                                rows[0].columns()
+                             } else {
+                                &[]
+                             };
 
-                            let json_rows: Vec<serde_json::Value> = rows.iter().map(|row| {
-                                let mut obj = serde_json::Map::new();
-                                for (i, col) in row.columns().iter().enumerate() {
-                                    let value = postgres_value_to_json(row, i);
-                                    obj.insert(col.name().to_string(), value);
-                                }
-                                serde_json::Value::Object(obj)
-                            }).collect();
+                             let mut columns: Vec<ColumnInfo> = raw_columns.iter().map(|col| {
+                                 ColumnInfo {
+                                     name: col.name().to_string(),
+                                     column_type: format!("{:?}", col.type_()),
+                                     source_schema: None,
+                                     source_table: None,
+                                     source_column: None,
+                                     is_primary_key: false,
+                                 }
+                             }).collect();
 
-                            last_result = Some(QueryResult {
-                                rows: json_rows,
-                                columns,
-                                affected_rows: None,
-                                duration_ms: 0,
-                            });
+                             // Enrich metadata if we have rows (and thus column info with OIDs)
+                             if !raw_columns.is_empty() {
+                                 if let Err(e) = enrich_postgres_metadata(&client, raw_columns, &mut columns).await {
+                                     warn!("Failed to enrich postgres metadata: {}", e);
+                                 }
+                             }
+
+                             let json_rows: Vec<serde_json::Value> = rows.iter().map(|row| {
+                                 let mut obj = serde_json::Map::new();
+                                 for (i, col) in row.columns().iter().enumerate() {
+                                     let value = postgres_value_to_json(row, i);
+                                     obj.insert(col.name().to_string(), value);
+                                 }
+                                 serde_json::Value::Object(obj)
+                             }).collect();
+
+                             last_result = Some(QueryResult {
+                                 rows: json_rows,
+                                 columns,
+                                 affected_rows: None,
+                                 duration_ms: 0,
+                             });
                          }
                     }
                     Err(e) => {
@@ -901,16 +925,26 @@ async fn execute_postgres_query(
 async fn execute_single_postgres_query(client: &tokio_postgres::Client, query: &str) -> Result<QueryResult, tokio_postgres::Error> {
     let rows = client.query(query, &[]).await?;
 
-    let columns: Vec<ColumnInfo> = if !rows.is_empty() {
-        rows[0].columns().iter().map(|col| {
-            ColumnInfo {
-                name: col.name().to_string(),
-                column_type: format!("{:?}", col.type_()),
-            }
-        }).collect()
+    let raw_columns = if !rows.is_empty() {
+        rows[0].columns()
     } else {
-        vec![]
+        &[]
     };
+
+    let mut columns: Vec<ColumnInfo> = raw_columns.iter().map(|col| {
+        ColumnInfo {
+            name: col.name().to_string(),
+            column_type: format!("{:?}", col.type_()),
+            source_schema: None, source_table: None, source_column: None, is_primary_key: false,
+        }
+    }).collect();
+
+    // Enrich metadata
+    if !raw_columns.is_empty() {
+        if let Err(e) = enrich_postgres_metadata(client, raw_columns, &mut columns).await {
+            warn!("Failed to enrich single query metadata: {}", e);
+        }
+    }
 
     let json_rows: Vec<serde_json::Value> = rows.iter().map(|row| {
         let mut obj = serde_json::Map::new();
@@ -981,52 +1015,110 @@ async fn execute_sqlite_query(
     if statements.is_empty() {
         return execute_single_sqlite_query(&conn, query);
     }
+        let mut last_result = None;
+        for (i, range) in statements.iter().enumerate() {
+            let stmt_text = &query[range.start_byte..range.end_byte];
+            let mut stmt = conn.prepare(stmt_text)
+                .map_err(|e| format!("Failed to prepare statement at indices {}-{}: {}", range.start_byte, range.end_byte, e))?;
 
-    let mut last_result = None;
-    for (i, range) in statements.iter().enumerate() {
-        let stmt_text = &query[range.start_byte..range.end_byte];
-        let mut stmt = conn.prepare(stmt_text)
-            .map_err(|e| format!("Failed to prepare statement at indices {}-{}: {}", range.start_byte, range.end_byte, e))?;
+            let mut columns = Vec::new();
+            let mut column_names = Vec::new();
+            {
+                // Attempt to use columns_with_metadata for richer info if available
+                // If the `column_metadata` feature is enabled for rusqlite,
+                // `stmt.columns_with_metadata()` would return `Vec<ColumnMetadata>`.
+                // Otherwise, `stmt.columns()` returns `Vec<Column>`.
+                // We'll try to use `columns_with_metadata` and fall back to `columns` if it doesn't compile
+                // or if the feature isn't enabled.
+                // For now, we'll use `columns()` and populate basic info,
+                // as `columns_with_metadata` is not a standard method on `Statement` without specific features.
 
-        let column_names: Vec<String> = stmt.column_names().into_iter().map(|s| s.to_string()).collect();
-        let columns: Vec<ColumnInfo> = column_names.iter().map(|name| ColumnInfo {
-            name: name.clone(),
-            column_type: "UNKNOWN".to_string()
-        }).collect();
+                // The `rusqlite::Column` struct itself does not contain source_schema, source_table, source_column.
+                // These are typically available through `rusqlite::ColumnMetadata` which requires the "column_metadata" feature.
+                // Without that feature, we can only get name and declared type.
+                for col in stmt.columns() {
+                    let name = col.name().to_string();
+                    let decl_type = col.decl_type().map(|s| s.to_string()).unwrap_or_else(|| "UNKNOWN".to_string());
 
-        let rows: Vec<serde_json::Value> = stmt.query_map([], |row| {
-            let mut obj = serde_json::Map::new();
-            for (i, name) in column_names.iter().enumerate() {
-                let value = crate::sqlite_utils::sqlite_value_to_json(row, i);
-                obj.insert(name.clone(), value);
+                    // These fields will be None unless `column_metadata` feature is enabled and
+                    // we use `columns_with_metadata()` and extract from `ColumnMetadata`.
+                    let source_table = None;
+                    let source_column = None;
+                    let source_schema = None;
+
+                    columns.push(ColumnInfo {
+                        name: name.clone(),
+                        column_type: decl_type.clone(),
+                        source_schema,
+                        source_table,
+                        source_column,
+                        is_primary_key: false,
+                    });
+                    column_names.push(name);
+                }
             }
-            Ok(serde_json::Value::Object(obj))
-        }).map_err(|e| crate::sqlite_utils::format_sqlite_error(&e))?
-          .filter_map(|r| r.ok())
-          .collect();
 
-        if i == statements.len() - 1 {
-            last_result = Some(QueryResult {
-                rows,
-                columns,
-                affected_rows: None,
-                duration_ms: 0,
-            });
+            // Enrich with PK metadata
+            if let Err(e) = enrich_sqlite_metadata(&conn, &mut columns) {
+                 warn!("Failed to enrich SQLite metadata: {}", e);
+            }
+
+            let rows: Vec<serde_json::Value> = stmt.query_map([], |row| {
+                let mut obj = serde_json::Map::new();
+                for (i, name) in column_names.iter().enumerate() {
+                    let value = crate::sqlite_utils::sqlite_value_to_json(row, i);
+                    obj.insert(name.clone(), value);
+                }
+                Ok(serde_json::Value::Object(obj))
+            }).map_err(|e| crate::sqlite_utils::format_sqlite_error(&e))?
+              .filter_map(|r| r.ok())
+              .collect();
+
+            if i == statements.len() - 1 {
+                last_result = Some(QueryResult {
+                    rows,
+                    columns,
+                    affected_rows: None,
+                    duration_ms: 0,
+                });
+            }
         }
+
+        last_result.ok_or_else(|| "No statements found to execute".to_string())
     }
 
-    last_result.ok_or_else(|| "No statements found to execute".to_string())
-}
 
 fn execute_single_sqlite_query(conn: &rusqlite::Connection, query: &str) -> Result<QueryResult, String> {
     let mut stmt = conn.prepare(query)
         .map_err(|e| crate::sqlite_utils::format_sqlite_error(&e))?;
 
-    let column_names: Vec<String> = stmt.column_names().into_iter().map(|s| s.to_string()).collect();
-    let columns: Vec<ColumnInfo> = column_names.iter().map(|name| ColumnInfo {
-        name: name.clone(),
-        column_type: "UNKNOWN".to_string()
-    }).collect();
+    let mut columns = Vec::new();
+    let mut column_names = Vec::new();
+    {
+        for col in stmt.columns() {
+             let name = col.name().to_string();
+             let decl_type = col.decl_type().map(|s| s.to_string()).unwrap_or_else(|| "UNKNOWN".to_string());
+             
+             let source_table = None;
+             let source_column = None;
+             let source_schema = None;
+             
+             columns.push(ColumnInfo {
+                 name: name.clone(),
+                 column_type: decl_type.clone(),
+                 source_schema,
+                 source_table,
+                 source_column,
+                 is_primary_key: false,
+             });
+             column_names.push(name);
+        }
+    }
+
+    // Enrich with PK metadata
+    if let Err(e) = enrich_sqlite_metadata(conn, &mut columns) {
+        warn!("Failed to enrich SQLite single query metadata: {}", e);
+    }
 
     let rows: Vec<serde_json::Value> = stmt.query_map([], |row| {
         let mut obj = serde_json::Map::new();
@@ -1121,4 +1213,142 @@ fn log_query_end(
         "rows": row_count,
         "component": component
     }));
+}
+
+/// Enriches column metadata by querying Postgres catalogs to resolve OIDs
+async fn enrich_postgres_metadata(
+    client: &tokio_postgres::Client,
+    raw_columns: &[tokio_postgres::Column],
+    column_infos: &mut [ColumnInfo],
+) -> Result<(), tokio_postgres::Error> {
+    if raw_columns.is_empty() {
+        return Ok(());
+    }
+
+    // Collect table OIDs to batch query
+    let table_oids: Vec<u32> = raw_columns.iter()
+        .filter_map(|c| c.table_oid())
+        .filter(|&oid| oid != 0)
+        .collect();
+
+    if table_oids.is_empty() {
+        return Ok(());
+    }
+
+    // 1. Resolve Table Names & Schemas
+    // We use a simple query to map OID -> (schema, table)
+    let oid_query = "
+        SELECT oid, nspname, relname 
+        FROM pg_class c 
+        JOIN pg_namespace n ON c.relnamespace = n.oid 
+        WHERE c.oid = ANY($1)
+    ";
+    let oid_rows = client.query(oid_query, &[&table_oids]).await?;
+    let mut table_map: HashMap<u32, (String, String)> = HashMap::new();
+    for row in oid_rows {
+        let oid: u32 = row.get(0);
+        let schema: String = row.get(1);
+        let table: String = row.get(2);
+        table_map.insert(oid, (schema, table));
+    }
+
+    // 2. Resolve Primary Keys (via constraint names first to get column patterns)
+    // Query: join pg_attribute to get names
+    let pk_names_query = "
+        SELECT conrelid, a.attname
+        FROM pg_constraint c
+        JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY(c.conkey)
+        WHERE c.conrelid = ANY($1) AND c.contype = 'p'
+    ";
+    let pk_name_rows = client.query(pk_names_query, &[&table_oids]).await?;
+    let mut pk_names_map: HashMap<u32, std::collections::HashSet<String>> = HashMap::new();
+    for row in pk_name_rows {
+        let table_oid: u32 = row.get(0);
+        let col_name: String = row.get(1);
+        pk_names_map.entry(table_oid).or_default().insert(col_name);
+    }
+    
+    // Now apply
+    for (i, raw_col) in raw_columns.iter().enumerate() {
+         if let Some(table_oid) = raw_col.table_oid() {
+             if table_oid != 0 {
+                 // Set Source Table/Schema
+                 if let Some((schema, table)) = table_map.get(&table_oid) {
+                    column_infos[i].source_schema = Some(schema.clone());
+                    column_infos[i].source_table = Some(table.clone());
+                    column_infos[i].source_column = Some(raw_col.name().to_string());
+                 }
+
+                 // Set PK status
+                 if let Some(pk_set) = pk_names_map.get(&table_oid) {
+                     if pk_set.contains(raw_col.name()) {
+                         column_infos[i].is_primary_key = true;
+                     }
+                 }
+             }
+         }
+    }
+
+    Ok(())
+}
+
+/// Enriches SQLite column metadata by querying PRAGMA table_info to identify PKs
+fn enrich_sqlite_metadata(
+    conn: &rusqlite::Connection,
+    column_infos: &mut [ColumnInfo],
+) -> Result<(), rusqlite::Error> {
+    // 1. Identify unique source tables
+    let mut table_names = std::collections::HashSet::new();
+    for col in column_infos.iter() {
+        if let Some(ref table) = col.source_table {
+            table_names.insert(table.clone());
+        }
+    }
+
+    if table_names.is_empty() {
+        return Ok(());
+    }
+
+    // 2. Fetch PKs for each table
+    let mut pk_map: HashMap<String, std::collections::HashSet<String>> = HashMap::new();
+    
+    for table in table_names {
+        // Safe PRAGMA query with interpolation? No, PRAGMA doesn't support parameters well.
+        // We must be careful about injection if table name comes from untrusted source, 
+        // but here it comes from sqlite itself (stmt.column_table_name).
+        // Still, let's quote it properly or verify it's a valid identifier.
+        // For simplicity in this context (origin name from DB), we assume it's safe-ish but quoting is better.
+        // However, rusqlite doesn't easily parameterize PRAGMA table_info. 
+        // We'll proceed with direct query assuming valid identifier from internal metadata.
+        
+        let query = format!("PRAGMA table_info(\"{}\")", table.replace("\"", "\"\""));
+        let mut stmt = conn.prepare(&query)?;
+        
+        let pk_cols: std::collections::HashSet<String> = stmt.query_map([], |row| {
+             let pk_flag: i32 = row.get("pk")?;
+             let name: String = row.get("name")?;
+             Ok((name, pk_flag))
+        })?
+        .filter_map(|r| r.ok())
+        .filter(|(_, pk_flag)| *pk_flag > 0)
+        .map(|(name, _)| name)
+        .collect();
+        
+        if !pk_cols.is_empty() {
+            pk_map.insert(table, pk_cols);
+        }
+    }
+
+    // 3. Mark PKs
+    for col in column_infos.iter_mut() {
+        if let (Some(ref table), Some(ref source_col)) = (&col.source_table, &col.source_column) {
+            if let Some(pk_set) = pk_map.get(table) {
+                if pk_set.contains(source_col) {
+                    col.is_primary_key = true;
+                }
+            }
+        }
+    }
+
+    Ok(())
 }

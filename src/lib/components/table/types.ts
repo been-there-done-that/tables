@@ -53,6 +53,8 @@ export interface Column {
     dbSchema?: string;
     dbTable?: string;
     rawType?: string;
+    isPrimaryKey?: boolean;
+    sourceTable?: string;
 }
 
 export interface EditingState {

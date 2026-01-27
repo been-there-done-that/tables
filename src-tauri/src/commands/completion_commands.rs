@@ -117,7 +117,7 @@ pub fn schema_graph_from_meta(databases: &[MetaDatabase], selected_database: Opt
             
             for table in &schema.tables {
             // Collect indexed columns
-            for index in &table.indexes {
+            for _index in &table.indexes {
                 // For each index, we need to mark columns as indexed
                 // Since MetaIndex doesn't include column names directly,
                 // we assume all columns with matching table are potentially indexed
