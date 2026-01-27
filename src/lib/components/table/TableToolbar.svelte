@@ -58,6 +58,8 @@
         onAddRow?: () => void;
         onSaveChanges?: () => Promise<void>;
         isSaving?: boolean;
+        extraActions?: import("svelte").Snippet;
+        leftActions?: import("svelte").Snippet;
     }
 
     const dispatch = createEventDispatcher();
@@ -91,6 +93,8 @@
         onAddRow,
         onSaveChanges,
         isSaving = false,
+        extraActions,
+        leftActions,
     }: Props = $props();
 
     let exportOpen = $state(false);

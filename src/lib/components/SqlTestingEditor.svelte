@@ -26,10 +26,7 @@
         type QueryHeaderController,
     } from "$lib/monaco/query-headers";
     import QueryEditorToolbar from "./editor/QueryEditorToolbar.svelte";
-    import ResizableSplitPane from "./ResizableSplitPane.svelte";
 
-    import Table from "$lib/components/table/Table.svelte";
-    import TableToolbar from "$lib/components/table/TableToolbar.svelte";
     import { normalizeColumnType } from "$lib/components/table/columnUtils";
     import type { Column, DataFetcher } from "$lib/components/table/types";
     import type { EditDelta } from "$lib/components/table/TableEditManager.svelte";
@@ -41,45 +38,48 @@
         context?: any;
     }>();
 
+    // Proxy properties for easier access within this component.
+    // In Svelte 5, these will be reactive if context.results/controller are proxies.
+    const results = $derived(context.results);
+    const controller = $derived(context.controller);
+
+    // We don't initialize context here anymore as it's done in Session.openView.
+    // This ensures consistency and initial reactivity.
+
     let editorContainer: HTMLElement;
     let editorHandle = $state<EditorHandle | null>(null);
     let logs: string[] = $state([]);
     let isLoadingSession = $state(true);
     let isRunning = $state(false);
-    let executionTime = $state(0);
 
     let headerController: QueryHeaderController | null = null;
 
-    // Result Table State
-    let resultRows = $state<any[]>([]);
-    let resultColumns = $state<Column[]>([]);
-    let resultTotal = $state(0);
-    let showResultTable = $state(false);
-    let tableRef: any = $state(null);
-    let resultLoading = $state(false);
-    let resultSplitRatio = $state(0.6);
+    let tableRef: any = $state(null); // Still need a ref for potential actions
 
-    // Toolbar & Pagination State
-    let pageSize = $state(100);
-    let currentOffset = $state(0);
-    let currentBatchSize = $state(0);
-    let isExactTotal = $state(true);
-    let isCountLoading = $state(false);
-    let whereClause = $state("");
-    let orderByClause = $state("");
-    let lastExecutedQuery = $state("");
-    let detectedTable = $state<{ schema: string; table: string } | null>(null);
-
-    // Editing state
-    let pendingDeltas = $state<EditDelta[]>([]);
-    let isSaving = $state(false);
-    const pendingChangesCount = $derived(pendingDeltas.length);
+    // Update controller handlers
+    $effect(() => {
+        controller.execute = handleExecute;
+        controller.refresh = handleRefresh;
+        controller.cancel = handleCancel;
+        controller.saveChanges = handleToolbarSave;
+        controller.addRow = handleAddRow;
+        controller.showChanges = handleShowChanges;
+        controller.pageChange = handlePageChange;
+        controller.pageSizeChange = handlePageSizeChange;
+        controller.whereChange = handleWhereChange;
+        controller.orderByChange = handleOrderByChange;
+        controller.export = handleExport;
+        controller.showDdl = handleShowDdl;
+        controller.countUpdate = handleCountUpdate;
+        controller.editChange = handleEditChange;
+        controller.applyEdits = handleApplyEdits;
+    });
 
     // Derived DataFetcher for Table component
     const resultDataFetcher: DataFetcher = $derived(async (params) => {
         const { offset, limit, sort, filters } = params;
 
-        let processed = [...resultRows];
+        let processed = [...results.rows];
 
         // 1. Client-side Sort
         if (sort && sort.length > 0) {
@@ -142,8 +142,8 @@
         const filteredTotal = processed.length;
         const page = processed.slice(offset, offset + (limit || 1000));
 
-        currentBatchSize = page.length;
-        resultTotal = filteredTotal;
+        results.currentBatchSize = page.length;
+        results.total = filteredTotal;
 
         // Add rowId if missing
         const rowsWithId = page.map((r, i) => ({
@@ -154,9 +154,13 @@
         return {
             rows: rowsWithId,
             total: filteredTotal,
-            columns: resultColumns,
+            columns: results.columns,
             columnStats: undefined, // Let table compute stats
         };
+    });
+
+    $effect(() => {
+        controller.dataFetcher = resultDataFetcher;
     });
 
     // Debounced save for editor content
@@ -269,7 +273,7 @@
 
             try {
                 isRunning = true;
-                resultLoading = true;
+                results.loading = true;
                 const result = await invoke<any>("execute_query", {
                     connectionId: schemaStore.activeConnection.id,
                     sessionId: id,
@@ -279,10 +283,10 @@
                     component: "editor",
                 });
                 isRunning = false;
-                executionTime =
+                results.executionTime =
                     result.duration_ms ?? performance.now() - startTime;
 
-                const duration = executionTime;
+                const duration = results.executionTime;
 
                 if (startLine && headerController) {
                     headerController.updateStatus(startLine, query, {
@@ -295,8 +299,8 @@
 
                 // Populate Result Table
                 if (result.rows && result.columns) {
-                    resultRows = result.rows;
-                    resultColumns = result.columns.map((c: any) => ({
+                    results.rows = result.rows;
+                    results.columns = result.columns.map((c: any) => ({
                         id: c.name,
                         label: c.name,
                         type: normalizeColumnType(c.type),
@@ -307,10 +311,10 @@
                         editable: true,
                         width: undefined, // Auto-size
                     }));
-                    resultTotal = result.rows.length;
-                    showResultTable = true;
-                    // Force refresh table logic if needed, usually dataFetcher updates handle it
-                    if (tableRef) tableRef.refresh();
+                    results.total = result.rows.length;
+                    results.visible = true;
+                    results.executedQueryText = query; // User feedback: attach query
+                    if (controller.refreshTable) controller.refreshTable();
                 } else if (
                     Array.isArray(result) &&
                     result.length > 0 &&
@@ -319,8 +323,8 @@
                     // Handle multi-result (batch)? Just take last for now
                     const last = result[result.length - 1];
                     if (last.rows && last.columns) {
-                        resultRows = last.rows;
-                        resultColumns = last.columns.map((c: any) => ({
+                        results.rows = last.rows;
+                        results.columns = last.columns.map((c: any) => ({
                             id: c.name,
                             label: c.name,
                             type: normalizeColumnType(c.type),
@@ -330,9 +334,10 @@
                             pinnable: true,
                             editable: true,
                         }));
-                        resultTotal = last.rows.length;
-                        showResultTable = true;
-                        if (tableRef) tableRef.refresh();
+                        results.total = last.rows.length;
+                        results.visible = true;
+                        results.executedQueryText = query; // User feedback: attach query
+                        if (controller.refreshTable) controller.refreshTable();
                     }
                 }
 
@@ -348,7 +353,7 @@
                 log(`Query failed: ${e}`);
             } finally {
                 isRunning = false;
-                resultLoading = false;
+                results.loading = false;
             }
         } else {
             log("No query to execute");
@@ -387,7 +392,7 @@
 
         try {
             isRunning = true;
-            resultLoading = true;
+            results.loading = true;
             const result = await invoke<any>("execute_query", {
                 connectionId: schemaStore.activeConnection.id,
                 sessionId: id,
@@ -399,8 +404,9 @@
             isRunning = false;
 
             // Use backend duration if available (more accurate), else fallback to frontend measure
-            executionTime = result.duration_ms ?? performance.now() - startTime;
-            const duration = executionTime;
+            results.executionTime =
+                result.duration_ms ?? performance.now() - startTime;
+            const duration = results.executionTime;
 
             // Mark success
             if (startLine && endLine && headerController) {
@@ -414,8 +420,8 @@
 
             // Populate Result Table
             if (result.rows && result.columns) {
-                resultRows = result.rows;
-                resultColumns = result.columns.map((c: any) => ({
+                results.rows = result.rows;
+                results.columns = result.columns.map((c: any) => ({
                     id: c.name,
                     label: c.name,
                     type: normalizeColumnType(c.type),
@@ -425,9 +431,10 @@
                     pinnable: true,
                     editable: true,
                 }));
-                resultTotal = result.rows.length;
-                showResultTable = true;
-                if (tableRef) tableRef.refresh();
+                results.total = result.rows.length;
+                results.visible = true;
+                results.executedQueryText = queryText;
+                if (controller.refreshTable) controller.refreshTable();
             } else if (
                 Array.isArray(result) &&
                 result.length > 0 &&
@@ -435,8 +442,8 @@
             ) {
                 const last = result[result.length - 1];
                 if (last.rows && last.columns) {
-                    resultRows = last.rows;
-                    resultColumns = last.columns.map((c: any) => ({
+                    results.rows = last.rows;
+                    results.columns = last.columns.map((c: any) => ({
                         id: c.name,
                         label: c.name,
                         type: normalizeColumnType(c.type),
@@ -446,14 +453,14 @@
                         pinnable: true,
                         editable: true,
                     }));
-                    resultTotal = last.rows.length;
-                    showResultTable = true;
-                    if (tableRef) tableRef.refresh();
+                    results.total = last.rows.length;
+                    results.visible = true;
+                    results.executedQueryText = queryText;
+                    if (controller.refreshTable) controller.refreshTable();
                 }
             }
 
-            lastExecutedQuery = queryText;
-            detectedTable = detectTableFromQuery(queryText);
+            results.detectedTable = detectTableFromQuery(queryText);
 
             log("Query completed successfully.");
         } catch (e) {
@@ -469,7 +476,7 @@
             log(`Query failed: ${e}`);
         } finally {
             isRunning = false;
-            resultLoading = false;
+            results.loading = false;
         }
     }
 
@@ -527,35 +534,39 @@
     }
 
     function handleRefresh() {
-        executeCurrent();
+        if (results.executedQueryText) {
+            executeQueryText(results.executedQueryText);
+        } else {
+            executeCurrent();
+        }
     }
 
     function handlePageChange(newOffset: number) {
-        currentOffset = newOffset;
-        if (tableRef) tableRef.refresh();
+        results.offset = newOffset;
+        if (controller.refreshTable) controller.refreshTable();
     }
 
     function handlePageSizeChange(newSize: number) {
-        pageSize = newSize;
-        currentOffset = 0;
-        if (tableRef) tableRef.refresh();
+        results.pageSize = newSize;
+        results.offset = 0;
+        if (controller.refreshTable) controller.refreshTable();
     }
 
     function handleWhereChange(value: string) {
-        whereClause = value;
+        results.whereClause = value;
     }
 
     function handleOrderByChange(value: string) {
-        orderByClause = value;
+        results.orderByClause = value;
     }
 
     async function handleCountUpdate() {
         // For arbitrary results, we don't have a reliable way to get total count
         // unless we wrapped the query in a CTE or subquery.
         // For now, we use resultTotal from the fetched buffer.
-        isCountLoading = true;
+        results.isCountLoading = true;
         await new Promise((r) => setTimeout(r, 200));
-        isCountLoading = false;
+        results.isCountLoading = false;
     }
 
     function handleExport(format: string) {
@@ -570,7 +581,7 @@
     async function handleApplyEdits(
         edits: any[],
     ): Promise<{ success: boolean; conflicts?: string[] }> {
-        if (!detectedTable) {
+        if (!results.detectedTable) {
             return {
                 success: false,
                 conflicts: [
@@ -583,14 +594,15 @@
         if (deltas.length === 0) return { success: true };
 
         const pkCols = await fetchPkColumns(
-            detectedTable.schema,
-            detectedTable.table,
+            results.detectedTable.schema,
+            results.detectedTable.table,
         );
         if (pkCols.length === 0) {
             // Check if there is an 'id' column anyway as an anchor point per user suggestion
-            if (resultColumns.find((c) => c.id.toLowerCase() === "id")) {
+            if (results.columns.find((c) => c.id.toLowerCase() === "id")) {
                 pkCols.push(
-                    resultColumns.find((c) => c.id.toLowerCase() === "id")!.id,
+                    results.columns.find((c) => c.id.toLowerCase() === "id")!
+                        .id,
                 );
             } else {
                 return {
@@ -612,12 +624,12 @@
                 const whereClauses = pkCols.map(
                     (pk) => `"${pk}" = ${formatSqlValue(pkValues[pk])}`,
                 );
-                sql = `UPDATE "${detectedTable.schema}"."${detectedTable.table}" SET ${setClause} WHERE ${whereClauses.join(" AND ")};`;
+                sql = `UPDATE "${results.detectedTable.schema}"."${results.detectedTable.table}" SET ${setClause} WHERE ${whereClauses.join(" AND ")};`;
             } else if (type === "D") {
                 const whereClauses = pkCols.map(
                     (pk) => `"${pk}" = ${formatSqlValue(pkValues[pk])}`,
                 );
-                sql = `DELETE FROM "${detectedTable.schema}"."${detectedTable.table}" WHERE ${whereClauses.join(" AND ")};`;
+                sql = `DELETE FROM "${results.detectedTable.schema}"."${results.detectedTable.table}" WHERE ${whereClauses.join(" AND ")};`;
             } else if (type === "I") {
                 // Bulk insert handled as a single row for simplicity here
                 // We'd need to gather all columns for a full insert if we support 'Add Row' properly
@@ -631,7 +643,7 @@
                     connectionId: schemaStore.activeConnection?.id,
                     sessionId: id,
                     database: schemaStore.selectedDatabase,
-                    schema: detectedTable.schema,
+                    schema: results.detectedTable.schema,
                     query: sql,
                 });
             } catch (e) {
@@ -650,9 +662,9 @@
         success: boolean;
         errors?: string[];
     }> {
-        isSaving = true;
+        results.isSaving = true;
         const res = await handleApplyEdits([]);
-        isSaving = false;
+        results.isSaving = false;
         if (res.success) {
             tableRef?.revertAll?.();
         }
@@ -668,17 +680,17 @@
 
     function handleShowChanges() {
         if (tableRef?.getEditDeltas) {
-            pendingDeltas = tableRef.getEditDeltas();
+            results.pendingDeltas = tableRef.getEditDeltas();
         }
         tick().then(() => {
             pendingChangesStore.setContext(
-                pendingDeltas,
-                detectedTable?.table || "query_result",
-                resultColumns,
+                results.pendingDeltas,
+                results.detectedTable?.table || "query_result",
+                results.columns,
                 [], // PKs not strictly tracked in store here
-                detectedTable?.schema || "",
+                results.detectedTable?.schema || "",
                 {
-                    onRevertRow: (rid) => tableRef?.revertRow?.(rid),
+                    onRevertRow: (rid: any) => tableRef?.revertRow?.(rid),
                     onRevertAll: () => tableRef?.revertAll?.(),
                     onSaveChanges: handleSaveChanges,
                 },
@@ -693,7 +705,7 @@
 
     function handleEditChange() {
         if (tableRef?.getEditDeltas) {
-            pendingDeltas = tableRef.getEditDeltas();
+            results.pendingDeltas = tableRef.getEditDeltas();
         }
     }
 
@@ -1043,7 +1055,7 @@
 <div class="flex h-full w-full flex-col bg-background">
     <QueryEditorToolbar
         {isRunning}
-        {executionTime}
+        executionTime={results.executionTime}
         activeSchema={schemaStore.activeSchema || "public"}
         onExecute={executeCurrent}
         onStop={handleStop}
@@ -1055,72 +1067,14 @@
         onSchemaChange={(v) => (schemaStore.activeSchema = v)}
     />
 
-    <div class="flex-1 overflow-hidden">
-        <ResizableSplitPane
-            orientation="vertical"
-            defaultRatio={0.6}
-            bind:controlledRatio={resultSplitRatio}
-            minLeft="100px"
-            minRight="100px"
-            rightVisible={showResultTable}
-        >
-            {#snippet left()}
-                <!-- Editor Area -->
-                <div class="h-full relative overflow-hidden">
-                    <div
-                        bind:this={editorContainer}
-                        class="absolute inset-0 w-full h-full sql-editor-container"
-                    ></div>
-                </div>
-            {/snippet}
-
-            {#snippet right()}
-                <!-- Result Table Area -->
-                <div
-                    class="h-full flex flex-col border-t border-border bg-background"
-                >
-                    <TableToolbar
-                        bind:tableRef
-                        columns={resultColumns}
-                        {currentOffset}
-                        totalRows={resultTotal}
-                        {pageSize}
-                        {whereClause}
-                        {orderByClause}
-                        onExecute={handleExecute}
-                        onRefresh={handleRefresh}
-                        onPageChange={handlePageChange}
-                        onPageSizeChange={handlePageSizeChange}
-                        onExport={handleExport}
-                        onShowDdl={handleShowDdl}
-                        onWhereChange={handleWhereChange}
-                        onOrderByChange={handleOrderByChange}
-                        onCancel={handleCancel}
-                        onCountUpdate={handleCountUpdate}
-                        {currentBatchSize}
-                        {isExactTotal}
-                        {isCountLoading}
-                        isLoading={resultLoading}
-                        {executionTime}
-                        {pendingChangesCount}
-                        onShowChanges={handleShowChanges}
-                        onAddRow={handleAddRow}
-                        onSaveChanges={handleToolbarSave}
-                        {isSaving}
-                    />
-                    <div class="flex-1 relative">
-                        <Table
-                            bind:this={tableRef}
-                            columns={resultColumns}
-                            dataFetcher={resultDataFetcher}
-                            isLoading={resultLoading}
-                            onEditChange={handleEditChange}
-                            onApplyEdits={handleApplyEdits}
-                        />
-                    </div>
-                </div>
-            {/snippet}
-        </ResizableSplitPane>
+    <div class="flex-1 relative overflow-hidden">
+        <!-- Editor Area -->
+        <div class="absolute inset-0 w-full h-full">
+            <div
+                bind:this={editorContainer}
+                class="absolute inset-0 w-full h-full sql-editor-container"
+            ></div>
+        </div>
     </div>
 </div>
 
