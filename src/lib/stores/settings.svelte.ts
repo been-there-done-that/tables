@@ -17,6 +17,8 @@ export interface Settings {
     expandedNodes: Record<string, string[]>;
     // Active panel in the right sidebar
     activeRightPanel: string | null;
+    // Editor settings
+    editorShowAllRunButtons: boolean;
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -33,6 +35,7 @@ const DEFAULT_SETTINGS: Settings = {
     selectedDatabase: null,
     expandedNodes: {},
     activeRightPanel: null,
+    editorShowAllRunButtons: false,
 };
 
 function createSettingsStore() {
@@ -68,6 +71,15 @@ function createSettingsStore() {
     }, 300);
 
     return {
+        // Run button visibility
+        get editorShowAllRunButtons() {
+            return settings.editorShowAllRunButtons;
+        },
+        set editorShowAllRunButtons(v: boolean) {
+            settings.editorShowAllRunButtons = v;
+            commandClient.updateAppSetting("editor_show_all_run_buttons", v.toString());
+        },
+
         // Font settings
         get editorFontFamily() {
             return settings.editorFontFamily;
@@ -184,6 +196,7 @@ function createSettingsStore() {
             apply();
             commandClient.updateAppSetting("editor_font_family", DEFAULT_SETTINGS.editorFontFamily);
             commandClient.updateAppSetting("editor_font_size", DEFAULT_SETTINGS.editorFontSize.toString());
+            commandClient.updateAppSetting("editor_show_all_run_buttons", DEFAULT_SETTINGS.editorShowAllRunButtons.toString());
         },
 
         /** Wait for settings to be loaded from backend */
@@ -248,6 +261,9 @@ function createSettingsStore() {
                         return;
                     case "editor_font_size":
                         settings.editorFontSize = parseInt(value);
+                        return;
+                    case "editor_show_all_run_buttons":
+                        settings.editorShowAllRunButtons = value === "true";
                         return;
                 }
 

@@ -37,6 +37,7 @@ impl Default for WindowLayout {
 pub struct AppSettings {
     pub editor_font_family: String,
     pub editor_font_size: u32,
+    pub editor_show_all_run_buttons: bool,
     // Per-window layout settings
     pub window_layouts: HashMap<String, WindowLayout>,
 }
@@ -46,6 +47,7 @@ impl Default for AppSettings {
         Self {
             editor_font_family: "\"Fira Code\", monospace".to_string(),
             editor_font_size: 14,
+            editor_show_all_run_buttons: false,
             window_layouts: HashMap::new(),
         }
     }
@@ -67,6 +69,9 @@ pub fn get_settings(conn: &Connection) -> Result<AppSettings> {
                     if let Ok(size) = value.parse() {
                         settings.editor_font_size = size;
                     }
+                }
+                "editor_show_all_run_buttons" => {
+                    settings.editor_show_all_run_buttons = value == "true";
                 }
                 k if k.starts_with("window:") => {
                     // Format: window:{label}:{property} OR window:{label}:conn:{id}:expanded

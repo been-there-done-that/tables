@@ -9,11 +9,13 @@
     import IconCheck from "@tabler/icons-svelte/icons/check";
     import IconLoader from "@tabler/icons-svelte/icons/loader-2";
     import { emit } from "@tauri-apps/api/event";
+    import Checkbox from "$lib/components/ui/checkbox/checkbox.svelte";
 
     let fonts = $state<string[]>([]);
     let loading = $state(true);
     let searchQuery = $state("");
     let previewFont = $state(settingsStore.editorFontFamily);
+    let showAllRunButtons = $state(settingsStore.editorShowAllRunButtons);
 
     import FontPreviewEditor from "./FontPreviewEditor.svelte";
     import FontPreviewTable from "./FontPreviewTable.svelte";
@@ -29,6 +31,7 @@
             loading = true;
             // Ensure preview starts with saved value
             previewFont = settingsStore.editorFontFamily;
+            showAllRunButtons = settingsStore.editorShowAllRunButtons;
             const systemFonts = await invoke<string[]>("get_system_fonts");
             fonts = systemFonts;
         } catch (e) {
@@ -42,15 +45,26 @@
         previewFont = font;
     }
 
-    async function saveFont() {
+    async function saveChanges() {
         settingsStore.editorFontFamily = previewFont;
+        settingsStore.editorShowAllRunButtons = showAllRunButtons;
         // Emit event to notify other windows (e.g. main window) to update immediately
         await emit("font-changed", previewFont);
+        await emit("settings-changed", [
+            "editor_show_all_run_buttons",
+            showAllRunButtons.toString(),
+        ]);
     }
 
-    function resetFont() {
+    function resetChanges() {
         previewFont = settingsStore.editorFontFamily;
+        showAllRunButtons = settingsStore.editorShowAllRunButtons;
     }
+
+    const hasChanges = $derived(
+        previewFont !== settingsStore.editorFontFamily ||
+            showAllRunButtons !== settingsStore.editorShowAllRunButtons,
+    );
 </script>
 
 <div class="flex h-full w-full overflow-hidden">
@@ -58,12 +72,39 @@
     <div
         class="w-4/12 flex flex-col border-r border-border h-full bg-background shrink-0"
     >
-        <div class="p-4 border-b border-border">
-            <SearchInput
-                bind:value={searchQuery}
-                placeholder="Search fonts..."
-                class="w-full"
-            />
+        <div class="p-4 border-b border-border space-y-4">
+            <div class="space-y-2">
+                <div
+                    class="text-xs font-semibold text-muted-foreground uppercase tracking-wider"
+                >
+                    Editor Behavior
+                </div>
+                <div class="flex items-center space-x-2 py-2">
+                    <Checkbox
+                        id="show-all-run"
+                        bind:checked={showAllRunButtons}
+                    />
+                    <label
+                        for="show-all-run"
+                        class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer text-foreground"
+                    >
+                        Show run buttons for all queries
+                    </label>
+                </div>
+            </div>
+
+            <div class="border-t border-border pt-4 space-y-2">
+                <div
+                    class="text-xs font-semibold text-muted-foreground uppercase tracking-wider"
+                >
+                    Font Selection
+                </div>
+                <SearchInput
+                    bind:value={searchQuery}
+                    placeholder="Search fonts..."
+                    class="w-full"
+                />
+            </div>
         </div>
 
         <div class="flex-1 overflow-y-auto p-2 space-y-1">
@@ -144,9 +185,9 @@
         >
             <div class="flex items-center gap-2 text-sm text-muted-foreground">
                 <span class="font-medium text-foreground">{previewFont}</span>
-                {#if previewFont !== settingsStore.editorFontFamily}
+                {#if hasChanges}
                     <span class="text-xs text-amber-500 font-medium"
-                        >(Unsaved)</span
+                        >(Unsaved Changes)</span
                     >
                 {/if}
             </div>
@@ -154,10 +195,9 @@
             <div class="flex items-center gap-3">
                 <button
                     class="flex items-center gap-2 px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
-                    onclick={resetFont}
-                    disabled={previewFont === settingsStore.editorFontFamily}
-                    class:opacity-50={previewFont ===
-                        settingsStore.editorFontFamily}
+                    onclick={resetChanges}
+                    disabled={!hasChanges}
+                    class:opacity-50={!hasChanges}
                 >
                     <IconRotate class="size-4" />
                     Reset
@@ -165,10 +205,9 @@
 
                 <button
                     class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 rounded-md transition-colors shadow-sm"
-                    onclick={saveFont}
-                    disabled={previewFont === settingsStore.editorFontFamily}
-                    class:opacity-50={previewFont ===
-                        settingsStore.editorFontFamily}
+                    onclick={saveChanges}
+                    disabled={!hasChanges}
+                    class:opacity-50={!hasChanges}
                 >
                     <IconDeviceFloppy class="size-4" />
                     Save & Apply
