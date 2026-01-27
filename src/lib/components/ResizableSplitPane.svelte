@@ -3,7 +3,7 @@
 
     let {
         defaultRatio = 0.2,
-        controlledRatio,
+        controlledRatio = $bindable(),
         onRatioChange,
         minLeft = "100px",
         minRight = "100px",
