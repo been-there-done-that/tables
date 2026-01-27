@@ -643,7 +643,7 @@ impl ConnectionManager {
     }
 
     // Test Athena connection specifically
-    fn test_athena_connection(&self, connection: &Connection, credentials: &SecureCredentials) -> bool {
+    fn test_athena_connection(&self, _connection: &Connection, credentials: &SecureCredentials) -> bool {
         // For now, just check if we have AWS credentials
         // In production, would parse config and check auth type
         credentials.aws_access_key_id.is_some() || 
@@ -652,7 +652,7 @@ impl ConnectionManager {
     }
 
     // Test S3 connection specifically
-    fn test_s3_connection(&self, connection: &Connection, credentials: &SecureCredentials) -> bool {
+    fn test_s3_connection(&self, _connection: &Connection, credentials: &SecureCredentials) -> bool {
         // For now, just check if we have AWS credentials
         // In production, would parse config and check auth type
         credentials.aws_access_key_id.is_some() || 

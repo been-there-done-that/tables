@@ -38,8 +38,30 @@
         context?: any;
     }>();
 
+    // Ensure context structure exists
+    if (!context.results) {
+        context.results = {
+            rows: [],
+            columns: [],
+            total: 0,
+            visible: false,
+            loading: false,
+            pageSize: 100,
+            offset: 0,
+            whereClause: "",
+            orderByClause: "",
+            executionTime: 0,
+            executedQueryText: "",
+            currentBatchSize: 0,
+            isExactTotal: true,
+            isCountLoading: false,
+        };
+    }
+    if (!context.controller) {
+        context.controller = {};
+    }
+
     // Proxy properties for easier access within this component.
-    // In Svelte 5, these will be reactive if context.results/controller are proxies.
     const results = $derived(context.results);
     const controller = $derived(context.controller);
 
@@ -310,6 +332,9 @@
                         pinnable: true,
                         editable: true,
                         width: undefined, // Auto-size
+                        isPrimaryKey: c.is_primary_key,
+                        sourceTable: c.source_table,
+                        sourceSchema: c.source_schema,
                     }));
                     results.total = result.rows.length;
                     results.visible = true;
@@ -333,6 +358,9 @@
                             filterable: true,
                             pinnable: true,
                             editable: true,
+                            isPrimaryKey: c.is_primary_key,
+                            sourceTable: c.source_table,
+                            sourceSchema: c.source_schema,
                         }));
                         results.total = last.rows.length;
                         results.visible = true;
@@ -430,6 +458,9 @@
                     filterable: true,
                     pinnable: true,
                     editable: true,
+                    isPrimaryKey: c.is_primary_key,
+                    sourceTable: c.source_table,
+                    sourceSchema: c.source_schema,
                 }));
                 results.total = result.rows.length;
                 results.visible = true;
@@ -452,6 +483,9 @@
                         filterable: true,
                         pinnable: true,
                         editable: true,
+                        isPrimaryKey: c.is_primary_key,
+                        sourceTable: c.source_table,
+                        sourceSchema: c.source_schema,
                     }));
                     results.total = last.rows.length;
                     results.visible = true;
@@ -459,8 +493,6 @@
                     if (controller.refreshTable) controller.refreshTable();
                 }
             }
-
-            results.detectedTable = detectTableFromQuery(queryText);
 
             log("Query completed successfully.");
         } catch (e) {
@@ -478,46 +510,6 @@
             isRunning = false;
             results.loading = false;
         }
-    }
-
-    // Detect if a query is editable (simple SELECT * FROM <table>)
-    function detectTableFromQuery(
-        queryStr: string,
-    ): { schema: string; table: string } | null {
-        const match = queryStr.match(
-            /^\s*SELECT\s+\*\s+FROM\s+(?:"?(\w+)"?\.)?"?(\w+)"?\s*(?:WHERE|LIMIT|ORDER|;|$)/i,
-        );
-        if (match) {
-            const schema = match[1] || schemaStore.activeSchema || "public";
-            const table = match[2];
-            return { schema, table };
-        }
-        return null;
-    }
-
-    async function fetchPkColumns(
-        schema: string,
-        table: string,
-    ): Promise<string[]> {
-        try {
-            const tableDetails = await invoke<any>("get_schema_table_details", {
-                connectionId: schemaStore.activeConnection?.id,
-                database: schemaStore.selectedDatabase,
-                schema: schema,
-                tableName: table,
-            });
-            if (tableDetails && tableDetails.columns) {
-                return tableDetails.columns
-                    .filter((c: any) => c.is_primary_key)
-                    .map((c: any) => c.column_name);
-            }
-        } catch (e) {
-            console.warn(
-                "[SqlEditor] Failed to fetch table details for PK detection:",
-                e,
-            );
-        }
-        return [];
     }
 
     function formatSqlValue(val: any, rawType?: string): string {
@@ -579,60 +571,79 @@
     }
 
     async function handleApplyEdits(
-        edits: any[],
+        _edits: any[],
     ): Promise<{ success: boolean; conflicts?: string[] }> {
-        if (!results.detectedTable) {
-            return {
-                success: false,
-                conflicts: [
-                    "Editing is only supported for 'SELECT * FROM table' queries.",
-                ],
-            };
-        }
-
         const deltas = tableRef?.getEditDeltas?.() ?? [];
         if (deltas.length === 0) return { success: true };
 
-        const pkCols = await fetchPkColumns(
-            results.detectedTable.schema,
-            results.detectedTable.table,
-        );
-        if (pkCols.length === 0) {
-            // Check if there is an 'id' column anyway as an anchor point per user suggestion
-            if (results.columns.find((c) => c.id.toLowerCase() === "id")) {
-                pkCols.push(
-                    results.columns.find((c) => c.id.toLowerCase() === "id")!
-                        .id,
-                );
-            } else {
-                return {
-                    success: false,
-                    conflicts: [
-                        "No primary keys found for table. Please refresh schema or add an 'id' column.",
-                    ],
-                };
-            }
-        }
-
         const errors: string[] = [];
         for (const delta of deltas) {
-            let sql = "";
             const { type, rowId, columnId, newValue, pkValues } = delta;
+
+            // Resolve column to find source table
+            const colDef = results.columns.find((c: any) => c.id === columnId);
+            if (!colDef) {
+                errors.push(`Column ${columnId} not found in results.`);
+                continue;
+            }
+
+            const sourceTable = colDef.sourceTable;
+            const sourceSchema =
+                colDef.sourceSchema || schemaStore.activeSchema || "public";
+
+            if (!sourceTable) {
+                errors.push(
+                    `Column ${columnId} does not have a known source table. Cannot edit.`,
+                );
+                continue;
+            }
+
+            // Find PKs for this source table from the available result columns
+            // We look for columns that belong to the same source table and are marked as PK
+            const targetPkCols = results.columns.filter(
+                (c: any) => c.sourceTable === sourceTable && c.isPrimaryKey,
+            );
+
+            if (targetPkCols.length === 0) {
+                // Try fallback to 'id' if present and unclaimed? No, strict mode requested.
+                errors.push(
+                    `No primary key found in results for table ${sourceTable}. Cannot edit safely.`,
+                );
+                continue;
+            }
+
+            // Check if we have values for all these PKs in the row (via pkValues or original row data?)
+            // tableRef.getEditDeltas provides pkValues map "colId" -> value.
+            // We assume table component populated this correctly using primaryKeyColumns,
+            // BUT primaryKeyColumns passes ALL PKs from ALL tables mixed.
+            // This is fine, as long as we pick the ones for THIS table.
+
+            const missingPks = targetPkCols.filter(
+                (pk: any) => pkValues[pk.id] === undefined,
+            );
+            if (missingPks.length > 0) {
+                errors.push(
+                    `Missing primary key value for ${missingPks.map((c: any) => c.id).join(", ")} for table ${sourceTable}.`,
+                );
+                continue;
+            }
+
+            let sql = "";
 
             if (type === "U") {
                 const setClause = `"${columnId}" = ${formatSqlValue(newValue)}`;
-                const whereClauses = pkCols.map(
-                    (pk) => `"${pk}" = ${formatSqlValue(pkValues[pk])}`,
+                const whereClauses = targetPkCols.map(
+                    (pk: any) =>
+                        `"${pk.id}" = ${formatSqlValue(pkValues[pk.id])}`,
                 );
-                sql = `UPDATE "${results.detectedTable.schema}"."${results.detectedTable.table}" SET ${setClause} WHERE ${whereClauses.join(" AND ")};`;
+                sql = `UPDATE "${sourceSchema}"."${sourceTable}" SET ${setClause} WHERE ${whereClauses.join(" AND ")};`;
             } else if (type === "D") {
-                const whereClauses = pkCols.map(
-                    (pk) => `"${pk}" = ${formatSqlValue(pkValues[pk])}`,
+                const whereClauses = targetPkCols.map(
+                    (pk: any) =>
+                        `"${pk.id}" = ${formatSqlValue(pkValues[pk.id])}`,
                 );
-                sql = `DELETE FROM "${results.detectedTable.schema}"."${results.detectedTable.table}" WHERE ${whereClauses.join(" AND ")};`;
+                sql = `DELETE FROM "${sourceSchema}"."${sourceTable}" WHERE ${whereClauses.join(" AND ")};`;
             } else if (type === "I") {
-                // Bulk insert handled as a single row for simplicity here
-                // We'd need to gather all columns for a full insert if we support 'Add Row' properly
                 errors.push("INSERT not yet supported in playground results.");
                 continue;
             }
@@ -643,7 +654,7 @@
                     connectionId: schemaStore.activeConnection?.id,
                     sessionId: id,
                     database: schemaStore.selectedDatabase,
-                    schema: results.detectedTable.schema,
+                    schema: sourceSchema,
                     query: sql,
                 });
             } catch (e) {
@@ -653,8 +664,8 @@
 
         if (errors.length > 0) return { success: false, conflicts: errors };
 
-        // Re-run original query to see changes
-        executeCurrent();
+        // Re-run original query
+        handleRefresh();
         return { success: true };
     }
 
@@ -685,10 +696,10 @@
         tick().then(() => {
             pendingChangesStore.setContext(
                 results.pendingDeltas,
-                results.detectedTable?.table || "query_result",
+                "Result Set", // Generic name for multi-table/query results
                 results.columns,
-                [], // PKs not strictly tracked in store here
-                results.detectedTable?.schema || "",
+                [],
+                "", // Schema agnostic
                 {
                     onRevertRow: (rid: any) => tableRef?.revertRow?.(rid),
                     onRevertAll: () => tableRef?.revertAll?.(),
@@ -1055,7 +1066,7 @@
 <div class="flex h-full w-full flex-col bg-background">
     <QueryEditorToolbar
         {isRunning}
-        executionTime={results.executionTime}
+        executionTime={results?.executionTime}
         activeSchema={schemaStore.activeSchema || "public"}
         onExecute={executeCurrent}
         onStop={handleStop}

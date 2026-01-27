@@ -946,7 +946,7 @@ impl DatabaseAdapter for PostgresAdapter {
         for row in rows {
             let table_name: String = row.get(0);
             let trigger_name: String = row.get(1);
-            let enabled_char: i8 = row.get(2);
+            let _enabled_char: i8 = row.get(2);
             let tgtype: i16 = row.get(3);
             
             let timing = if (tgtype & 2) != 0 {
