@@ -7,7 +7,7 @@
   import KeyboardIcon from "@tabler/icons-svelte/icons/keyboard";
 
   import TypographyIcon from "@tabler/icons-svelte/icons/typography";
-  import FontsComponent from "./Fonts.svelte";
+  import EditorComponent from "./Editor.svelte";
 
   import AlertTriangleIcon from "@tabler/icons-svelte/icons/alert-triangle";
   import DangerousComponent from "./Dangerous.svelte";
@@ -41,7 +41,7 @@
       icon: KeyboardIcon,
     },
     {
-      name: "fonts",
+      name: "editor",
       icon: TypographyIcon,
     },
     {
@@ -82,8 +82,8 @@
         <ThemeComponent />
       {:else if selectedSection === "shortcuts"}
         <ShortcutsComponent />
-      {:else if selectedSection === "fonts"}
-        <FontsComponent />
+      {:else if selectedSection === "editor"}
+        <EditorComponent />
       {:else if selectedSection === "dangerous"}
         <DangerousComponent />
       {/if}

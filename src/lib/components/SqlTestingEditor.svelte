@@ -185,6 +185,13 @@
         controller.dataFetcher = resultDataFetcher;
     });
 
+    // Sync run button visibility setting
+    $effect(() => {
+        if (headerController) {
+            headerController.showAll = settingsStore.editorShowAllRunButtons;
+        }
+    });
+
     // Debounced save for editor content
     const debouncedSave = createDebouncedSave(2000);
 

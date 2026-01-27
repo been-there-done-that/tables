@@ -43,6 +43,14 @@ export class QueryHeaderController {
     // Cache for active detection
     private cachedRanges: StatementRangeWithBytes[] = [];
     private activeLine: number = 0;
+    private _showAll: boolean = false;
+
+    public get showAll() { return this._showAll; }
+    public set showAll(v: boolean) {
+        if (this._showAll === v) return;
+        this._showAll = v;
+        this.reconcileHeaders();
+    }
 
     constructor(
         editor: monaco.editor.IStandaloneCodeEditor,
@@ -172,17 +180,18 @@ export class QueryHeaderController {
         const text = model.getValue();
         const nextHeaders: Map<string, HeaderInstance> = new Map();
 
-        // Find which range is active
-        // Use a simpler check: is cursor line within [start, end]?
-        const activeRange = this.cachedRanges.find(r =>
-            this.activeLine >= r.start_line && this.activeLine <= r.end_line
-        );
+        // If showAll is true, we want ALL ranges to have headers.
+        // If not, we ONLY want the active statement to get a header.
 
-        // If we have an active range, we want 1 header for it.
-        // If not, we want 0 headers.
+        let activeRanges = this.cachedRanges;
+        if (!this._showAll) {
+            const range = this.cachedRanges.find(r =>
+                this.activeLine >= r.start_line && this.activeLine <= r.end_line
+            );
+            activeRanges = range ? [range] : [];
+        }
 
-        // NOTE: If we have multiple headers (e.g. from previous state), logic needs to:
-        // 1. Identify which existing header matches the active range (to preserve status/state).
+        // 1. Identify which existing header matches the active ranges (to preserve status/state).
         // 2. Remove all others.
         // 3. Create new if needed.
 
@@ -200,17 +209,17 @@ export class QueryHeaderController {
             existing.push({ id, instance, startLine: range.startLineNumber });
         }
 
-        // Logic for Active Range
-        if (activeRange) {
+        // Logic for Active Ranges
+        for (const range of activeRanges) {
             // Check if we already have a header for this line
-            const match = existing.find(e => e.startLine === activeRange.start_line);
+            const match = existing.find(e => e.startLine === range.start_line);
 
             if (match) {
                 // KEEP existing
                 const { id, instance } = match;
 
                 // Update text tracking
-                const queryText = text.substring(activeRange.start_byte, activeRange.end_byte);
+                const queryText = text.substring(range.start_byte, range.end_byte);
                 if (instance.lastText !== queryText) {
                     this.statuses.set(id, { state: 'idle' });
                     instance.lastText = queryText;
@@ -224,8 +233,8 @@ export class QueryHeaderController {
                 if (idx > -1) existing.splice(idx, 1);
             } else {
                 // CREATE new
-                const queryText = text.substring(activeRange.start_byte, activeRange.end_byte);
-                this.createHeader(activeRange.start_line, activeRange.end_line, queryText, nextHeaders);
+                const queryText = text.substring(range.start_byte, range.end_byte);
+                this.createHeader(range.start_line, range.end_line, queryText, nextHeaders);
             }
         }
 
