@@ -4,7 +4,10 @@
     import type { Column, DataFetcher } from "$lib/components/table/types";
     import type { EditDelta } from "$lib/components/table/TableEditManager.svelte";
     import { invoke } from "@tauri-apps/api/core";
-    import { normalizeColumnType } from "$lib/components/table/columnUtils";
+    import {
+        normalizeColumnType,
+        ensureUniqueColumnIds,
+    } from "$lib/components/table/columnUtils";
     import { schemaStore } from "$lib/stores/schema.svelte";
     import type { MetaTable, MetaColumn } from "$lib/commands/types";
 
@@ -289,67 +292,67 @@
                 // Update local metadata state (used for PK detection)
                 tableMetadata = tableMeta;
 
-                // Convert backend column info to Table component format
-                const fetchedColumns: Column[] = result.columns.map(
-                    (col, idx) => {
-                        // Find rich metadata for this column
-                        const richCol = tableMeta?.columns.find(
-                            (c) => c.column_name === col.name,
-                        );
+                // Convert backend column info to Table component format with uniqueness guarantee
+                const columnsMetadata = result.columns.map((col, idx) => {
+                    // Find rich metadata for this column
+                    const richCol = tableMeta?.columns.find(
+                        (c) => c.column_name === col.name,
+                    );
 
-                        // Use rich metadata for better type inference
-                        // Priority: Rich Metadata Raw Type -> Result Type -> 'text'
-                        const rawType = richCol?.raw_type || col.type;
+                    // Use rich metadata for better type inference
+                    const rawType = richCol?.raw_type || col.type;
 
-                        // Check for semantic hints (SQLite)
-                        let semanticHint: string | undefined;
-                        if (
-                            richCol?.engine_type?.engine === "sqlite" &&
-                            richCol.engine_type.metadata?.meta?.semantic_hint
-                                ?.kind !== "none"
-                        ) {
-                            semanticHint =
-                                richCol.engine_type.metadata.meta.semantic_hint
-                                    .kind;
-                        }
+                    // Check for semantic hints (SQLite)
+                    let semanticHint: string | undefined;
+                    if (
+                        richCol?.engine_type?.engine === "sqlite" &&
+                        richCol.engine_type.metadata?.meta?.semantic_hint
+                            ?.kind !== "none"
+                    ) {
+                        semanticHint =
+                            richCol.engine_type.metadata.meta.semantic_hint
+                                .kind;
+                    }
 
-                        return {
-                            id: col.name,
-                            label: col.name,
-                            type: normalizeColumnType(rawType, semanticHint),
-                            rawType: rawType,
-                            sortable: true,
-                            filterable: true,
-                            pinnable: true,
-                            editable: true,
-                            dbType: rawType,
-                            dbTable: currentTable,
-                            dbSchema: currentSchema,
-                        };
-                    },
+                    return {
+                        name: col.name,
+                        label: col.name,
+                        type: normalizeColumnType(rawType, semanticHint),
+                        rawType: rawType,
+                        sortable: true,
+                        filterable: true,
+                        pinnable: true,
+                        editable: true,
+                        dbType: rawType,
+                        dbTable: currentTable,
+                        dbSchema: currentSchema,
+                    };
+                });
+
+                const processed = ensureUniqueColumnIds(
+                    columnsMetadata,
+                    result.rows,
                 );
 
                 // Update toolbar state
-                columns = fetchedColumns;
+                columns = processed.columns;
 
                 // Logic for total rows and batch size
-                currentBatchSize = result.rows.length;
+                currentBatchSize = processed.rows.length;
 
                 if (result.total !== null) {
                     isExactTotal = true;
                     totalRows = result.total;
                 } else {
-                    // We don't have an exact total.
-                    // If we found rows, we know at least (offset + count) exist.
                     isExactTotal = false;
-                    const loadedCount = (offset ?? 0) + result.rows.length;
+                    const loadedCount = (offset ?? 0) + processed.rows.length;
                     totalRows = loadedCount;
                 }
 
                 currentOffset = offset ?? 0;
 
                 // Add _rowId to each row for the Table component
-                const rowsWithId = result.rows.map((row, idx) => ({
+                const rowsWithId = processed.rows.map((row, idx) => ({
                     ...row,
                     _rowId: (offset ?? 0) + idx,
                 }));
@@ -357,7 +360,7 @@
                 return {
                     rows: rowsWithId,
                     total: result.total ?? totalRows, // Pass best guess or exact
-                    columns: fetchedColumns,
+                    columns: processed.columns,
                 };
             } catch (err: any) {
                 console.error("[TablePreview] Failed to fetch data:", err);

@@ -27,7 +27,7 @@
     } from "$lib/monaco/query-headers";
     import QueryEditorToolbar from "./editor/QueryEditorToolbar.svelte";
 
-    import { normalizeColumnType } from "$lib/components/table/columnUtils";
+    import { normalizeColumnType, ensureUniqueColumnIds } from "$lib/components/table/columnUtils";
     import type { Column, DataFetcher } from "$lib/components/table/types";
     import type { EditDelta } from "$lib/components/table/TableEditManager.svelte";
     import { pendingChangesStore } from "$lib/stores/pendingChanges.svelte";
@@ -328,9 +328,8 @@
 
                 // Populate Result Table
                 if (result.rows && result.columns) {
-                    results.rows = result.rows;
-                    results.columns = result.columns.map((c: any) => ({
-                        id: c.name,
+                    const columnsMetadata = result.columns.map((c: any) => ({
+                        name: c.name,
                         label: c.name,
                         type: normalizeColumnType(c.type),
                         rawType: c.type,
@@ -343,6 +342,13 @@
                         sourceTable: c.source_table,
                         sourceSchema: c.source_schema,
                     }));
+
+                    const processed = ensureUniqueColumnIds(
+                        columnsMetadata,
+                        result.rows,
+                    );
+                    results.rows = processed.rows;
+                    results.columns = processed.columns;
                     results.total = result.rows.length;
                     results.visible = true;
                     results.executedQueryText = query; // User feedback: attach query
@@ -355,9 +361,8 @@
                     // Handle multi-result (batch)? Just take last for now
                     const last = result[result.length - 1];
                     if (last.rows && last.columns) {
-                        results.rows = last.rows;
-                        results.columns = last.columns.map((c: any) => ({
-                            id: c.name,
+                        const columnsMetadata = last.columns.map((c: any) => ({
+                            name: c.name,
                             label: c.name,
                             type: normalizeColumnType(c.type),
                             rawType: c.type,
@@ -369,6 +374,13 @@
                             sourceTable: c.source_table,
                             sourceSchema: c.source_schema,
                         }));
+
+                        const processed = ensureUniqueColumnIds(
+                            columnsMetadata,
+                            last.rows,
+                        );
+                        results.rows = processed.rows;
+                        results.columns = processed.columns;
                         results.total = last.rows.length;
                         results.visible = true;
                         results.executedQueryText = query; // User feedback: attach query
@@ -455,9 +467,8 @@
 
             // Populate Result Table
             if (result.rows && result.columns) {
-                results.rows = result.rows;
-                results.columns = result.columns.map((c: any) => ({
-                    id: c.name,
+                const columnsMetadata = result.columns.map((c: any) => ({
+                    name: c.name,
                     label: c.name,
                     type: normalizeColumnType(c.type),
                     rawType: c.type,
@@ -469,6 +480,13 @@
                     sourceTable: c.source_table,
                     sourceSchema: c.source_schema,
                 }));
+
+                const processed = ensureUniqueColumnIds(
+                    columnsMetadata,
+                    result.rows,
+                );
+                results.rows = processed.rows;
+                results.columns = processed.columns;
                 results.total = result.rows.length;
                 results.visible = true;
                 results.executedQueryText = queryText;
@@ -480,9 +498,8 @@
             ) {
                 const last = result[result.length - 1];
                 if (last.rows && last.columns) {
-                    results.rows = last.rows;
-                    results.columns = last.columns.map((c: any) => ({
-                        id: c.name,
+                    const columnsMetadata = last.columns.map((c: any) => ({
+                        name: c.name,
                         label: c.name,
                         type: normalizeColumnType(c.type),
                         rawType: c.type,
@@ -494,6 +511,13 @@
                         sourceTable: c.source_table,
                         sourceSchema: c.source_schema,
                     }));
+
+                    const processed = ensureUniqueColumnIds(
+                        columnsMetadata,
+                        last.rows,
+                    );
+                    results.rows = processed.rows;
+                    results.columns = processed.columns;
                     results.total = last.rows.length;
                     results.visible = true;
                     results.executedQueryText = queryText;
