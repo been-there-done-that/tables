@@ -10,6 +10,7 @@
   import PendingChangesPanel from "$lib/components/table/PendingChangesPanel.svelte";
   import AiAssistantPanel from "$lib/components/AiAssistantPanel.svelte";
   import { logsStore } from "$lib/stores/logs.svelte";
+  import BottomPanel from "$lib/components/BottomPanel.svelte";
 
   const activeSession = $derived(windowState.activeSession);
 </script>
@@ -100,13 +101,9 @@
                     </div>
                   {/snippet}
 
-                  <!-- Bottom Panel (Clean, no title) -->
+                  <!-- Bottom Panel (Mirroring Top Tabs + Results) -->
                   {#snippet right()}
-                    <div class="flex h-full flex-col bg-background">
-                      <div class="flex-1 overflow-auto p-2">
-                        <pre class="text-xs font-mono">System ready.</pre>
-                      </div>
-                    </div>
+                    <BottomPanel />
                   {/snippet}
                 </ResizableSplitPane>
               </div>

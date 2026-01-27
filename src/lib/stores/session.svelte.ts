@@ -80,6 +80,29 @@ export class Session {
         }
 
         const id = crypto.randomUUID();
+        if (type === "editor") {
+            data = data || {};
+            data.results = {
+                rows: [],
+                columns: [],
+                total: 0,
+                visible: false,
+                loading: false,
+                pageSize: 100,
+                offset: 0,
+                whereClause: "",
+                orderByClause: "",
+                executionTime: 0,
+                executedQueryText: "",
+                detectedTable: null,
+                pendingDeltas: [],
+                isSaving: false,
+                currentBatchSize: 0,
+                isExactTotal: true,
+                isCountLoading: false,
+            };
+            data.controller = {};
+        }
         const newView: ViewState = { id, type, title, data };
         this.addView(newView);
         // addView calls triggerSave
