@@ -320,7 +320,7 @@ pub fn run() {
                 if let Some(session_manager) = app.try_state::<QuerySessionManager>() {
                     let sm = session_manager.inner().clone();
                     let l = label.clone();
-                    tokio::spawn(async move {
+                    tauri::async_runtime::spawn(async move {
                         sm.remove_sessions_for_window(&l).await;
                     });
                 }
