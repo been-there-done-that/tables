@@ -769,6 +769,7 @@ async fn get_or_create_postgres_client(
         .unwrap_or(false);
 
     let conn_str = format!("postgres://{}:{}@{}:{}/{}", user, password, host, port, database);
+    debug!("Connecting to Postgres at {}:{}/{}", host, port, database);
 
     let client: tokio_postgres::Client = if tls_enabled {
         let tls_connector = native_tls::TlsConnector::builder()
@@ -778,18 +779,20 @@ async fn get_or_create_postgres_client(
         let connector = postgres_native_tls::MakeTlsConnector::new(tls_connector);
         let (client, connection) = tokio_postgres::connect(&conn_str, connector).await
             .map_err(|e| format!("Connection error: {}", e))?;
-        tokio::spawn(async move {
+        debug!("Tipping off background connection task (TLS)");
+        tauri::async_runtime::spawn(async move {
             if let Err(e) = connection.await {
-                error!("Postgres connection error: {}", e);
+                error!("Postgres connection error (TLS): {}", e);
             }
         });
         client
     } else {
         let (client, connection) = tokio_postgres::connect(&conn_str, tokio_postgres::NoTls).await
             .map_err(|e| format!("Connection error: {}", e))?;
-        tokio::spawn(async move {
+        debug!("Tipping off background connection task (NoTLS)");
+        tauri::async_runtime::spawn(async move {
             if let Err(e) = connection.await {
-                error!("Postgres connection error: {}", e);
+                error!("Postgres connection error (NoTLS): {}", e);
             }
         });
         client
@@ -830,7 +833,7 @@ async fn execute_postgres_query(
              let mut loop_err = None;
              for (i, range) in statements.iter().enumerate() {
                 let stmt_text = &query[range.start_byte..range.end_byte];
-                // Execute statement
+                debug!("[execute_postgres_query] Statement {}: {}", i, stmt_text);
                 let rows_res = client.query(stmt_text, &[]).await;
                 
                 match rows_res {
@@ -857,7 +860,7 @@ async fn execute_postgres_query(
                              // Enrich metadata if we have rows (and thus column info with OIDs)
                              if !raw_columns.is_empty() {
                                  if let Err(e) = enrich_postgres_metadata(&client, raw_columns, &mut columns).await {
-                                     warn!("Failed to enrich postgres metadata: {}", e);
+                                     warn!("Failed to enrich postgres metadata: {}", crate::pg_utils::format_postgres_error(&e));
                                  }
                              }
 
@@ -942,7 +945,7 @@ async fn execute_single_postgres_query(client: &tokio_postgres::Client, query: &
     // Enrich metadata
     if !raw_columns.is_empty() {
         if let Err(e) = enrich_postgres_metadata(client, raw_columns, &mut columns).await {
-            warn!("Failed to enrich single query metadata: {}", e);
+            warn!("Failed to enrich single query metadata: {}", crate::pg_utils::format_postgres_error(&e));
         }
     }
 
@@ -1225,11 +1228,13 @@ async fn enrich_postgres_metadata(
         return Ok(());
     }
 
-    // Collect table OIDs to batch query
-    let table_oids: Vec<u32> = raw_columns.iter()
+    // Collect table OIDs to batch query, deduplicated for efficiency
+    let mut table_oid_set: std::collections::HashSet<u32> = raw_columns.iter()
         .filter_map(|c| c.table_oid())
         .filter(|&oid| oid != 0)
         .collect();
+    
+    let table_oids: Vec<u32> = table_oid_set.into_iter().collect();
 
     if table_oids.is_empty() {
         return Ok(());
@@ -1238,7 +1243,7 @@ async fn enrich_postgres_metadata(
     // 1. Resolve Table Names & Schemas
     // We use a simple query to map OID -> (schema, table)
     let oid_query = "
-        SELECT oid, nspname, relname 
+        SELECT c.oid, nspname, relname 
         FROM pg_class c 
         JOIN pg_namespace n ON c.relnamespace = n.oid 
         WHERE c.oid = ANY($1)
@@ -1255,7 +1260,7 @@ async fn enrich_postgres_metadata(
     // 2. Resolve Primary Keys (via constraint names first to get column patterns)
     // Query: join pg_attribute to get names
     let pk_names_query = "
-        SELECT conrelid, a.attname
+        SELECT c.conrelid, a.attname
         FROM pg_constraint c
         JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = ANY(c.conkey)
         WHERE c.conrelid = ANY($1) AND c.contype = 'p'

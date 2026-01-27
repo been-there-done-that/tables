@@ -25,6 +25,8 @@ pub mod pg_utils;
 pub mod sqlite_utils;
 #[cfg(test)]
 mod dci_tests;
+#[cfg(test)]
+mod postgres_diagnostic_test;
 
 use tauri::{Manager, PhysicalPosition, PhysicalSize, Size, Emitter, Listener};
 use std::{path::PathBuf, sync::{Arc, Mutex}, time::SystemTime, collections::{HashMap, HashSet}};

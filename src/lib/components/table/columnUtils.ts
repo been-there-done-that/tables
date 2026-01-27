@@ -77,3 +77,53 @@ export function normalizeColumnType(
     // Default to text
     return "text";
 }
+
+/**
+ * Ensures all columns have unique IDs and augments rows so data is accessible via those IDs.
+ * This prevents Svelte 'each_key_duplicate' errors when SQL results have clashing column names.
+ */
+export function ensureUniqueColumnIds(
+    rawColumns: any[],
+    rawRows: any[]
+): { columns: any[]; rows: any[] } {
+    const seenIds = new Map<string, number>();
+
+    // First pass: generate unique IDs for columns
+    const columns = rawColumns.map((c) => {
+        const name = c.name || c.id || "unnamed";
+        const count = seenIds.get(name) || 0;
+        const uniqueId = count === 0 ? name : `${name}_${count}`;
+        seenIds.set(name, count + 1);
+
+        // Keep a reference to the original name for data mapping
+        return {
+            ...c,
+            id: uniqueId,
+            label: c.label || name,
+            _originalId: name,
+        };
+    });
+
+    // Second pass: ensure row data is accessible via the unique IDs
+    const rows = rawRows.map((row) => {
+        let needsAdjustment = false;
+        for (const col of columns) {
+            if (col.id !== col._originalId) {
+                needsAdjustment = true;
+                break;
+            }
+        }
+
+        if (!needsAdjustment) return row;
+
+        const newRow = { ...row };
+        for (const col of columns) {
+            if (col.id !== col._originalId && newRow[col.id] === undefined) {
+                newRow[col.id] = row[col._originalId];
+            }
+        }
+        return newRow;
+    });
+
+    return { columns, rows };
+}
