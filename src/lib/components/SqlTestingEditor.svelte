@@ -26,6 +26,7 @@
         type QueryHeaderController,
     } from "$lib/monaco/query-headers";
     import QueryEditorToolbar from "./editor/QueryEditorToolbar.svelte";
+    import ResizableSplitPane from "./ResizableSplitPane.svelte";
 
     import Table from "$lib/components/table/Table.svelte";
     import TableToolbar from "$lib/components/table/TableToolbar.svelte";
@@ -56,6 +57,7 @@
     let showResultTable = $state(false);
     let tableRef: any = $state(null);
     let resultLoading = $state(false);
+    let resultSplitRatio = $state(0.6);
 
     // Toolbar & Pagination State
     let pageSize = $state(100);
@@ -1053,61 +1055,72 @@
         onSchemaChange={(v) => (schemaStore.activeSchema = v)}
     />
 
-    <div class="flex-1 flex flex-col min-h-0">
-        <!-- Editor Area -->
-        <div class="flex-1 relative min-h-[200px]">
-            <div
-                bind:this={editorContainer}
-                class="absolute inset-0 w-full h-full sql-editor-container"
-            ></div>
-        </div>
-
-        <!-- Result Table Area -->
-        {#if showResultTable}
-            <div
-                class="flex-1 relative border-t border-border min-h-[200px] flex flex-col"
-            >
-                <TableToolbar
-                    bind:tableRef
-                    columns={resultColumns}
-                    {currentOffset}
-                    totalRows={resultTotal}
-                    {pageSize}
-                    {whereClause}
-                    {orderByClause}
-                    onExecute={handleExecute}
-                    onRefresh={handleRefresh}
-                    onPageChange={handlePageChange}
-                    onPageSizeChange={handlePageSizeChange}
-                    onExport={handleExport}
-                    onShowDdl={handleShowDdl}
-                    onWhereChange={handleWhereChange}
-                    onOrderByChange={handleOrderByChange}
-                    onCancel={handleCancel}
-                    onCountUpdate={handleCountUpdate}
-                    {currentBatchSize}
-                    {isExactTotal}
-                    {isCountLoading}
-                    isLoading={resultLoading}
-                    {executionTime}
-                    {pendingChangesCount}
-                    onShowChanges={handleShowChanges}
-                    onAddRow={handleAddRow}
-                    onSaveChanges={handleToolbarSave}
-                    {isSaving}
-                />
-                <div class="flex-1 relative">
-                    <Table
-                        bind:this={tableRef}
-                        columns={resultColumns}
-                        dataFetcher={resultDataFetcher}
-                        isLoading={resultLoading}
-                        onEditChange={handleEditChange}
-                        onApplyEdits={handleApplyEdits}
-                    />
+    <div class="flex-1 overflow-hidden">
+        <ResizableSplitPane
+            orientation="vertical"
+            defaultRatio={0.6}
+            bind:controlledRatio={resultSplitRatio}
+            minLeft="100px"
+            minRight="100px"
+            rightVisible={showResultTable}
+        >
+            {#snippet left()}
+                <!-- Editor Area -->
+                <div class="h-full relative overflow-hidden">
+                    <div
+                        bind:this={editorContainer}
+                        class="absolute inset-0 w-full h-full sql-editor-container"
+                    ></div>
                 </div>
-            </div>
-        {/if}
+            {/snippet}
+
+            {#snippet right()}
+                <!-- Result Table Area -->
+                <div
+                    class="h-full flex flex-col border-t border-border bg-background"
+                >
+                    <TableToolbar
+                        bind:tableRef
+                        columns={resultColumns}
+                        {currentOffset}
+                        totalRows={resultTotal}
+                        {pageSize}
+                        {whereClause}
+                        {orderByClause}
+                        onExecute={handleExecute}
+                        onRefresh={handleRefresh}
+                        onPageChange={handlePageChange}
+                        onPageSizeChange={handlePageSizeChange}
+                        onExport={handleExport}
+                        onShowDdl={handleShowDdl}
+                        onWhereChange={handleWhereChange}
+                        onOrderByChange={handleOrderByChange}
+                        onCancel={handleCancel}
+                        onCountUpdate={handleCountUpdate}
+                        {currentBatchSize}
+                        {isExactTotal}
+                        {isCountLoading}
+                        isLoading={resultLoading}
+                        {executionTime}
+                        {pendingChangesCount}
+                        onShowChanges={handleShowChanges}
+                        onAddRow={handleAddRow}
+                        onSaveChanges={handleToolbarSave}
+                        {isSaving}
+                    />
+                    <div class="flex-1 relative">
+                        <Table
+                            bind:this={tableRef}
+                            columns={resultColumns}
+                            dataFetcher={resultDataFetcher}
+                            isLoading={resultLoading}
+                            onEditChange={handleEditChange}
+                            onApplyEdits={handleApplyEdits}
+                        />
+                    </div>
+                </div>
+            {/snippet}
+        </ResizableSplitPane>
     </div>
 </div>
 
