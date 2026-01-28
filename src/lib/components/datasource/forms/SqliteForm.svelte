@@ -23,9 +23,10 @@
     interface Props {
         data: any;
         onChange: (field: string, value: any) => void;
+        hideFooter?: boolean;
     }
 
-    let { data, onChange }: Props = $props();
+    let { data, onChange, hideFooter = false }: Props = $props();
     let showPopover = $state(false);
     let isTesting = $state(false);
     let isSaving = $state(false);
@@ -414,33 +415,35 @@
         </div>
     </div>
 
-    <div
-        class="shrink-0 flex justify-center items-center py-4 border-t border-[--theme-border-default] relative"
-    >
-        <div class="flex items-center space-x-6">
-            <div class="flex items-center gap-3">
-                <Button onClick={handleCancel}>Cancel</Button>
-                <Button onClick={handleApply}>Save</Button>
-            </div>
+    {#if !hideFooter}
+        <div
+            class="shrink-0 flex justify-center items-center py-4 border-t border-[--theme-border-default] relative"
+        >
+            <div class="flex items-center space-x-6">
+                <div class="flex items-center gap-3">
+                    <Button onClick={handleCancel}>Cancel</Button>
+                    <Button onClick={handleApply}>Save</Button>
+                </div>
 
-            <div class="flex items-center gap-3 relative">
-                <div class="relative flex items-center gap-2">
-                    <button
-                        onclick={handleTestConnection}
-                        class="text-sm flex items-center gap-2 underline underline-offset-4 hover:text-[--theme-accent-hover] transition-colors cursor-pointer"
-                    >
-                        Test Connection
-                    </button>
+                <div class="flex items-center gap-3 relative">
+                    <div class="relative flex items-center gap-2">
+                        <button
+                            onclick={handleTestConnection}
+                            class="text-sm flex items-center gap-2 underline underline-offset-4 hover:text-[--theme-accent-hover] transition-colors cursor-pointer"
+                        >
+                            Test Connection
+                        </button>
 
-                    {#if testResult && showPopover && !isTesting}
-                        <ConnectionResultPopover
-                            result={testResult}
-                            driverName="SQLite3"
-                            onClose={() => (showPopover = false)}
-                        />
-                    {/if}
+                        {#if testResult && showPopover && !isTesting}
+                            <ConnectionResultPopover
+                                result={testResult}
+                                driverName="SQLite3"
+                                onClose={() => (showPopover = false)}
+                            />
+                        {/if}
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
+    {/if}
 </div>
