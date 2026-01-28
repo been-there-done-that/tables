@@ -15,6 +15,8 @@
         IconLoader2,
         IconArrowBackUp,
         IconArrowForwardUp,
+        IconEye,
+        IconFocus2,
     } from "@tabler/icons-svelte";
     import { schemaStore } from "$lib/stores/schema.svelte";
 
@@ -30,6 +32,8 @@
         onRedo: () => void;
         onExplain: (raw: boolean) => void;
         onSchemaChange: (schema: string) => void;
+        showAll?: boolean;
+        onToggleShowAll?: () => void;
     }
 
     let {
@@ -44,6 +48,8 @@
         onRedo,
         onExplain,
         onSchemaChange,
+        showAll = false,
+        onToggleShowAll,
     }: Props = $props();
 
     const currentSchemas = $derived.by(() => {
@@ -156,6 +162,32 @@
         >
             <span class="text-xs font-bold opacity-70">RAW</span>
             <span class="text-xs font-medium">Explain</span>
+        </Button>
+
+        <div class="w-px h-4 bg-border/40 mx-1"></div>
+
+        <Button
+            variant="ghost"
+            size="sm"
+            class={cn(
+                "h-7 px-2 flex items-center gap-1.5 transition-colors",
+                showAll
+                    ? "text-blue-500 bg-blue-500/10 opacity-100"
+                    : "opacity-70 hover:opacity-100",
+            )}
+            onclick={onToggleShowAll}
+            title={showAll
+                ? "Showing all run buttons"
+                : "Showing only focused run button"}
+        >
+            {#if showAll}
+                <IconEye class="size-4" />
+            {:else}
+                <IconFocus2 class="size-4" />
+            {/if}
+            <span class="text-xs font-medium"
+                >{showAll ? "All Run" : "Focused"}</span
+            >
         </Button>
     </div>
 

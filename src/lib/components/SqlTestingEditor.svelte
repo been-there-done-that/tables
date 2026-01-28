@@ -27,7 +27,10 @@
     } from "$lib/monaco/query-headers";
     import QueryEditorToolbar from "./editor/QueryEditorToolbar.svelte";
 
-    import { normalizeColumnType, ensureUniqueColumnIds } from "$lib/components/table/columnUtils";
+    import {
+        normalizeColumnType,
+        ensureUniqueColumnIds,
+    } from "$lib/components/table/columnUtils";
     import type { Column, DataFetcher } from "$lib/components/table/types";
     import type { EditDelta } from "$lib/components/table/TableEditManager.svelte";
     import { pendingChangesStore } from "$lib/stores/pendingChanges.svelte";
@@ -74,7 +77,7 @@
     let isLoadingSession = $state(true);
     let isRunning = $state(false);
 
-    let headerController: QueryHeaderController | null = null;
+    let headerController = $state<QueryHeaderController | null>(null);
 
     let tableRef: any = $state(null); // Still need a ref for potential actions
 
@@ -1099,6 +1102,10 @@
         {isRunning}
         executionTime={results?.executionTime}
         activeSchema={schemaStore.activeSchema || "public"}
+        showAll={settingsStore.editorShowAllRunButtons}
+        onToggleShowAll={() =>
+            (settingsStore.editorShowAllRunButtons =
+                !settingsStore.editorShowAllRunButtons)}
         onExecute={executeCurrent}
         onStop={handleStop}
         onFormat={handleFormat}
