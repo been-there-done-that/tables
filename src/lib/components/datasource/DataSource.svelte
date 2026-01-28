@@ -40,6 +40,16 @@
     connectionForm.reset();
   }
 
+  function handleSave(id: string) {
+    // Switch to edit mode for the newly saved connection
+    viewMode = "edit";
+    // Find the connection in store (it was just added/updated)
+    const conn = connectionStore.connections.find((c) => c.id === id);
+    if (conn) {
+      selectedConnection = conn;
+    }
+  }
+
   function handleSaveSuccess() {
     viewMode = "list";
     selectedConnection = null;
@@ -70,6 +80,7 @@
           driver={currentDriver}
           isEdit={viewMode === "edit"}
           onCancel={handleCancel}
+          onSave={handleSave}
           onSaveSuccess={handleSaveSuccess}
         />
       {:else}
