@@ -1,7 +1,7 @@
-import type { Driver } from "./DriverList";
+import { type Driver, drivers } from "./DriverList";
 import { createEmptyConfig, type PostgresConfig, type SqliteConfig } from "$lib/schema/connectionSchema";
 
-import type { ConnectionInfo } from "$lib/commands/types";
+import type { ConnectionInfo, Connection } from "$lib/commands/types";
 
 // Union type for all possible config types
 type ConnectionConfig = PostgresConfig | SqliteConfig | Record<string, any>;
@@ -73,6 +73,18 @@ class ConnectionFormStore {
 
     current[keys[keys.length - 1]] = value;
     this.fields = newFields;
+  }
+
+  setFromConnection(connection: Connection) {
+    if (!connection.config_json) return;
+    try {
+      const config = JSON.parse(connection.config_json);
+      this.fields = { ...config, id: connection.id, name: connection.name };
+      this.driver = drivers.find(d => d.id === connection.engine) || null;
+      this.testResult = null;
+    } catch (e) {
+      console.error("Failed to parse connection config", e);
+    }
   }
 
   reset() {
