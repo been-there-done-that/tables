@@ -15,6 +15,8 @@
         IconCheck,
         IconAlertCircle,
         IconDatabase,
+        IconTrash,
+        IconLoader2,
     } from "@tabler/icons-svelte";
 
     interface Props {
@@ -26,11 +28,16 @@
 
     let { driver, isEdit = false, onCancel, onSaveSuccess }: Props = $props();
 
-    const state = $derived(connectionForm.state);
+    const formState = $derived(connectionForm.state);
     let isTesting = $state(false);
     let isSaving = $state(false);
-    let error = $state<string | null>(null);
-    let successMsg = $state<{ title: string; details?: string } | null>(null);
+    let isConfirmingDelete = $state(false);
+
+    // Reset confirmation state when switching connections
+    $effect(() => {
+        formState.fields.id;
+        isConfirmingDelete = false;
+    });
 
     function handleChange(path: string, value: any) {
         connectionForm.updateField(path, value);
@@ -39,13 +46,12 @@
     async function handleTest() {
         if (!driver) return;
         isTesting = true;
-        error = null;
-        successMsg = null;
+        connectionForm.setStatus({ type: "testing", message: "Connecting..." });
 
         try {
             const result = await testConnectionParams(
                 driver.id,
-                $state.snapshot(state.fields),
+                $state.snapshot(formState.fields),
             );
             if (result.success && result.data) {
                 connectionForm.setTestResult(result.data);
@@ -56,15 +62,22 @@
                 if (result.data.response_time_ms)
                     details.push(`${result.data.response_time_ms}ms`);
 
-                successMsg = {
-                    title: "Connection Successful",
+                connectionForm.setStatus({
+                    type: "success",
+                    message: "Connection Successful",
                     details: details.join(" • "),
-                };
+                });
             } else {
-                error = result.error || "Connection test failed";
+                connectionForm.setStatus({
+                    type: "error",
+                    message: result.error || "Connection test failed",
+                });
             }
         } catch (e: any) {
-            error = e.message || "An error occurred during testing";
+            connectionForm.setStatus({
+                type: "error",
+                message: e.message || "An error occurred during testing",
+            });
         } finally {
             isTesting = false;
         }
@@ -73,39 +86,90 @@
     async function handleSave() {
         if (!driver) return;
         isSaving = true;
-        error = null;
-        successMsg = null;
+        connectionForm.setStatus({ type: "idle", message: "" });
 
         try {
-            const fields = $state.snapshot(state.fields);
-            const connectionData = {
-                name: fields.name,
+            const fields: any = $state.snapshot(formState.fields);
+
+            // Helper to extract common fields
+            const getField = (path: string, fallback: any = null) => {
+                const keys = path.split(".");
+                let val: any = fields;
+                for (const key of keys) {
+                    val = val?.[key];
+                }
+                return val ?? fallback;
+            };
+
+            const now = Math.floor(Date.now() / 1000);
+            const connectionData: any = {
+                id: isEdit && fields.id ? fields.id : crypto.randomUUID(),
+                name: fields.name || `My ${driver.name} Database`,
                 engine: driver.id,
                 config_json: JSON.stringify(fields),
-                auth_type: "password", // Default
+                connection_params: fields,
+                auth_type: "password",
+                host: getField("db.host"),
+                port: getField("db.port")
+                    ? Number(getField("db.port"))
+                    : driver.defaultPort,
+                database: getField("db.database") || getField("db.uri") || "",
+                username: getField("db.username") || "",
+                uses_ssh: getField("transport.type") === "ssh",
+                uses_tls: getField("tls.enabled", false),
+                ssl_enabled: getField("tls.enabled", false),
+                ssh_tunnel_enabled: getField("transport.type") === "ssh",
+                is_favorite: fields.is_favorite || false,
+                connection_count: fields.connection_count || 0,
+                created_at: fields.created_at || now,
+                updated_at: now,
             };
 
             const credentials = {
-                password: fields.password || null,
+                password: fields.password || getField("db.password") || null,
             };
 
             if (isEdit && fields.id) {
                 await connectionStore.updateConnection(
                     fields.id,
-                    connectionData as any,
+                    connectionData,
                     credentials,
                 );
             } else {
                 await connectionStore.createConnection(
-                    connectionData as any,
+                    connectionData,
                     credentials,
                 );
             }
             onSaveSuccess();
         } catch (e: any) {
-            error = e.message || "Failed to save connection";
+            connectionForm.setStatus({
+                type: "error",
+                message: e.message || "Failed to save connection",
+            });
         } finally {
             isSaving = false;
+        }
+    }
+
+    async function handleDelete() {
+        if (!isEdit || !formState.fields.id) return;
+
+        if (!isConfirmingDelete) {
+            isConfirmingDelete = true;
+            setTimeout(() => (isConfirmingDelete = false), 3000);
+            return;
+        }
+
+        try {
+            await connectionStore.deleteConnection(formState.fields.id);
+            onSaveSuccess();
+        } catch (e: any) {
+            connectionForm.setStatus({
+                type: "error",
+                message: e.message || "Failed to delete connection",
+            });
+            isConfirmingDelete = false;
         }
     }
 </script>
@@ -134,7 +198,7 @@
                 >
                 <FormInput
                     inputId="name"
-                    value={state.fields.name}
+                    value={formState.fields.name}
                     placeholder={`My ${driver.name} Database`}
                     oninput={(e: any) => handleChange("name", e.target.value)}
                 />
@@ -146,37 +210,37 @@
             <div class="max-w-2xl">
                 {#if driver.id === "postgres"}
                     <PostgresForm
-                        data={state.fields as any}
+                        data={formState.fields as any}
                         onChange={handleChange}
                         hideFooter
                     />
                 {:else if driver.id === "mysql"}
                     <MysqlForm
-                        data={state.fields as any}
+                        data={formState.fields as any}
                         onChange={handleChange}
                         hideFooter
                     />
                 {:else if driver.id === "sqlite"}
                     <SqliteForm
-                        data={state.fields as any}
+                        data={formState.fields as any}
                         onChange={handleChange}
                         hideFooter
                     />
                 {:else if driver.id === "mongodb"}
                     <MongodbForm
-                        data={state.fields as any}
+                        data={formState.fields as any}
                         onChange={handleChange}
                         hideFooter
                     />
                 {:else if driver.id === "redis"}
                     <RedisForm
-                        data={state.fields as any}
+                        data={formState.fields as any}
                         onChange={handleChange}
                         hideFooter
                     />
                 {:else if driver.id === "elasticsearch"}
                     <ElasticsearchForm
-                        data={state.fields as any}
+                        data={formState.fields as any}
                         onChange={handleChange}
                         hideFooter
                     />
@@ -192,40 +256,65 @@
 
         <!-- Footer Actions -->
         <div class="shrink-0 p-8 pt-4 flex flex-col gap-4">
-            {#if error}
+            {#if formState.status.type === "error"}
                 <div
                     class="p-3 bg-red-500/10 border border-red-500/20 rounded-md text-red-500 text-xs flex items-start gap-3"
                 >
                     <IconAlertCircle size={16} class="shrink-0 mt-0.5" />
                     <div class="flex flex-col gap-1">
                         <span class="font-semibold">Error</span>
-                        <span class="opacity-90">{error}</span>
+                        <span class="opacity-90"
+                            >{formState.status.message}</span
+                        >
                     </div>
                 </div>
-            {/if}
-
-            {#if successMsg}
+            {:else if formState.status.type === "success"}
                 <div
                     class="p-3 bg-green-500/10 border border-green-500/20 rounded-md text-green-500 text-xs flex items-start gap-3"
                 >
                     <IconCheck size={16} class="shrink-0 mt-0.5" />
                     <div class="flex flex-col gap-1">
-                        <span class="font-semibold">{successMsg.title}</span>
-                        {#if successMsg.details}
-                            <span class="opacity-90">{successMsg.details}</span>
+                        <span class="font-semibold"
+                            >{formState.status.message}</span
+                        >
+                        {#if formState.status.details}
+                            <span class="opacity-90"
+                                >{formState.status.details}</span
+                            >
                         {/if}
                     </div>
                 </div>
             {/if}
 
             <div class="flex items-center justify-between">
-                <button
-                    onclick={handleTest}
-                    disabled={isTesting}
-                    class="text-sm font-medium underline underline-offset-4 hover:text-accent transition-colors disabled:opacity-50 cursor-pointer"
-                >
-                    {isTesting ? "Testing..." : "Test Connection"}
-                </button>
+                <div class="flex items-center gap-6">
+                    <button
+                        onclick={handleTest}
+                        disabled={isTesting}
+                        class="text-sm font-medium underline underline-offset-4 hover:text-accent transition-colors disabled:opacity-50 cursor-pointer flex items-center gap-2"
+                    >
+                        {#if isTesting}
+                            <IconLoader2 size={14} class="animate-spin" />
+                        {/if}
+                        {isTesting ? "Testing..." : "Test Connection"}
+                    </button>
+
+                    {#if isEdit}
+                        <button
+                            onclick={handleDelete}
+                            class="text-sm font-medium transition-colors cursor-pointer flex items-center gap-1.5 {isConfirmingDelete
+                                ? 'text-red-500 font-bold'
+                                : 'text-red-500/70 hover:text-red-500'}"
+                        >
+                            {#if !isConfirmingDelete}
+                                <IconTrash size={14} />
+                            {/if}
+                            {isConfirmingDelete
+                                ? "Click here again to delete"
+                                : "Delete"}
+                        </button>
+                    {/if}
+                </div>
 
                 <div class="flex items-center gap-3">
                     <Button variant="ghost" onClick={onCancel}>Cancel</Button>

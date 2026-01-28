@@ -148,7 +148,7 @@ class ConnectionStore {
     this.loading = false;
   }
 
-  async createConnection(connection: Omit<Connection, 'id' | 'created_at' | 'updated_at' | 'last_connected_at' | 'connection_count'>, credentials: any) {
+  async createConnection(connection: Omit<Connection, 'last_connected_at'>, credentials: any) {
     const response = await commandClient.createConnection({ connection, credentials });
     if (response.success) {
       await this.loadConnections(); // Refresh list
