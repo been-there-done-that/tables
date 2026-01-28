@@ -7,7 +7,13 @@ import type { ConnectionInfo, Connection } from "$lib/commands/types";
 type ConnectionConfig = PostgresConfig | SqliteConfig | Record<string, any>;
 
 // Extended config with name field
-type NamedConfig = ConnectionConfig & { name: string };
+type NamedConfig = ConnectionConfig & { name: string; id?: string };
+
+type FormStatus = {
+  type: 'idle' | 'testing' | 'success' | 'error';
+  message: string;
+  details?: string;
+};
 
 // Get default config for a driver
 function getDefaultConfig(driver: Driver): NamedConfig {
@@ -31,12 +37,14 @@ class ConnectionFormStore {
   driver = $state<Driver | null>(null);
   fields = $state<NamedConfig>({ version: 1, name: "" } as NamedConfig);
   testResult = $state<ConnectionInfo | null>(null);
+  status = $state<FormStatus>({ type: 'idle', message: '' });
 
   get state() {
     return {
       driver: this.driver,
       fields: this.fields,
       testResult: this.testResult,
+      status: this.status,
     };
   }
 
@@ -48,6 +56,7 @@ class ConnectionFormStore {
 
     this.driver = driver;
     this.testResult = null; // Clear test result when driver changes
+    this.status = { type: 'idle', message: '' }; // Clear status
     if (driver) {
       this.fields = getDefaultConfig(driver);
     } else {
@@ -73,17 +82,53 @@ class ConnectionFormStore {
 
     current[keys[keys.length - 1]] = value;
     this.fields = newFields;
+
+    // Reset status if it was success or error
+    if (this.status.type === 'success' || this.status.type === 'error') {
+      this.status = { type: 'idle', message: '' };
+    }
   }
 
   setFromConnection(connection: Connection) {
-    if (!connection.config_json) return;
     try {
-      const config = JSON.parse(connection.config_json);
-      this.fields = { ...config, id: connection.id, name: connection.name };
-      this.driver = drivers.find(d => d.id === connection.engine) || null;
-      this.testResult = null;
+      let config: any = null;
+
+      // Prioritize config_json as it contains the full nested structure
+      if (connection.config_json) {
+        try {
+          config = JSON.parse(connection.config_json);
+        } catch (e) {
+          console.warn("Failed to parse config_json, falling back to connection_params", e);
+        }
+      }
+
+      // Fallback to connection_params if config_json failed or is missing
+      if (!config && connection.connection_params) {
+        config = connection.connection_params;
+      }
+
+      if (config) {
+        // Ensure we preserve the ID and Name from the connection record
+        this.fields = {
+          ...config,
+          id: connection.id,
+          name: connection.name
+        };
+        this.driver = drivers.find(d => d.id === connection.engine) || null;
+        this.testResult = null;
+        this.status = { type: 'idle', message: '' };
+
+        console.debug("[ConnectionFormStore] Loaded connection:", {
+          id: this.fields.id,
+          name: this.fields.name,
+          driver: this.driver?.id,
+          fieldsStructure: Object.keys(this.fields)
+        });
+      } else {
+        console.error("No valid configuration found in connection record", connection);
+      }
     } catch (e) {
-      console.error("Failed to parse connection config", e);
+      console.error("Critical error in setFromConnection", e);
     }
   }
 
@@ -91,6 +136,11 @@ class ConnectionFormStore {
     this.driver = null;
     this.fields = { version: 1, name: "" } as NamedConfig;
     this.testResult = null;
+    this.status = { type: 'idle', message: '' };
+  }
+
+  setStatus(status: FormStatus) {
+    this.status = status;
   }
 
   setTestResult(result: ConnectionInfo | null) {

@@ -56,11 +56,14 @@ export interface Connection {
   database?: string;
   username?: string;
   auth_type: string;
+  uses_ssh: boolean;
+  uses_tls: boolean;
   ssl_enabled: boolean;
   ssh_tunnel_enabled: boolean;
   ssh_tunnel_host?: string;
   ssh_tunnel_port?: number;
   ssh_tunnel_username?: string;
+  config_json: string;
   connection_params: Record<string, any>;
   is_favorite: boolean;
   color_tag?: string;
@@ -92,7 +95,7 @@ export interface ConnectionInfo {
 }
 
 export interface CreateConnectionRequest {
-  connection: Omit<Connection, 'id' | 'created_at' | 'updated_at' | 'last_connected_at' | 'connection_count'>;
+  connection: Omit<Connection, 'last_connected_at'>;
   credentials: SecureCredentials;
 }
 

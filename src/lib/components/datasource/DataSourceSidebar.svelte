@@ -1,7 +1,7 @@
 <script lang="ts">
     import { drivers, resolveDriverIcon } from "./DriverList";
     import { IconPlus, IconDatabase, IconSearch } from "@tabler/icons-svelte";
-    import { connectionStore } from "$lib/commands/stores.svelte.ts";
+    import { connectionStore } from "$lib/commands/stores.svelte";
     import type { Connection } from "$lib/commands/types";
 
     interface Props {
