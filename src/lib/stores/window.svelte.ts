@@ -5,7 +5,7 @@ import { listConnections } from "$lib/commands/client";
 import type { Connection } from "$lib/commands/types";
 import { schemaStore } from "./schema.svelte";
 import { settingsStore } from "./settings.svelte";
-import { themeStore } from "$lib/commands/stores.svelte";
+import { themeStore, connectionStore } from "$lib/commands/stores.svelte";
 import { Session } from "./session.svelte";
 import { persistenceStore, type PersistedState } from "./persistence.svelte";
 import { toast } from "svelte-sonner";
@@ -476,6 +476,34 @@ class WindowStateStore {
 
             this.unlistenFunctions.push(settingsStore.init(this.label));
             this.unlistenFunctions.push(themeStore.init());
+
+            const unlistenOpenConnection = await listen<{ connectionId: string }>(
+                "open-connection",
+                async (event) => {
+                    const { connectionId } = event.payload;
+                    console.log(
+                        `[WindowStateStore] open-connection event received: ${connectionId}`,
+                    );
+                    if (this.label === "main") {
+                        let conn = connectionStore.connections.find(
+                            (c: Connection) => c.id === connectionId,
+                        );
+
+                        if (!conn) {
+                            await connectionStore.loadConnections();
+                            conn = connectionStore.connections.find(
+                                (c: Connection) => c.id === connectionId,
+                            );
+                        }
+
+                        if (conn) {
+                            this.startSession(conn);
+                            getCurrentWindow().setFocus();
+                        }
+                    }
+                },
+            );
+            this.unlistenFunctions.push(unlistenOpenConnection);
 
             await settingsStore.waitForInit();
             this.initialized = true;

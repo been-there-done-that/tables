@@ -315,7 +315,7 @@
                     onclick={openNewConnection}
                 >
                     <IconPlus class="size-3.5 opacity-60" />
-                    New Connection
+                    New / Edit Connection
                 </Menu.Item>
 
                 {#if schemaStore.activeConnection}

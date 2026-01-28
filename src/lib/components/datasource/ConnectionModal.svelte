@@ -19,7 +19,7 @@
         onClose={() => (open = false)}
     >
         <div class="h-full w-full">
-            <DataSource />
+            <DataSource onConnectSuccess={() => (open = false)} />
         </div>
     </DraggableWindow>
 {/if}

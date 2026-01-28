@@ -7,6 +7,7 @@
   import { onDestroy, onMount } from "svelte";
   import type { Connection } from "$lib/commands/types";
 
+  let { onConnectSuccess } = $props<{ onConnectSuccess?: () => void }>();
   let viewMode = $state<"list" | "add" | "edit">("list");
   let selectedConnection = $state<Connection | null>(null);
 
@@ -82,6 +83,7 @@
           onCancel={handleCancel}
           onSave={handleSave}
           onSaveSuccess={handleSaveSuccess}
+          {onConnectSuccess}
         />
       {:else}
         <!-- Home / Driver Selection Grid -->

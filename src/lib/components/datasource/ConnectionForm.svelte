@@ -12,6 +12,8 @@
     import { connectionStore } from "$lib/commands/stores.svelte";
     import { windowState } from "$lib/stores/window.svelte";
     import { testConnectionParams } from "$lib/commands/client";
+    import { emit } from "@tauri-apps/api/event";
+    import { getCurrentWindow } from "@tauri-apps/api/window";
     import {
         IconCheck,
         IconAlertCircle,
@@ -26,6 +28,7 @@
         onCancel: () => void;
         onSave: (id: string) => void;
         onSaveSuccess: () => void;
+        onConnectSuccess?: () => void;
     }
 
     let {
@@ -34,6 +37,7 @@
         onCancel,
         onSave,
         onSaveSuccess,
+        onConnectSuccess,
     }: Props = $props();
 
     const formState = $derived(connectionForm.state);
@@ -181,9 +185,16 @@
         const id = formState.fields.id;
         if (!id) return;
 
-        const conn = connectionStore.connections.find((c) => c.id === id);
-        if (conn) {
-            windowState.startSession(conn);
+        await emit("open-connection", { connectionId: id });
+
+        if (onConnectSuccess) {
+            onConnectSuccess();
+        }
+
+        // If we're in the dedicated datasource window, close it
+        const win = getCurrentWindow();
+        if (win.label === "datasource-window") {
+            await win.close();
         }
     }
 
