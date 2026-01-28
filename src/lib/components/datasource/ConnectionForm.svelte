@@ -10,6 +10,7 @@
     import Button from "$lib/components/Button.svelte";
     import { connectionForm } from "$lib/components/datasource/connectionStore.svelte";
     import { connectionStore } from "$lib/commands/stores.svelte";
+    import { windowState } from "$lib/stores/window.svelte";
     import { testConnectionParams } from "$lib/commands/client";
     import {
         IconCheck,
@@ -23,10 +24,17 @@
         driver: Driver | null;
         isEdit?: boolean;
         onCancel: () => void;
+        onSave: (id: string) => void;
         onSaveSuccess: () => void;
     }
 
-    let { driver, isEdit = false, onCancel, onSaveSuccess }: Props = $props();
+    let {
+        driver,
+        isEdit = false,
+        onCancel,
+        onSave,
+        onSaveSuccess,
+    }: Props = $props();
 
     const formState = $derived(connectionForm.state);
     let isTesting = $state(false);
@@ -38,6 +46,14 @@
         formState.fields.id;
         isConfirmingDelete = false;
     });
+
+    const isSessionActive = $derived(
+        formState.fields.id
+            ? !!windowState.sessions.find(
+                  (s) => s.connectionId === formState.fields.id,
+              )
+            : false,
+    );
 
     function handleChange(path: string, value: any) {
         connectionForm.updateField(path, value);
@@ -135,13 +151,22 @@
                     connectionData,
                     credentials,
                 );
+                onSave(fields.id);
             } else {
-                await connectionStore.createConnection(
+                const response = await connectionStore.createConnection(
                     connectionData,
                     credentials,
                 );
+                if (response?.success && response.data) {
+                    // Update form to edit mode with new ID
+                    connectionForm.updateField("id", response.data);
+                    onSave(response.data);
+                }
             }
-            onSaveSuccess();
+            connectionForm.setStatus({
+                type: "success",
+                message: "Connection saved successfully",
+            });
         } catch (e: any) {
             connectionForm.setStatus({
                 type: "error",
@@ -149,6 +174,16 @@
             });
         } finally {
             isSaving = false;
+        }
+    }
+
+    async function handleOpenConnection() {
+        const id = formState.fields.id;
+        if (!id) return;
+
+        const conn = connectionStore.connections.find((c) => c.id === id);
+        if (conn) {
+            windowState.startSession(conn);
         }
     }
 
@@ -162,7 +197,17 @@
         }
 
         try {
-            await connectionStore.deleteConnection(formState.fields.id);
+            const id = formState.fields.id;
+
+            // Close session if active
+            const session = windowState.sessions.find(
+                (s) => s.connectionId === id,
+            );
+            if (session) {
+                windowState.closeSession(session.id);
+            }
+
+            await connectionStore.deleteConnection(id);
             onSaveSuccess();
         } catch (e: any) {
             connectionForm.setStatus({
@@ -317,6 +362,13 @@
                 </div>
 
                 <div class="flex items-center gap-3">
+                    {#if formState.fields.id}
+                        <Button variant="subtle" onClick={handleOpenConnection}>
+                            {isSessionActive
+                                ? "Focus Connection"
+                                : "Open Connection"}
+                        </Button>
+                    {/if}
                     <Button variant="ghost" onClick={onCancel}>Cancel</Button>
                     <Button
                         onClick={handleSave}

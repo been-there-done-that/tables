@@ -152,6 +152,7 @@ class ConnectionStore {
     const response = await commandClient.createConnection({ connection, credentials });
     if (response.success) {
       await this.loadConnections(); // Refresh list
+      return response;
     } else {
       this.error = response.error || 'Failed to create connection';
       throw new Error(this.error);
@@ -162,6 +163,7 @@ class ConnectionStore {
     const response = await commandClient.updateConnection({ id, connection: updates, credentials });
     if (response.success) {
       await this.loadConnections(); // Refresh list
+      return response;
     } else {
       this.error = response.error || 'Failed to update connection';
       throw new Error(this.error);
