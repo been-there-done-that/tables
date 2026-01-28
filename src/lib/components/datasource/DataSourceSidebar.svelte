@@ -24,12 +24,21 @@
 <div class="flex flex-col h-full bg-background">
     <!-- Header/Actions -->
     <div class="p-4 space-y-4 border-b border-border">
-        <div class="flex items-center justify-between">
-            <h2
-                class="text-sm font-semibold text-muted-foreground uppercase tracking-wider"
-            >
-                Connections
-            </h2>
+        <div class="flex items-center justify-between gap-2">
+            <!-- Search -->
+            <div class="relative group">
+                <IconSearch
+                    size={14}
+                    class="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-accent transition-colors"
+                />
+                <input
+                    type="text"
+                    bind:value={searchQuery}
+                    placeholder="Search connections..."
+                    class="w-full bg-accent/5 border border-border rounded-md pl-9 pr-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-accent/30 focus:border-accent/40"
+                />
+            </div>
+
             <button
                 class="p-1.5 bg-accent/10 hover:bg-accent/20 text-accent rounded-md transition-colors cursor-pointer"
                 title="Add New Connection"
@@ -37,20 +46,6 @@
             >
                 <IconPlus size={16} />
             </button>
-        </div>
-
-        <!-- Search -->
-        <div class="relative group">
-            <IconSearch
-                size={14}
-                class="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-accent transition-colors"
-            />
-            <input
-                type="text"
-                bind:value={searchQuery}
-                placeholder="Search connections..."
-                class="w-full bg-accent/5 border border-border rounded-md pl-9 pr-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-accent/30 focus:border-accent/40"
-            />
         </div>
     </div>
 
@@ -122,10 +117,12 @@
         <div
             class="flex items-center justify-between text-[10px] text-muted-foreground opacity-60"
         >
-            <span
-                >{connectionStore.state.connections.length} Total Connections</span
-            >
-            <span>v1.2.0</span>
+            <span>
+                Total Connections:
+                <span class="ml-1 text-2xl font-semibold">
+                    {connectionStore.state.connections.length}
+                </span>
+            </span>
         </div>
     </div>
 </div>
