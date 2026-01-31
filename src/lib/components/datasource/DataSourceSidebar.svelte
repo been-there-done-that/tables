@@ -23,7 +23,7 @@
 
 <div class="flex flex-col h-full bg-background">
     <!-- Header/Actions -->
-    <div class="p-4 space-y-4 border-b border-border">
+    <div class="p-4 border-b border-border">
         <div class="flex items-center justify-between gap-2">
             <!-- Search -->
             <div class="relative group">
