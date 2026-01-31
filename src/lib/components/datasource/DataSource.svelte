@@ -66,7 +66,7 @@
 <div class="flex flex-col w-full h-full bg-background overflow-hidden">
   <div class="flex grow w-full overflow-hidden">
     <!-- Sidebar -->
-    <div class="max-w-60 w-full shrink-0 h-full border-r border-border">
+    <div class="max-w-1/4 w-full shrink-0 h-full border-r border-border">
       <DataSourceSidebar
         onSelectConnection={handleSelectConnection}
         onAddNew={handleAddNew}
