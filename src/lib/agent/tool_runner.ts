@@ -1,3 +1,7 @@
+import { invoke } from "@tauri-apps/api/core";
+import { schemaStore } from "$lib/stores/schema.svelte";
+import type { ToolCall } from "./tools";
+
 export interface ToolDefinition {
     type: "function";
     function: {
@@ -9,6 +13,126 @@ export interface ToolDefinition {
 
 export class ToolRunner {
     tools: Map<string, any> = new Map();
+
+    /**
+     * Execute a tool call from the LLM and report status to agentStore
+     */
+    async execute(toolCall: ToolCall): Promise<string> {
+        // Dynamic import to avoid circular dependency
+        const { agentStore } = await import("./agent.svelte");
+
+        const toolId = toolCall.id;
+        const toolName = toolCall.function.name;
+
+        agentStore.startToolExecution(toolId, toolName);
+
+        try {
+            let result: string;
+            const args = JSON.parse(toolCall.function.arguments || "{}");
+
+            switch (toolName) {
+                case "get_table_schema":
+                    result = await this.getTableSchema(args);
+                    break;
+                case "list_tables":
+                    result = await this.listTables(args);
+                    break;
+                default:
+                    throw new Error(`Unknown tool: ${toolName}`);
+            }
+
+            agentStore.completeToolExecution(toolId, result);
+            return result;
+        } catch (e) {
+            const error = String(e);
+            agentStore.failToolExecution(toolId, error);
+            return `Error: ${error}`;
+        }
+    }
+
+    /**
+     * Get schema information for a specific table
+     */
+    private async getTableSchema(args: { table_name: string; schema_name?: string }): Promise<string> {
+        const conn = schemaStore.activeConnection;
+        if (!conn) {
+            return "No active database connection";
+        }
+
+        try {
+            // Try to get columns for the specified table
+            const columns = await invoke("get_columns_for_table", {
+                connectionId: conn.id,
+                tableName: args.table_name,
+                schemaName: args.schema_name || "public"
+            });
+
+            return JSON.stringify(columns, null, 2);
+        } catch (e) {
+            // Fallback: search in cached schema
+            const databases = schemaStore.databases;
+            for (const db of databases) {
+                for (const schema of db.schemas) {
+                    const table = schema.tables.find(t => t.table_name === args.table_name);
+                    if (table) {
+                        return JSON.stringify({
+                            table_name: table.table_name,
+                            schema: schema.name,
+                            columns: table.columns?.map(c => ({
+                                name: c.column_name,
+                                type: c.raw_type,
+                                nullable: c.nullable,
+                                default: c.default_value
+                            })) || []
+                        }, null, 2);
+                    }
+                }
+            }
+            return `Table '${args.table_name}' not found in cached schema`;
+        }
+    }
+
+    /**
+     * List all tables in the current database
+     */
+    private async listTables(args: { schema_name?: string }): Promise<string> {
+        const conn = schemaStore.activeConnection;
+        if (!conn) {
+            return "No active database connection";
+        }
+
+        const databases = schemaStore.databases;
+        if (databases.length === 0) {
+            return "No databases found in cache. Try refreshing the schema.";
+        }
+
+        const tables: { schema: string; table: string; type: string }[] = [];
+
+        for (const db of databases) {
+            for (const schema of db.schemas) {
+                // Filter by schema if specified
+                if (args.schema_name && schema.name !== args.schema_name) {
+                    continue;
+                }
+
+                for (const table of schema.tables) {
+                    tables.push({
+                        schema: schema.name,
+                        table: table.table_name,
+                        type: table.table_type || "table"
+                    });
+                }
+            }
+        }
+
+        if (tables.length === 0) {
+            return args.schema_name
+                ? `No tables found in schema '${args.schema_name}'`
+                : "No tables found";
+        }
+
+        return JSON.stringify(tables, null, 2);
+    }
 
     /**
      * Converts an OpenAPI spec (subset) to OpenAI function definitions.
@@ -39,7 +163,6 @@ export class ToolRunner {
     }
 
     private deriveParameters(operation: any) {
-        // Simple parameter derivation from OpenAPI operation
         const properties: any = {};
         const required: string[] = [];
 
@@ -69,24 +192,6 @@ export class ToolRunner {
             type: "object",
             properties,
             required: required.length > 0 ? required : undefined
-        };
-    }
-
-    async execute(toolCall: any): Promise<any> {
-        const { name, arguments: argsJson } = toolCall.function;
-        const tool = this.tools.get(name);
-        if (!tool) throw new Error(`Unknown tool: ${name}`);
-
-        const args = JSON.parse(argsJson);
-        console.log(`Executing tool ${name} with args:`, args);
-
-        // Here we would perform the actual network call.
-        // For now, this is a placeholder for the logic that maps tool calls to API requests.
-        // In a real implementation, this would involve fetching from the proxy or direct calls.
-
-        return {
-            status: "success",
-            data: `Placeholder response for ${name}`
         };
     }
 }
