@@ -1,7 +1,13 @@
 <script lang="ts">
     import { drivers, resolveDriverIcon } from "./DriverList";
-    import { IconPlus, IconDatabase, IconSearch } from "@tabler/icons-svelte";
+    import {
+        IconPlus,
+        IconDatabase,
+        IconSearch,
+        IconRobot,
+    } from "@tabler/icons-svelte";
     import { connectionStore } from "$lib/commands/stores.svelte";
+    import { windowState } from "$lib/stores/window.svelte";
     import type { Connection } from "$lib/commands/types";
 
     interface Props {
@@ -39,13 +45,27 @@
                 />
             </div>
 
-            <button
-                class="p-1.5 bg-accent/10 hover:bg-accent/20 text-accent rounded-md transition-colors cursor-pointer"
-                title="Add New Connection"
-                onclick={onAddNew}
-            >
-                <IconPlus size={16} />
-            </button>
+            <div class="flex items-center gap-1">
+                <button
+                    class="p-1.5 {windowState.agentConsoleOpen
+                        ? 'bg-yellow-400 text-black'
+                        : 'bg-accent/10 text-accent'} hover:bg-yellow-500 rounded-md transition-colors cursor-pointer"
+                    title="Open AI Agent (⌘⇧A)"
+                    onclick={() =>
+                        (windowState.agentConsoleOpen =
+                            !windowState.agentConsoleOpen)}
+                >
+                    <IconRobot size={16} />
+                </button>
+
+                <button
+                    class="p-1.5 bg-accent/10 hover:bg-accent/20 text-accent rounded-md transition-colors cursor-pointer"
+                    title="Add New Connection"
+                    onclick={onAddNew}
+                >
+                    <IconPlus size={16} />
+                </button>
+            </div>
         </div>
     </div>
 
