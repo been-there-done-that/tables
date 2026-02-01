@@ -1,6 +1,6 @@
 <script lang="ts">
     import { agentStore } from "$lib/agent/agent.svelte";
-    import { onMount } from "svelte";
+    import { onMount, tick } from "svelte";
     import { Send, Bot, Loader2 } from "lucide-svelte";
     import { slide } from "svelte/transition";
     import { settingsStore } from "$lib/stores/settings.svelte";
@@ -21,12 +21,20 @@
             selectedModel,
             settingsStore.aiAgentUrl,
         );
+        await tick();
+        scrollToBottom();
     }
 
     $effect(() => {
-        if (agentStore.messages.length || agentStore.streamingContent) {
+        // Track dependencies specifically
+        const _len = agentStore.messages.length;
+        const _stream = agentStore.streamingContent;
+        const _isStreaming = agentStore.isStreaming;
+
+        // Use tick to ensure DOM is updated before scrolling
+        tick().then(() => {
             scrollToBottom();
-        }
+        });
     });
 
     // Update selectedModel if it changes in settings
@@ -99,27 +107,46 @@
                 </div>
             {/each}
 
-            {#if agentStore.isStreaming && agentStore.streamingContent}
-                <div class="flex flex-col items-start" transition:slide>
+            {#if agentStore.isStreaming}
+                <div class="flex flex-col items-start">
                     <div class="flex items-center gap-2 mb-1 opacity-50">
                         <span
                             class="text-[9px] font-bold uppercase tracking-tighter"
                             >{settingsStore.aiAgentName}</span
                         >
-                        <span class="animate-pulse">...</span>
                     </div>
                     <div
-                        class="max-w-[90%] rounded-lg px-3 py-2 text-sm bg-muted/50 text-foreground border border-border whitespace-pre-wrap"
+                        class="max-w-[90%] rounded-lg px-3 py-2 text-sm bg-muted/50 text-foreground border border-border whitespace-pre-wrap min-h-[38px] flex items-center"
                     >
-                        {agentStore.streamingContent}
+                        {#if agentStore.streamingContent}
+                            <span
+                                >{agentStore.streamingContent}<span
+                                    class="inline-block w-1.5 h-3.5 ml-0.5 align-middle bg-current animate-pulse"
+                                ></span></span
+                            >
+                        {:else}
+                            <div class="flex space-x-1 opacity-50">
+                                <div
+                                    class="w-1.5 h-1.5 bg-current rounded-full animate-bounce [animation-delay:-0.3s]"
+                                ></div>
+                                <div
+                                    class="w-1.5 h-1.5 bg-current rounded-full animate-bounce [animation-delay:-0.15s]"
+                                ></div>
+                                <div
+                                    class="w-1.5 h-1.5 bg-current rounded-full animate-bounce"
+                                ></div>
+                            </div>
+                        {/if}
                     </div>
                 </div>
             {/if}
         </div>
 
         <!-- Input Area -->
-        <div class="p-4 border-t border-border bg-muted/5">
-            <div class="relative flex items-end gap-2">
+        <div class="px-4 pb-4 bg-background">
+            <div
+                class="relative flex items-end border border-border rounded-xl bg-background focus-within:ring-1 focus-within:ring-primary/30 transition-shadow"
+            >
                 <textarea
                     bind:value={inputMessage}
                     onkeydown={(e) =>
@@ -127,20 +154,21 @@
                         !e.shiftKey &&
                         (e.preventDefault(), handleSend())}
                     placeholder="Ask anything..."
-                    class="flex-1 min-h-[40px] max-h-32 resize-none bg-background border border-border rounded-xl p-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary/30 transition-shadow"
+                    class="flex-1 min-h-[40px] max-h-32 resize-none bg-transparent border-none p-3 pr-10 text-sm focus:outline-none focus:ring-0"
                     rows="1"
+                    style="field-sizing: content;"
                 ></textarea>
-                <button
-                    onclick={handleSend}
-                    disabled={agentStore.isStreaming || !inputMessage.trim()}
-                    class="size-10 shrink-0 flex items-center justify-center bg-primary text-primary-foreground rounded-xl hover:opacity-90 disabled:opacity-30 disabled:grayscale transition-all shadow-sm"
-                >
-                    {#if agentStore.isStreaming}
-                        <Loader2 class="animate-spin" size={18} />
-                    {:else}
-                        <Send size={18} />
-                    {/if}
-                </button>
+                <div class="absolute right-2 bottom-2">
+                    <button
+                        onclick={handleSend}
+                        disabled={agentStore.isStreaming ||
+                            !inputMessage.trim()}
+                        class="size-7 flex items-center justify-center bg-primary text-primary-foreground rounded-lg hover:opacity-90 disabled:opacity-0 transition-all shadow-sm"
+                        title="Send message"
+                    >
+                        <Send size={14} />
+                    </button>
+                </div>
             </div>
         </div>
     </div>
