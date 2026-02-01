@@ -25,6 +25,7 @@ export interface Settings {
     aiAgentApiKey: string;
     aiAgentBasePath: string;
     aiAgentModel: string;
+    aiAgentAvailableModels: string[];
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -44,10 +45,11 @@ const DEFAULT_SETTINGS: Settings = {
     editorShowAllRunButtons: false,
     // AI defaults
     aiAgentName: "Assistant",
-    aiAgentUrl: "https://api.openai.com/v1",
+    aiAgentUrl: "http://127.0.0.1:1234/v1",
     aiAgentApiKey: "",
     aiAgentBasePath: "",
-    aiAgentModel: "gpt-4o",
+    aiAgentModel: "",
+    aiAgentAvailableModels: [],
 };
 
 function createSettingsStore() {
@@ -224,6 +226,11 @@ function createSettingsStore() {
             settings.aiAgentModel = v;
             commandClient.updateAppSetting("ai_agent_model", v);
         },
+        get aiAgentAvailableModels() { return settings.aiAgentAvailableModels; },
+        set aiAgentAvailableModels(v: string[]) {
+            settings.aiAgentAvailableModels = v;
+            commandClient.updateAppSetting("ai_agent_available_models", v.join(","));
+        },
 
         // Utility
         get initialized() {
@@ -318,6 +325,9 @@ function createSettingsStore() {
                         return;
                     case "ai_agent_model":
                         settings.aiAgentModel = value;
+                        return;
+                    case "ai_agent_available_models":
+                        settings.aiAgentAvailableModels = value ? value.split(",") : [];
                         return;
                 }
 

@@ -292,6 +292,7 @@ macro_rules! aggregate_plugin_commands {
             add_agent_message,
             get_agent_messages,
             delete_agent_session,
+            fetch_models,
 
             // LLM Proxy commands
             llm_stream
