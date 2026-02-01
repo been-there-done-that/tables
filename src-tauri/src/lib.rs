@@ -13,6 +13,7 @@ mod introspection;
 mod db_test;
 mod completion;
 mod settings;
+mod agent_manager;
 #[cfg(test)]
 mod backend_tests;
 pub mod constants;
@@ -35,22 +36,9 @@ use serde::Serialize;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 use log::{info, debug, warn, error, trace};
-use commands::theme_commands::*;
-use commands::connection_commands::*;
-use commands::aws_commands::*;
-use commands::redis_commands::*;
-use commands::athena_commands::*;
-use commands::window_commands::*;
-use commands::introspection_commands::*;
-use commands::test_commands::*;
-use commands::completion_commands::*;
-use commands::unified_introspection::*;
-use commands::font_commands::*;
-use commands::settings_commands::*;
-use commands::debug_commands::*;
-use commands::query_commands::*;
-use commands::query_commands::{QueryExecutionState, QuerySessionManager};
-use commands::editor_commands::*;
+use crate::agent_manager::AgentManager;
+use crate::commands::agent_commands::AgentManagerState;
+use crate::commands::*;
 use plugins::{PluginDiscovery, get_available_plugins, enable_plugin, disable_plugin, get_plugin_info, initialize_all_plugins};
 use credential_manager::CredentialManager;
 use metrics::{MetricsRegistry, SystemMonitor, start_metrics_emitter};
@@ -207,6 +195,10 @@ pub fn run() {
                 active_connections: Arc::new(Mutex::new(HashMap::new())),
                 adapters: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
             });
+
+            debug!("Initializing agent manager");
+            let agent_manager = Arc::new(AgentManager::new(app.state::<DatabaseState>().conn.clone()));
+            app.manage(AgentManagerState(agent_manager));
 
             debug!("Initializing adapter registry");
             adapter_registry::init_builtins();

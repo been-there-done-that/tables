@@ -149,11 +149,18 @@ const COMMANDS: CommandConfig[] = [
 
             // 3. Last fallback: any focusable in main area (editors, table container)
             const focusable = mainContent.querySelector('[tabindex="0"], .monaco-editor, [data-row-index]') as HTMLElement;
-            console.log("[Shortcut] Falling back to general focusable:", focusable);
             if (focusable) {
                 focusable.focus();
                 toast.info("Focused Main Content");
             }
+        }
+    },
+    {
+        id: "workbench.action.toggleAgent",
+        label: "Toggle AI Agent",
+        defaultKeybinding: { mac: "Meta+Shift+a", win: "Control+Shift+a" },
+        execute: (s) => {
+            s.agentConsoleOpen = !s.agentConsoleOpen;
         }
     }
 ];
@@ -163,6 +170,7 @@ class WindowStateStore {
     settingsWindowOpen = $state(false);
     datasourceWindowOpen = $state(false);
     initialized = $state(false);
+    agentConsoleOpen = $state(false);
 
     get layout() {
         const self = this;
