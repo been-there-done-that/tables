@@ -1,7 +1,6 @@
 use crate::agent_manager::{AgentManager, AgentSession, AgentMessage};
-use crate::DatabaseState;
 use tauri::State;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 pub struct AgentManagerState(pub Arc<AgentManager>);
 
@@ -42,6 +41,15 @@ pub async fn delete_agent_session(
     state: State<'_, AgentManagerState>,
 ) -> Result<(), String> {
     state.0.delete_session(&id)
+}
+
+#[tauri::command]
+pub async fn update_agent_session(
+    id: String,
+    title: String,
+    state: State<'_, AgentManagerState>,
+) -> Result<AgentSession, String> {
+    state.0.update_session(&id, title)
 }
 
 #[derive(serde::Deserialize)]

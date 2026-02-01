@@ -10,7 +10,6 @@ pub mod scope;
 pub mod builder;
 pub mod ambiguity;
 
-pub use scope::{SemanticModel, Scope, Symbol, SymbolKind, ScopeType};
+pub use scope::{SemanticModel, SymbolKind};
 pub use builder::build_semantic_model;
-pub use ambiguity::{ColumnResolution, AmbiguityState, check_column_ambiguity};
 

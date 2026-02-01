@@ -1,5 +1,5 @@
 use crate::aws_profile_manager::{AwsProfileManager, AwsProfile};
-use log::{info, debug, warn, error, trace};
+use log::{debug, warn, trace};
 
 /// Get all available AWS profiles from system
 /// 

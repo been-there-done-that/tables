@@ -5,7 +5,6 @@
 
 use std::collections::HashSet;
 
-use crate::adapter::DatabaseCapabilities;
 use crate::completion::analysis::{SemanticModel, SymbolKind};
 use crate::completion::context::{Context, CursorContext};
 use crate::completion::schema::SchemaGraph;
