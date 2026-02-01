@@ -5,6 +5,7 @@
     import { slide } from "svelte/transition";
     import { settingsStore } from "$lib/stores/settings.svelte";
     import { cn } from "$lib/utils";
+    import ToolExecutionIndicator from "./ToolExecutionIndicator.svelte";
 
     let inputMessage = $state("");
     let chatContainer = $state<HTMLElement | null>(null);
@@ -109,6 +110,19 @@
 
             {#if agentStore.isStreaming}
                 <div class="flex flex-col items-start">
+                    <!-- Tool execution indicators -->
+                    {#if agentStore.executingTools.size > 0}
+                        <div class="flex flex-wrap gap-1 mb-2">
+                            {#each [...agentStore.executingTools.entries()] as [id, tool]}
+                                <ToolExecutionIndicator
+                                    toolName={tool.name}
+                                    status={tool.status}
+                                    result={tool.result}
+                                    error={tool.error}
+                                />
+                            {/each}
+                        </div>
+                    {/if}
                     <div class="flex items-center gap-2 mb-1 opacity-50">
                         <span
                             class="text-[9px] font-bold uppercase tracking-tighter"

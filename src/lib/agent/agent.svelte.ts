@@ -1,5 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { DATABASE_TOOLS, type ToolExecutionStatus, type ToolCall } from "./tools";
+import { schemaStore } from "$lib/stores/schema.svelte";
 
 export interface Message {
     id: string;
@@ -25,6 +27,7 @@ export class AgentStore {
     isStreaming = $state(false);
     streamingContent = $state("");
     streamingToolCalls = $state<any[]>([]);
+    executingTools = $state<Map<string, ToolExecutionStatus>>(new Map());
 
     constructor() {
         this.loadSessions();
@@ -60,6 +63,69 @@ export class AgentStore {
         } catch (e) {
             console.error("Failed to create session", e);
         }
+    }
+
+    // Tool execution tracking
+    startToolExecution(toolCallId: string, toolName: string) {
+        this.executingTools.set(toolCallId, { name: toolName, status: "pending" });
+        this.executingTools = new Map(this.executingTools);
+    }
+
+    completeToolExecution(toolCallId: string, result: string) {
+        const tool = this.executingTools.get(toolCallId);
+        if (tool) {
+            tool.status = "success";
+            tool.result = result;
+            this.executingTools = new Map(this.executingTools);
+        }
+    }
+
+    failToolExecution(toolCallId: string, error: string) {
+        const tool = this.executingTools.get(toolCallId);
+        if (tool) {
+            tool.status = "error";
+            tool.error = error;
+            this.executingTools = new Map(this.executingTools);
+        }
+    }
+
+    clearExecutingTools() {
+        this.executingTools = new Map();
+    }
+
+    // Build prompt with system context
+    private buildPrompt(): { role: string; content: string }[] {
+        const systemContent = `You are a helpful Database Assistant.
+Your role is to help users write and understand SQL queries.
+IMPORTANT: You can SUGGEST queries but CANNOT execute them directly.
+Format SQL suggestions in markdown code blocks with the language specified.
+
+You have access to these tools:
+- get_table_schema: Get column information for a specific table
+- list_tables: List all tables in the current database
+
+Use tools when you need actual schema information. Otherwise, provide helpful general guidance.`;
+
+        let contextContent = "";
+        const conn = schemaStore.activeConnection;
+        const db = schemaStore.selectedDatabase;
+
+        if (conn) {
+            contextContent += `\n<connection name="${conn.name}" engine="${conn.engine}" />`;
+        }
+        if (db) {
+            contextContent += `\n<database>${db}</database>`;
+        }
+
+        const systemMessage = {
+            role: "system",
+            content: systemContent + (contextContent ? `\n\n<context>${contextContent}\n</context>` : "")
+        };
+
+        return [
+            systemMessage,
+            ...this.messages.map(m => ({ role: m.role, content: m.content || "" }))
+        ];
     }
 
     async renameSession(id: string, title: string) {
@@ -144,6 +210,8 @@ export class AgentStore {
         this.isStreaming = true;
         this.streamingContent = "";
 
+        this.clearExecutingTools();
+
         try {
             await invoke("llm_stream", {
                 sessionId: this.currentSession!.id,
@@ -152,10 +220,8 @@ export class AgentStore {
                     api_key: apiKey,
                     api_url: apiUrl,
                     model,
-                    messages: this.messages.map(m => ({
-                        role: m.role,
-                        content: m.content
-                    })),
+                    messages: this.buildPrompt(),
+                    tools: DATABASE_TOOLS,
                     persist: true
                 }
             });
@@ -191,6 +257,30 @@ export class AgentStore {
                     }
                 } catch (e) {
                     this.streamingContent += chunk;
+                }
+            }
+        });
+
+        // Listen for tool call events
+        listen("llm-tool-call", async (event: any) => {
+            const { session_id, tool_calls } = event.payload;
+            if (this.currentSession?.id !== session_id) return;
+
+            if (tool_calls && Array.isArray(tool_calls)) {
+                const { toolRunner } = await import("./tool_runner");
+                for (const tc of tool_calls) {
+                    // Build full tool call object
+                    const toolCall = {
+                        id: tc.id || crypto.randomUUID(),
+                        type: "function" as const,
+                        function: {
+                            name: tc.function?.name || "",
+                            arguments: tc.function?.arguments || "{}"
+                        }
+                    };
+
+                    // Execute tool (this updates UI state internally)
+                    await toolRunner.execute(toolCall);
                 }
             }
         });
