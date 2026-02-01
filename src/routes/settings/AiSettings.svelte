@@ -18,6 +18,15 @@
     let availableModels = $state([...settingsStore.aiAgentAvailableModels]);
     let isFetching = $state(false);
 
+    // Sync state when store is initialized
+    $effect(() => {
+        if (settingsStore.initialized) {
+            // Use untracked to avoid cyclic dependency if we used deriveds inside reset,
+            // but resetChanges just reads store.
+            resetChanges();
+        }
+    });
+
     async function fetchModels() {
         if (!aiUrl) {
             toast.error("Base URL is required to fetch models");
@@ -46,6 +55,10 @@
     }
 
     async function saveChanges() {
+        console.log(
+            "[AiSettings] Saving changes. Available models:",
+            availableModels,
+        );
         settingsStore.aiAgentName = aiName;
         settingsStore.aiAgentUrl = aiUrl;
         settingsStore.aiAgentApiKey = aiApiKey;
@@ -67,6 +80,10 @@
     }
 
     function resetChanges() {
+        console.log(
+            "[AiSettings] Resetting changes from store. Store models:",
+            settingsStore.aiAgentAvailableModels,
+        );
         aiName = settingsStore.aiAgentName;
         aiUrl = settingsStore.aiAgentUrl;
         aiApiKey = settingsStore.aiAgentApiKey;

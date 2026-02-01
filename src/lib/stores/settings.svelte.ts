@@ -264,19 +264,85 @@ function createSettingsStore() {
 
                     const { windowLayouts, ...globalSettings } = res.data as any;
 
-                    // Merge global settings first
-                    settings = { ...DEFAULT_SETTINGS, ...globalSettings };
+                    // Helper to parse value based on key/default type
+                    const parsedSettings: any = {};
+                    console.log("[Settings] Raw global settings:", globalSettings);
+
+                    // Handle nested aiSettings if present
+                    if (globalSettings.aiSettings) {
+                        console.log("[Settings] Found nested aiSettings:", globalSettings.aiSettings);
+                        const aiMap = globalSettings.aiSettings;
+
+                        // Map backend keys (snake_case) to frontend keys (camelCase)
+                        if (aiMap["ai_agent_name"]) parsedSettings["aiAgentName"] = aiMap["ai_agent_name"];
+                        if (aiMap["ai_agent_url"]) parsedSettings["aiAgentUrl"] = aiMap["ai_agent_url"];
+                        if (aiMap["ai_agent_api_key"]) parsedSettings["aiAgentApiKey"] = aiMap["ai_agent_api_key"];
+                        if (aiMap["ai_agent_base_path"]) parsedSettings["aiAgentBasePath"] = aiMap["ai_agent_base_path"];
+                        if (aiMap["ai_agent_model"]) parsedSettings["aiAgentModel"] = aiMap["ai_agent_model"];
+
+                        if (aiMap["ai_agent_available_models"]) {
+                            parsedSettings["aiAgentAvailableModels"] = (aiMap["ai_agent_available_models"] as string).split(",").filter(Boolean);
+                        } else {
+                            parsedSettings["aiAgentAvailableModels"] = [];
+                        }
+                    }
+
+                    for (const [key, value] of Object.entries(globalSettings)) {
+                        if (value === null || value === undefined) continue;
+                        if (key === "aiSettings") continue; // Skip the nested object in generic loop
+
+                        // Handle Booleans
+                        if (
+                            key.endsWith("Visible") ||
+                            key === "editorShowAllRunButtons" ||
+                            value === "true" ||
+                            value === "false"
+                        ) {
+                            parsedSettings[key] = value === "true";
+                            continue;
+                        }
+
+                        // Handle Numbers
+                        if (
+                            key.endsWith("Ratio") ||
+                            key === "editorFontSize"
+                        ) {
+                            const num = parseFloat(value as string);
+                            if (!isNaN(num)) {
+                                parsedSettings[key] = num;
+                                continue;
+                            }
+                        }
+
+                        // Default to string
+                        parsedSettings[key] = value;
+                    }
+
+                    // Merge global settings
+                    settings = { ...DEFAULT_SETTINGS, ...parsedSettings };
 
                     // Then merge window-specific layout if available
                     if (windowLayouts && windowLayouts[windowLabel]) {
                         console.log(`[Settings] Applying layout for window: ${windowLabel}`, windowLayouts[windowLabel]);
                         const layout = windowLayouts[windowLabel];
+
+                        // Parse layout values too
+                        const parsedLayout: any = {};
+                        for (const [key, value] of Object.entries(layout)) {
+                            if (key === "sidebar_left_visible" || key === "sidebar_right_visible" || key === "sidebar_bottom_visible") {
+                                parsedLayout[key] = value === "true";
+                            } else if (key.endsWith("Ratio")) {
+                                parsedLayout[key] = parseFloat(value as string);
+                            } else {
+                                parsedLayout[key] = value;
+                            }
+                        }
+
                         settings = {
                             ...settings,
-                            ...layout,
-                            // Ensure expandedNodes is merged correctly if needed, 
-                            // though spread usually handles it if names match.
-                            expandedNodes: layout.expandedNodes || {}
+                            ...parsedLayout,
+                            // Ensure expandedNodes is merged correctly
+                            expandedNodes: (layout.expandedNodes as any) || {}
                         };
                     }
 
