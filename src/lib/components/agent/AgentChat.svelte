@@ -8,6 +8,7 @@
 
     let inputMessage = $state("");
     let chatContainer = $state<HTMLElement | null>(null);
+    let selectedModel = $state(settingsStore.aiAgentModel);
 
     async function handleSend() {
         if (!inputMessage.trim() || agentStore.isStreaming) return;
@@ -17,13 +18,20 @@
             msg,
             "openai",
             settingsStore.aiAgentApiKey,
-            settingsStore.aiAgentModel,
+            selectedModel,
         );
     }
 
     $effect(() => {
         if (agentStore.messages.length || agentStore.streamingContent) {
             scrollToBottom();
+        }
+    });
+
+    // Update selectedModel if it changes in settings
+    $effect(() => {
+        if (settingsStore.aiAgentModel) {
+            selectedModel = settingsStore.aiAgentModel;
         }
     });
 
@@ -43,20 +51,29 @@
 >
     <!-- Header -->
     <div
-        class="flex items-center justify-between border-b border-border bg-muted/30 p-3"
+        class="flex items-center justify-between border-b border-border bg-muted/30 p-2 px-3"
     >
         <div class="flex items-center gap-2">
-            <Bot size={16} class="text-primary" />
+            <Bot size={14} class="text-primary" />
             <h2
-                class="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                class="text-[10px] font-bold uppercase tracking-widest text-muted-foreground"
             >
-                {settingsStore.aiAgentName} Console
+                {settingsStore.aiAgentName}
             </h2>
         </div>
-        <div class="flex gap-1">
+        <div class="flex items-center gap-1.5">
+            <select
+                bind:value={selectedModel}
+                class="bg-transparent border-none text-[10px] font-medium text-muted-foreground hover:text-foreground focus:ring-0 cursor-pointer outline-none max-w-[120px] truncate"
+            >
+                {#each settingsStore.aiAgentAvailableModels as model}
+                    <option value={model}>{model}</option>
+                {/each}
+            </select>
+            <div class="w-[1px] h-3 bg-border mx-1"></div>
             <button
                 onclick={() => agentStore.createSession()}
-                class="p-1.5 hover:bg-accent rounded-md transition-colors text-muted-foreground hover:text-foreground"
+                class="p-1 hover:bg-accent rounded transition-colors text-muted-foreground hover:text-foreground"
                 title="New Chat"
             >
                 <Plus size={14} />
@@ -65,7 +82,7 @@
                 onclick={() =>
                     agentStore.currentSession &&
                     agentStore.deleteSession(agentStore.currentSession.id)}
-                class="p-1.5 hover:bg-destructive/10 rounded-md transition-colors text-muted-foreground hover:text-destructive"
+                class="p-1 hover:bg-destructive/10 rounded transition-colors text-muted-foreground hover:text-destructive"
                 title="Delete Chat"
             >
                 <Trash2 size={14} />
@@ -192,13 +209,6 @@
                             <Send size={18} />
                         {/if}
                     </button>
-                </div>
-                <div class="mt-2 text-center">
-                    <p
-                        class="text-[9px] text-muted-foreground opacity-50 uppercase tracking-widest"
-                    >
-                        Using {settingsStore.aiAgentModel}
-                    </p>
                 </div>
             </div>
         </div>
