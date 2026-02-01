@@ -2,7 +2,7 @@
     import IconX from "@tabler/icons-svelte/icons/x";
     import IconBrandTesla from "@tabler/icons-svelte/icons/brand-tesla";
     import { windowState } from "$lib/stores/window.svelte";
-    import bgImage from "$lib/svg/image.png";
+    import { settingsStore } from "$lib/stores/settings.svelte";
 </script>
 
 <div class="flex h-full w-full flex-col bg-background relative overflow-hidden">
@@ -25,34 +25,30 @@
         </button>
     </div>
 
-    <!-- Background Pattern -->
-    <div
-        class="absolute inset-0 z-0 opacity-20 pointer-events-none text-foreground"
-        style="background-image: url('{bgImage}'); background-repeat: repeat; background-size: 200px; background-position: 0 0;"
-    ></div>
-
     <!-- Content -->
     <div
-        class="flex-1 overflow-auto flex flex-col opacity-70 items-center justify-center p-6 text-center space-y-6 relative z-10"
+        class="flex-1 overflow-auto flex flex-col items-center justify-center p-6 text-center space-y-6 relative z-10"
     >
         <div class="space-y-2 max-w-xs">
             <h3 class="text-sm font-medium tracking-tight">
-                Cooking Intelligence...
+                {settingsStore.aiAgentName} is sleeping...
             </h3>
             <p class="text-xs text-muted-foreground">
-                We are currently brewing the AI in the lab. Please check back
-                later for advanced query assistance.
+                We are currently refining the intelligence. Please check back
+                later for query assistance.
             </p>
         </div>
 
         <!-- Loading Indicator Style -->
-        <div class="flex gap-1.5">
-            <div class="h-2 w-2 animate-bounce rounded-full bg-red-500"></div>
+        <div class="flex gap-1.5 opacity-40">
             <div
-                class="h-2 w-2 animate-bounce rounded-full bg-red-500 delay-150"
+                class="h-1.5 w-1.5 animate-bounce rounded-full bg-red-500"
             ></div>
             <div
-                class="h-2 w-2 animate-bounce rounded-full bg-red-500 delay-300"
+                class="h-1.5 w-1.5 animate-bounce rounded-full bg-red-500 delay-150"
+            ></div>
+            <div
+                class="h-1.5 w-1.5 animate-bounce rounded-full bg-red-500 delay-300"
             ></div>
         </div>
     </div>
