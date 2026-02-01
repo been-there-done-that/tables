@@ -130,6 +130,7 @@ pub async fn llm_stream(
                         if let Ok(json) = serde_json::from_str::<serde_json::Value>(content) {
                             if let Some(choices) = json.get("choices") {
                                 if let Some(delta) = choices[0].get("delta") {
+                                    // Handle text content
                                     if let Some(text) = delta.get("content") {
                                         let chunk_str = text.as_str().unwrap_or_default();
                                         full_response.push_str(chunk_str); // Accumulate
@@ -137,6 +138,28 @@ pub async fn llm_stream(
                                         let _ = window.emit("llm-chunk", StreamEvent {
                                             session_id: session_id.clone(),
                                             chunk: Some(chunk_str.to_string()),
+                                            done: false,
+                                            error: None,
+                                        });
+                                    }
+                                    
+                                    // Handle tool calls
+                                    if let Some(tool_calls) = delta.get("tool_calls") {
+                                        let tool_json = serde_json::to_string(tool_calls).unwrap_or_default();
+                                        let _ = window.emit("llm-tool-call", serde_json::json!({
+                                            "session_id": session_id.clone(),
+                                            "tool_calls": tool_calls,
+                                        }));
+                                    }
+                                }
+                                
+                                // Check for finish_reason to detect tool_calls completion
+                                if let Some(finish_reason) = choices[0].get("finish_reason") {
+                                    if finish_reason.as_str() == Some("tool_calls") {
+                                        // The model wants to call tools
+                                        let _ = window.emit("llm-chunk", StreamEvent {
+                                            session_id: session_id.clone(),
+                                            chunk: Some("[TOOL_CALLS]".to_string()),
                                             done: false,
                                             error: None,
                                         });
