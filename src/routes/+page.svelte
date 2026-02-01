@@ -9,6 +9,7 @@
   import QueryLogsPanel from "$lib/components/QueryLogsPanel.svelte";
   import PendingChangesPanel from "$lib/components/table/PendingChangesPanel.svelte";
   import AiAssistantPanel from "$lib/components/AiAssistantPanel.svelte";
+  import AgentChat from "$lib/components/agent/AgentChat.svelte";
   import { logsStore } from "$lib/stores/logs.svelte";
   import BottomPanel from "$lib/components/BottomPanel.svelte";
 
@@ -117,6 +118,10 @@
                 <PendingChangesPanel />
               {:else if windowState.activeRightPanel === "ai-assistant"}
                 <AiAssistantPanel />
+              {:else if windowState.activeRightPanel === "agent-chat"}
+                <div class="h-full w-full bg-background border-l border-border">
+                  <AgentChat />
+                </div>
               {:else}
                 <div class="flex h-full flex-col bg-muted/10">
                   <div

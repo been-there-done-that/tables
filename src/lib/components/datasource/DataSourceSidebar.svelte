@@ -48,8 +48,8 @@
             <div class="flex items-center gap-1">
                 <button
                     class="p-1.5 {windowState.agentConsoleOpen
-                        ? 'bg-yellow-400 text-black'
-                        : 'bg-accent/10 text-accent'} hover:bg-yellow-500 rounded-md transition-colors cursor-pointer"
+                        ? 'bg-primary/20 text-primary border-primary/30'
+                        : 'bg-accent/10 text-accent border-transparent'} hover:bg-primary/30 border rounded-md transition-all cursor-pointer"
                     title="Open AI Agent (⌘⇧A)"
                     onclick={() =>
                         (windowState.agentConsoleOpen =
