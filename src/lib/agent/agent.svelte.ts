@@ -59,7 +59,7 @@ export class AgentStore {
         }
     }
 
-    async sendMessage(content: string, provider: string, apiKey: string, model: string) {
+    async sendMessage(content: string, provider: string, apiKey: string, model: string, apiUrl?: string) {
         if (!this.currentSession) {
             await this.createSession(content.slice(0, 30) + "...");
         }
@@ -69,7 +69,7 @@ export class AgentStore {
             session_id: this.currentSession!.id,
             role: "user",
             content,
-            created_at: Date.now() / 1000,
+            created_at: Math.floor(Date.now() / 1000),
         };
 
         this.messages = [...this.messages, userMessage];
@@ -84,6 +84,7 @@ export class AgentStore {
                 request: {
                     provider,
                     api_key: apiKey,
+                    api_url: apiUrl,
                     model,
                     messages: this.messages.map(m => ({
                         role: m.role,
@@ -138,7 +139,7 @@ export class AgentStore {
             role: "assistant",
             content: this.streamingContent || null,
             tool_calls: this.streamingToolCalls.length > 0 ? JSON.stringify(this.streamingToolCalls) : undefined,
-            created_at: Date.now() / 1000,
+            created_at: Math.floor(Date.now() / 1000),
         };
 
         this.messages = [...this.messages, assistantMessage];
@@ -169,7 +170,7 @@ export class AgentStore {
                     role: "tool",
                     content: JSON.stringify(result),
                     tool_call_id: toolCall.id,
-                    created_at: Date.now() / 1000,
+                    created_at: Math.floor(Date.now() / 1000),
                 };
                 this.messages = [...this.messages, toolMsg];
                 await invoke("add_agent_message", { message: toolMsg });
