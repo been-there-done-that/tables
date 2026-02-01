@@ -284,7 +284,17 @@ macro_rules! aggregate_plugin_commands {
             load_editor_session,
             list_editor_sessions,
             delete_editor_session,
-            format_sql
+            format_sql,
+
+            // Agent commands
+            create_agent_session,
+            list_agent_sessions,
+            add_agent_message,
+            get_agent_messages,
+            delete_agent_session,
+
+            // LLM Proxy commands
+            llm_stream
         ]
     };
 }
