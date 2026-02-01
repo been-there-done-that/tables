@@ -2,7 +2,7 @@ use crate::connection::{Connection as DatabaseConnection, SecureCredentials};
 use crate::connection_manager::ConnectionManagerState;
 use crate::DatabaseState;
 use tauri::State;
-use log::{info, debug, warn, error, trace};
+use log::{info, debug, warn};
 
 /// Execute Athena query
 #[tauri::command]

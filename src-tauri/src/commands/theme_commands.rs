@@ -1,7 +1,7 @@
 use crate::{Theme, DatabaseState, load_theme, fetch_active_theme, now_ts};
 use tauri::{AppHandle, State, Emitter};
 use crate::constants::ENABLE_THEME_EVENTS;
-use log::{info, debug, warn, error, trace};
+use log::{debug, error, trace};
 
 /// Get all available themes
 #[tauri::command]

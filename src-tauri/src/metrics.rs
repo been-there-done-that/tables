@@ -6,7 +6,6 @@ use tauri::{AppHandle, Emitter};
 use serde::Serialize;
 use sysinfo::{Pid, System};
 use log::{error, info};
-use crate::constants::ENABLE_METRICS_EMISSION;
 
 // --- Core Registry Implementation ---
 

@@ -1229,7 +1229,7 @@ async fn enrich_postgres_metadata(
     }
 
     // Collect table OIDs to batch query, deduplicated for efficiency
-    let mut table_oid_set: std::collections::HashSet<u32> = raw_columns.iter()
+    let table_oid_set: std::collections::HashSet<u32> = raw_columns.iter()
         .filter_map(|c| c.table_oid())
         .filter(|&oid| oid != 0)
         .collect();

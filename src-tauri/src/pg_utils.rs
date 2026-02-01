@@ -4,7 +4,6 @@
 //! Used by both the adapter and query commands.
 
 use serde_json;
-use tokio_postgres::types::Type;
 
 /// Format a PostgreSQL error with all available details (code, hint, position, etc.)
 /// This provides detailed error information matching DataGrip/psql output

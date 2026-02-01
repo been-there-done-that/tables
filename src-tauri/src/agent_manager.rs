@@ -1,7 +1,6 @@
 use rusqlite::{params, Connection as SqliteConnection};
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
-use log::{debug, error, info};
 use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -132,5 +131,37 @@ impl AgentManager {
         // Cascading delete should handle messages
         conn.execute("DELETE FROM agent_sessions WHERE id = ?1", params![id]).map_err(|e| e.to_string())?;
         Ok(())
+    }
+
+    pub fn update_session(&self, id: &str, title: String) -> Result<AgentSession, String> {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64;
+            
+        let conn = self.db.lock().map_err(|e| e.to_string())?;
+        
+        // Check if exists first to return error? Or just update.
+        // Let's rely on execute returning 0 affected rows if not found, but we want the updated object back.
+        
+        conn.execute(
+            "UPDATE agent_sessions SET title = ?1, updated_at = ?2 WHERE id = ?3",
+            params![title, now, id],
+        ).map_err(|e| e.to_string())?;
+
+        // Retrieve to return full object
+        let mut stmt = conn.prepare("SELECT id, title, created_at, updated_at FROM agent_sessions WHERE id = ?1")
+            .map_err(|e| e.to_string())?;
+            
+        let session = stmt.query_row(params![id], |row| {
+            Ok(AgentSession {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                created_at: row.get(2)?,
+                updated_at: row.get(3)?,
+            })
+        }).map_err(|e| e.to_string())?;
+
+        Ok(session)
     }
 }

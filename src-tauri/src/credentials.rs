@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
-use log::{info, debug, warn, error, trace};
+use log::{debug, warn, error, trace};
 
 /// Secure credential storage interface
 pub trait CredentialStore: Send + Sync {

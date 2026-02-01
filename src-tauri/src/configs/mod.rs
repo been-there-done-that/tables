@@ -8,7 +8,6 @@ pub mod mysql;
 pub mod validation;
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 // Re-export all config types
 pub use postgres::*;

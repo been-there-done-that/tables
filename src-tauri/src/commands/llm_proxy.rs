@@ -13,6 +13,7 @@ pub struct StreamRequest {
     pub messages: serde_json::Value,
     pub tools: Option<serde_json::Value>,
     pub temperature: Option<f32>,
+    pub persist: Option<bool>, // Control database persistence
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -25,26 +26,21 @@ pub struct StreamEvent {
 
 #[tauri::command]
 pub async fn llm_stream(
+    // Inject DatabaseState
+    state: tauri::State<'_, crate::DatabaseState>, 
     window: tauri::Window,
     session_id: String,
     request: StreamRequest,
 ) -> Result<(), String> {
     debug!("Starting LLM stream for session: {}", session_id);
 
+    // ... (client setup) ...
+
     let client = reqwest::Client::new();
     
-    // Use provided URL or fallback to defaults
+    // ... (URL construction) ...
     let url = if let Some(custom_url) = &request.api_url {
-        // If custom URL is provided, try to be smart about appending /chat/completions if needed
-        // But for now, let's assume the frontend passes the base URL (like http://localhost:1234/v1)
-        // and we append the standard endpoint if it's openAI compatible.
-        // Actually, fetch_models handled /v1 etc.
-        // Let's assume the frontend sends the exact endpoint or the base.
-        // Ideally, we should construct the full URL. 
-        // If the user entered "http://localhost:1234/v1", we need "http://localhost:1234/v1/chat/completions" for OpenAI.
-        
         if request.provider == "openai" && !custom_url.contains("/chat/completions") {
-             // Basic heuristic: append /chat/completions if missing
              format!("{}/chat/completions", custom_url.trim_end_matches('/'))
         } else {
              custom_url.clone()
@@ -74,7 +70,6 @@ pub async fn llm_stream(
     headers.insert(AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", request.api_key)).map_err(|e| e.to_string())?);
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
 
-    // Anthropic specific headers
     if request.provider == "anthropic" {
         headers.insert("anthropic-version", HeaderValue::from_static("2023-06-01"));
         headers.insert("x-api-key", HeaderValue::from_str(&request.api_key).map_err(|e| e.to_string())?);
@@ -93,16 +88,36 @@ pub async fn llm_stream(
     }
 
     let mut stream = response.bytes_stream();
+    let mut full_response = String::new();
+    let should_persist = request.persist.unwrap_or(true);
 
     while let Some(item) = stream.next().await {
         match item {
             Ok(bytes) => {
                 let data = String::from_utf8_lossy(&bytes);
-                // Process SSE chunks
                 for line in data.lines() {
                     if line.starts_with("data: ") {
                         let content = &line[6..];
                         if content == "[DONE]" {
+                            // Stream finished, persist full response
+                            if should_persist {
+                                if let Ok(conn) = state.conn.lock() {
+                                    let message_id = uuid::Uuid::new_v4().to_string();
+                                    let now = std::time::SystemTime::now()
+                                        .duration_since(std::time::UNIX_EPOCH)
+                                        .unwrap()
+                                        .as_secs() as i64;
+
+                                    let _ = conn.execute(
+                                        "INSERT INTO agent_messages (id, session_id, role, content, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+                                        rusqlite::params![message_id, session_id, "assistant", full_response, now],
+                                    );
+                                    info!("Persisted assistant message for session {}", session_id);
+                                } else {
+                                    error!("Failed to lock database for persisting message");
+                                }
+                            }
+
                             let _ = window.emit("llm-chunk", StreamEvent {
                                 session_id: session_id.clone(),
                                 chunk: None,
@@ -112,23 +127,16 @@ pub async fn llm_stream(
                             break;
                         }
 
-                        // For OpenAI format
                         if let Ok(json) = serde_json::from_str::<serde_json::Value>(content) {
                             if let Some(choices) = json.get("choices") {
                                 if let Some(delta) = choices[0].get("delta") {
                                     if let Some(text) = delta.get("content") {
+                                        let chunk_str = text.as_str().unwrap_or_default();
+                                        full_response.push_str(chunk_str); // Accumulate
+
                                         let _ = window.emit("llm-chunk", StreamEvent {
                                             session_id: session_id.clone(),
-                                            chunk: Some(text.as_str().unwrap_or_default().to_string()),
-                                            done: false,
-                                            error: None,
-                                        });
-                                    }
-                                    // Tool calls support
-                                    if let Some(tool_calls) = delta.get("tool_calls") {
-                                        let _ = window.emit("llm-chunk", StreamEvent {
-                                            session_id: session_id.clone(),
-                                            chunk: Some(tool_calls.to_string()),
+                                            chunk: Some(chunk_str.to_string()),
                                             done: false,
                                             error: None,
                                         });

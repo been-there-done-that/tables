@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 use dirs::home_dir;
-use log::{info, debug, warn, error, trace};
+use log::{debug, warn, error, trace};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AwsProfile {

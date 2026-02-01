@@ -48,7 +48,7 @@ export class AgentStore {
         }
     }
 
-    async createSession(title: string = "New Chat") {
+    async createSession(title: string = "New Session") {
         try {
             const session = await invoke<Session>("create_agent_session", { title });
             this.sessions = [session, ...this.sessions];
@@ -59,9 +59,72 @@ export class AgentStore {
         }
     }
 
+    async renameSession(id: string, title: string) {
+        try {
+            const updated = await invoke<Session>("update_agent_session", { id, title });
+            // Update local store
+            this.sessions = this.sessions.map(s => s.id === id ? updated : s);
+            if (this.currentSession?.id === id) {
+                this.currentSession = updated;
+            }
+        } catch (e) {
+            console.error("Failed to rename session", e);
+        }
+    }
+
+    private async autoNameSession() {
+        if (!this.currentSession || this.messages.length < 2) return;
+
+        const sessionId = this.currentSession.id;
+        const tempId = `auto-name-${crypto.randomUUID()}`;
+        const firstUserMsg = this.messages.find(m => m.role === 'user')?.content || "";
+        const firstAssistantMsg = this.messages.find(m => m.role === 'assistant')?.content || "";
+
+        const prompt = `Generate a concise title (3-5 words) for this conversation based on the first iteration.\nUser: ${firstUserMsg.slice(0, 200)}\nAssistant: ${firstAssistantMsg.slice(0, 200)}\nTitle:`;
+
+        let generatedTitle = "";
+
+        // Setup temporary listener
+        const unlisten = await listen("llm-chunk", (event: any) => {
+            const { session_id, chunk, done } = event.payload;
+            if (session_id !== tempId) return;
+            if (chunk) generatedTitle += chunk;
+        });
+
+        const { settingsStore } = await import("$lib/stores/settings.svelte"); // Dynamic import to avoid cycles if any
+
+        try {
+            await invoke("llm_stream", {
+                sessionId: tempId,
+                request: {
+                    provider: settingsStore.aiAgentModel.startsWith("claude") ? "anthropic" : "openai", // Crude heuristic, improve later
+                    api_key: settingsStore.aiAgentApiKey,
+                    api_url: settingsStore.aiAgentUrl,
+                    model: settingsStore.aiAgentModel,
+                    messages: [{ role: "user", content: prompt }],
+                    persist: false
+                }
+            });
+
+            // Wait a bit for stream to finish implies we need to track 'done' in the listener or wait for promise?
+            // invoke("llm_stream") returns when stream is established or finished? 
+            // In my rust code it awaits stream completion! 
+            // So by the time await invoke returns, the stream is done.
+
+            if (generatedTitle.trim()) {
+                let cleanTitle = generatedTitle.trim().replace(/^["']|["']$/g, '');
+                await this.renameSession(sessionId, cleanTitle);
+            }
+        } catch (e) {
+            console.warn("Auto-naming failed", e);
+        } finally {
+            unlisten();
+        }
+    }
+
     async sendMessage(content: string, provider: string, apiKey: string, model: string, apiUrl?: string) {
         if (!this.currentSession) {
-            await this.createSession(content.slice(0, 30) + "...");
+            await this.createSession(); // Default New Session
         }
 
         const userMessage: Message = {
@@ -89,7 +152,8 @@ export class AgentStore {
                     messages: this.messages.map(m => ({
                         role: m.role,
                         content: m.content
-                    }))
+                    })),
+                    persist: true
                 }
             });
         } catch (e) {
@@ -116,7 +180,6 @@ export class AgentStore {
 
             if (chunk) {
                 try {
-                    // Simple heuristic to distinguish between text and tool call JSON
                     if (chunk.startsWith("[{") || chunk.startsWith("{")) {
                         const parsed = JSON.parse(chunk);
                         this.streamingToolCalls = [...this.streamingToolCalls, ...(Array.isArray(parsed) ? parsed : [parsed])];
@@ -133,8 +196,9 @@ export class AgentStore {
     private async finalizeStreamingMessage() {
         if (!this.currentSession) return;
 
+        // Backend persistence handles the INSERT. We just update local state.
         const assistantMessage: Message = {
-            id: crypto.randomUUID(),
+            id: crypto.randomUUID(), // Local ID, backend creates its own but that's fine for display
             session_id: this.currentSession.id,
             role: "assistant",
             content: this.streamingContent || null,
@@ -143,7 +207,7 @@ export class AgentStore {
         };
 
         this.messages = [...this.messages, assistantMessage];
-        await invoke("add_agent_message", { message: assistantMessage });
+        // REMOVED: await invoke("add_agent_message", ...); 
 
         const toolCallsToExecute = [...this.streamingToolCalls];
         this.isStreaming = false;
@@ -154,8 +218,14 @@ export class AgentStore {
             await this.handleToolCalls(toolCallsToExecute);
         }
 
-        // Refresh sessions to update the 'updated_at' timestamp order
+        // Refresh sessions to update 'updated_at'
         await this.loadSessions();
+
+        // Check for auto-naming
+        // If message count is exactly 2 (User + Assistant), it's the first turn.
+        if (this.messages.length === 2 && assistantMessage.role === "assistant") {
+            this.autoNameSession();
+        }
     }
 
     private async handleToolCalls(toolCalls: any[]) {
@@ -182,7 +252,10 @@ export class AgentStore {
 
     async deleteSession(sessionId: string) {
         try {
-            await invoke("delete_agent_session", { sessionId });
+            await invoke("delete_agent_session", { id: sessionId }); // Note: arg name changed to 'id' in backend command? 
+            // Checked agent_commands.rs: delete_agent_session(id: String, ...) -> so arg is 'id'.
+            // wait, in frontend invoke("delete_agent_session", { id: sessionId }) is correct if backend arg is 'id'.
+            // Previous code had { sessionId }.
             this.sessions = this.sessions.filter(s => s.id !== sessionId);
             if (this.currentSession?.id === sessionId) {
                 this.currentSession = null;

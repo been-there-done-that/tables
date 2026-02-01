@@ -4,7 +4,7 @@
 //! Supports full database/schema hierarchy with async tokio-postgres.
 
 use async_trait::async_trait;
-use log::{info, debug, error};
+use log::{debug, error};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio_postgres::Client;
