@@ -40,7 +40,7 @@
 <div class="flex h-full w-full flex-col bg-background relative overflow-hidden">
     <!-- Header -->
     <div
-        class="h-9 flex items-center justify-between px-3 border-b border-border bg-muted/30 relative z-20"
+        class="h-9 flex items-center justify-between px-3 bg-muted/30 relative z-20"
     >
         <div class="flex items-center gap-2 flex-1 min-w-0 mr-2">
             {#if isEditingTitle}

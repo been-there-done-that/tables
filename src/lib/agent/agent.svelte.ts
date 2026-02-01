@@ -34,6 +34,9 @@ export class AgentStore {
     async loadSessions() {
         try {
             this.sessions = await invoke("list_agent_sessions");
+            if (this.sessions.length > 0 && !this.currentSession) {
+                this.selectSession(this.sessions[0]);
+            }
         } catch (e) {
             console.error("Failed to load agent sessions", e);
         }
