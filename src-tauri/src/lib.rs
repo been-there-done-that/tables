@@ -30,7 +30,7 @@ mod dci_tests;
 mod postgres_diagnostic_test;
 
 use tauri::{Manager, PhysicalPosition, PhysicalSize, Size, Emitter, Listener};
-use std::{path::PathBuf, sync::{Arc, Mutex}, time::SystemTime, collections::{HashMap, HashSet}};
+use std::{path::PathBuf, sync::{Arc, Mutex}, time::SystemTime, collections::HashMap};
 use rusqlite::{Connection, OptionalExtension};
 use serde::Serialize;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};

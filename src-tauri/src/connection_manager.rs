@@ -1,12 +1,11 @@
 use crate::connection::{Connection, SecureCredentials, ConnectionInfo, load_connection_from_row};
-use crate::configs::RuntimeConnection;
 use crate::credential_manager::CredentialManager;
 use crate::adapter::DatabaseAdapter;
 use rusqlite::{params, Connection as SqliteConnection, OptionalExtension};
 use std::sync::{Arc, Mutex};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use tauri::State;
-use log::{info, debug, warn, error, trace};
+use log::{info, debug, warn, error};
 
 // Import DatabaseState from the parent module
 use super::DatabaseState;

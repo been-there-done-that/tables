@@ -1,8 +1,6 @@
 use tauri::{AppHandle, Manager, State};
 use crate::DatabaseState;
-use crate::connection::Connection;
 use log::{info, error};
-use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Serialize, Deserialize};
 
 /// Simple response for open_internal_db - returns the path

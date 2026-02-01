@@ -10,7 +10,6 @@ pub mod core;
 pub mod postgres;
 pub mod sqlite;
 
-pub use core::CoreCompletionEngine;
 pub use postgres::PostgresEngine;
 pub use sqlite::SqliteEngine;
 

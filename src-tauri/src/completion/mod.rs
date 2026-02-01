@@ -20,8 +20,3 @@ pub mod engines;
 pub mod tests;
 
 // Re-exports
-pub use document::DocumentState;
-pub use context::{Context, CursorContext};
-pub use engine::{CompletionEngine, CompletionItem};
-pub use analysis::SemanticModel;
-pub use schema::SchemaGraph;

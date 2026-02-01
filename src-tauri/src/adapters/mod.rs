@@ -9,7 +9,7 @@ mod sqlite;
 pub use postgres::PostgresAdapter;
 pub use sqlite::SqliteAdapter;
 
-use crate::adapter::{DatabaseCapabilities, AdapterError};
+use crate::adapter::AdapterError;
 
 /// Create an adapter for each engine type in a standardized way.
 pub fn create_adapter(engine: &str, config: serde_json::Value) -> Result<Box<dyn crate::adapter::DatabaseAdapter>, AdapterError> {

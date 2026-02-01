@@ -135,7 +135,7 @@ pub async fn refresh_schema_unified(
     debug!("Engine '{}' has profile {:?}", connection.engine, caps.profile());
 
     // 4. Create adapter via registry
-    let mut adapter = adapter_registry::create(&connection.engine, config.clone())
+    let adapter = adapter_registry::create(&connection.engine, config.clone())
         .map_err(|e| format!("Failed to create adapter: {:?}", e))?;
 
     // 4.5. Establish connection

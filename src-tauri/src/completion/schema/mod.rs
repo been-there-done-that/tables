@@ -8,5 +8,4 @@
 pub mod graph;
 pub mod loader;
 
-pub use graph::{SchemaGraph, TableInfo, ColumnInfo, ForeignKey};
-pub use loader::MockSchemaLoader;
+pub use graph::SchemaGraph;

@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use super::BaseConfig;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct S3Config {
