@@ -38,6 +38,8 @@ pub struct AppSettings {
     pub editor_font_family: String,
     pub editor_font_size: u32,
     pub editor_show_all_run_buttons: bool,
+    // AI Settings grouped
+    pub ai_settings: HashMap<String, String>,
     // Per-window layout settings
     pub window_layouts: HashMap<String, WindowLayout>,
 }
@@ -48,6 +50,7 @@ impl Default for AppSettings {
             editor_font_family: "\"Fira Code\", monospace".to_string(),
             editor_font_size: 14,
             editor_show_all_run_buttons: false,
+            ai_settings: HashMap::new(),
             window_layouts: HashMap::new(),
         }
     }
@@ -72,6 +75,9 @@ pub fn get_settings(conn: &Connection) -> Result<AppSettings> {
                 }
                 "editor_show_all_run_buttons" => {
                     settings.editor_show_all_run_buttons = value == "true";
+                }
+                k if k.starts_with("ai_agent_") => {
+                    settings.ai_settings.insert(k.to_string(), value);
                 }
                 k if k.starts_with("window:") => {
                     // Format: window:{label}:{property} OR window:{label}:conn:{id}:expanded
