@@ -19,6 +19,12 @@ export interface Settings {
     activeRightPanel: string | null;
     // Editor settings
     editorShowAllRunButtons: boolean;
+    // AI settings
+    aiAgentName: string;
+    aiAgentUrl: string;
+    aiAgentApiKey: string;
+    aiAgentBasePath: string;
+    aiAgentModel: string;
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -36,6 +42,12 @@ const DEFAULT_SETTINGS: Settings = {
     expandedNodes: {},
     activeRightPanel: null,
     editorShowAllRunButtons: false,
+    // AI defaults
+    aiAgentName: "Assistant",
+    aiAgentUrl: "https://api.openai.com/v1",
+    aiAgentApiKey: "",
+    aiAgentBasePath: "",
+    aiAgentModel: "gpt-4o",
 };
 
 function createSettingsStore() {
@@ -186,6 +198,33 @@ function createSettingsStore() {
             commandClient.updateAppSetting(`window:${windowLabel}:conn:${connId}:expanded`, nodes.join(","));
         },
 
+        // AI settings
+        get aiAgentName() { return settings.aiAgentName; },
+        set aiAgentName(v: string) {
+            settings.aiAgentName = v;
+            commandClient.updateAppSetting("ai_agent_name", v);
+        },
+        get aiAgentUrl() { return settings.aiAgentUrl; },
+        set aiAgentUrl(v: string) {
+            settings.aiAgentUrl = v;
+            commandClient.updateAppSetting("ai_agent_url", v);
+        },
+        get aiAgentApiKey() { return settings.aiAgentApiKey; },
+        set aiAgentApiKey(v: string) {
+            settings.aiAgentApiKey = v;
+            commandClient.updateAppSetting("ai_agent_api_key", v);
+        },
+        get aiAgentBasePath() { return settings.aiAgentBasePath; },
+        set aiAgentBasePath(v: string) {
+            settings.aiAgentBasePath = v;
+            commandClient.updateAppSetting("ai_agent_base_path", v);
+        },
+        get aiAgentModel() { return settings.aiAgentModel; },
+        set aiAgentModel(v: string) {
+            settings.aiAgentModel = v;
+            commandClient.updateAppSetting("ai_agent_model", v);
+        },
+
         // Utility
         get initialized() {
             return initialized;
@@ -264,6 +303,21 @@ function createSettingsStore() {
                         return;
                     case "editor_show_all_run_buttons":
                         settings.editorShowAllRunButtons = value === "true";
+                        return;
+                    case "ai_agent_name":
+                        settings.aiAgentName = value;
+                        return;
+                    case "ai_agent_url":
+                        settings.aiAgentUrl = value;
+                        return;
+                    case "ai_agent_api_key":
+                        settings.aiAgentApiKey = value;
+                        return;
+                    case "ai_agent_base_path":
+                        settings.aiAgentBasePath = value;
+                        return;
+                    case "ai_agent_model":
+                        settings.aiAgentModel = value;
                         return;
                 }
 

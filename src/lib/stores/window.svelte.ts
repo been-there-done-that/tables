@@ -170,7 +170,17 @@ class WindowStateStore {
     settingsWindowOpen = $state(false);
     datasourceWindowOpen = $state(false);
     initialized = $state(false);
-    agentConsoleOpen = $state(false);
+    get agentConsoleOpen() {
+        return this.activeRightPanel === "agent-chat" && this.layout.right;
+    }
+    set agentConsoleOpen(v: boolean) {
+        if (v) {
+            this.activeRightPanel = "agent-chat";
+            this.layout.right = true;
+        } else if (this.activeRightPanel === "agent-chat") {
+            this.layout.right = false;
+        }
+    }
 
     get layout() {
         const self = this;

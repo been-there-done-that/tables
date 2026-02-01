@@ -12,6 +12,9 @@
   import AlertTriangleIcon from "@tabler/icons-svelte/icons/alert-triangle";
   import DangerousComponent from "./Dangerous.svelte";
 
+  import IconRobot from "@tabler/icons-svelte/icons/robot";
+  import AiSettingsComponent from "./AiSettings.svelte";
+
   let themes = $state<ThemeRecord[]>([]);
   let activeId = $state<string>("");
 
@@ -47,6 +50,10 @@
     {
       name: "dangerous",
       icon: AlertTriangleIcon,
+    },
+    {
+      name: "AI settings",
+      icon: IconRobot,
     },
   ];
 </script>
@@ -86,6 +93,8 @@
         <EditorComponent />
       {:else if selectedSection === "dangerous"}
         <DangerousComponent />
+      {:else if selectedSection === "AI settings"}
+        <AiSettingsComponent />
       {/if}
     </div>
   </div>
