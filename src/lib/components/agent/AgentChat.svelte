@@ -19,6 +19,7 @@
             "openai",
             settingsStore.aiAgentApiKey,
             selectedModel,
+            settingsStore.aiAgentUrl,
         );
     }
 

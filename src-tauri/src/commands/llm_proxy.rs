@@ -8,6 +8,7 @@ use log::{debug, error, info};
 pub struct StreamRequest {
     pub provider: String, // "openai", "anthropic", etc.
     pub api_key: String,
+    pub api_url: Option<String>,
     pub model: String,
     pub messages: serde_json::Value,
     pub tools: Option<serde_json::Value>,
@@ -31,10 +32,29 @@ pub async fn llm_stream(
     debug!("Starting LLM stream for session: {}", session_id);
 
     let client = reqwest::Client::new();
-    let url = match request.provider.as_str() {
-        "openai" => "https://api.openai.com/v1/chat/completions",
-        "anthropic" => "https://api.anthropic.com/v1/messages",
-        _ => return Err(format!("Unsupported provider: {}", request.provider)),
+    
+    // Use provided URL or fallback to defaults
+    let url = if let Some(custom_url) = &request.api_url {
+        // If custom URL is provided, try to be smart about appending /chat/completions if needed
+        // But for now, let's assume the frontend passes the base URL (like http://localhost:1234/v1)
+        // and we append the standard endpoint if it's openAI compatible.
+        // Actually, fetch_models handled /v1 etc.
+        // Let's assume the frontend sends the exact endpoint or the base.
+        // Ideally, we should construct the full URL. 
+        // If the user entered "http://localhost:1234/v1", we need "http://localhost:1234/v1/chat/completions" for OpenAI.
+        
+        if request.provider == "openai" && !custom_url.contains("/chat/completions") {
+             // Basic heuristic: append /chat/completions if missing
+             format!("{}/chat/completions", custom_url.trim_end_matches('/'))
+        } else {
+             custom_url.clone()
+        }
+    } else {
+        match request.provider.as_str() {
+            "openai" => "https://api.openai.com/v1/chat/completions".to_string(),
+            "anthropic" => "https://api.anthropic.com/v1/messages".to_string(),
+            _ => return Err(format!("Unsupported provider: {}", request.provider)),
+        }
     };
 
     let mut body = serde_json::json!({
