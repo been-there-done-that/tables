@@ -6,6 +6,18 @@
     import { settingsStore } from "$lib/stores/settings.svelte";
     import { cn } from "$lib/utils";
     import ToolExecutionIndicator from "./ToolExecutionIndicator.svelte";
+    import { marked } from "marked";
+
+    // Configure marked for safe rendering
+    marked.setOptions({
+        breaks: true,
+        gfm: true,
+    });
+
+    function renderMarkdown(content: string | null): string {
+        if (!content) return "";
+        return marked.parse(content) as string;
+    }
 
     let inputMessage = $state("");
     let chatContainer = $state<HTMLElement | null>(null);
@@ -100,10 +112,10 @@
                             "max-w-[90%] rounded-lg px-3 py-2 text-sm shadow-sm border",
                             msg.role === "user"
                                 ? "bg-primary text-primary-foreground border-primary/20"
-                                : "bg-muted/50 text-foreground border-border",
+                                : "bg-muted/50 text-foreground border-border chat-markdown",
                         )}
                     >
-                        {msg.content}
+                        {@html renderMarkdown(msg.content)}
                     </div>
                 </div>
             {/each}
@@ -133,11 +145,13 @@
                         class="max-w-[90%] rounded-lg px-3 py-2 text-sm bg-muted/50 text-foreground border border-border whitespace-pre-wrap min-h-[38px] flex items-center"
                     >
                         {#if agentStore.streamingContent}
-                            <span
-                                >{agentStore.streamingContent}<span
+                            <div class="chat-markdown">
+                                {@html renderMarkdown(
+                                    agentStore.streamingContent,
+                                )}<span
                                     class="inline-block w-1.5 h-3.5 ml-0.5 align-middle bg-current animate-pulse"
-                                ></span></span
-                            >
+                                ></span>
+                            </div>
                         {:else}
                             <div class="flex space-x-1 opacity-50">
                                 <div
@@ -187,3 +201,49 @@
         </div>
     </div>
 </div>
+
+<style>
+    /* Markdown prose styles for chat messages */
+    :global(.chat-markdown p) {
+        margin: 0.5em 0;
+    }
+    :global(.chat-markdown p:first-child) {
+        margin-top: 0;
+    }
+    :global(.chat-markdown p:last-child) {
+        margin-bottom: 0;
+    }
+    :global(.chat-markdown code) {
+        background: rgba(0, 0, 0, 0.1);
+        padding: 0.15em 0.3em;
+        border-radius: 3px;
+        font-size: 0.9em;
+        font-family: "SF Mono", Monaco, "Cascadia Code", monospace;
+    }
+    :global(.chat-markdown pre) {
+        background: rgba(0, 0, 0, 0.15);
+        padding: 0.75em 1em;
+        border-radius: 6px;
+        overflow-x: auto;
+        margin: 0.5em 0;
+    }
+    :global(.chat-markdown pre code) {
+        background: transparent;
+        padding: 0;
+        font-size: 0.85em;
+        line-height: 1.5;
+    }
+    :global(.chat-markdown ul, .chat-markdown ol) {
+        margin: 0.5em 0;
+        padding-left: 1.5em;
+    }
+    :global(.chat-markdown li) {
+        margin: 0.25em 0;
+    }
+    :global(.chat-markdown strong) {
+        font-weight: 600;
+    }
+    :global(.chat-markdown em) {
+        font-style: italic;
+    }
+</style>

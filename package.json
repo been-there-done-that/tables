@@ -22,6 +22,7 @@
     "bits-ui": "^2.15.4",
     "idb-keyval": "^6.2.2",
     "lucide-svelte": "^0.562.0",
+    "marked": "^17.0.1",
     "monaco-editor": "^0.55.1",
     "svelte-sonner": "^1.0.7",
     "tailwind-variants": "^3.2.2",
