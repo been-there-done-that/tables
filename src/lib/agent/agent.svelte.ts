@@ -95,16 +95,28 @@ export class AgentStore {
 
     // Build prompt with system context
     private buildPrompt(): { role: string; content: string }[] {
-        const systemContent = `You are a helpful Database Assistant.
-Your role is to help users write and understand SQL queries.
-IMPORTANT: You can SUGGEST queries but CANNOT execute them directly.
-Format SQL suggestions in markdown code blocks with the language specified.
+        const systemContent = `You are an expert SQL Database Assistant.
 
-You have access to these tools:
-- get_table_schema: Get column information for a specific table
-- list_tables: List all tables in the current database
+YOUR PRIMARY JOB: Write SQL queries for users. When asked to query, join, filter, or analyze data - ALWAYS provide the SQL query.
 
-Use tools when you need actual schema information. Otherwise, provide helpful general guidance.`;
+CAPABILITIES:
+- Write SELECT, JOIN, WHERE, GROUP BY, ORDER BY, and all SQL operations
+- Explain queries and optimize them
+- Use tools to inspect table schemas when you need column names
+
+TOOLS AVAILABLE:
+- get_table_schema: Get column names and types for a table
+- list_tables: List all tables in the database
+
+FORMATTING:
+- Always put SQL in markdown code blocks with \`\`\`sql
+- Provide brief explanations when helpful
+
+LIMITATIONS:
+- You suggest queries, users execute them in the SQL editor
+- You cannot run queries directly
+
+When in doubt, write the query! Users can always modify it.`;
 
         let contextContent = "";
         const conn = schemaStore.activeConnection;
@@ -261,26 +273,55 @@ Use tools when you need actual schema information. Otherwise, provide helpful ge
             }
         });
 
-        // Listen for tool call events
+        // Listen for tool call delta events (streamed in chunks)
         listen("llm-tool-call", async (event: any) => {
             const { session_id, tool_calls } = event.payload;
             if (this.currentSession?.id !== session_id) return;
 
-            if (tool_calls && Array.isArray(tool_calls)) {
-                const { toolRunner } = await import("./tool_runner");
-                for (const tc of tool_calls) {
-                    // Build full tool call object
-                    const toolCall = {
-                        id: tc.id || crypto.randomUUID(),
-                        type: "function" as const,
-                        function: {
-                            name: tc.function?.name || "",
-                            arguments: tc.function?.arguments || "{}"
-                        }
-                    };
+            console.log("[Agent] Received tool call delta:", tool_calls);
 
-                    // Execute tool (this updates UI state internally)
-                    await toolRunner.execute(toolCall);
+            // Accumulate tool call chunks - OpenAI sends deltas with index
+            if (tool_calls && Array.isArray(tool_calls)) {
+                for (const delta of tool_calls) {
+                    const idx = delta.index ?? 0;
+
+                    // Initialize the tool call entry if it doesn't exist
+                    if (!this.streamingToolCalls[idx]) {
+                        this.streamingToolCalls[idx] = {
+                            id: "",
+                            type: "function",
+                            function: { name: "", arguments: "" }
+                        };
+                    }
+
+                    const tc = this.streamingToolCalls[idx];
+
+                    // Accumulate the delta
+                    if (delta.id) tc.id = delta.id;
+                    if (delta.type) tc.type = delta.type;
+                    if (delta.function?.name) tc.function.name += delta.function.name;
+                    if (delta.function?.arguments) tc.function.arguments += delta.function.arguments;
+
+                    console.log("[Agent] Accumulated tool call:", idx, tc);
+                }
+                // Trigger reactivity
+                this.streamingToolCalls = [...this.streamingToolCalls];
+            }
+        });
+
+        // Listen for tool calls completion - execute tools now
+        listen("llm-tools-done", async (event: any) => {
+            const { session_id } = event.payload;
+            if (this.currentSession?.id !== session_id) return;
+
+            console.log("[Agent] Tools done, executing:", this.streamingToolCalls);
+
+            const { toolRunner } = await import("./tool_runner");
+
+            for (const tc of this.streamingToolCalls) {
+                if (tc && tc.function?.name) {
+                    console.log("[Agent] Executing tool:", tc.function.name, tc.function.arguments);
+                    await toolRunner.execute(tc);
                 }
             }
         });

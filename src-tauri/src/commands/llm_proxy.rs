@@ -128,6 +128,8 @@ pub async fn llm_stream(
                         }
 
                         if let Ok(json) = serde_json::from_str::<serde_json::Value>(content) {
+                            debug!("Parsed SSE JSON: {:?}", json);
+                            
                             if let Some(choices) = json.get("choices") {
                                 if let Some(delta) = choices[0].get("delta") {
                                     // Handle text content
@@ -143,9 +145,9 @@ pub async fn llm_stream(
                                         });
                                     }
                                     
-                                    // Handle tool calls
+                                    // Handle tool calls - emit each chunk
                                     if let Some(tool_calls) = delta.get("tool_calls") {
-                                        let tool_json = serde_json::to_string(tool_calls).unwrap_or_default();
+                                        debug!("Tool calls delta received: {:?}", tool_calls);
                                         let _ = window.emit("llm-tool-call", serde_json::json!({
                                             "session_id": session_id.clone(),
                                             "tool_calls": tool_calls,
@@ -156,13 +158,11 @@ pub async fn llm_stream(
                                 // Check for finish_reason to detect tool_calls completion
                                 if let Some(finish_reason) = choices[0].get("finish_reason") {
                                     if finish_reason.as_str() == Some("tool_calls") {
-                                        // The model wants to call tools
-                                        let _ = window.emit("llm-chunk", StreamEvent {
-                                            session_id: session_id.clone(),
-                                            chunk: Some("[TOOL_CALLS]".to_string()),
-                                            done: false,
-                                            error: None,
-                                        });
+                                        info!("LLM finished with tool_calls - emitting tools-done event");
+                                        // Emit a completion event for tool calls
+                                        let _ = window.emit("llm-tools-done", serde_json::json!({
+                                            "session_id": session_id.clone(),
+                                        }));
                                     }
                                 }
                             }
