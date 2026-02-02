@@ -35,6 +35,9 @@ importers:
       lucide-svelte:
         specifier: ^0.562.0
         version: 0.562.0(svelte@5.46.1)
+      marked:
+        specifier: ^17.0.1
+        version: 17.0.1
       monaco-editor:
         specifier: ^0.55.1
         version: 0.55.1
@@ -1121,6 +1124,11 @@ packages:
   marked@14.0.0:
     resolution: {integrity: sha512-uIj4+faQ+MgHgwUW1l2PsPglZLOLOT1uErt06dAPtx2kjteLAkbsd/0FiYg/MGS+i7ZKLb7w2WClxHkzOOuryQ==}
     engines: {node: '>= 18'}
+    hasBin: true
+
+  marked@17.0.1:
+    resolution: {integrity: sha512-boeBdiS0ghpWcSwoNm/jJBwdpFaMnZWRzjA6SkUMYb40SVaN1x7mmfGKp0jvexGcx+7y2La5zRZsYFZI6Qpypg==}
+    engines: {node: '>= 20'}
     hasBin: true
 
   minimatch@3.1.2:
@@ -2305,6 +2313,8 @@ snapshots:
       '@jridgewell/sourcemap-codec': 1.5.5
 
   marked@14.0.0: {}
+
+  marked@17.0.1: {}
 
   minimatch@3.1.2:
     dependencies:

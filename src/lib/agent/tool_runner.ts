@@ -18,17 +18,21 @@ export class ToolRunner {
      * Execute a tool call from the LLM and report status to agentStore
      */
     async execute(toolCall: ToolCall): Promise<string> {
+        console.log("[ToolRunner] execute() called with:", toolCall);
+
         // Dynamic import to avoid circular dependency
         const { agentStore } = await import("./agent.svelte");
 
-        const toolId = toolCall.id;
+        const toolId = toolCall.id || crypto.randomUUID();
         const toolName = toolCall.function.name;
 
+        console.log("[ToolRunner] Starting execution of:", toolName, "id:", toolId);
         agentStore.startToolExecution(toolId, toolName);
 
         try {
             let result: string;
             const args = JSON.parse(toolCall.function.arguments || "{}");
+            console.log("[ToolRunner] Parsed args:", args);
 
             switch (toolName) {
                 case "get_table_schema":
@@ -41,10 +45,12 @@ export class ToolRunner {
                     throw new Error(`Unknown tool: ${toolName}`);
             }
 
+            console.log("[ToolRunner] Tool result:", result.slice(0, 200));
             agentStore.completeToolExecution(toolId, result);
             return result;
         } catch (e) {
             const error = String(e);
+            console.error("[ToolRunner] Tool error:", error);
             agentStore.failToolExecution(toolId, error);
             return `Error: ${error}`;
         }
