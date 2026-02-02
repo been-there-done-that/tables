@@ -7,6 +7,7 @@
     import Expand from "$lib/svg/Expand.svelte";
     import IconDatabase from "@tabler/icons-svelte/icons/database";
     import IconRefresh from "@tabler/icons-svelte/icons/refresh";
+    import IconSqlFile from "$lib/svg/IconSqlFile.svelte";
 
     interface Props {
         treeData: TreeNode[];
@@ -159,17 +160,8 @@
         >
             <Compact />
         </button>
-        <button
-            class="p-1 hover:bg-accent rounded-sm text-muted-foreground hover:text-foreground transition-colors"
-            class:text-primary={windowState.layout.showSqlEditor}
-            class:bg-accent={windowState.layout.showSqlEditor}
-            title="Toggle SQL Playground"
-            onclick={() =>
-                (windowState.layout.showSqlEditor =
-                    !windowState.layout.showSqlEditor)}
-        >
-            <IconDatabase class="size-4" />
-        </button>
+
+        <div class="mx-1 h-4 w-px bg-border/50"></div>
         <button
             class="p-1 hover:bg-accent rounded-sm text-muted-foreground hover:text-foreground transition-colors"
             title={schemaStore.lastRefreshed
@@ -185,6 +177,16 @@
                         : "",
                 )}
             />
+        </button>
+
+        <div class="mx-1 h-4 w-px bg-border/50"></div>
+
+        <button
+            class="p-1 flex items-center justify-center gap-1 hover:bg-accent rounded-sm text-muted-foreground hover:text-foreground transition-colors"
+            title="New SQL Editor"
+            onclick={() => activeSession?.openView("editor", "New Query")}
+        >
+            <IconSqlFile class="size-4" />
         </button>
     </div>
 </div>
