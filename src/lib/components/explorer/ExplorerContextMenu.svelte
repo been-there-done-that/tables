@@ -35,35 +35,4 @@
         <span>Query Console</span>
         <ContextMenu.Shortcut>⇧⌘L</ContextMenu.Shortcut>
     </ContextMenu.Item>
-
-    <ContextMenu.Separator />
-
-    <ContextMenu.Item
-        onclick={() => onAction("new_column", node)}
-        disabled={!isTable}
-    >
-        <ColumnIcon class="mr-2 size-4" />
-        <span>Column</span>
-    </ContextMenu.Item>
-    <ContextMenu.Item
-        onclick={() => onAction("new_index", node)}
-        disabled={!isTable}
-    >
-        <IconInfoCircle class="mr-2 size-4 text-blue-500" />
-        <span>Index</span>
-    </ContextMenu.Item>
-    <ContextMenu.Item
-        onclick={() => onAction("new_table", node)}
-        disabled={!isSchema && !isGroup}
-    >
-        <IconTable class="mr-2 size-4" />
-        <span>Table</span>
-    </ContextMenu.Item>
-    <ContextMenu.Item
-        onclick={() => onAction("new_view", node)}
-        disabled={!isSchema && !isGroup}
-    >
-        <IconListSearch class="mr-2 size-4 text-blue-400" />
-        <span>View</span>
-    </ContextMenu.Item>
 </ContextMenu.Content>
