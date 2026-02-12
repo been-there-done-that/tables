@@ -145,6 +145,14 @@
     class="flex h-full w-full overflow-hidden"
     class:flex-col={isVertical}
 >
+    <!-- Overlay to prevent text selection during drag -->
+    {#if isDragging}
+        <div
+            class="fixed inset-0 z-[9999]"
+            style="cursor: {cursor}; pointer-events: auto;"
+        ></div>
+    {/if}
+
     <!-- First panel -->
     <div
         class="overflow-hidden transition-[width,height,flex-basis] duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1)] will-change-[width,height] min-w-0 min-h-0"
