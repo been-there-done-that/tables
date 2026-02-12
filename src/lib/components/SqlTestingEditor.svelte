@@ -58,6 +58,7 @@
             currentBatchSize: 0,
             isExactTotal: true,
             isCountLoading: false,
+            bottomTabVisible: true,
         };
     }
     if (!context.controller) {
@@ -286,6 +287,11 @@
 
         if (query.trim()) {
             console.log(`[Execute] Running query from ${source}:`, query);
+
+            // Auto-open bottom panel and ensure tab is visible
+            settingsStore.sidebarBottomVisible = true;
+            results.bottomTabVisible = true;
+
             log(
                 `Executing (${source}) in ${schemaStore.selectedDatabase}.${schemaStore.activeSchema}:\n${query}`,
             );
@@ -421,6 +427,10 @@
             log("No query to execute");
             return;
         }
+
+        // Auto-open bottom panel and ensure tab is visible
+        settingsStore.sidebarBottomVisible = true;
+        results.bottomTabVisible = true;
 
         log(
             `Executing (inline button) in ${schemaStore.selectedDatabase}.${schemaStore.activeSchema}:\n${queryText}`,

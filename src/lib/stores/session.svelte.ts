@@ -100,6 +100,7 @@ export class Session {
                 currentBatchSize: 0,
                 isExactTotal: true,
                 isCountLoading: false,
+                bottomTabVisible: true,
             };
             data.controller = {};
         }
@@ -155,8 +156,15 @@ export class Session {
     }
 
     activateView(viewId: string) {
-        if (this.views.find(v => v.id === viewId)) {
+        const view = this.views.find(v => v.id === viewId);
+        if (view) {
             this.activeViewId = viewId;
+
+            // Auto-hide bottom panel if we switch to a non-editor view
+            if (view.type !== "editor") {
+                settingsStore.sidebarBottomVisible = false;
+            }
+
             this.triggerSave();
         }
     }

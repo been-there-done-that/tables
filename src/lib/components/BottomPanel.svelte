@@ -2,14 +2,20 @@
     import { windowState } from "$lib/stores/window.svelte";
     import IconX from "@tabler/icons-svelte/icons/x";
     import IconFileText from "@tabler/icons-svelte/icons/file-text";
-    import IconTable from "@tabler/icons-svelte/icons/table";
     import { cn } from "$lib/utils";
     import SqlResultPanel from "./SqlResultPanel.svelte";
+    import IconChevronDown from "@tabler/icons-svelte/icons/chevron-down";
+    import { settingsStore } from "$lib/stores/settings.svelte";
+    import { Button } from "./ui/button";
 
     const activeSession = $derived(windowState.activeSession);
-    // Only show tabs for SQL editors in the bottom panel
+    // Only show tabs for SQL editors in the bottom panel that are marked visible
     const editorViews = $derived(
-        activeSession?.views.filter((v) => v.type === "editor") || [],
+        activeSession?.views.filter(
+            (v) =>
+                v.type === "editor" &&
+                v.data?.results?.bottomTabVisible !== false,
+        ) || [],
     );
     const activeViewId = $derived(activeSession?.activeViewId);
     const isActiveAnEditor = $derived(
@@ -22,15 +28,25 @@
 
     function handleCloseClick(e: MouseEvent, viewId: string) {
         e.stopPropagation();
-        activeSession?.closeView(viewId);
+        // Don't close the view, just hide the tab from the bottom panel
+        const view = activeSession?.views.find((v) => v.id === viewId);
+        if (view && view.data?.results) {
+            view.data.results.bottomTabVisible = false;
+        }
+    }
+
+    function handleMinimize() {
+        settingsStore.sidebarBottomVisible = false;
     }
 </script>
 
 <div class="flex h-full flex-col bg-background border-t border-border">
     <!-- Bottom Tabs (Only for SQL Editors) -->
-    {#if editorViews.length > 0}
+    <div
+        class="flex items-center justify-between border-b border-border bg-muted/20 h-8 px-2 overflow-hidden"
+    >
         <div
-            class="flex items-center gap-px border-b border-border bg-muted/20 h-8 px-2 overflow-x-auto scrollbar-hide"
+            class="flex items-center gap-px h-full overflow-x-auto scrollbar-hide"
         >
             {#each editorViews as view (view.id)}
                 <button
@@ -76,7 +92,17 @@
                 </button>
             {/each}
         </div>
-    {/if}
+
+        <Button
+            variant="ghost"
+            size="icon"
+            class="size-6 h-full rounded-none hover:bg-background/80"
+            onclick={handleMinimize}
+            title="Minimize Panel"
+        >
+            <IconChevronDown class="size-3.5" />
+        </Button>
+    </div>
 
     <!-- Content Area -->
     <div class="flex-1 overflow-hidden relative">
