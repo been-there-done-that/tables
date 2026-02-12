@@ -12,10 +12,16 @@ use tokio_util::sync::CancellationToken;
 use crate::completion::parsing::parse_sql;
 use crate::completion::ranges::find_all_statement_ranges;
 
+/// Active query tracking with cancellation tokens
+pub struct ActiveQuery {
+    pub token: CancellationToken,
+    pub pg_cancel: Option<tokio_postgres::CancelToken>,
+}
+
 /// State for tracking running queries per connection
 pub struct QueryExecutionState {
-    /// Active queries: connection_id → CancellationToken
-    pub active_queries: Arc<Mutex<HashMap<String, CancellationToken>>>,
+    /// Active queries: connection_id → ActiveQuery
+    pub active_queries: Arc<Mutex<HashMap<String, ActiveQuery>>>,
 }
 
 impl Default for QueryExecutionState {
@@ -58,14 +64,32 @@ impl QuerySessionManager {
 pub async fn cancel_query(
     connection_id: String,
     query_state: State<'_, QueryExecutionState>,
+    session_state: State<'_, QuerySessionManager>,
     app: AppHandle,
 ) -> Result<bool, String> {
     info!("[cancel_query] Attempting to cancel query for connection: {}", connection_id);
     
     let mut queries = query_state.active_queries.lock().await;
-    if let Some(token) = queries.remove(&connection_id) {
-        token.cancel();
-        info!("[cancel_query] Successfully cancelled query for connection: {}", connection_id);
+    if let Some(active_query) = queries.remove(&connection_id) {
+        // 1. Native Postgres cancel if available
+        if let Some(pg_token) = active_query.pg_cancel {
+            debug!("[cancel_query] Sending native Postgres cancel signal for connection: {}", connection_id);
+            // Non-blocking cancel attempt
+            let _ = pg_token.cancel_query(tokio_postgres::NoTls).await;
+        }
+
+        // 2. Local token cancel to abort the tokio::select
+        active_query.token.cancel();
+
+        // 3. FORCE CLOSE SESSIONS for this connection
+        // This is the most reliable way to ensure the next query doesn't hang on a busy/corrupted connection
+        {
+            let mut sessions = session_state.sessions.lock().await;
+            sessions.retain(|(cid, _), _| cid != &connection_id);
+            debug!("[cancel_query] Cleared active sessions for connection: {}", connection_id);
+        }
+
+        info!("[cancel_query] Successfully cancelled query and reset connection state: {}", connection_id);
         
         // Emit cancellation event
         let _ = app.emit("query-cancelled", serde_json::json!({
@@ -223,10 +247,13 @@ pub async fn fetch_table_preview(
     {
         let mut queries = query_state.active_queries.lock().await;
         // Cancel any existing query for this connection
-        if let Some(old_token) = queries.remove(&connection_id) {
-            old_token.cancel();
+        if let Some(old_active) = queries.remove(&connection_id) {
+            old_active.token.cancel();
         }
-        queries.insert(connection_id.clone(), cancel_token.clone());
+        queries.insert(connection_id.clone(), ActiveQuery {
+            token: cancel_token.clone(),
+            pg_cancel: None,
+        });
     }
     
     // Cleanup function to remove token when done
@@ -258,7 +285,16 @@ pub async fn fetch_table_preview(
 
     // Use connection pooling - get or create adapter
     let adapter = match manager.get_or_create_adapter(&connection_id).await {
-        Ok(a) => a,
+        Ok(a) => {
+            // Register native cancel token if Postgres
+            if let Some(pg_token) = a.get_pg_cancel_token() {
+                let mut queries = query_state.active_queries.lock().await;
+                if let Some(active_query) = queries.get_mut(&connection_id) {
+                    active_query.pg_cancel = Some(pg_token);
+                }
+            }
+            a
+        },
         Err(e) => {
             cleanup_token().await;
             error!("Failed to get adapter: {}", e);
@@ -416,10 +452,13 @@ pub async fn execute_query(
     let cancel_token = CancellationToken::new();
     {
         let mut queries = query_state.active_queries.lock().await;
-        if let Some(old_token) = queries.remove(&connection_id) {
-            old_token.cancel();
+        if let Some(old_active) = queries.remove(&connection_id) {
+            old_active.token.cancel();
         }
-        queries.insert(connection_id.clone(), cancel_token.clone());
+        queries.insert(connection_id.clone(), ActiveQuery {
+            token: cancel_token.clone(),
+            pg_cancel: None,
+        });
     }
     
     // Cleanup function
@@ -442,7 +481,7 @@ pub async fn execute_query(
             // Session exists, skip connection/credential retrieval from local DB
             match engine {
                 "postgres" => {
-                    execute_postgres_query(&session_state, &connection_id, &session_id, None, None, &database, &schema, &query).await
+                    execute_postgres_query(&session_state, &query_state, &connection_id, &session_id, None, None, &database, &schema, &query).await
                 }
                 "sqlite" => {
                     execute_sqlite_query(&session_state, &connection_id, &session_id, None, &query).await
@@ -469,7 +508,7 @@ pub async fn execute_query(
     
             match connection.engine.as_str() {
                 "postgres" | "postgresql" => {
-                    execute_postgres_query(&session_state, &connection_id, &session_id, Some(&config), Some(&credentials), &database, &schema, &query).await
+                    execute_postgres_query(&session_state, &query_state, &connection_id, &session_id, Some(&config), Some(&credentials), &database, &schema, &query).await
                 }
                 "sqlite" => {
                     execute_sqlite_query(&session_state, &connection_id, &session_id, Some(&config), &query).await
@@ -829,6 +868,7 @@ async fn get_or_create_postgres_client(
 
 async fn execute_postgres_query(
     session_manager: &QuerySessionManager,
+    query_state: &QueryExecutionState,
     connection_id: &str,
     session_id: &str,
     config: Option<&serde_json::Value>,
@@ -839,6 +879,14 @@ async fn execute_postgres_query(
 ) -> Result<QueryResult, String> {
     for attempt in 0..2 {
         let client = get_or_create_postgres_client(session_manager, connection_id, session_id, config, credentials, database).await?;
+
+        // Register native cancel token
+        {
+            let mut queries = query_state.active_queries.lock().await;
+            if let Some(active_query) = queries.get_mut(connection_id) {
+                active_query.pg_cancel = Some(client.cancel_token());
+            }
+        }
 
         // Split query and execute
         let tree = parse_sql(query, None);
