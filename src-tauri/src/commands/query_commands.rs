@@ -3,10 +3,11 @@ use tauri::{State, AppHandle, Emitter, Manager};
 use serde::{Deserialize, Serialize};
 use log::{debug, error, info, warn};
 use crate::{DatabaseState, ConnectionManager, ConnectionManagerState};
-use std::time::Instant;
+use std::time::{Instant, Duration};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use tokio::time::timeout;
 use tokio_util::sync::CancellationToken;
 use crate::completion::parsing::parse_sql;
 use crate::completion::ranges::find_all_statement_ranges;
@@ -536,7 +537,15 @@ async fn fetch_postgres_preview(
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
 
-    let conn_str = format!("postgres://{}:{}@{}:{}/{}", user, password, host, port, database);
+    let mut pg_config = tokio_postgres::Config::new();
+    pg_config.host(host);
+    pg_config.port(port);
+    pg_config.user(user);
+    pg_config.password(&password);
+    pg_config.dbname(database);
+    pg_config.connect_timeout(Duration::from_secs(15));
+    pg_config.keepalives(true);
+    pg_config.keepalives_idle(Duration::from_secs(30));
 
     let client: tokio_postgres::Client = if tls_enabled {
         debug!("Table preview with TLS enabled");
@@ -545,7 +554,7 @@ async fn fetch_postgres_preview(
             .build()
             .map_err(|e| format!("Failed to build TLS connector: {}", e))?;
         let connector = postgres_native_tls::MakeTlsConnector::new(tls_connector);
-        let (client, connection) = tokio_postgres::connect(&conn_str, connector).await
+        let (client, connection) = pg_config.connect(connector).await
             .map_err(|e| {
                 error!("Postgres TLS connection failed: {:?}", e);
                 format!("Connection error: {}", e)
@@ -558,7 +567,7 @@ async fn fetch_postgres_preview(
         client
     } else {
         debug!("Table preview without TLS");
-        let (client, connection) = tokio_postgres::connect(&conn_str, tokio_postgres::NoTls).await
+        let (client, connection) = pg_config.connect(tokio_postgres::NoTls).await
             .map_err(|e| {
                 error!("Postgres connection failed: {:?}", e);
                 format!("Connection error: {}", e)
@@ -768,7 +777,16 @@ async fn get_or_create_postgres_client(
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
 
-    let conn_str = format!("postgres://{}:{}@{}:{}/{}", user, password, host, port, database);
+    let mut pg_config = tokio_postgres::Config::new();
+    pg_config.host(host);
+    pg_config.port(port);
+    pg_config.user(user);
+    pg_config.password(&password);
+    pg_config.dbname(database);
+    pg_config.connect_timeout(Duration::from_secs(15));
+    pg_config.keepalives(true);
+    pg_config.keepalives_idle(Duration::from_secs(30));
+
     debug!("Connecting to Postgres at {}:{}/{}", host, port, database);
 
     let client: tokio_postgres::Client = if tls_enabled {
@@ -777,7 +795,7 @@ async fn get_or_create_postgres_client(
             .build()
             .map_err(|e| format!("Failed to build TLS connector: {}", e))?;
         let connector = postgres_native_tls::MakeTlsConnector::new(tls_connector);
-        let (client, connection) = tokio_postgres::connect(&conn_str, connector).await
+        let (client, connection) = pg_config.connect(connector).await
             .map_err(|e| format!("Connection error: {}", e))?;
         debug!("Tipping off background connection task (TLS)");
         tauri::async_runtime::spawn(async move {
@@ -787,7 +805,7 @@ async fn get_or_create_postgres_client(
         });
         client
     } else {
-        let (client, connection) = tokio_postgres::connect(&conn_str, tokio_postgres::NoTls).await
+        let (client, connection) = pg_config.connect(tokio_postgres::NoTls).await
             .map_err(|e| format!("Connection error: {}", e))?;
         debug!("Tipping off background connection task (NoTLS)");
         tauri::async_runtime::spawn(async move {
@@ -826,7 +844,7 @@ async fn execute_postgres_query(
         let tree = parse_sql(query, None);
         let statements = tree.map(|t| find_all_statement_ranges(&t, query)).unwrap_or_default();
 
-        let result: Result<QueryResult, tokio_postgres::Error> = if statements.is_empty() {
+        let result = if statements.is_empty() {
              execute_single_postgres_query(&client, query).await
         } else {
              let mut last_result = None;
@@ -834,7 +852,11 @@ async fn execute_postgres_query(
              for (i, range) in statements.iter().enumerate() {
                 let stmt_text = &query[range.start_byte..range.end_byte];
                 debug!("[execute_postgres_query] Statement {}: {}", i, stmt_text);
-                let rows_res = client.query(stmt_text, &[]).await;
+                
+                let rows_res = match timeout(Duration::from_secs(30), client.query(stmt_text, &[])).await {
+                    Ok(res) => res,
+                    Err(_) => return Err("Query timed out after 30 seconds".to_string()),
+                };
                 
                 match rows_res {
                     Ok(rows) => {
@@ -882,7 +904,7 @@ async fn execute_postgres_query(
                          }
                     }
                     Err(e) => {
-                         loop_err = Some(e);
+                         loop_err = Some(crate::pg_utils::format_postgres_error(&e));
                          break; 
                     }
                 }
@@ -903,7 +925,7 @@ async fn execute_postgres_query(
         match result {
              Ok(res) => return Ok(res),
              Err(e) => {
-                 if e.is_closed() && attempt == 0 {
+                 if client.is_closed() && attempt == 0 {
                       warn!("Postgres connection closed, attempting reconnect...");
                       {
                           let mut sessions = session_manager.sessions.lock().await;
@@ -912,12 +934,7 @@ async fn execute_postgres_query(
                       continue; 
                  }
                  
-                 // Map error to string
-                 if let Some(db_err) = e.as_db_error() {
-                     return Err(format!("Query failed: {} (code: {})", db_err.message(), db_err.code().code()));
-                 } else {
-                     return Err(format!("Query failed: {}", e));
-                 }
+                 return Err(e);
              }
         }
     }
@@ -925,8 +942,11 @@ async fn execute_postgres_query(
     Err("Connection closed and reconnection failed.".to_string())
 }
 
-async fn execute_single_postgres_query(client: &tokio_postgres::Client, query: &str) -> Result<QueryResult, tokio_postgres::Error> {
-    let rows = client.query(query, &[]).await?;
+async fn execute_single_postgres_query(client: &tokio_postgres::Client, query: &str) -> Result<QueryResult, String> {
+    let rows = match timeout(Duration::from_secs(30), client.query(query, &[])).await {
+        Ok(res) => res.map_err(|e| crate::pg_utils::format_postgres_error(&e))?,
+        Err(_) => return Err("Query timed out after 30 seconds".to_string()),
+    };
 
     let raw_columns = if !rows.is_empty() {
         rows[0].columns()

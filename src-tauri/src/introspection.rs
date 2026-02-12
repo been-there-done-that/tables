@@ -295,7 +295,15 @@ impl Introspector {
             .unwrap_or(false);
 
         // Connect specifically to the requested database
-        let conn_str = format!("postgres://{}:{}@{}:{}/{}", user, password, host, port, database_name);
+        let mut pg_config = tokio_postgres::Config::new();
+        pg_config.host(host);
+        pg_config.port(port);
+        pg_config.user(user);
+        pg_config.password(password);
+        pg_config.dbname(database_name);
+        pg_config.connect_timeout(std::time::Duration::from_secs(15));
+        pg_config.keepalives(true);
+        pg_config.keepalives_idle(std::time::Duration::from_secs(30));
         
         let client: tokio_postgres::Client = if tls_enabled {
             debug!("On-demand introspection with TLS enabled for database {}", database_name);
@@ -304,7 +312,7 @@ impl Introspector {
                 .build()
                 .map_err(|e| format!("Failed to build TLS connector: {}", e))?;
             let connector = postgres_native_tls::MakeTlsConnector::new(tls_connector);
-            let (client, connection) = tokio_postgres::connect(&conn_str, connector).await
+            let (client, connection) = pg_config.connect(connector).await
                 .map_err(|e| {
                     error!("Postgres TLS on-demand connection failed: {:?}", e);
                     format!("Connection error: {}", e)
@@ -317,7 +325,7 @@ impl Introspector {
             client
         } else {
             debug!("On-demand introspection without TLS for database {}", database_name);
-            let (client, connection) = tokio_postgres::connect(&conn_str, tokio_postgres::NoTls).await
+            let (client, connection) = pg_config.connect(tokio_postgres::NoTls).await
                 .map_err(|e| {
                     error!("Postgres on-demand connection failed: {:?}", e);
                     format!("Connection error: {}", e)

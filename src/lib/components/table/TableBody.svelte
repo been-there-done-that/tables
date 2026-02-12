@@ -150,40 +150,55 @@
 <div class="h-full w-full relative" bind:this={container} data-table-container>
     {#if showLoading}
         <TableLoadingState {columns} />
-    {:else if showEmpty}
-        <TableEmptyState title={emptyTitle} description={emptyDescription} />
     {:else}
-        <VirtualScroller
-            bind:this={virtualScroller}
-            items={rows}
-            itemHeight={measuredItemHeight}
-            class="h-full w-full"
-            {onScroll}
-            {header}
-        >
-            {#snippet children(row: any, index: number)}
-                <TableRow
-                    {row}
-                    {columns}
-                    rowIndex={index}
-                    selected={!!selectedRows[getRowKey(row)]}
-                    {selectedCells}
-                    {focusedCell}
-                    {editingCell}
-                    {pendingEdits}
-                    {deletedRowIds}
-                    {getRowKey}
-                    disabled={loading}
-                    {onRowSelect}
-                    {onCellClick}
-                    {onCellMouseDown}
-                    {onCellMouseEnter}
-                    {onCellDoubleClick}
-                    {onCellContextMenu}
-                    {onEditComplete}
-                    {onEditCancel}
-                />
-            {/snippet}
-        </VirtualScroller>
+        <div class="flex flex-col h-full w-full overflow-hidden">
+            {#if showEmpty}
+                <!-- For empty state, we still want the header to show if we have columns -->
+                <div
+                    class="border-b border-border bg-surface w-fit sticky top-0 z-10"
+                >
+                    {@render header()}
+                </div>
+                <div class="flex-1 overflow-auto">
+                    <TableEmptyState
+                        title={emptyTitle}
+                        description={emptyDescription}
+                    />
+                </div>
+            {:else}
+                <VirtualScroller
+                    bind:this={virtualScroller}
+                    items={rows}
+                    itemHeight={measuredItemHeight}
+                    class="h-full w-full text-foreground"
+                    {onScroll}
+                    {header}
+                >
+                    {#snippet children(row: any, index: number)}
+                        <TableRow
+                            {row}
+                            {columns}
+                            rowIndex={index}
+                            selected={!!selectedRows[getRowKey(row)]}
+                            {selectedCells}
+                            {focusedCell}
+                            {editingCell}
+                            {pendingEdits}
+                            {deletedRowIds}
+                            {getRowKey}
+                            disabled={loading}
+                            {onRowSelect}
+                            {onCellClick}
+                            {onCellMouseDown}
+                            {onCellMouseEnter}
+                            {onCellDoubleClick}
+                            {onCellContextMenu}
+                            {onEditComplete}
+                            {onEditCancel}
+                        />
+                    {/snippet}
+                </VirtualScroller>
+            {/if}
+        </div>
     {/if}
 </div>
