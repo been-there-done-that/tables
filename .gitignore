@@ -11,3 +11,5 @@ vite.config.ts.timestamp-*
 .vscode
 *.profraw
 .idea
+.coderev/
+.fastembed_cache/
