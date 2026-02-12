@@ -854,10 +854,6 @@
             await invoke("cancel_query", {
                 connectionId: schemaStore.activeConnection.id,
             });
-            // Optimization: clear headers on stop to force fresh state
-            if (headerController) {
-                headerController.clearAll();
-            }
         } catch (e) {
             log(`Failed to cancel query: ${e}`);
             console.error("Cancel failed:", e);
