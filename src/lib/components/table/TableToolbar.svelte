@@ -58,6 +58,7 @@
         onAddRow?: () => void;
         onSaveChanges?: () => Promise<void>;
         isSaving?: boolean;
+        hideFilters?: boolean;
         extraActions?: import("svelte").Snippet;
         leftActions?: import("svelte").Snippet;
     }
@@ -93,6 +94,7 @@
         onAddRow,
         onSaveChanges,
         isSaving = false,
+        hideFilters = false,
         extraActions,
         leftActions,
     }: Props = $props();
@@ -607,31 +609,33 @@
     </div>
 
     <!-- Row 2: WHERE and ORDER BY -->
-    <div
-        class="flex items-center gap-3 px-3 h-7 text-xs w-full border-t border-border/40 bg-muted/20"
-    >
-        <!-- WHERE (60%) -->
-        <AutocompleteInput
-            bind:value={whereClause}
-            placeholder="column = value"
-            suggestions={whereSuggestions}
-            icon="filter"
-            widthClass="w-[60%] h-full"
-            onchange={(v) => onWhereChange?.(v)}
-            onsubmit={handleExecute}
-        />
+    {#if !hideFilters}
+        <div
+            class="flex items-center gap-3 px-3 h-7 text-xs w-full border-t border-border/40 bg-muted/20"
+        >
+            <!-- WHERE (60%) -->
+            <AutocompleteInput
+                bind:value={whereClause}
+                placeholder="column = value"
+                suggestions={whereSuggestions}
+                icon="filter"
+                widthClass="w-[60%] h-full"
+                onchange={(v) => onWhereChange?.(v)}
+                onsubmit={handleExecute}
+            />
 
-        <div class="w-px h-4 bg-border/50"></div>
+            <div class="w-px h-4 bg-border/50"></div>
 
-        <!-- ORDER BY (40%) -->
-        <AutocompleteInput
-            bind:value={orderByClause}
-            placeholder="column ASC"
-            suggestions={orderBySuggestions}
-            icon="sort"
-            widthClass="w-[40%] h-full"
-            onchange={(v) => onOrderByChange?.(v)}
-            onsubmit={handleExecute}
-        />
-    </div>
+            <!-- ORDER BY (40%) -->
+            <AutocompleteInput
+                bind:value={orderByClause}
+                placeholder="column ASC"
+                suggestions={orderBySuggestions}
+                icon="sort"
+                widthClass="w-[40%] h-full"
+                onchange={(v) => onOrderByChange?.(v)}
+                onsubmit={handleExecute}
+            />
+        </div>
+    {/if}
 </div>
