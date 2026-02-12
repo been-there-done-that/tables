@@ -109,8 +109,9 @@ pub async fn cancel_query(
 pub struct QueryResult {
     pub rows: Vec<serde_json::Value>,
     pub columns: Vec<ColumnInfo>,
-    pub affected_rows: Option<u64>,
     pub duration_ms: u64,
+    pub affected_rows: Option<u64>,
+    pub total: Option<u64>,
 }
 
 /// Result of a table preview query
@@ -429,6 +430,8 @@ pub async fn execute_query(
     query_state: State<'_, QueryExecutionState>,
     app: AppHandle,
     component: Option<String>,
+    limit: Option<i64>,
+    offset: Option<i64>,
 ) -> Result<QueryResult, String> {
     info!("Executing query on {}: {}", database, query);
     
@@ -477,16 +480,46 @@ pub async fn execute_query(
 
     // Wrap execution in tokio::select for cancellation
     let execution_future = async {
-        if let Some(engine) = session_found {
-            // Session exists, skip connection/credential retrieval from local DB
-            match engine {
-                "postgres" => {
-                    execute_postgres_query(&session_state, &query_state, &connection_id, &session_id, None, None, &database, &schema, &query).await
+        let engine = if let Some(e) = session_found {
+            e.to_string()
+        } else {
+            let manager = ConnectionManager::from_state(&db_state, &conn_state);
+            let connection = manager.get_connection(&connection_id).map(|(c, _)| c.engine)?;
+            connection
+        };
+
+        // Determine final query text and optional count query
+        let (final_query, count_query) = if let (Some(l), Some(offset_val)) = (limit, offset) {
+            let trimmed = query.trim().trim_end_matches(';');
+            match engine.as_str() {
+                "postgres" | "postgresql" => {
+                    (
+                        format!("SELECT * FROM ({}) AS __subquery LIMIT {} OFFSET {}", trimmed, l, offset_val),
+                        Some(format!("SELECT COUNT(*) FROM ({}) AS __total", trimmed))
+                    )
                 }
                 "sqlite" => {
-                    execute_sqlite_query(&session_state, &connection_id, &session_id, None, &query).await
+                    (
+                        format!("SELECT * FROM ({}) LIMIT {} OFFSET {}", trimmed, l, offset_val),
+                        Some(format!("SELECT COUNT(*) FROM ({})", trimmed))
+                    )
                 }
-                _ => Err(format!("Engine '{}' is not supported", engine)),
+                _ => (query.clone(), None)
+            }
+        } else {
+            (query.clone(), None)
+        };
+
+        let mut res = if let Some(engine_type) = session_found {
+            // Session exists, skip connection/credential retrieval from local DB
+            match engine_type {
+                "postgres" => {
+                    execute_postgres_query(&session_state, &query_state, &connection_id, &session_id, None, None, &database, &schema, &final_query).await
+                }
+                "sqlite" => {
+                    execute_sqlite_query(&session_state, &connection_id, &session_id, None, &final_query).await
+                }
+                _ => Err(format!("Engine '{}' is not supported", engine_type)),
             }
         } else {
             // No session, perform full retrieval from local DB
@@ -508,14 +541,38 @@ pub async fn execute_query(
     
             match connection.engine.as_str() {
                 "postgres" | "postgresql" => {
-                    execute_postgres_query(&session_state, &query_state, &connection_id, &session_id, Some(&config), Some(&credentials), &database, &schema, &query).await
+                    execute_postgres_query(&session_state, &query_state, &connection_id, &session_id, Some(&config), Some(&credentials), &database, &schema, &final_query).await
                 }
                 "sqlite" => {
-                    execute_sqlite_query(&session_state, &connection_id, &session_id, Some(&config), &query).await
+                    execute_sqlite_query(&session_state, &connection_id, &session_id, Some(&config), &final_query).await
                 }
                 _ => Err(format!("Engine '{}' is not supported for query execution", connection.engine)),
             }
+        }?;
+
+        // If we have a count query, run it to get the total
+        if let Some(cq) = count_query {
+            let total_res = match engine.as_str() {
+                "postgres" | "postgresql" | "postgres" => {
+                    execute_postgres_query(&session_state, &query_state, &connection_id, &session_id, None, None, &database, &schema, &cq).await
+                }
+                "sqlite" => {
+                    execute_sqlite_query(&session_state, &connection_id, &session_id, None, &cq).await
+                }
+                _ => Err("Unsupported engine for count".to_string())
+            };
+
+            if let Ok(tr) = total_res {
+                if let Some(row) = tr.rows.first() {
+                    let count = row.get("count")
+                        .or_else(|| row.as_object().and_then(|obj| obj.values().next()))
+                        .and_then(|v| v.as_u64());
+                    res.total = count;
+                }
+            }
         }
+
+        Ok(res)
     };
 
     let cancel_future = cancel_token.cancelled();
@@ -948,6 +1005,7 @@ async fn execute_postgres_query(
                                  columns,
                                  affected_rows: None,
                                  duration_ms: 0,
+                                 total: None,
                              });
                          }
                     }
@@ -965,7 +1023,8 @@ async fn execute_postgres_query(
                      rows: vec![],
                      columns: vec![],
                      affected_rows: None,
-                     duration_ms: 0
+                     duration_ms: 0,
+                     total: None,
                  }))
              }
         };
@@ -1031,6 +1090,7 @@ async fn execute_single_postgres_query(client: &tokio_postgres::Client, query: &
         columns,
         affected_rows: None,
         duration_ms: 0,
+        total: None,
     })
 }
 
@@ -1151,6 +1211,7 @@ async fn execute_sqlite_query(
                     columns,
                     affected_rows: None,
                     duration_ms: 0,
+                    total: None,
                 });
             }
         }
@@ -1207,6 +1268,7 @@ fn execute_single_sqlite_query(conn: &rusqlite::Connection, query: &str) -> Resu
         columns,
         affected_rows: None,
         duration_ms: 0,
+        total: None,
     })
 }
 

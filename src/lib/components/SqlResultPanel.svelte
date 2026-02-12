@@ -58,6 +58,7 @@
             onAddRow={controller.addRow}
             onSaveChanges={controller.saveChanges}
             isSaving={results.isSaving}
+            hideFilters={true}
         >
             {#snippet extraActions()}
                 <Popover.Root>
