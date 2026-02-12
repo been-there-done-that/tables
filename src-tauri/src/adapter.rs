@@ -410,6 +410,11 @@ pub trait DatabaseAdapter: Send + Sync {
         &self.capabilities().engine
     }
 
+    /// Returns a native Postgres cancel token if supported.
+    fn get_pg_cancel_token(&self) -> Option<tokio_postgres::CancelToken> {
+        None
+    }
+
     /// Establish connection to the database.
     /// Uses interior mutability (Arc<Mutex>) so &self is sufficient.
     async fn connect(&self) -> Result<(), AdapterError>;
@@ -576,6 +581,10 @@ impl DatabaseAdapter for Box<dyn DatabaseAdapter> {
 
     async fn ensure_database(&self, database: Option<&str>) -> Result<(), AdapterError> {
         (**self).ensure_database(database).await
+    }
+
+    fn get_pg_cancel_token(&self) -> Option<tokio_postgres::CancelToken> {
+        (**self).get_pg_cancel_token()
     }
 
     async fn query(&self, query: &str) -> Result<AdapterQueryResult, AdapterError> {

@@ -404,6 +404,11 @@ impl DatabaseAdapter for PostgresAdapter {
         self.ensure_connected(db).await
     }
 
+    fn get_pg_cancel_token(&self) -> Option<tokio_postgres::CancelToken> {
+        let state = self.state.try_lock().ok()?;
+        state.as_ref().map(|s| s.client.cancel_token())
+    }
+
     async fn query(&self, query_str: &str) -> Result<crate::adapter::AdapterQueryResult, AdapterError> {
         let state_guard = self.state.lock().await;
         let state = state_guard.as_ref()
