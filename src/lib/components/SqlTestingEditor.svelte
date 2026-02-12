@@ -103,85 +103,75 @@
 
     // Derived DataFetcher for Table component
     const resultDataFetcher: DataFetcher = $derived(async (params) => {
-        const { offset, limit, sort, filters } = params;
+        const { offset, limit } = params;
 
-        let processed = [...results.rows];
-
-        // 1. Client-side Sort
-        if (sort && sort.length > 0) {
-            processed.sort((a, b) => {
-                for (const s of sort) {
-                    const colId = s.columnId;
-                    const valA = a[colId];
-                    const valB = b[colId];
-                    if (valA === valB) continue;
-
-                    // Handle nulls
-                    if (valA === null || valA === undefined)
-                        return s.direction === "asc" ? -1 : 1;
-                    if (valB === null || valB === undefined)
-                        return s.direction === "asc" ? 1 : -1;
-
-                    if (typeof valA === "number" && typeof valB === "number") {
-                        const diff = valA - valB;
-                        return s.direction === "asc" ? diff : -diff;
-                    }
-
-                    const strA = String(valA).toLowerCase();
-                    const strB = String(valB).toLowerCase();
-                    if (strA < strB) return s.direction === "asc" ? -1 : 1;
-                    if (strA > strB) return s.direction === "asc" ? 1 : -1;
-                }
-                return 0;
-            });
+        if (!schemaStore.activeConnection || !results.executedQueryText) {
+            return {
+                rows: [],
+                total: 0,
+                columns: results.columns,
+            };
         }
 
-        // 2. Client-side Filter
-        if (filters && Object.keys(filters).length > 0) {
-            // Note: Table component handles filtering efficiently too,
-            // but if Table calls fetcher with filters, we must apply them here for correctness if we return a subset.
-            // Since we're client-side, we can just return the filtered page.
-
-            // Simplified filter implemention matching Table.svelte's logic
-            Object.entries(filters).forEach(([columnId, filterValue]) => {
-                if (!filterValue) return;
-
-                if (filterValue.type === "in" && filterValue.values) {
-                    processed = processed.filter((row) => {
-                        const cellValue = String(row[columnId]);
-                        return filterValue.values.includes(cellValue);
-                    });
-                } else if (filterValue.type === "equals") {
-                    processed = processed.filter(
-                        (row) => row[columnId] === filterValue.value,
-                    );
-                } else if (filterValue.type === "contains") {
-                    processed = processed.filter((row) =>
-                        String(row[columnId])
-                            .toLowerCase()
-                            .includes(String(filterValue.value).toLowerCase()),
-                    );
-                }
+        try {
+            results.loading = true;
+            const result = await invoke<any>("execute_query", {
+                connectionId: schemaStore.activeConnection.id,
+                sessionId: id,
+                database: schemaStore.selectedDatabase,
+                schema: schemaStore.activeSchema || "public",
+                query: results.executedQueryText,
+                component: "editor",
+                limit: limit || results.pageSize,
+                offset: offset || 0,
             });
+
+            if (result.rows && result.columns) {
+                const columnsMetadata = result.columns.map((c: any) => ({
+                    name: c.name,
+                    label: c.name,
+                    type: normalizeColumnType(c.type),
+                    rawType: c.type,
+                    sortable: true,
+                    filterable: true,
+                    pinnable: true,
+                    editable: true,
+                    isPrimaryKey: c.is_primary_key,
+                    sourceTable: c.source_table,
+                    sourceSchema: c.source_schema,
+                }));
+
+                const processed = ensureUniqueColumnIds(
+                    columnsMetadata,
+                    result.rows,
+                );
+
+                results.total = result.total ?? results.total;
+                results.currentBatchSize = processed.rows.length;
+
+                // Add rowId
+                const rowsWithId = processed.rows.map((r, i) => ({
+                    ...r,
+                    _rowId: (offset || 0) + i,
+                }));
+
+                return {
+                    rows: rowsWithId,
+                    total: results.total,
+                    columns: processed.columns,
+                };
+            }
+        } catch (e) {
+            console.error("Data fetcher failed:", e);
+            log(`Background fetch failed: ${e}`);
+        } finally {
+            results.loading = false;
         }
-
-        const filteredTotal = processed.length;
-        const page = processed.slice(offset, offset + (limit || 1000));
-
-        results.currentBatchSize = page.length;
-        results.total = filteredTotal;
-
-        // Add rowId if missing
-        const rowsWithId = page.map((r, i) => ({
-            ...r,
-            _rowId: (offset || 0) + i,
-        }));
 
         return {
-            rows: rowsWithId,
-            total: filteredTotal,
+            rows: [],
+            total: results.total,
             columns: results.columns,
-            columnStats: undefined, // Let table compute stats
         };
     });
 
@@ -319,6 +309,8 @@
                     schema: schemaStore.activeSchema || "public",
                     query: query,
                     component: "editor",
+                    limit: results.pageSize,
+                    offset: 0,
                 });
                 isRunning = false;
                 results.executionTime =
@@ -358,7 +350,8 @@
                     );
                     results.rows = processed.rows;
                     results.columns = processed.columns;
-                    results.total = result.rows.length;
+                    results.total = result.total ?? result.rows.length;
+                    results.isExactTotal = result.total !== undefined;
                     results.visible = true;
                     results.executedQueryText = query; // User feedback: attach query
                     if (controller.refreshTable) controller.refreshTable();
@@ -390,7 +383,8 @@
                         );
                         results.rows = processed.rows;
                         results.columns = processed.columns;
-                        results.total = last.rows.length;
+                        results.total = last.total ?? last.rows.length;
+                        results.isExactTotal = last.total !== undefined;
                         results.visible = true;
                         results.executedQueryText = query; // User feedback: attach query
                         if (controller.refreshTable) controller.refreshTable();
@@ -460,6 +454,8 @@
                 schema: schemaStore.activeSchema || "public",
                 query: queryText,
                 component: "editor",
+                limit: results.pageSize,
+                offset: 0,
             });
             isRunning = false;
 
@@ -500,7 +496,8 @@
                 );
                 results.rows = processed.rows;
                 results.columns = processed.columns;
-                results.total = result.rows.length;
+                results.total = result.total ?? result.rows.length;
+                results.isExactTotal = result.total !== undefined;
                 results.visible = true;
                 results.executedQueryText = queryText;
                 if (controller.refreshTable) controller.refreshTable();
@@ -531,7 +528,8 @@
                     );
                     results.rows = processed.rows;
                     results.columns = processed.columns;
-                    results.total = last.rows.length;
+                    results.total = last.total ?? last.rows.length;
+                    results.isExactTotal = last.total !== undefined;
                     results.visible = true;
                     results.executedQueryText = queryText;
                     if (controller.refreshTable) controller.refreshTable();
