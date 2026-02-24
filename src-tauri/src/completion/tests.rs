@@ -21,7 +21,7 @@ use crate::completion::parsing::parse_sql;
 use crate::completion::context::Context;
 use crate::completion::analysis::build_semantic_model;
 use crate::completion::engine::{CompletionEngine, CompletionItem};
-use crate::completion::schema::MockSchemaLoader;
+use crate::completion::schema::loader::MockSchemaLoader;
 
 /// Helper function to get completions at a cursor position marked by `|`.
 fn complete(sql: &str) -> Vec<String> {

@@ -141,30 +141,7 @@
 
         <div class="w-px h-4 bg-border/40 mx-1"></div>
 
-        <!-- Explain Actions -->
-        <Button
-            variant="ghost"
-            size="sm"
-            class="h-7 px-2 flex items-center gap-1.5 opacity-70 hover:opacity-100"
-            onclick={() => onExplain(false)}
-            title="Explain Plan"
-        >
-            <IconSearch class="size-4" />
-            <span class="text-xs font-medium">Explain</span>
-        </Button>
 
-        <Button
-            variant="ghost"
-            size="sm"
-            class="h-7 px-2 flex items-center gap-1.5 opacity-70 hover:opacity-100"
-            onclick={() => onExplain(true)}
-            title="Explain Plan (Raw)"
-        >
-            <span class="text-xs font-bold opacity-70">RAW</span>
-            <span class="text-xs font-medium">Explain</span>
-        </Button>
-
-        <div class="w-px h-4 bg-border/40 mx-1"></div>
 
         <Button
             variant="ghost"
