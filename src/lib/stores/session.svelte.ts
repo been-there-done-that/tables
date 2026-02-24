@@ -18,6 +18,7 @@ export class Session {
     id = $state("");
     connectionId = $state("");
     windowLabel = $state("");
+    databaseName = $state<string | null>(null);
     // We might want to store the full connection object for easy access
     connection = $state<Connection | null>(null);
 
@@ -33,9 +34,10 @@ export class Session {
     private cleanup: (() => void) | null = null;
     private onStateChange?: () => void;
 
-    constructor(id: string, connection: Connection, windowLabel: string = "main", onStateChange?: () => void) {
+    constructor(id: string, connection: Connection, databaseName: string | null = null, windowLabel: string = "main", onStateChange?: () => void) {
         this.id = id;
         this.connectionId = connection.id;
+        this.databaseName = databaseName;
         this.connection = connection;
         this.windowLabel = windowLabel;
         this.onStateChange = onStateChange;
