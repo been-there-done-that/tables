@@ -460,8 +460,8 @@
                 baselineRows = new Map(
                     rows.map((row) => [getRowKey(row), { ...row }]),
                 );
-                // Reset undo stack via manager
-                editManager.undoStack = [];
+                // Reset all pending edits, newly inserted rows, deleted rows, and undo stack via manager
+                editManager.clear();
             }
 
             // Auto-size columns ONLY for columns that don't have widths set
