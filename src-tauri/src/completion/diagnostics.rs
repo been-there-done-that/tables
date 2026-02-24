@@ -15,15 +15,38 @@ pub struct DiagnosticEngine;
 impl DiagnosticEngine {
     pub fn check(tree: &Tree, source: &str, schema: &SchemaGraph) -> Vec<Diagnostic> {
         let mut diagnostics = Vec::new();
+        let mut cte_scopes = std::collections::HashSet::new();
         
         // Traverse the tree once for efficiency
-        Self::traverse(tree.root_node(), source, schema, &mut diagnostics);
+        Self::traverse(tree.root_node(), source, schema, &mut diagnostics, &mut cte_scopes);
         
         diagnostics
     }
 
-    fn traverse(node: Node, source: &str, schema: &SchemaGraph, diagnostics: &mut Vec<Diagnostic>) {
+    fn traverse(
+        node: Node,
+        source: &str,
+        schema: &SchemaGraph,
+        diagnostics: &mut Vec<Diagnostic>,
+        cte_scopes: &mut std::collections::HashSet<String>
+    ) {
         let kind = node.kind();
+
+        // Pass 0: Track CTEs in scope
+        // If we see a `cte` node, extract the alias identifier and add it to scopes
+        let mut added_cte = None;
+        if kind == "cte" {
+            // A CTE normally has an `identifier` before the `AS` keyword.
+            // Example: `apples AS (select ...)`
+            // We just need the first identifier child.
+            if let Some(alias_node) = Self::find_first_child_of_kind(node, "identifier") {
+                if let Ok(alias) = alias_node.utf8_text(source.as_bytes()) {
+                    let alias_lower = alias.to_lowercase();
+                    cte_scopes.insert(alias_lower.clone());
+                    added_cte = Some(alias_lower);
+                }
+            }
+        }
 
         // Pass 1: Syntax Errors (from Tree-sitter)
         if node.is_error() || node.is_missing() {
@@ -80,7 +103,8 @@ impl DiagnosticEngine {
                 
                 // Only check if we have some tables in schema, otherwise we might squiggle everything
                 // during initialization or if disconnected.
-                if !schema.tables.is_empty() && !schema.has_table(&name) {
+                // ALSO, skip if this name matches a locally defined CTE!
+                if !schema.tables.is_empty() && !schema.has_table(&name) && !cte_scopes.contains(&name) {
                     // Primitive check to avoid squiggling subquery aliases or local variables
                     // Real implementation would use the SemanticModel/Scope tree
                     // For now, we only flag it if it's definitely in a FROM/JOIN context
@@ -132,7 +156,12 @@ impl DiagnosticEngine {
         // Recursively check children
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
-            Self::traverse(child, source, schema, diagnostics);
+            Self::traverse(child, source, schema, diagnostics, cte_scopes);
+        }
+
+        // Leave scope: remove CTE alias if we added one
+        if let Some(alias) = added_cte {
+            cte_scopes.remove(&alias);
         }
     }
 
@@ -243,6 +272,23 @@ CREATE TABLE IF NOT EXISTS production.tableau_user_license (
         REFERENCES production.users(id) ON DELETE SET NULL,
     CONSTRAINT tableau_user_license_user_org_unique UNIQUE (user_id, organization_id)
 );
+        "#;
+        let tree = parse_sql(sql, None).unwrap();
+        println!("AST: {}", tree.root_node().to_sexp());
+        
+        let schema = SchemaGraph::new();
+        let diagnostics = DiagnosticEngine::check(&tree, sql, &schema);
+        for d in &diagnostics {
+            println!("DIAGNOSTIC: {:?}", d);
+        }
+    }
+
+    #[test]
+    fn test_cte_table_unknown() {
+        let sql = r#"
+        with apples as (
+            select * from production.tasks t where t.id is not null
+        ) select * FROM apples;
         "#;
         let tree = parse_sql(sql, None).unwrap();
         println!("AST: {}", tree.root_node().to_sexp());
