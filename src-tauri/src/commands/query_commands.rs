@@ -958,62 +958,71 @@ async fn execute_postgres_query(
                 let stmt_text = &query[range.start_byte..range.end_byte];
                 debug!("[execute_postgres_query] Statement {}: {}", i, stmt_text);
                 
-                let rows_res = match timeout(Duration::from_secs(30), client.query(stmt_text, &[])).await {
-                    Ok(res) => res,
-                    Err(_) => return Err("Query timed out after 30 seconds".to_string()),
-                };
-                
-                match rows_res {
-                    Ok(rows) => {
-                         if i == statements.len() - 1 {
-                             // Process success for last statement
-                             let raw_columns = if !rows.is_empty() {
-                                rows[0].columns()
-                             } else {
-                                &[]
-                             };
-
-                             let mut columns: Vec<ColumnInfo> = raw_columns.iter().map(|col| {
-                                 ColumnInfo {
-                                     name: col.name().to_string(),
-                                     column_type: format!("{:?}", col.type_()),
-                                     source_schema: None,
-                                     source_table: None,
-                                     source_column: None,
-                                     is_primary_key: false,
-                                 }
-                             }).collect();
-
-                             // Enrich metadata if we have rows (and thus column info with OIDs)
-                             if !raw_columns.is_empty() {
-                                 if let Err(e) = enrich_postgres_metadata(&client, raw_columns, &mut columns).await {
-                                     warn!("Failed to enrich postgres metadata: {}", crate::pg_utils::format_postgres_error(&e));
-                                 }
+                 let stmt_res = match timeout(Duration::from_secs(30), client.prepare(stmt_text)).await {
+                     Ok(res) => res,
+                     Err(_) => return Err("Query compilation timed out after 30 seconds".to_string()),
+                 };
+                 
+                 match stmt_res {
+                     Ok(stmt) => {
+                         let rows_res = match timeout(Duration::from_secs(30), client.query(&stmt, &[])).await {
+                             Ok(res) => res,
+                             Err(_) => return Err("Query timed out after 30 seconds".to_string()),
+                         };
+                         
+                         match rows_res {
+                             Ok(rows) => {
+                                  if i == statements.len() - 1 {
+                                      // Process success for last statement
+                                      let raw_columns = stmt.columns();
+         
+                                      let mut columns: Vec<ColumnInfo> = raw_columns.iter().map(|col| {
+                                          ColumnInfo {
+                                              name: col.name().to_string(),
+                                              column_type: format!("{:?}", col.type_()),
+                                              source_schema: None,
+                                              source_table: None,
+                                              source_column: None,
+                                              is_primary_key: false,
+                                          }
+                                      }).collect();
+         
+                                      // Enrich metadata
+                                      if !raw_columns.is_empty() {
+                                          if let Err(e) = enrich_postgres_metadata(&client, raw_columns, &mut columns).await {
+                                              warn!("Failed to enrich postgres metadata: {}", crate::pg_utils::format_postgres_error(&e));
+                                          }
+                                      }
+         
+                                      let json_rows: Vec<serde_json::Value> = rows.iter().map(|row| {
+                                          let mut obj = serde_json::Map::new();
+                                          for (i, col) in row.columns().iter().enumerate() {
+                                              let value = postgres_value_to_json(row, i);
+                                              obj.insert(col.name().to_string(), value);
+                                          }
+                                          serde_json::Value::Object(obj)
+                                      }).collect();
+         
+                                      last_result = Some(QueryResult {
+                                          rows: json_rows,
+                                          columns,
+                                          affected_rows: None,
+                                          duration_ms: 0,
+                                          total: None,
+                                      });
+                                  }
                              }
-
-                             let json_rows: Vec<serde_json::Value> = rows.iter().map(|row| {
-                                 let mut obj = serde_json::Map::new();
-                                 for (i, col) in row.columns().iter().enumerate() {
-                                     let value = postgres_value_to_json(row, i);
-                                     obj.insert(col.name().to_string(), value);
-                                 }
-                                 serde_json::Value::Object(obj)
-                             }).collect();
-
-                             last_result = Some(QueryResult {
-                                 rows: json_rows,
-                                 columns,
-                                 affected_rows: None,
-                                 duration_ms: 0,
-                                 total: None,
-                             });
+                             Err(e) => {
+                                  loop_err = Some(crate::pg_utils::format_postgres_error(&e));
+                                  break; 
+                             }
                          }
-                    }
-                    Err(e) => {
-                         loop_err = Some(crate::pg_utils::format_postgres_error(&e));
-                         break; 
-                    }
-                }
+                     }
+                     Err(e) => {
+                          loop_err = Some(crate::pg_utils::format_postgres_error(&e));
+                          break;
+                     }
+                 }
              }
              
              if let Some(e) = loop_err {
@@ -1050,16 +1059,17 @@ async fn execute_postgres_query(
 }
 
 async fn execute_single_postgres_query(client: &tokio_postgres::Client, query: &str) -> Result<QueryResult, String> {
-    let rows = match timeout(Duration::from_secs(30), client.query(query, &[])).await {
+    let stmt = match timeout(Duration::from_secs(30), client.prepare(query)).await {
+        Ok(res) => res.map_err(|e| crate::pg_utils::format_postgres_error(&e))?,
+        Err(_) => return Err("Query compilation timed out after 30 seconds".to_string()),
+    };
+
+    let rows = match timeout(Duration::from_secs(30), client.query(&stmt, &[])).await {
         Ok(res) => res.map_err(|e| crate::pg_utils::format_postgres_error(&e))?,
         Err(_) => return Err("Query timed out after 30 seconds".to_string()),
     };
 
-    let raw_columns = if !rows.is_empty() {
-        rows[0].columns()
-    } else {
-        &[]
-    };
+    let raw_columns = stmt.columns();
 
     let mut columns: Vec<ColumnInfo> = raw_columns.iter().map(|col| {
         ColumnInfo {

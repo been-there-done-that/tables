@@ -35,6 +35,16 @@ impl DiagnosticEngine {
             if kind == "ERROR" && text == ";" {
                 // Skip reporting this as an error
             } else {
+                // False positive fix: tree-sitter-sql incorrectly treats table constraints as syntax errors.
+                // We will silence errors that appear to be table constraints.
+                if kind == "ERROR" {
+                    let cleaned_text = text.trim_start_matches(|c: char| c == ',' || c.is_whitespace());
+                    if cleaned_text.to_uppercase().starts_with("CONSTRAINT ") {
+                        // Skip reporting this as an error
+                        return;
+                    }
+                }
+                
                 let message = if kind == "ERROR" {
                     if text.is_empty() {
                         "Syntax error: unexpected token".to_string()
@@ -86,11 +96,55 @@ impl DiagnosticEngine {
             }
         }
 
+        // Pass 3: Check for duplicate columns in CREATE TABLE
+        if kind == "create_table" || kind == "schema_create" {
+            let mut column_names = std::collections::HashSet::new();
+            
+            // Find the sub-node containing the column definitions
+            // The structure is typically create_table -> column_definitions -> column_definition
+            let mut cursor = node.walk();
+            for child in node.children(&mut cursor) {
+                if child.kind() == "column_definitions" {
+                    let mut col_cursor = child.walk();
+                    for col_def in child.children(&mut col_cursor) {
+                        if col_def.kind() == "column_definition" {
+                            // The first identifier in column_definition is usually the name
+                            if let Some(name_node) = Self::find_first_child_of_kind(col_def, "identifier") {
+                                if let Ok(name) = name_node.utf8_text(source.as_bytes()) {
+                                    let lower_name = name.to_lowercase();
+                                    if !column_names.insert(lower_name) {
+                                        // It was already in the set! Duplicate!
+                                        diagnostics.push(Diagnostic {
+                                            message: format!("Duplicate column '{}'", name),
+                                            start: name_node.start_byte(),
+                                            end: name_node.end_byte(),
+                                            severity: 1, // Error
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Recursively check children
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
             Self::traverse(child, source, schema, diagnostics);
         }
+    }
+
+    /// Helper script to find the first child of a certain kind
+    fn find_first_child_of_kind<'a>(node: Node<'a>, kind: &str) -> Option<Node<'a>> {
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            if child.kind() == kind {
+                return Some(child);
+            }
+        }
+        None
     }
 
     /// Check if a node is likely a table reference by looking at its parents
@@ -167,6 +221,36 @@ mod tests {
             if d.severity == 1 {
                 panic!("Unexpected syntax error in multi-statement SQL: {}", d.message);
             }
+        }
+    }
+    #[test]
+    fn test_duplicate_column_constraint() {
+        let sql = r#"
+CREATE TABLE IF NOT EXISTS production.tableau_user_license (
+    user_id UUID NOT NULL
+        REFERENCES production.users(id) ON DELETE CASCADE,
+    organization_id UUID NOT NULL
+        REFERENCES production.organization(id) ON DELETE CASCADE,
+    tableau_username VARCHAR(255) NULL,
+    is_disabled BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    user_id UUID NOT NULL
+        REFERENCES production.users(id) ON DELETE CASCADE,
+    created_by UUID
+        REFERENCES production.users(id) ON DELETE SET NULL,
+    modified_by UUID
+        REFERENCES production.users(id) ON DELETE SET NULL,
+    CONSTRAINT tableau_user_license_user_org_unique UNIQUE (user_id, organization_id)
+);
+        "#;
+        let tree = parse_sql(sql, None).unwrap();
+        println!("AST: {}", tree.root_node().to_sexp());
+        
+        let schema = SchemaGraph::new();
+        let diagnostics = DiagnosticEngine::check(&tree, sql, &schema);
+        for d in &diagnostics {
+            println!("DIAGNOSTIC: {:?}", d);
         }
     }
 }

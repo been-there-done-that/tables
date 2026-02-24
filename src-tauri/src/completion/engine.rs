@@ -753,7 +753,7 @@ fn resolve_table_name_from_alias(name: &str, semantic: &SemanticModel) -> Option
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::completion::schema::MockSchemaLoader;
+    use crate::completion::schema::loader::MockSchemaLoader;
     use crate::completion::analysis::scope::{Scope, Symbol};
 
     fn create_test_semantic_with_alias(alias: &str, table: &str) -> SemanticModel {
