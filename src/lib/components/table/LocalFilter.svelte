@@ -166,9 +166,14 @@
                 bind:this={inputEl}
                 bind:value={searchQuery}
                 type="text"
+                name="filter_search_{Math.random().toString(36).substring(7)}"
                 placeholder="Search values..."
                 class="w-full pl-7 pr-6 py-1 text-xs bg-transparent border border-(--theme-border-default) rounded text-(--theme-fg-default) placeholder:text-(--theme-fg-secondary)/40 focus:outline-none focus:ring-1 focus:ring-(--theme-accent-primary)"
                 disabled={isLoading}
+                autocomplete="new-password"
+                data-lpignore="true"
+                data-form-type="other"
+                data-1p-ignore
             />
             {#if searchQuery}
                 <button
