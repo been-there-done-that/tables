@@ -179,13 +179,17 @@
         <input
             bind:this={inputRef}
             type="text"
+            name="search_field_{icon}"
             class="w-full h-6 px-2 text-sm bg-transparent border-0 border-b border-transparent placeholder:text-muted-foreground/50 transition-colors focus:outline-none"
             {placeholder}
             {value}
-            autocomplete="off"
+            autocomplete="new-password"
             spellcheck="false"
             autocorrect="off"
             autocapitalize="off"
+            data-lpignore="true"
+            data-1p-ignore
+            data-form-type="other"
             oninput={handleInput}
             onkeydown={handleKeyDown}
             onfocus={handleFocus}
