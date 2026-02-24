@@ -12,6 +12,7 @@ function getPersistenceKey(label: string, connectionId?: string) {
 export interface PersistedSession {
     id: string;
     connectionId: string;
+    databaseName: string | null;
     windowLabel: string;
     views: ViewState[];
     activeViewId: string | null;
@@ -60,6 +61,7 @@ export const persistenceStore = {
             sessions: sessions.map(s => ({
                 id: s.id,
                 connectionId: s.connectionId,
+                databaseName: s.databaseName,
                 windowLabel: s.windowLabel,
                 activeViewId: s.activeViewId,
                 explorerState: {
