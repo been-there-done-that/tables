@@ -195,11 +195,13 @@ export class SchemaStore {
 
             this.status = "idle";
             this.lastRefreshed = new Date();
-            console.timeEnd("[SchemaStore] state update");
-            console.log(`[SchemaStore] Connected successfully to ${conn.id}`);
-
             // 5. Restore window state sessions for this specific connection
             await windowState.restoreForConnection(conn);
+
+            // 6. After restoring connection state, ensure the correctly selected database session is active.
+            if (this.selectedDatabase) {
+                windowState.switchDatabaseSession(conn, this.selectedDatabase);
+            }
             console.log(`[SchemaStore] Status changed to: ${this.status}, databases count: ${this.databases.length}`);
 
             if (!silent) {
@@ -334,6 +336,12 @@ export class SchemaStore {
             this.selectedDatabase = name;
             // Persist choice to settings
             settingsStore.selectedDatabase = name;
+
+            // Switch the UI session to match the selected database
+            if (this.activeConnection) {
+                windowState.switchDatabaseSession(this.activeConnection, name);
+            }
+
             // Trigger load if needed (optional, or rely on tree expansion)
             this.loadDatabase(name);
         }

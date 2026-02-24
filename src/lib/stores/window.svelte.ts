@@ -253,8 +253,8 @@ class WindowStateStore {
         }, 1000); // 1s debounce
     }
 
-    startSession(connection: Connection) {
-        const existingSession = this.sessions.find(s => s.connectionId === connection.id);
+    startSession(connection: Connection, databaseName?: string | null) {
+        const existingSession = this.sessions.find(s => s.connectionId === connection.id && s.databaseName === (databaseName || null));
         if (existingSession) {
             this.activateSession(existingSession.id);
             return;
@@ -263,6 +263,7 @@ class WindowStateStore {
         const newSession = new Session(
             crypto.randomUUID(),
             connection,
+            databaseName || null,
             this.label,
             () => this.requestSave()
         );
@@ -284,6 +285,20 @@ class WindowStateStore {
         if (session) {
             this.activeSessionId = sessionId;
             this.requestSave();
+        }
+    }
+
+    switchDatabaseSession(connection: Connection, databaseName: string) {
+        // Find existing session for this specific connection and database combo
+        const existingSession = this.sessions.find(
+            s => s.connectionId === connection.id && s.databaseName === databaseName
+        );
+
+        if (existingSession) {
+            this.activateSession(existingSession.id);
+        } else {
+            // Spin up a new empty session for this database
+            this.startSession(connection, databaseName);
         }
     }
 
@@ -338,6 +353,7 @@ class WindowStateStore {
             const session = new Session(
                 pSession.id,
                 connection,
+                pSession.databaseName,
                 this.label,
                 () => this.requestSave()
             );
