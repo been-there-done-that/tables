@@ -65,6 +65,7 @@ pub async fn cancel_query(
     connection_id: String,
     query_state: State<'_, QueryExecutionState>,
     session_state: State<'_, QuerySessionManager>,
+    conn_state: State<'_, ConnectionManagerState>,
     app: AppHandle,
 ) -> Result<bool, String> {
     info!("[cancel_query] Attempting to cancel query for connection: {}", connection_id);
@@ -87,6 +88,14 @@ pub async fn cancel_query(
             let mut sessions = session_state.sessions.lock().await;
             sessions.retain(|(cid, _), _| cid != &connection_id);
             debug!("[cancel_query] Cleared active sessions for connection: {}", connection_id);
+        }
+
+        // 4. EVICT FROM CACHED ADAPTERS (Force reconnect if stale)
+        {
+            let mut adapters = conn_state.adapters.write().await;
+            if adapters.remove(&connection_id).is_some() {
+                debug!("[cancel_query] Evicted DatabaseAdapter cache for connection: {}", connection_id);
+            }
         }
 
         info!("[cancel_query] Successfully cancelled query and reset connection state: {}", connection_id);
