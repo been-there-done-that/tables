@@ -63,6 +63,12 @@ impl PostgresConfig {
         config.user(&self.username);
         config.password(&self.password);
         config.dbname(database);
+        
+        // Stale connection / Network Drop protections
+        config.connect_timeout(std::time::Duration::from_secs(15));
+        config.keepalives(true);
+        config.keepalives_idle(std::time::Duration::from_secs(30));
+        
         config
     }
 }

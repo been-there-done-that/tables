@@ -282,8 +282,8 @@
                     <button
                         class="mx-1 h-6 font-normal text-[0.7rem] w-full px-2 hover:bg-muted/60 rounded-md hover:border-border border-0"
                     >
-                        <div class=" flex justify-between items-center">
-                            <span>
+                        <div class="flex justify-between items-center gap-1">
+                            <span class="whitespace-nowrap">
                                 {#if totalRows > 0}
                                     {startRow}-{endRow}
                                 {:else}
