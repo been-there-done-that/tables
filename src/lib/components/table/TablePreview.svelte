@@ -534,15 +534,10 @@
         if (val === null || val === undefined || val === NULL_TOKEN)
             return "NULL";
         if (val === DEFAULT_TOKEN) return "DEFAULT";
-        if (typeof val === "boolean") return val ? "TRUE" : "FALSE";
         if (typeof val === "number") return String(val);
-
-        // Handle dates/timestamps if they are objects?
-        // Usually they come as strings from JSON.
-
-        // Escape single quotes
-        const strVal = String(val).replace(/'/g, "''");
-        return `'${strVal}'`;
+        if (typeof val === "boolean") return val ? "TRUE" : "FALSE";
+        if (typeof val === "string") return `'${val.replace(/'/g, "''")}'`;
+        return `'${JSON.stringify(val).replace(/'/g, "''")}'`;
     }
 
     // Toolbar handlers
