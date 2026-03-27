@@ -11,10 +11,14 @@ export interface Driver {
   icon: any;
   defaultPort?: number;
   status: 'supported' | 'coming-soon' | 'disabled';
+  provider?: string; // set for cloud providers (e.g. 'supabase', 'neon'); undefined for raw engines
 }
 
 export const drivers: Driver[] = [
   { id: 'postgres', name: 'PostgreSQL', icon: PostgresIcon, defaultPort: 5432, status: 'supported' },
+  { id: 'supabase',    name: 'Supabase',    icon: 'brand-supabase',    defaultPort: 5432, status: 'supported', provider: 'supabase' },
+  { id: 'neon',        name: 'Neon',        icon: 'database-star',     defaultPort: 5432, status: 'supported', provider: 'neon' },
+  { id: 'planetscale', name: 'PlanetScale', icon: 'brand-planetscale', defaultPort: 5432, status: 'supported', provider: 'planetscale' },
   { id: 'mysql', name: 'MySQL', icon: MySQLIcon, defaultPort: 3306, status: 'supported' },
   { id: 'sqlite', name: 'SQLite', icon: SQLiteIcon, defaultPort: undefined, status: 'supported' },
   { id: 'mongodb', name: 'MongoDB', icon: MongoDbIcon, defaultPort: 27017, status: 'supported' },
