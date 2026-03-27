@@ -23,7 +23,7 @@ function buildChipDom(
     dom.setAttribute("contenteditable", "false");
     dom.setAttribute("data-chip", iconType);
     dom.style.cssText =
-        `display:inline-flex;align-items:center;gap:3px;border-radius:4px;padding:1px 6px;font-size:11px;font-weight:500;line-height:1.4;vertical-align:middle;user-select:none;cursor:default;margin:0 1px;${bgClass}`;
+        `display:inline-flex;align-items:center;gap:3px;border-radius:5px;padding:2px 7px;font-size:11.5px;font-weight:500;line-height:1.3;vertical-align:middle;user-select:none;cursor:default;margin:0 2px;position:relative;top:-0.5px;${bgClass}`;
     // SVG icon — safe, static string from constants
     const iconWrapper = document.createElement("span");
     iconWrapper.innerHTML = svg(iconType, iconColor);
@@ -80,13 +80,13 @@ export const FileChipNode = Node.create({
     addNodeView() {
         return ({ node }) => {
             const suffix = node.attrs.lineStart
-                ? `:${node.attrs.lineStart}–${node.attrs.lineEnd}`
+                ? `(${node.attrs.lineStart}–${node.attrs.lineEnd})`
                 : "";
             const dom = buildChipDom(
                 "file",
                 node.attrs.path,
                 suffix,
-                "background:color-mix(in srgb,#3b82f6 15%,transparent);border:1px solid color-mix(in srgb,#3b82f6 35%,transparent);color:#93c5fd",
+                "background:rgba(59,130,246,0.22);border:1px solid rgba(59,130,246,0.45);color:#93c5fd",
                 "#93c5fd",
             );
             return { dom };
@@ -120,7 +120,7 @@ export const TableChipNode = Node.create({
                 "table",
                 node.attrs.tableName,
                 "",
-                "background:color-mix(in srgb,#a855f7 15%,transparent);border:1px solid color-mix(in srgb,#a855f7 35%,transparent);color:#d8b4fe",
+                "background:rgba(168,85,247,0.22);border:1px solid rgba(168,85,247,0.45);color:#d8b4fe",
                 "#d8b4fe",
             );
             return { dom };
@@ -157,7 +157,7 @@ export const ResultChipNode = Node.create({
                 "result",
                 node.attrs.label,
                 "",
-                "background:color-mix(in srgb,#22c55e 15%,transparent);border:1px solid color-mix(in srgb,#22c55e 35%,transparent);color:#86efac",
+                "background:rgba(34,197,94,0.18);border:1px solid rgba(34,197,94,0.4);color:#86efac",
                 "#86efac",
             );
             return { dom };
