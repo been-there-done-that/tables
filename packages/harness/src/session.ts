@@ -44,6 +44,7 @@ export type HarnessEvent =
     | { type: "tool.started"; toolId: string; toolName: string; input: unknown }
     | { type: "tool.completed"; toolId: string; output: string }
     | { type: "tool.input_delta"; toolId: string; toolName: string; partialContent: string }
+    | { type: "session.init"; sdkSessionId: string }
     | { type: "turn.done" }
     | { type: "error"; message: string };
 
@@ -71,7 +72,14 @@ export class ClaudeSession {
     constructor(
         private systemPrompt: string,
         claudePath: string | null,
+        model?: string,
+        effort?: "auto" | "low" | "medium" | "high" | "max",
+        cwd?: string,
+        resumeSessionId?: string,
     ) {
+        if (cwd) {
+            Bun.spawnSync(["mkdir", "-p", cwd]);
+        }
         const stream = query({
             prompt: this.queue as any,
             options: {
@@ -80,6 +88,11 @@ export class ClaudeSession {
                 env: { ...process.env },
                 includePartialMessages: true,
                 ...(claudePath ? { pathToClaudeCodeExecutable: claudePath } : {}),
+                ...(model ? { model } : {}),
+                ...(effort ? { effort } : {}),
+                ...(cwd ? { cwd } : {}),
+                ...(resumeSessionId ? { resume: resumeSessionId } : {}),
+                persistSession: true,
             } as any,
         });
         this.consume(stream);
@@ -194,6 +207,12 @@ export class ClaudeSession {
                                 output: content,
                             });
                         }
+                    }
+
+                } else if (msg.type === "system") {
+                    const sessionId = (msg as any).session_id as string | undefined;
+                    if (sessionId) {
+                        this.emitFn({ type: "session.init", sdkSessionId: sessionId });
                     }
 
                 } else if (msg.type === "result") {

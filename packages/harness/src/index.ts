@@ -28,13 +28,18 @@ const server = Bun.serve({
         }
 
         if (req.method === "POST" && url.pathname === "/session/start") {
-            const { sessionId, systemPrompt } = (await req.json()) as {
+            const { sessionId, threadId, systemPrompt, model, effort } = (await req.json()) as {
                 sessionId: string;
+                threadId: string;
                 systemPrompt: string;
+                model?: string;
+                effort?: "auto" | "low" | "medium" | "high" | "max";
             };
+            const homeDir = Bun.env.HOME ?? "";
+            const cwd = `${homeDir}/.config/tables/sessions/${threadId}`;
             sessions.get(sessionId)?.stop();
-            sessions.set(sessionId, new ClaudeSession(systemPrompt, claudePath));
-            console.error(`[harness] session started: ${sessionId}`);
+            sessions.set(sessionId, new ClaudeSession(systemPrompt, claudePath, model, effort, cwd));
+            console.error(`[harness] session started: ${sessionId} cwd: ${cwd}`);
             return Response.json({ ok: true }, { headers: CORS });
         }
 
@@ -90,6 +95,23 @@ const server = Bun.serve({
             sessions.get(sessionId)?.stop();
             sessions.delete(sessionId);
             console.error(`[harness] session stopped: ${sessionId}`);
+            return Response.json({ ok: true }, { headers: CORS });
+        }
+
+        if (req.method === "POST" && url.pathname === "/session/resume") {
+            const { sessionId, threadId, sdkSessionId, systemPrompt, model, effort } = (await req.json()) as {
+                sessionId: string;
+                threadId: string;
+                sdkSessionId: string;
+                systemPrompt: string;
+                model?: string;
+                effort?: "auto" | "low" | "medium" | "high" | "max";
+            };
+            const homeDir = Bun.env.HOME ?? "";
+            const cwd = `${homeDir}/.config/tables/sessions/${threadId}`;
+            sessions.get(sessionId)?.stop();
+            sessions.set(sessionId, new ClaudeSession(systemPrompt, claudePath, model, effort, cwd, sdkSessionId));
+            console.error(`[harness] session resumed: ${sessionId} sdk: ${sdkSessionId}`);
             return Response.json({ ok: true }, { headers: CORS });
         }
 
