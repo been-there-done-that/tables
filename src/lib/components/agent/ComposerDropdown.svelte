@@ -32,6 +32,7 @@
             return true;
         }
         if (event.key === "Enter" || event.key === "Tab") {
+            event.preventDefault();
             if (items[activeIndex]) onSelect(items[activeIndex]);
             return true;
         }
@@ -42,7 +43,11 @@
         return false;
     }
 
-    $effect(() => { activeIndex = 0; });
+    $effect(() => {
+        // Read items to track changes — reset active index whenever list is rebuilt
+        void items.length;
+        activeIndex = 0;
+    });
 </script>
 
 <div
