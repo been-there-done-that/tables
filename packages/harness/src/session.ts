@@ -43,6 +43,7 @@ export type HarnessEvent =
     | { type: "thinking.delta"; content: string }
     | { type: "tool.started"; toolId: string; toolName: string; input: unknown }
     | { type: "tool.completed"; toolId: string; output: string }
+    | { type: "tool.input_delta"; toolId: string; toolName: string; partialContent: string }
     | { type: "turn.done" }
     | { type: "error"; message: string };
 
@@ -62,6 +63,10 @@ export class ClaudeSession {
     private turnHasStreamEvents = false;
     // Track Bash tool IDs that are /db/ API calls so we can suppress them
     private suppressedBashIds = new Set<string>();
+    // Track active tool_use block for write_file streaming
+    private activeToolUseId: string | null = null;
+    private activeToolName: string | null = null;
+    private partialInput: string = "";
 
     constructor(
         private systemPrompt: string,
@@ -98,7 +103,14 @@ export class ClaudeSession {
                     // Per-token streaming — preferred path when SDK emits these
                     const streamEvent = (msg as any).event as Record<string, unknown>;
                     console.error(`[session] stream_event: ${streamEvent?.type}`);
-                    if (streamEvent?.type === "content_block_delta") {
+                    if (streamEvent?.type === "content_block_start") {
+                        const block = (streamEvent as Record<string, unknown>).content_block as Record<string, unknown>;
+                        if (block?.type === "tool_use" && block?.name === "write_file") {
+                            this.activeToolUseId = block.id as string;
+                            this.activeToolName = block.name as string;
+                            this.partialInput = "";
+                        }
+                    } else if (streamEvent?.type === "content_block_delta") {
                         const delta = streamEvent.delta as Record<string, unknown>;
                         if (delta?.type === "text_delta" && delta.text) {
                             this.turnHasStreamEvents = true;
@@ -106,6 +118,28 @@ export class ClaudeSession {
                         } else if (delta?.type === "thinking_delta" && delta.thinking) {
                             this.turnHasStreamEvents = true;
                             this.emitFn({ type: "thinking.delta", content: delta.thinking as string });
+                        } else if (delta?.type === "input_json_delta" && this.activeToolUseId) {
+                            this.partialInput += (delta as Record<string, unknown>).partial_json ?? "";
+                            // Extract partial "content" value from accumulated JSON string
+                            const match = /"content"\s*:\s*"((?:[^"\\]|\\.)*)/.exec(this.partialInput);
+                            if (match) {
+                                const partial = match[1]
+                                    .replace(/\\n/g, "\n")
+                                    .replace(/\\"/g, '"')
+                                    .replace(/\\\\/g, "\\");
+                                this.emitFn({
+                                    type: "tool.input_delta",
+                                    toolId: this.activeToolUseId,
+                                    toolName: this.activeToolName!,
+                                    partialContent: partial,
+                                });
+                            }
+                        }
+                    } else if (streamEvent?.type === "content_block_stop") {
+                        if (this.activeToolUseId) {
+                            this.activeToolUseId = null;
+                            this.activeToolName = null;
+                            this.partialInput = "";
                         }
                     }
 
