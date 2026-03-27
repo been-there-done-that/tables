@@ -158,7 +158,7 @@ fn expand_source_columns(
 
     // Walk up to parent scope
     if let Some(pid) = scope.parent {
-        return expand_source_columns(alias, pid, tree, schema, depth);
+        return expand_source_columns(alias, pid, tree, schema, depth + 1);
     }
 
     vec![]
