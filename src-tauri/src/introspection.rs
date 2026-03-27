@@ -68,6 +68,11 @@ pub struct MetaIndex {
     pub table_name: String,
     pub index_name: String,
     pub is_unique: bool,
+    pub is_primary: bool,
+    pub index_type: String,         // btree, hash, gin, gist, brin, spgist
+    pub columns: Vec<String>,       // column names in index order
+    pub predicate: Option<String>,  // partial index WHERE clause
+    pub definition: String,         // full CREATE INDEX statement
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -116,6 +121,73 @@ pub struct MetaTrigger {
     pub trigger_name: String,
     pub event: String,      // INSERT, UPDATE, DELETE
     pub timing: String,     // BEFORE, AFTER, INSTEAD OF
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum FunctionKind {
+    Function,
+    Procedure,
+    Aggregate,
+    Window,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum ArgMode {
+    In,
+    Out,
+    InOut,
+    Variadic,
+    Table,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MetaFunctionArg {
+    pub name: Option<String>,
+    pub data_type: String,
+    pub mode: ArgMode,
+    pub default_value: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MetaFunction {
+    pub name: String,
+    pub schema: String,
+    pub language: String,
+    pub kind: FunctionKind,
+    pub return_type: String,
+    pub arguments: Vec<MetaFunctionArg>,
+    pub definition: String,
+    pub security_definer: bool,
+    pub volatility: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MetaSequence {
+    pub name: String,
+    pub schema: String,
+    pub data_type: String,
+    pub start_value: i64,
+    pub min_value: i64,
+    pub max_value: i64,
+    pub increment_by: i64,
+    pub cycle: bool,
+    pub cache_size: i64,
+    pub last_value: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum ConstraintKind {
+    Check,
+    Unique,
+    Exclusion,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MetaConstraint {
+    pub name: String,
+    pub kind: ConstraintKind,
+    pub definition: String,
+    pub columns: Vec<String>,
 }
 
 pub struct Introspector {
@@ -630,6 +702,11 @@ impl Introspector {
                 table_name: table_name.to_string(),
                 index_name,
                 is_unique,
+                is_primary: false,
+                index_type: "btree".to_string(),
+                columns: vec![],
+                predicate: None,
+                definition: String::new(),
             }))
         }).map_err(|e| e.to_string())?;
 
@@ -993,6 +1070,11 @@ impl Introspector {
                         table_name: table.table_name.clone(),
                         index_name: row.get(0)?,
                         is_unique: row.get::<_, i32>(1)? != 0,
+                        is_primary: false,
+                        index_type: "btree".to_string(),
+                        columns: vec![],
+                        predicate: None,
+                        definition: String::new(),
                     })
                 }
             ).map_err(|e| e.to_string())?;
@@ -1604,6 +1686,11 @@ impl Introspector {
                 table_name: table_name.to_string(),
                 index_name,
                 is_unique,
+                is_primary: false,
+                index_type: "btree".to_string(),
+                columns: vec![],
+                predicate: None,
+                definition: String::new(),
             });
         }
         Ok(indexes)
@@ -1750,6 +1837,11 @@ impl Introspector {
                 table_name: table,
                 index_name,
                 is_unique,
+                is_primary: false,
+                index_type: "btree".to_string(),
+                columns: vec![],
+                predicate: None,
+                definition: String::new(),
             });
         }
         Ok(idx_map)

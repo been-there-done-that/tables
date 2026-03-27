@@ -488,6 +488,11 @@ impl DatabaseAdapter for SqliteAdapter {
                     table_name: table.name.clone(),
                     index_name: row.get(0)?,
                     is_unique: row.get::<_, i32>(1)? != 0,
+                    is_primary: false,
+                    index_type: "btree".to_string(),
+                    columns: vec![],
+                    predicate: None,
+                    definition: String::new(),
                 })
             })
             .map_err(|e| AdapterError::Query(crate::sqlite_utils::format_sqlite_error(&e)))?;
