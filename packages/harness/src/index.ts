@@ -11,6 +11,10 @@ console.error(`[harness] PATH: ${Bun.env.PATH}`);
 const sessions = new Map<string, ClaudeSession>();
 const pendingToolResults = new Map<string, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
 
+function threadCwd(threadId: string): string {
+    return `${Bun.env.HOME ?? ""}/.config/tables/sessions/${threadId}`;
+}
+
 const CORS = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -35,8 +39,7 @@ const server = Bun.serve({
                 model?: string;
                 effort?: "auto" | "low" | "medium" | "high" | "max";
             };
-            const homeDir = Bun.env.HOME ?? "";
-            const cwd = `${homeDir}/.config/tables/sessions/${threadId}`;
+            const cwd = threadCwd(threadId);
             sessions.get(sessionId)?.stop();
             sessions.set(sessionId, new ClaudeSession(systemPrompt, claudePath, model, effort, cwd));
             console.error(`[harness] session started: ${sessionId} cwd: ${cwd}`);
@@ -107,8 +110,7 @@ const server = Bun.serve({
                 model?: string;
                 effort?: "auto" | "low" | "medium" | "high" | "max";
             };
-            const homeDir = Bun.env.HOME ?? "";
-            const cwd = `${homeDir}/.config/tables/sessions/${threadId}`;
+            const cwd = threadCwd(threadId);
             sessions.get(sessionId)?.stop();
             sessions.set(sessionId, new ClaudeSession(systemPrompt, claudePath, model, effort, cwd, sdkSessionId));
             console.error(`[harness] session resumed: ${sessionId} sdk: ${sdkSessionId}`);
