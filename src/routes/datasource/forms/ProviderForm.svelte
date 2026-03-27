@@ -2,6 +2,7 @@
 <script lang="ts">
 	import { PROVIDERS } from "$lib/providers/registry";
 	import type { PostgresFormData } from "$lib/providers/parseConnectionString";
+	import { untrack } from "svelte";
 	import ConnectionStringInput from "./ConnectionStringInput.svelte";
 	import ProviderGuidePanel from "./ProviderGuidePanel.svelte";
 	import PostgresForm from "./PostgresForm.svelte";
@@ -16,14 +17,17 @@
 
 	const provider = $derived(PROVIDERS[providerId]);
 
-	// Apply provider defaults on mount
+	// Apply provider defaults when provider changes (e.g. user picks different cloud provider).
+	// untrack data reads so user edits don't re-trigger this effect.
 	$effect(() => {
-		if (provider) {
+		const p = provider; // tracked: re-runs when provider changes
+		if (!p) return;
+		untrack(() => {
 			if (!data.host) onChange("host", "");
-			onChange("port", provider.defaults.port);
-			if (!data.database) onChange("database", provider.defaults.database);
-			if (!data.username) onChange("username", provider.defaults.username);
-		}
+			if (!data.port) onChange("port", p.defaults.port);
+			if (!data.database) onChange("database", p.defaults.database);
+			if (!data.username) onChange("username", p.defaults.username);
+		});
 	});
 
 	function handleParsed(result: Partial<PostgresFormData>) {
