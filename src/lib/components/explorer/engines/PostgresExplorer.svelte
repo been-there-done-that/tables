@@ -25,6 +25,11 @@
     let tableDetailsCache = $state<Map<string, any>>(new Map());
     let loadingTables = $state<Set<string>>(new Set());
 
+    // Cache for schema-level objects (functions, sequences)
+    let functionsCache = $state<Map<string, any[]>>(new Map()); // key: "dbName:schemaName"
+    let sequencesCache = $state<Map<string, any[]>>(new Map());
+    let loadingSchemaObjects = $state<Set<string>>(new Set()); // key: "dbName:schemaName:type"
+
     // Ensure a session exists when schemaStore has an active connection
     $effect(() => {
         const conn = schemaStore.activeConnection;
@@ -55,9 +60,14 @@
         // Map schemas directly to root nodes
         return db.schemas.map((schema) => {
             const tables = schema.tables.filter(
-                (t) => t.table_type === "table",
+                (t: any) => t.table_type === "table" || t.table_type === "BASE TABLE",
             );
-            const views = schema.tables.filter((t) => t.table_type === "view");
+            const views = schema.tables.filter((t: any) => t.table_type === "view");
+            const matviews = schema.tables.filter((t: any) => t.table_type === "materialized_view" || t.table_type === "MATERIALIZED VIEW");
+
+            const cacheKey = `${db.name}:${schema.name}`;
+            const functions = functionsCache.get(cacheKey) || [];
+            const sequences = sequencesCache.get(cacheKey) || [];
 
             const children: TreeNode[] = [];
 
@@ -67,7 +77,7 @@
                     name: "tables",
                     type: "folder" as NodeType,
                     count: tables.length,
-                    children: tables.map((table) =>
+                    children: tables.map((table: any) =>
                         mapTableToNode(table, db.name, schema.name),
                     ),
                 });
@@ -79,12 +89,59 @@
                     name: "views",
                     type: "folder" as NodeType,
                     count: views.length,
-                    children: views.map((table) => ({
-                        ...mapTableToNode(table, db.name, schema.name),
-                        detail: undefined,
+                    children: views.map((v: any) => ({
+                        id: `view:${db.name}:${schema.name}.${v.table_name}`,
+                        name: v.table_name,
+                        type: "view" as NodeType,
+                        metadata: { dbName: db.name, schemaName: schema.name, objectName: v.table_name, objectType: "view" },
                     })),
                 });
             }
+
+            if (matviews.length > 0) {
+                children.push({
+                    id: `folder:matviews:${db.name}:${schema.name}`,
+                    name: "materialized views",
+                    type: "folder" as NodeType,
+                    count: matviews.length,
+                    children: matviews.map((v: any) => ({
+                        id: `matview:${db.name}:${schema.name}.${v.table_name}`,
+                        name: v.table_name,
+                        type: "materialized_view" as NodeType,
+                        metadata: { dbName: db.name, schemaName: schema.name, objectName: v.table_name, objectType: "matview" },
+                    })),
+                });
+            }
+
+            // Functions folder — lazy loaded when expanded
+            children.push({
+                id: `folder:functions:${db.name}:${schema.name}`,
+                name: "functions",
+                type: "folder" as NodeType,
+                count: functions.length > 0 ? functions.length : undefined,
+                children: functions.map((f: any) => ({
+                    id: `function:${db.name}:${schema.name}.${f.name}`,
+                    name: f.name,
+                    type: (f.kind === "Procedure" ? "procedure" : "function") as NodeType,
+                    detail: f.return_type || undefined,
+                    metadata: { dbName: db.name, schemaName: schema.name, objectName: f.name, objectType: "function", language: f.language },
+                })),
+            });
+
+            // Sequences folder — lazy loaded when expanded
+            children.push({
+                id: `folder:sequences:${db.name}:${schema.name}`,
+                name: "sequences",
+                type: "folder" as NodeType,
+                count: sequences.length > 0 ? sequences.length : undefined,
+                children: sequences.map((s: any) => ({
+                    id: `sequence:${db.name}:${schema.name}.${s.name}`,
+                    name: s.name,
+                    type: "sequence" as NodeType,
+                    detail: s.data_type,
+                    metadata: { dbName: db.name, schemaName: schema.name, objectName: s.name, objectType: "sequence" },
+                })),
+            });
 
             return {
                 id: `schema:${db.name}:${schema.name}`,
@@ -132,7 +189,8 @@
                         id: `idx:${tableId}.${idx.name}`,
                         name: idx.name,
                         type: "index" as NodeType,
-                        detail: idx.is_unique ? "Unique" : "",
+                        detail: [idx.index_type, idx.is_unique ? "unique" : ""].filter(Boolean).join(" · "),
+                        metadata: { dbName: table.database || '', schemaName: table.schema || '', tableName: table.table_name },
                     })),
                 },
                 {
@@ -148,6 +206,19 @@
                             detail: `-> ${fk.ref_table}.${fk.ref_column}`,
                         }),
                     ),
+                },
+                {
+                    id: `constraints:${tableId}`,
+                    name: "Constraints",
+                    type: "group" as NodeType,
+                    count: cachedDetails.constraints?.length || 0,
+                    children: (cachedDetails.constraints || []).map((c: any) => ({
+                        id: `constraint:${tableId}.${c.name}`,
+                        name: c.name,
+                        type: "constraint" as NodeType,
+                        detail: c.kind,
+                        metadata: { dbName: table.database || '', schemaName: table.schema || '', tableName: table.table_name, constraintName: c.name, definition: c.definition },
+                    })),
                 },
             ];
         } else {
@@ -231,6 +302,46 @@
             loadingTables = new Set(
                 [...loadingTables].filter((k) => k !== cacheKey),
             );
+        }
+    }
+
+    async function loadFunctions(dbName: string, schemaName: string) {
+        const cacheKey = `${dbName}:${schemaName}`;
+        const loadKey = `${cacheKey}:functions`;
+        if (functionsCache.has(cacheKey) || loadingSchemaObjects.has(loadKey)) return;
+
+        loadingSchemaObjects = new Set([...loadingSchemaObjects, loadKey]);
+        try {
+            const fns = await invoke<any[]>("get_functions", {
+                connectionId: schemaStore.activeConnection?.id,
+                database: dbName,
+                schema: schemaName,
+            });
+            functionsCache = new Map(functionsCache).set(cacheKey, fns);
+        } catch (e) {
+            console.error(`Failed to load functions for ${schemaName}:`, e);
+        } finally {
+            loadingSchemaObjects = new Set([...loadingSchemaObjects].filter(k => k !== loadKey));
+        }
+    }
+
+    async function loadSequences(dbName: string, schemaName: string) {
+        const cacheKey = `${dbName}:${schemaName}`;
+        const loadKey = `${cacheKey}:sequences`;
+        if (sequencesCache.has(cacheKey) || loadingSchemaObjects.has(loadKey)) return;
+
+        loadingSchemaObjects = new Set([...loadingSchemaObjects, loadKey]);
+        try {
+            const seqs = await invoke<any[]>("get_sequences", {
+                connectionId: schemaStore.activeConnection?.id,
+                database: dbName,
+                schema: schemaName,
+            });
+            sequencesCache = new Map(sequencesCache).set(cacheKey, seqs);
+        } catch (e) {
+            console.error(`Failed to load sequences for ${schemaName}:`, e);
+        } finally {
+            loadingSchemaObjects = new Set([...loadingSchemaObjects].filter(k => k !== loadKey));
         }
     }
 
@@ -328,6 +439,22 @@
                 tableName: string;
             };
             loadTableDetails(dbName, schemaName, tableName);
+        }
+
+        // NEW: lazy load schema-level objects when folder expanded
+        if (isOpen && node.type === "folder" && node.id) {
+            if (node.id.startsWith("folder:functions:")) {
+                const parts = node.id.split(":");
+                // id format: folder:functions:dbName:schemaName
+                const dbName = parts[2];
+                const schemaName = parts.slice(3).join(":"); // handle schema names with colons
+                loadFunctions(dbName, schemaName);
+            } else if (node.id.startsWith("folder:sequences:")) {
+                const parts = node.id.split(":");
+                const dbName = parts[2];
+                const schemaName = parts.slice(3).join(":");
+                loadSequences(dbName, schemaName);
+            }
         }
 
         if (activeSession) {
