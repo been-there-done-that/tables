@@ -115,7 +115,12 @@ class ConnectionFormStore {
           id: connection.id,
           name: connection.name
         };
-        this.driver = drivers.find(d => d.id === connection.engine) || null;
+        const providerLabel = connection.provider ?? null;
+        this.driver = (
+          providerLabel
+            ? drivers.find(d => d.provider === providerLabel)
+            : drivers.find(d => d.id === connection.engine && !d.provider)
+        ) || null;
         this.testResult = null;
         this.status = { type: 'idle', message: '' };
 
