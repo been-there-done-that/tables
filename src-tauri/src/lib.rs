@@ -1,4 +1,5 @@
 mod migrations;
+mod harness;
 mod connection;
 mod credentials;
 mod crypto;
@@ -283,6 +284,9 @@ pub fn run() {
             } else {
                 debug!("Metrics emission disabled, skipping system monitor and emitter");
             }
+
+            // Spawn the Claude harness sidecar
+            harness::spawn(app.handle().clone());
 
             info!("Application setup complete");
             Ok(())

@@ -18,6 +18,7 @@
 	import WarnIcon from "$lib/svg/WarnMark.svelte";
 
 	import { resolveClipboardApi } from "$lib/components/table/clipboardUtils";
+	import "$lib/stores/harness.svelte"; // eagerly register harness://ready listener
 
 	const appWindow = getCurrentWindow();
 

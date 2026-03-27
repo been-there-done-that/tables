@@ -1,5 +1,6 @@
 packages:
   - "."
+  - "packages/harness"
 
 onlyBuiltDependencies:
   - esbuild

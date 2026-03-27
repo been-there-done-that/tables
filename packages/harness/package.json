@@ -1,0 +1,19 @@
+{
+  "name": "@tables/harness",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun --hot src/index.ts",
+    "build:mac-arm": "bun build --compile src/index.ts --outfile ../../src-tauri/binaries/harness-aarch64-apple-darwin",
+    "build:mac-x64": "bun build --compile src/index.ts --outfile ../../src-tauri/binaries/harness-x86_64-apple-darwin",
+    "build:linux":   "bun build --compile src/index.ts --outfile ../../src-tauri/binaries/harness-x86_64-unknown-linux-gnu",
+    "build:win":     "bun build --compile src/index.ts --outfile ../../src-tauri/binaries/harness-x86_64-pc-windows-msvc",
+    "build": "bun run build:mac-arm"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.84"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.11"
+  }
+}

@@ -8,6 +8,7 @@
   import TablePreview from "$lib/components/table/TablePreview.svelte";
   import QueryLogsPanel from "$lib/components/QueryLogsPanel.svelte";
   import PendingChangesPanel from "$lib/components/table/PendingChangesPanel.svelte";
+  import AgentPanel from "$lib/components/agent/AgentPanel.svelte";
   import { logsStore } from "$lib/stores/logs.svelte";
   import BottomPanel from "$lib/components/BottomPanel.svelte";
   import { schemaStore } from "$lib/stores/schema.svelte";
@@ -141,6 +142,8 @@
                 <QueryLogsPanel />
               {:else if windowState.activeRightPanel === "pending-changes"}
                 <PendingChangesPanel />
+              {:else if windowState.activeRightPanel === "claude"}
+                <AgentPanel />
               {:else}
                 <div class="flex h-full flex-col bg-muted/10">
                   <div

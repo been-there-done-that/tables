@@ -1,7 +1,7 @@
 <script lang="ts">
   import ResizableWindow from "$lib/components/ResizableWindow.svelte";
   import IconSettings from "@tabler/icons-svelte/icons/settings";
-  import IconBrandTesla from "@tabler/icons-svelte/icons/brand-tesla";
+  import IconAi from "@tabler/icons-svelte/icons/ai";
   import IconSettingsFilled from "@tabler/icons-svelte/icons/settings-filled";
   import IconLayoutSidebar from "@tabler/icons-svelte/icons/layout-sidebar";
   import IconLayoutSidebarFilled from "@tabler/icons-svelte/icons/layout-sidebar-filled";
@@ -304,20 +304,20 @@
             class={cn(
               "h-6 w-6 flex items-center justify-center rounded-md border transition-all",
               windowState.layout.right &&
-                windowState.activeRightPanel === "ai-assistant"
+                windowState.activeRightPanel === "claude"
                 ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
                 : "hover:bg-(--theme-bg-hover) border-transparent",
             )}
-            onclick={() => windowState.toggleRightPanel("ai-assistant")}
+            onclick={() => windowState.toggleRightPanel("claude")}
             title="AI Assistant"
           >
-            <IconBrandTesla
+            <IconAi
               class={cn(
                 "size-5 transition-colors",
                 windowState.layout.right &&
-                  windowState.activeRightPanel === "ai-assistant"
-                  ? "text-red-500"
-                  : "text-red-500/80",
+                  windowState.activeRightPanel === "claude"
+                  ? "text-accent"
+                  : "text-muted-foreground",
               )}
             />
           </button>

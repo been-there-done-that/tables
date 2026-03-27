@@ -155,6 +155,14 @@ const COMMANDS: CommandConfig[] = [
             }
         }
     },
+    {
+        id: "workbench.action.toggleAiPanel",
+        label: "Toggle AI Assistant",
+        defaultKeybinding: { mac: "Meta+Shift+a", win: "Control+Shift+a" },
+        execute: (s) => {
+            s.toggleRightPanel("claude");
+        }
+    },
 ];
 
 class WindowStateStore {
