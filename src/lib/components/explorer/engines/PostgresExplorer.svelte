@@ -398,31 +398,176 @@
         }
     }
 
-    function handleContextMenuAction(action: string, node: TreeNode) {
+    async function handleContextMenuAction(action: string, node: TreeNode) {
         if (!activeSession) {
-            if (schemaStore.activeConnection) {
-                windowState.startSession(schemaStore.activeConnection);
-            } else {
-                return;
-            }
+            if (schemaStore.activeConnection) windowState.startSession(schemaStore.activeConnection);
+            else return;
         }
-
-        // Re-evaluate session after potentially starting it
         const session = windowState.activeSession;
         if (!session) return;
 
+        const meta = node.metadata as any;
+        const connId = schemaStore.activeConnection?.id;
+        const db = meta?.dbName || schemaStore.selectedDatabase;
+        const schema = meta?.schemaName || "public";
+
         switch (action) {
-            case "query_console":
-                const title =
-                    node.type === "schema"
-                        ? `Console: ${node.name}`
-                        : `Query: ${node.name}`;
+            case "query_console": {
+                const title = node.type === "schema" ? `Console: ${node.name}` : `Query: ${node.name}`;
                 session.openView("editor", title, node.metadata);
                 break;
+            }
+
+            case "copy_name": {
+                await navigator.clipboard.writeText(node.name);
+                break;
+            }
+
+            case "view_data": {
+                session.openView("table", node.name, {
+                    tableName: node.name,
+                    schemaName: schema,
+                    databaseName: db,
+                    connectionId: connId,
+                });
+                break;
+            }
+
+            case "copy_select": {
+                await navigator.clipboard.writeText(`SELECT * FROM "${schema}"."${node.name}";`);
+                break;
+            }
+
+            case "open_ddl": {
+                try {
+                    let ddl = "";
+                    if (node.type === "table") {
+                        ddl = await invoke<string>("get_table_ddl", {
+                            connectionId: connId,
+                            database: db,
+                            schema,
+                            tableName: node.name,
+                        });
+                    } else if (node.type === "sequence") {
+                        ddl = await invoke<string>("get_sequence_ddl", {
+                            connectionId: connId,
+                            database: db,
+                            schema,
+                            sequenceName: node.name,
+                        });
+                    }
+                    session.openDdlTab(`DDL: ${node.name}`, ddl);
+                } catch (e) {
+                    console.error("DDL fetch failed:", e);
+                }
+                break;
+            }
+
+            case "open_definition": {
+                try {
+                    let ddl = "";
+                    if (node.type === "view") {
+                        ddl = await invoke<string>("get_view_definition", {
+                            connectionId: connId,
+                            database: db,
+                            schema,
+                            viewName: node.name,
+                        });
+                    } else if (node.type === "materialized_view") {
+                        ddl = await invoke<string>("get_matview_definition", {
+                            connectionId: connId,
+                            database: db,
+                            schema,
+                            viewName: node.name,
+                        });
+                    } else if (node.type === "function" || node.type === "procedure") {
+                        ddl = await invoke<string>("get_function_ddl", {
+                            connectionId: connId,
+                            database: db,
+                            schema,
+                            functionName: node.name,
+                        });
+                    } else if (node.type === "index") {
+                        ddl = await invoke<string>("get_index_ddl", {
+                            connectionId: connId,
+                            database: db,
+                            schema,
+                            tableName: meta?.tableName || "",
+                            indexName: node.name,
+                        });
+                    } else if (node.type === "trigger") {
+                        ddl = await invoke<string>("get_trigger_definition", {
+                            connectionId: connId,
+                            database: db,
+                            schema,
+                            tableName: meta?.tableName || "",
+                            triggerName: node.name,
+                        });
+                    }
+                    session.openDdlTab(`${node.name}`, ddl);
+                } catch (e) {
+                    console.error("Definition fetch failed:", e);
+                }
+                break;
+            }
+
+            case "copy_function_ddl":
+            case "copy_sequence_ddl":
+            case "copy_index_ddl":
+            case "copy_trigger_ddl": {
+                try {
+                    let ddl = "";
+                    if (node.type === "function" || node.type === "procedure") {
+                        ddl = await invoke<string>("get_function_ddl", {
+                            connectionId: connId,
+                            database: db,
+                            schema,
+                            functionName: node.name,
+                        });
+                    } else if (node.type === "sequence") {
+                        ddl = await invoke<string>("get_sequence_ddl", {
+                            connectionId: connId,
+                            database: db,
+                            schema,
+                            sequenceName: node.name,
+                        });
+                    } else if (node.type === "index") {
+                        ddl = await invoke<string>("get_index_ddl", {
+                            connectionId: connId,
+                            database: db,
+                            schema,
+                            tableName: meta?.tableName || "",
+                            indexName: node.name,
+                        });
+                    } else if (node.type === "trigger") {
+                        ddl = await invoke<string>("get_trigger_definition", {
+                            connectionId: connId,
+                            database: db,
+                            schema,
+                            tableName: meta?.tableName || "",
+                            triggerName: node.name,
+                        });
+                    }
+                    await navigator.clipboard.writeText(ddl);
+                } catch (e) {
+                    console.error("Copy DDL failed:", e);
+                }
+                break;
+            }
+
+            case "copy_constraint_ddl": {
+                const def = meta?.definition || "";
+                await navigator.clipboard.writeText(`CONSTRAINT "${node.name}" ${def}`);
+                break;
+            }
+
+            case "refresh_schema": {
+                await schemaStore.refresh();
+                break;
+            }
+
             default:
-                console.log(
-                    `[handleContextMenuAction] Action "${action}" not implemented for node ${node.name}`,
-                );
+                console.log(`[handleContextMenuAction] Unhandled action: ${action}`);
         }
     }
 

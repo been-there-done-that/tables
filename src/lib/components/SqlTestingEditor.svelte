@@ -122,9 +122,21 @@
         controller.applyEdits = handleApplyEdits;
     });
 
+    // Holds rows already fetched by handleExecute so the subsequent refreshTable()
+    // call can return them directly instead of hitting the DB a second time.
+    let _pendingFetchResult: { rows: any[]; total: number; columns: any[] } | null = null;
+
     // Derived DataFetcher for Table component
     const resultDataFetcher: DataFetcher = $derived(async (params) => {
         const { offset, limit } = params;
+
+        // Consume the cached result from the most-recent handleExecute/handleRefresh
+        // so we don't re-query immediately after a successful execute.
+        if (_pendingFetchResult && (offset ?? 0) === 0) {
+            const cached = _pendingFetchResult;
+            _pendingFetchResult = null;
+            return cached;
+        }
 
         if (!schemaStore.activeConnection || !results.executedQueryText) {
             return {
@@ -241,6 +253,19 @@
                 ed.setValue(streaming);
                 const lineCount = ed.getModel()?.getLineCount() ?? 1;
                 ed.setPosition({ lineNumber: lineCount, column: 9999 });
+            }
+        }
+    });
+
+    // Sync final write_file content once streaming completes (data.content updated, streamingContent cleared)
+    $effect(() => {
+        const content = view?.data?.content as string | undefined;
+        const streaming = view?.streamingContent;
+        // Only sync when streaming is not active (undefined = not streaming)
+        if (content !== undefined && streaming === undefined && editorHandle?.editor) {
+            const ed = editorHandle.editor;
+            if (ed.getModel() && ed.getValue() !== content) {
+                ed.setValue(content);
             }
         }
     });
@@ -388,7 +413,9 @@
                     results.total = result.total ?? result.rows.length;
                     results.isExactTotal = result.total !== undefined;
                     results.visible = true;
-                    results.executedQueryText = query; // User feedback: attach query
+                    results.executedQueryText = query;
+                    results.fetchedAt = new Date();
+                    _pendingFetchResult = { rows: processed.rows, total: results.total, columns: processed.columns };
                     if (controller.refreshTable) controller.refreshTable();
                 } else if (
                     Array.isArray(result) &&
@@ -421,7 +448,9 @@
                         results.total = last.total ?? last.rows.length;
                         results.isExactTotal = last.total !== undefined;
                         results.visible = true;
-                        results.executedQueryText = query; // User feedback: attach query
+                        results.executedQueryText = query;
+                        results.fetchedAt = new Date();
+                        _pendingFetchResult = { rows: processed.rows, total: results.total, columns: processed.columns };
                         if (controller.refreshTable) controller.refreshTable();
                     }
                 }
@@ -547,6 +576,8 @@
                 results.isExactTotal = result.total !== undefined;
                 results.visible = true;
                 results.executedQueryText = queryText;
+                results.fetchedAt = new Date();
+                _pendingFetchResult = { rows: processed.rows, total: results.total, columns: processed.columns };
                 if (controller.refreshTable) controller.refreshTable();
             } else if (
                 Array.isArray(result) &&
@@ -579,6 +610,8 @@
                     results.isExactTotal = last.total !== undefined;
                     results.visible = true;
                     results.executedQueryText = queryText;
+                    results.fetchedAt = new Date();
+                    _pendingFetchResult = { rows: processed.rows, total: results.total, columns: processed.columns };
                     if (controller.refreshTable) controller.refreshTable();
                 }
             }
@@ -959,6 +992,7 @@
                 lineNumbersMinChars: 3,
                 lineDecorationsWidth: 8,
                 glyphMargin: true,
+                readOnly: context?.readOnly === true,
             },
         },
         (handle) => {
@@ -1020,7 +1054,13 @@
                         log(
                             "No saved session, initializing with default content",
                         );
-                        if (context?.content) {
+                        if (context?.initialValue !== undefined) {
+                            console.log(
+                                "[EDITOR-DEBUG] Setting content from initialValue:",
+                                context.initialValue.substring(0, 100),
+                            );
+                            handle.editor.setValue(context.initialValue);
+                        } else if (context?.content) {
                             console.log(
                                 "[EDITOR-DEBUG] Setting content from context:",
                                 context.content.substring(0, 100),
