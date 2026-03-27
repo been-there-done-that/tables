@@ -11,4 +11,7 @@ pub use error::ScopeError;
 pub use ir::ParsedStatement;
 pub use parser::split_statements;
 pub use schema::{ForeignKey, SchemaSnapshot, SqlType};
-pub use scope::{ScopeDiagnostic, ScopeTree, VisibleSymbols};
+pub use scope::{
+    ColumnRef, CteInfo, DiagSeverity, Scope, ScopeId, ScopeDiagnostic, ScopeTree, ScopeType,
+    Source, VisibleSymbols,
+};
