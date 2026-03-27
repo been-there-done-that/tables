@@ -7,7 +7,7 @@ export interface AgentThread {
     connectionId: string;
     databaseName: string | null;
     model: string;
-    effort: string;
+    effort: "auto" | "low" | "medium" | "high" | "max";
     sdkSessionId: string | null;
     summary: string | null;
     createdAt: number;
@@ -43,18 +43,23 @@ class ThreadsStore {
         connectionId: string;
         databaseName: string | null;
         model: string;
-        effort: string;
+        effort: "auto" | "low" | "medium" | "high" | "max";
     }): Promise<AgentThread> {
         const id = crypto.randomUUID();
         const now = nowSecs();
-        await invoke("create_agent_thread", {
-            id,
-            connectionId: opts.connectionId,
-            databaseName: opts.databaseName,
-            model: opts.model,
-            effort: opts.effort,
-            now,
-        });
+        try {
+            await invoke("create_agent_thread", {
+                id,
+                connectionId: opts.connectionId,
+                databaseName: opts.databaseName,
+                model: opts.model,
+                effort: opts.effort,
+                now,
+            });
+        } catch (e) {
+            console.error("[threads] createThread failed:", e);
+            throw e;
+        }
         const thread: AgentThread = {
             id,
             title: "New chat",
@@ -73,14 +78,27 @@ class ThreadsStore {
 
     async setSdkSessionId(threadId: string, sdkSessionId: string) {
         const now = nowSecs();
-        await invoke("update_agent_thread_sdk_session", { id: threadId, sdkSessionId, now });
+        try {
+            await invoke("update_agent_thread_sdk_session", { id: threadId, sdkSessionId, now });
+        } catch (e) {
+            console.error("[threads] setSdkSessionId failed:", e);
+            return;
+        }
         const t = this.threads.find((x) => x.id === threadId);
-        if (t) t.sdkSessionId = sdkSessionId;
+        if (t) {
+            t.sdkSessionId = sdkSessionId;
+            t.updatedAt = now;
+        }
     }
 
     async setTitle(threadId: string, title: string) {
         const now = nowSecs();
-        await invoke("update_agent_thread_title", { id: threadId, title, now });
+        try {
+            await invoke("update_agent_thread_title", { id: threadId, title, now });
+        } catch (e) {
+            console.error("[threads] setTitle failed:", e);
+            return;
+        }
         const t = this.threads.find((x) => x.id === threadId);
         if (t) {
             t.title = title;
@@ -91,7 +109,12 @@ class ThreadsStore {
     }
 
     async deleteThread(threadId: string) {
-        await invoke("delete_agent_thread", { id: threadId });
+        try {
+            await invoke("delete_agent_thread", { id: threadId });
+        } catch (e) {
+            console.error("[threads] deleteThread failed:", e);
+            return;
+        }
         this.threads = this.threads.filter((t) => t.id !== threadId);
         if (this.activeThreadId === threadId) {
             this.activeThreadId = this.threads[0]?.id ?? null;
