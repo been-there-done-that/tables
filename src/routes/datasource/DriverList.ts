@@ -9,7 +9,7 @@ export interface Driver {
 export const drivers: Driver[] = [
     { id: 'postgresql',   name: 'PostgreSQL',    icon: 'brand-postgresql',  defaultPort: 5432 },
     { id: 'supabase',     name: 'Supabase',      icon: 'brand-supabase',    defaultPort: 5432, provider: 'supabase' },
-    { id: 'neon',         name: 'Neon',          icon: 'database',          defaultPort: 5432, provider: 'neon' },
+    { id: 'neon',         name: 'Neon',          icon: 'database-star',     defaultPort: 5432, provider: 'neon' },
     { id: 'planetscale',  name: 'PlanetScale',   icon: 'brand-planetscale', defaultPort: 5432, provider: 'planetscale' },
     { id: 'mysql',        name: 'MySQL',         icon: 'brand-mysql',       defaultPort: 3306 },
     { id: 'sqlite',       name: 'SQLite',        icon: 'database',          defaultPort: undefined },
