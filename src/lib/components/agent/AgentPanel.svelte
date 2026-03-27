@@ -1,7 +1,9 @@
 <script lang="ts">
     import { onDestroy } from "svelte";
     import { schemaStore } from "$lib/stores/schema.svelte";
+    import { settingsStore } from "$lib/stores/settings.svelte";
     import { agentStore } from "$lib/stores/agent.svelte";
+    import { threadsStore, type AgentThread } from "$lib/stores/threads.svelte";
     import { windowState } from "$lib/stores/window.svelte";
     import { startAgentSession, type AgentEventType } from "$lib/agent/claude";
     import { buildSystemPrompt } from "$lib/agent/tools";
@@ -9,15 +11,21 @@
     import { harnessStore } from "$lib/stores/harness.svelte";
     import MessageList from "./MessageList.svelte";
     import AgentComposer from "./AgentComposer.svelte";
+    import ThreadPicker from "./ThreadPicker.svelte";
     import IconAi from "@tabler/icons-svelte/icons/ai";
     import IconAlertCircle from "@tabler/icons-svelte/icons/alert-circle";
+    import IconCopy from "@tabler/icons-svelte/icons/copy";
+    import IconCheck from "@tabler/icons-svelte/icons/check";
 
     let abortController = $state<AbortController | null>(null);
     let sessionReady = $state(false);
     let sessionError = $state<string | null>(null);
     let sessionConnectionId = $state<string | null>(null);
     let sessionDatabase = $state<string | null>(null);
+    let sessionModel = $state<string | null>(null);
+    let sessionEffort = $state<string | null>(null);
     let streamingMsgId: string | null = null;
+    let titleSet = false; // whether we've auto-titled this thread yet
 
     // Turn-level elapsed timer
     let turnStartedAt = $state<number | null>(null);
@@ -45,38 +53,49 @@
         return `${(ms / 1000).toFixed(1)}s`;
     }
 
-    async function bootSession() {
-        if (abortController) abortController.abort();
-        agentStore.clear();
-        sessionReady = false;
-        sessionError = null;
-        streamingMsgId = null;
-        turnStartedAt = null;
-
-        const conn = schemaStore.activeConnection;
-        if (!conn) return;
-
-        sessionConnectionId = conn.id;
-        sessionDatabase = schemaStore.selectedDatabase;
-
-        const sessionId = crypto.randomUUID();
+    function buildPrompt(sessionId: string) {
+        const conn = schemaStore.activeConnection!;
         const port = harnessStore.port ?? 0;
         const schema = schemaStore.activeSchema ?? "public";
-
-        const systemPrompt = buildSystemPrompt(
+        return buildSystemPrompt(
             schemaStore.databases,
             schemaStore.selectedDatabase,
             conn.engine,
             port > 0 ? { port, sessionId, schema } : undefined,
         );
+    }
 
+    async function startThread(thread: AgentThread) {
+        if (abortController) abortController.abort();
+        sessionReady = false;
+        sessionError = null;
+        streamingMsgId = null;
+        titleSet = false;
+        turnStartedAt = null;
+
+        const conn = schemaStore.activeConnection;
+        if (!conn) return;
+
+        threadsStore.setActive(thread.id);
+        await agentStore.loadThread(thread.id);
+
+        sessionConnectionId = conn.id;
+        sessionDatabase = schemaStore.selectedDatabase;
+        sessionModel = settingsStore.aiModel;
+        sessionEffort = settingsStore.aiEffort;
+
+        const sessionId = crypto.randomUUID();
         const ac = new AbortController();
         abortController = ac;
 
         try {
             const sess = await startAgentSession({
                 sessionId,
-                systemPrompt,
+                threadId: thread.id,
+                systemPrompt: buildPrompt(sessionId),
+                model: settingsStore.aiModel,
+                effort: settingsStore.aiEffort,
+                resumeSdkSessionId: thread.sdkSessionId ?? undefined,
                 onEvent: handleEvent,
                 abortController: ac,
             });
@@ -84,6 +103,32 @@
             sessionReady = true;
         } catch (e) {
             sessionError = String(e);
+        }
+    }
+
+    async function createAndStartThread() {
+        const conn = schemaStore.activeConnection;
+        if (!conn) return;
+        const thread = await threadsStore.createThread({
+            connectionId: conn.id,
+            databaseName: schemaStore.selectedDatabase,
+            model: settingsStore.aiModel,
+            effort: settingsStore.aiEffort,
+        });
+        await startThread(thread);
+    }
+
+    async function initForConnection() {
+        const conn = schemaStore.activeConnection;
+        if (!conn) return;
+
+        await threadsStore.load(conn.id, schemaStore.selectedDatabase);
+
+        if (threadsStore.threads.length === 0) {
+            await createAndStartThread();
+        } else {
+            // Resume the most recent thread
+            await startThread(threadsStore.threads[0]);
         }
     }
 
@@ -105,6 +150,13 @@
 
     function handleEvent(event: AgentEventType) {
         switch (event.type) {
+            case "session.init": {
+                const threadId = threadsStore.activeThreadId;
+                if (threadId) {
+                    threadsStore.setSdkSessionId(threadId, event.sdkSessionId);
+                }
+                break;
+            }
             case "text.delta": {
                 if (!streamingMsgId) {
                     streamingMsgId = agentStore.startAssistantMessage();
@@ -174,13 +226,24 @@
         }
     }
 
-    async function send(text: string) {
+    async function send(displayText: string, fullText: string) {
         if (!agentStore.session || agentStore.status === "running") return;
-        agentStore.addUserMessage(text);
+        agentStore.addUserMessage(displayText);
         agentStore.setStatus("running");
         streamingMsgId = null;
         startTurnTimer();
-        agentStore.session.send(text);
+
+        // Auto-title the thread from the first user message
+        if (!titleSet) {
+            titleSet = true;
+            const title = displayText.slice(0, 60).replace(/\n/g, " ");
+            const threadId = threadsStore.activeThreadId;
+            if (threadId) {
+                threadsStore.setTitle(threadId, title);
+            }
+        }
+
+        agentStore.session.send(fullText);
     }
 
     function stop() {
@@ -203,8 +266,10 @@
     $effect(() => {
         const connId = schemaStore.activeConnection?.id;
         const db = schemaStore.selectedDatabase;
-        if (connId && (connId !== sessionConnectionId || db !== sessionDatabase)) {
-            bootSession();
+        const model = settingsStore.aiModel;
+        const effort = settingsStore.aiEffort;
+        if (connId && (connId !== sessionConnectionId || db !== sessionDatabase || model !== sessionModel || effort !== sessionEffort)) {
+            initForConnection();
         }
     });
 
@@ -212,20 +277,76 @@
         abortController?.abort();
         if (turnTimerInterval !== null) clearInterval(turnTimerInterval);
     });
+
+    let copyDone = $state(false);
+
+    function copyChat() {
+        const timeline = [
+            ...agentStore.messages.map((m) => ({ kind: "message" as const, item: m, ts: m.timestamp })),
+            ...agentStore.toolCalls.map((t) => ({ kind: "tool" as const, item: t, ts: t.timestamp })),
+        ].sort((a, b) => a.ts - b.ts);
+
+        const lines: string[] = [
+            `# Tables Agent Chat`,
+            `Copied: ${new Date().toISOString()}`,
+            `Connection: ${schemaStore.activeConnection?.name ?? "unknown"} / ${schemaStore.selectedDatabase ?? ""}`,
+            ``,
+        ];
+
+        for (const entry of timeline) {
+            if (entry.kind === "message") {
+                const m = entry.item;
+                lines.push(`## ${m.role === "user" ? "User" : "Assistant"}`);
+                if (m.thinking) lines.push(`<thinking>\n${m.thinking}\n</thinking>`);
+                lines.push(m.content);
+                lines.push(``);
+            } else {
+                const t = entry.item;
+                const status = t.status === "running" ? "⏳" : t.status === "done" ? "✓" : "✗";
+                lines.push(`### Tool: ${t.toolName} ${status}`);
+                if (t.input) lines.push(`\`\`\`json\n${JSON.stringify(t.input, null, 2)}\n\`\`\``);
+                if (t.output) lines.push(`**Output:**\n${t.output.slice(0, 2000)}${t.output.length > 2000 ? "\n…(truncated)" : ""}`);
+                lines.push(``);
+            }
+        }
+
+        navigator.clipboard.writeText(lines.join("\n")).then(() => {
+            copyDone = true;
+            setTimeout(() => { copyDone = false; }, 2000);
+        });
+    }
 </script>
 
 <div class="flex h-full flex-col bg-background">
     <!-- Header -->
-    <div class="flex h-8 shrink-0 items-center justify-between border-b border-border px-3">
-        <div class="flex items-center gap-1.5 text-[12px] font-medium text-foreground">
-            <IconAi size={13} class="text-accent" />
-            <span>Claude</span>
+    <div class="flex h-8 shrink-0 items-center justify-between border-b border-border px-2">
+        <div class="flex items-center gap-1 min-w-0">
+            <IconAi size={13} class="shrink-0 text-accent" />
+            <ThreadPicker
+                onNewThread={createAndStartThread}
+                onSelectThread={(t) => startThread(t)}
+            />
         </div>
-        {#if agentStore.status === "running" && turnStartedAt !== null}
-            <span class="font-mono text-[10px] text-accent">
-                {formatTurnElapsed(turnElapsed)}
-            </span>
-        {/if}
+        <div class="flex items-center gap-2 shrink-0">
+            {#if agentStore.status === "running" && turnStartedAt !== null}
+                <span class="font-mono text-[10px] text-accent">
+                    {formatTurnElapsed(turnElapsed)}
+                </span>
+            {/if}
+            {#if agentStore.messages.length > 0}
+                <button
+                    onclick={copyChat}
+                    title="Copy chat for debugging"
+                    class="flex items-center justify-center rounded p-0.5 text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+                >
+                    {#if copyDone}
+                        <IconCheck size={12} class="text-green-500" />
+                    {:else}
+                        <IconCopy size={12} />
+                    {/if}
+                </button>
+            {/if}
+        </div>
     </div>
 
     <!-- Content -->
@@ -239,7 +360,7 @@
             <IconAlertCircle size={20} class="text-destructive" />
             <span class="text-[12px] text-muted-foreground">{sessionError}</span>
             <button
-                onclick={bootSession}
+                onclick={() => initForConnection()}
                 class="rounded-md bg-accent/10 px-3 py-1.5 text-[12px] text-accent hover:bg-accent/20"
             >
                 Retry
@@ -252,7 +373,7 @@
     {:else}
         <MessageList onRunQuery={handleRunQuery} />
         <AgentComposer
-            onSend={(text, _doc) => send(text)}
+            onSend={(displayText, fullText, _doc) => send(displayText, fullText)}
             onStop={stop}
             running={agentStore.status === "running"}
             disabled={!sessionReady || !!sessionError}
