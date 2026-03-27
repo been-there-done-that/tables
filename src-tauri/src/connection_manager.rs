@@ -126,8 +126,8 @@ impl ConnectionManager {
                 "INSERT INTO connections (
                     id, name, engine, host, port, database, username,
                     uses_ssh, uses_tls, config_json, is_favorite, color_tag,
-                    created_at, updated_at, last_connected_at, connection_count
-                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
+                    created_at, updated_at, last_connected_at, connection_count, provider
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
                 params![
                     connection.id,
                     connection.name,
@@ -145,6 +145,7 @@ impl ConnectionManager {
                     connection.updated_at,
                     connection.last_connected_at,
                     connection.connection_count,
+                    connection.provider,
                 ],
             ).map_err(|e| {
                 error!("Failed to insert connection '{}' into database: {}", connection.id, e);
@@ -183,7 +184,7 @@ impl ConnectionManager {
                 })?;
 
             conn.query_row(
-                "SELECT id, name, engine, host, port, database, username, uses_ssh, uses_tls, config_json, is_favorite, color_tag, created_at, updated_at, last_connected_at, connection_count
+                "SELECT id, name, engine, host, port, database, username, uses_ssh, uses_tls, config_json, is_favorite, color_tag, created_at, updated_at, last_connected_at, connection_count, provider
                  FROM connections WHERE id = ?1",
                 params![id],
                 load_connection_from_row,
@@ -228,7 +229,7 @@ impl ConnectionManager {
             })?;
 
         conn.query_row(
-            "SELECT id, name, engine, host, port, database, username, uses_ssh, uses_tls, config_json, is_favorite, color_tag, created_at, updated_at, last_connected_at, connection_count
+            "SELECT id, name, engine, host, port, database, username, uses_ssh, uses_tls, config_json, is_favorite, color_tag, created_at, updated_at, last_connected_at, connection_count, provider
              FROM connections WHERE id = ?1",
             params![id],
             load_connection_from_row,
@@ -248,7 +249,7 @@ impl ConnectionManager {
             })?;
 
         let mut stmt = conn.prepare(
-            "SELECT id, name, engine, host, port, database, username, uses_ssh, uses_tls, config_json, is_favorite, color_tag, created_at, updated_at, last_connected_at, connection_count
+            "SELECT id, name, engine, host, port, database, username, uses_ssh, uses_tls, config_json, is_favorite, color_tag, created_at, updated_at, last_connected_at, connection_count, provider
              FROM connections ORDER BY created_at"
         ).map_err(|e| {
             error!("Failed to prepare query for listing connections: {}", e);
@@ -290,7 +291,7 @@ impl ConnectionManager {
                 "UPDATE connections SET
                     name = ?2, engine = ?3, host = ?4, port = ?5, database = ?6, username = ?7,
                     uses_ssh = ?8, uses_tls = ?9, config_json = ?10, is_favorite = ?11, color_tag = ?12,
-                    updated_at = ?13
+                    updated_at = ?13, provider = ?14
                  WHERE id = ?1",
                 params![
                     connection.id,
@@ -305,7 +306,8 @@ impl ConnectionManager {
                     connection.config_json,
                     connection.is_favorite as i64,
                     connection.color_tag,
-                    connection.updated_at
+                    connection.updated_at,
+                    connection.provider,
                 ],
             ).map_err(|e| {
                 error!("Failed to update connection '{}' in database: {}", connection.id, e);
@@ -695,7 +697,7 @@ impl ConnectionManager {
             })?;
 
         let mut stmt = conn.prepare(
-            "SELECT id, name, engine, host, port, database, username, uses_ssh, uses_tls, config_json, is_favorite, color_tag, created_at, updated_at, last_connected_at, connection_count
+            "SELECT id, name, engine, host, port, database, username, uses_ssh, uses_tls, config_json, is_favorite, color_tag, created_at, updated_at, last_connected_at, connection_count, provider
              FROM connections WHERE is_favorite = 1 ORDER BY created_at"
         ).map_err(|e| {
             error!("Failed to prepare query for favorite connections: {}", e);
@@ -734,7 +736,7 @@ impl ConnectionManager {
         let search_pattern = format!("%{}%", escaped_query);
 
         let mut stmt = conn.prepare(
-            "SELECT id, name, engine, host, port, database, username, uses_ssh, uses_tls, config_json, is_favorite, color_tag, created_at, updated_at, last_connected_at, connection_count
+            "SELECT id, name, engine, host, port, database, username, uses_ssh, uses_tls, config_json, is_favorite, color_tag, created_at, updated_at, last_connected_at, connection_count, provider
              FROM connections WHERE name LIKE ?1 ESCAPE '\\' OR host LIKE ?1 ESCAPE '\\' ORDER BY created_at"
         ).map_err(|e| {
             error!("Failed to prepare search query for '{}': {}", query, e);
@@ -883,7 +885,8 @@ mod tests {
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL,
         last_connected_at INTEGER,
-        connection_count INTEGER DEFAULT 0
+        connection_count INTEGER DEFAULT 0,
+        provider TEXT
     );
     "#;
 
@@ -943,6 +946,7 @@ mod tests {
             config_json: r#"{"db":{"host":"localhost","port":5432,"database":"testdb","username":"user"}}"#.to_string(),
             is_favorite: false,
             color_tag: None,
+            provider: None,
             created_at: now,
             updated_at: now,
             last_connected_at: None,
