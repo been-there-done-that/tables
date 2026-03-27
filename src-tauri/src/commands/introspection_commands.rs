@@ -34,7 +34,12 @@ pub(super) async fn pg_connect_for_commands(
     let db = db_config.get("database").and_then(|v| v.as_str()).unwrap_or("postgres");
     let use_tls = config.get("tls").and_then(|t| t.get("enabled")).and_then(|v| v.as_bool()).unwrap_or(false);
 
-    let conn_str = format!("postgres://{}:{}@{}:{}/{}", user, pass, host, port, db);
+    let mut pg_config = tokio_postgres::Config::new();
+    pg_config.host(host);
+    pg_config.port(port);
+    pg_config.user(user);
+    pg_config.password(pass);
+    pg_config.dbname(db);
 
     if use_tls {
         let tls = native_tls::TlsConnector::builder()
@@ -42,12 +47,12 @@ pub(super) async fn pg_connect_for_commands(
             .build()
             .map_err(|e| format!("TLS error: {}", e))?;
         let connector = postgres_native_tls::MakeTlsConnector::new(tls);
-        let (client, conn) = tokio_postgres::connect(&conn_str, connector).await
+        let (client, conn) = pg_config.connect(connector).await
             .map_err(|e| format!("Connection error: {}", e))?;
         tokio::spawn(async move { let _ = conn.await; });
         Ok(client)
     } else {
-        let (client, conn) = tokio_postgres::connect(&conn_str, tokio_postgres::NoTls).await
+        let (client, conn) = pg_config.connect(tokio_postgres::NoTls).await
             .map_err(|e| format!("Connection error: {}", e))?;
         tokio::spawn(async move { let _ = conn.await; });
         Ok(client)
@@ -323,7 +328,7 @@ pub async fn get_functions(
             l.lanname AS language,
             p.prokind AS kind,
             COALESCE(pg_get_function_result(p.oid), '') AS return_type,
-            COALESCE(p.prosrc, '') AS definition,
+            COALESCE(p.prosrc, pg_get_functiondef(p.oid)::text, '') AS definition,
             p.prosecdef AS security_definer,
             CASE p.provolatile
                 WHEN 'v' THEN 'volatile'
@@ -503,6 +508,9 @@ pub async fn get_index_details(
         &[&qualified],
     ).await.map_err(|e| format!("Query error: {}", e))?;
 
+    // NOTE: Expression-based index columns (e.g. lower(name)) have attnum=0 in indkey
+    // and are silently excluded from the columns array. The columns array will be
+    // shorter than expected for such indexes. has_expressions is not tracked.
     let indexes = rows.iter().map(|row| {
         let columns: Vec<String> = row.get(5);
         crate::introspection::MetaIndex {
