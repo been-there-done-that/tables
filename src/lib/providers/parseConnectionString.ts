@@ -27,7 +27,12 @@ export function parseConnectionString(uri: string): Partial<PostgresFormData> | 
 
     const url = new URL(normalized);
 
-    const host = url.hostname || undefined;
+    const rawHost = url.hostname;
+    const host = rawHost
+      ? (rawHost.startsWith('[') && rawHost.endsWith(']')
+          ? rawHost.slice(1, -1)
+          : rawHost)
+      : undefined;
     const rawPort = url.port ? parseInt(url.port, 10) : undefined;
     const port = rawPort && !isNaN(rawPort) ? rawPort : undefined;
     const username = url.username ? decodeURIComponent(url.username) : undefined;

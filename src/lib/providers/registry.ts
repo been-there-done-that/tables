@@ -29,7 +29,7 @@ export const PROVIDERS: Record<string, ProviderConfig> = {
       username: "postgres",
       sslRequired: true,
     },
-    hostPattern: /db\..+\.supabase\.co/,
+    hostPattern: /^db\.[^.]+\.supabase\.co$/,
     guide: [
       "Open your Supabase Dashboard",
       "Go to Settings → Database",
@@ -52,7 +52,7 @@ export const PROVIDERS: Record<string, ProviderConfig> = {
       username: "neondb_owner",
       sslRequired: true,
     },
-    hostPattern: /.+\.neon\.tech/,
+    hostPattern: /^.+\.neon\.tech$/,
     guide: [
       "Open your Neon Console",
       "Select your project",
@@ -73,7 +73,7 @@ export const PROVIDERS: Record<string, ProviderConfig> = {
       username: "",
       sslRequired: true,
     },
-    hostPattern: /.+\.psdb\.cloud/,
+    hostPattern: /^.+\.psdb\.cloud$/,
     guide: [
       "Open your PlanetScale dashboard",
       "Select your database",
