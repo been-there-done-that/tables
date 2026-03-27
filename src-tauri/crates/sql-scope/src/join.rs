@@ -133,7 +133,7 @@ mod tests {
             &[], // no FK
         );
         let (cond, conf) = infer_join_condition("o", "orders", "u", "users", &s).unwrap();
-        assert!(conf >= 60, "naming heuristic should give >= 60, got {}", conf);
+        assert_eq!(conf, 70, "naming heuristic confidence should be exactly 70");
         assert!(cond.contains("user_id"), "should reference user_id via naming heuristic");
     }
 

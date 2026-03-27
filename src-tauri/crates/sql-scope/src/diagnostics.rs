@@ -22,6 +22,9 @@ pub fn run_diagnostics(tree: &ScopeTree, schema: &dyn SchemaSnapshot, _sql: &str
                     diags.push(ScopeDiagnostic {
                         message: format!("Unknown table '{}'", name),
                         severity: DiagSeverity::Warning,
+                        // TODO: `Source::Table` does not currently carry source position.
+                        // When position tracking is added to the IR, replace 0..1 with the
+                        // actual byte range of the table reference.
                         byte_range: 0..1,
                     });
                 }
