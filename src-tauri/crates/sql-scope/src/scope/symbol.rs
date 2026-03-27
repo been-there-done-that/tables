@@ -6,6 +6,8 @@ pub struct ColumnRef {
     pub source_alias: Option<String>,  // alias used in the query
 }
 
+pub type ScopeId = usize;
+
 /// A source (table, CTE, or derived table) available in a scope.
 #[derive(Debug, Clone)]
 pub enum Source {
@@ -17,8 +19,11 @@ pub enum Source {
         name: String,
     },
     DerivedTable {
-        scope_id: usize,
+        scope_id: ScopeId,
+    },
+    Alias {
         alias: String,
+        target: Box<Source>,
     },
 }
 
@@ -28,7 +33,8 @@ impl Source {
         match self {
             Source::Table { name, .. } => name,
             Source::Cte { name } => name,
-            Source::DerivedTable { alias, .. } => alias,
+            Source::DerivedTable { .. } => "",  // scope_id has no name; caller uses alias key in IndexMap
+            Source::Alias { alias, .. } => alias,
         }
     }
 }
@@ -171,14 +177,24 @@ mod tests {
     }
 
     // -------------------------------------------------------------------------
-    // Source::DerivedTable — canonical_name returns alias
+    // Source::DerivedTable — canonical_name returns empty string (alias is the IndexMap key)
     // -------------------------------------------------------------------------
 
     #[test]
     fn source_derived_table_canonical_name() {
-        let src = Source::DerivedTable {
-            scope_id: 42,
+        let src = Source::DerivedTable { scope_id: 42 };
+        assert_eq!(src.canonical_name(), "");
+    }
+
+    // -------------------------------------------------------------------------
+    // Source::Alias — canonical_name returns alias
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn source_alias_canonical_name() {
+        let src = Source::Alias {
             alias: "sub".to_string(),
+            target: Box::new(Source::Table { schema: None, name: "users".to_string() }),
         };
         assert_eq!(src.canonical_name(), "sub");
     }
@@ -208,13 +224,10 @@ mod tests {
 
     #[test]
     fn source_derived_table_clone() {
-        let src = Source::DerivedTable {
-            scope_id: 5,
-            alias: "dt".to_string(),
-        };
+        let src = Source::DerivedTable { scope_id: 5 };
         let src2 = src.clone();
-        assert_eq!(src2.canonical_name(), "dt");
-        if let Source::DerivedTable { scope_id, .. } = src2 {
+        assert_eq!(src2.canonical_name(), "");
+        if let Source::DerivedTable { scope_id } = src2 {
             assert_eq!(scope_id, 5);
         } else {
             panic!("expected DerivedTable");
@@ -301,7 +314,7 @@ mod tests {
         let mut vis = VisibleSymbols::default();
         vis.sources.push(("users".to_string(), Source::Table { schema: Some("public".to_string()), name: "users".to_string() }));
         vis.sources.push(("recent".to_string(), Source::Cte { name: "recent".to_string() }));
-        vis.sources.push(("sub".to_string(), Source::DerivedTable { scope_id: 1, alias: "sub".to_string() }));
+        vis.sources.push(("sub".to_string(), Source::DerivedTable { scope_id: 1 }));
 
         assert!(vis.has_source("users"));
         assert!(vis.has_source("recent"));

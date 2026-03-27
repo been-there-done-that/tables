@@ -1,8 +1,7 @@
+use std::collections::HashMap;
 use std::ops::Range;
 use indexmap::IndexMap;
-use super::symbol::{Source, VisibleSymbols};
-
-pub type ScopeId = usize;
+use super::symbol::{ColumnRef, ScopeId, Source, VisibleSymbols};
 
 #[derive(Debug, Clone)]
 pub enum ScopeType {
@@ -30,11 +29,11 @@ pub struct Scope {
     pub scope_type: ScopeType,
     pub byte_range: Range<usize>,
     /// Local sources: alias/name → Source (tables and subqueries in FROM)
-    pub sources: IndexMap<String, Source>,
+    pub sources: HashMap<String, Source>,
     /// CTEs visible in this scope (inherited from parent + locally defined, in declaration order)
     pub cte_sources: IndexMap<String, CteInfo>,
     /// Columns this scope projects outward (used by parent for wildcard expansion)
-    pub projected_columns: Vec<String>,
+    pub columns: Vec<ColumnRef>,
 }
 
 impl Scope {
@@ -44,9 +43,9 @@ impl Scope {
             parent,
             scope_type,
             byte_range,
-            sources: IndexMap::new(),
+            sources: HashMap::new(),
             cte_sources: IndexMap::new(),
-            projected_columns: Vec::new(),
+            columns: Vec::new(),
         }
     }
 
@@ -74,7 +73,7 @@ pub enum DiagSeverity {
 /// The fully resolved scope tree for a single SQL statement.
 pub struct ScopeTree {
     scopes: Vec<Scope>,
-    pub diagnostics: Vec<ScopeDiagnostic>,
+    diagnostics: Vec<ScopeDiagnostic>,
 }
 
 impl ScopeTree {
@@ -145,6 +144,11 @@ impl ScopeTree {
     pub fn add_diagnostic(&mut self, diag: ScopeDiagnostic) {
         self.diagnostics.push(diag);
     }
+
+    /// Return a clone of all diagnostics collected during scope resolution.
+    pub fn diagnostics(&self) -> Vec<ScopeDiagnostic> {
+        self.diagnostics.clone()
+    }
 }
 
 impl Default for ScopeTree {
@@ -156,7 +160,7 @@ impl Default for ScopeTree {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::super::symbol::Source;
+    use super::super::symbol::{ColumnRef, Source};
 
     fn make_scope(id: ScopeId, parent: Option<ScopeId>, scope_type: ScopeType, range: Range<usize>) -> Scope {
         Scope::new(id, parent, scope_type, range)
@@ -170,7 +174,7 @@ mod tests {
     fn scope_tree_new_is_empty() {
         let tree = ScopeTree::new();
         assert!(tree.all_scopes().is_empty());
-        assert!(tree.diagnostics.is_empty());
+        assert!(tree.diagnostics().is_empty());
     }
 
     // -------------------------------------------------------------------------
@@ -451,9 +455,10 @@ mod tests {
             severity: DiagSeverity::Info,
             byte_range: 10..20,
         });
-        assert_eq!(tree.diagnostics.len(), 2);
-        assert_eq!(tree.diagnostics[0].message, "error one");
-        assert_eq!(tree.diagnostics[1].severity, DiagSeverity::Info);
+        let diags = tree.diagnostics();
+        assert_eq!(diags.len(), 2);
+        assert_eq!(diags[0].message, "error one");
+        assert_eq!(diags[1].severity, DiagSeverity::Info);
     }
 
     // -------------------------------------------------------------------------
@@ -579,8 +584,8 @@ mod tests {
         tree.add_scope(make_scope(0, None, ScopeType::Root, 0..100));
 
         let scope = tree.scope_mut(0);
-        scope.projected_columns.push("result".to_string());
+        scope.columns.push(ColumnRef { name: "result".into(), source_table: None, source_alias: None });
 
-        assert_eq!(tree.scope(0).projected_columns, vec!["result"]);
+        assert_eq!(tree.scope(0).columns, vec![ColumnRef { name: "result".into(), source_table: None, source_alias: None }]);
     }
 }
