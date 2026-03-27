@@ -9,6 +9,7 @@
     import { composerStore } from "$lib/stores/composer.svelte";
     import { schemaStore } from "$lib/stores/schema.svelte";
     import { windowState } from "$lib/stores/window.svelte";
+    import { invoke } from "@tauri-apps/api/core";
 
     interface Props {
         onSend: (text: string, rawDoc: unknown) => void;
@@ -101,7 +102,7 @@
         const e = new Editor({
             element: editorEl,
             extensions: [
-                StarterKit.configure({ history: true }),
+                StarterKit.configure({}),
                 Placeholder.configure({ placeholder: "Ask Claude about your database..." }),
                 FileChipNode,
                 TableChipNode,
@@ -117,7 +118,7 @@
                     }
                     if (event.key === "Enter" && !event.shiftKey) {
                         event.preventDefault();
-                        handleSend();
+                        void handleSend();
                         return true;
                     }
                     return false;
@@ -175,13 +176,91 @@
         editor.setEditable(!disabled && !running);
     });
 
-    function handleSend() {
+    function escapeXml(str: string): string {
+        return str
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
+    }
+
+    async function resolveChips(doc: ReturnType<Editor["getJSON"]>): Promise<string> {
+        const collected: Array<{ type: string; attrs: Record<string, unknown> }> = [];
+
+        function collect(nodes: unknown[]): void {
+            for (const node of nodes ?? []) {
+                const n = node as Record<string, unknown>;
+                if (["fileChip", "tableChip", "resultChip"].includes(n.type as string)) {
+                    collected.push(n as { type: string; attrs: Record<string, unknown> });
+                }
+                if (n.content) collect(n.content as unknown[]);
+            }
+        }
+        collect(doc.content ?? []);
+
+        if (collected.length === 0) return "";
+
+        const xmlParts: string[] = [];
+
+        for (const node of collected) {
+            if (node.type === "fileChip") {
+                const { path, lineStart, lineEnd } = node.attrs as {
+                    path: string;
+                    lineStart: number | null;
+                    lineEnd: number | null;
+                };
+                const session = windowState.activeSession;
+                const view = session?.views.find((v) => v.title === path);
+                const fullContent: string = (view?.data as Record<string, unknown>)?.content as string ?? "";
+                let content = fullContent;
+                if (lineStart != null && lineEnd != null) {
+                    const lines = fullContent.split("\n");
+                    content = lines.slice(lineStart - 1, lineEnd).join("\n");
+                }
+                const attrs = lineStart != null && lineEnd != null ? ` lines="${lineStart}-${lineEnd}"` : "";
+                xmlParts.push(`  <file path="${escapeXml(path)}"${attrs}>\n${content}\n  </file>`);
+            } else if (node.type === "tableChip") {
+                const { tableName } = node.attrs as { tableName: string };
+                const conn = schemaStore.activeConnection;
+                try {
+                    const details = await invoke<unknown>("get_schema_table_details", {
+                        connectionId: conn?.id ?? "",
+                        database: schemaStore.selectedDatabase ?? "",
+                        schema: schemaStore.activeSchema ?? "public",
+                        tableName,
+                    });
+                    const schema = JSON.stringify(details, null, 2);
+                    xmlParts.push(`  <table_schema name="${escapeXml(tableName)}">\n${schema}\n  </table_schema>`);
+                } catch {
+                    xmlParts.push(`  <table_schema name="${escapeXml(tableName)}">unavailable</table_schema>`);
+                }
+            } else if (node.type === "resultChip") {
+                const { toolId, label } = node.attrs as { toolId: string; label: string };
+                const tagged = composerStore.taggedResults.get(toolId);
+                if (tagged) {
+                    const truncAttr = tagged.truncated
+                        ? ` truncated="true" total_rows="${tagged.totalRows}"`
+                        : ` truncated="false"`;
+                    xmlParts.push(
+                        `  <query_result tool="${escapeXml(tagged.toolName)}"${truncAttr}>\n${tagged.output}\n  </query_result>`,
+                    );
+                }
+            }
+        }
+
+        return `<context>\n${xmlParts.join("\n")}\n</context>`;
+    }
+
+    async function handleSend() {
         if (!editor || running || disabled) return;
-        const text = editor.getText({ blockSeparator: "\n" }).trim();
-        if (!text) return;
+        const prose = editor.getText({ blockSeparator: "\n" }).trim();
+        if (!prose) return;
         const doc = editor.getJSON();
-        onSend(text, doc);
         editor.commands.clearContent();
+
+        const contextXml = await resolveChips(doc);
+        const fullText = contextXml ? `${contextXml}\n\n${prose}` : prose;
+        onSend(fullText, doc);
     }
 
     export function insertContent(content: unknown) {
@@ -205,7 +284,7 @@
             </button>
         {:else}
             <button
-                onclick={handleSend}
+                onclick={() => void handleSend()}
                 disabled={disabled}
                 class="rounded px-3 py-1 text-xs bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
