@@ -227,22 +227,20 @@ fn parse_table_ref(node: &NodeEnum, sql: &str) -> Option<TableRefIr> {
 }
 
 fn parse_select_item(rt: &pg_query::protobuf::ResTarget) -> SelectItemIr {
-    if let Some(val_node) = rt.val.as_ref().and_then(|v| v.node.as_ref()) {
-        if let NodeEnum::ColumnRef(cr) = val_node {
-            // Check if this is a wildcard: fields contains A_Star
-            let fields = &cr.fields;
-            if !fields.is_empty() {
-                let last = fields.last().unwrap();
-                if matches!(last.node.as_ref(), Some(NodeEnum::AStar(_))) {
-                    // If there's a table qualifier before the star, it's TableWildcard
-                    if fields.len() > 1 {
-                        // The qualifier is the string before the star
-                        if let Some(NodeEnum::String(s)) = fields[fields.len() - 2].node.as_ref() {
-                            return SelectItemIr::TableWildcard(s.sval.to_lowercase());
-                        }
+    if let Some(NodeEnum::ColumnRef(cr)) = rt.val.as_ref().and_then(|v| v.node.as_ref()) {
+        // Check if this is a wildcard: fields contains A_Star
+        let fields = &cr.fields;
+        if !fields.is_empty() {
+            let last = fields.last().unwrap();
+            if matches!(last.node.as_ref(), Some(NodeEnum::AStar(_))) {
+                // If there's a table qualifier before the star, it's TableWildcard
+                if fields.len() > 1 {
+                    // The qualifier is the string before the star
+                    if let Some(NodeEnum::String(s)) = fields[fields.len() - 2].node.as_ref() {
+                        return SelectItemIr::TableWildcard(s.sval.to_lowercase());
                     }
-                    return SelectItemIr::Wildcard;
                 }
+                return SelectItemIr::Wildcard;
             }
         }
     }
