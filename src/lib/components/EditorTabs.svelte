@@ -25,6 +25,26 @@
 
     let scrollContainer = $state<HTMLElement | null>(null);
 
+    let renamingViewId = $state<string | null>(null);
+    let renameValue = $state("");
+    let renameInputEl: HTMLInputElement;
+
+    function startRename(viewId: string, currentTitle: string, event: MouseEvent) {
+        event.stopPropagation();
+        renamingViewId = viewId;
+        renameValue = currentTitle;
+        setTimeout(() => renameInputEl?.focus(), 0);
+    }
+
+    function commitRename() {
+        if (!renamingViewId) return;
+        const trimmed = renameValue.trim();
+        if (trimmed) {
+            activeSession?.renameView(renamingViewId, trimmed);
+        }
+        renamingViewId = null;
+    }
+
     $effect(() => {
         if (!activeViewId || !scrollContainer) return;
         console.log("scrollContainer", scrollContainer);
@@ -72,9 +92,26 @@
                             />
                         {/if}
 
-                        <span class="truncate max-w-[150px]">
-                            {view.title}
-                        </span>
+                        {#if renamingViewId === view.id}
+                            <input
+                                bind:this={renameInputEl}
+                                bind:value={renameValue}
+                                class="w-24 bg-transparent text-xs outline-none border-b border-primary"
+                                onblur={commitRename}
+                                onkeydown={(e) => {
+                                    if (e.key === "Enter") { e.preventDefault(); commitRename(); }
+                                    if (e.key === "Escape") { e.stopPropagation(); renamingViewId = null; }
+                                }}
+                                onclick={(e) => e.stopPropagation()}
+                            />
+                        {:else}
+                            <span
+                                class="truncate max-w-[150px]"
+                                ondblclick={(e) => startRename(view.id, view.title, e)}
+                            >
+                                {view.title}
+                            </span>
+                        {/if}
 
                         <span
                             class={cn(
