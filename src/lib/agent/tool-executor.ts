@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { windowState } from "$lib/stores/window.svelte";
 
 export interface ToolContext {
     port: number;
@@ -265,6 +266,23 @@ async function executeTool(toolName: string, input: unknown, ctx: ToolContext): 
             const title = (inp.title as string | undefined) ?? "Agent Query";
             ctx.openInEditor(sql, title);
             return { success: true };
+        }
+
+        case "write_file": {
+            const { fileName, content } = inp as { fileName: string; content: string };
+            const session = windowState.activeSession;
+            if (!session) return { error: "no active session" };
+
+            const existing = session.views.find((v) => v.title === fileName);
+            if (existing) {
+                existing.data = existing.data ?? {};
+                (existing.data as Record<string, unknown>).content = content;
+                existing.streamingContent = undefined;
+                return { ok: true, action: "updated", fileName, lines: content.split("\n").length };
+            } else {
+                session.openView("editor", fileName, { content });
+                return { ok: true, action: "created", fileName, lines: content.split("\n").length };
+            }
         }
 
         case "get_query_history": {

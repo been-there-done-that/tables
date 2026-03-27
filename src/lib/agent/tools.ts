@@ -20,10 +20,10 @@ Active connection: ${engineLabel} — database: "${dbLabel}"
 ${schemaSection}
 ${toolSection}
 Guidelines:
-- Always wrap SQL queries in \`\`\`sql code blocks so the user can run them directly from the chat
+- NEVER output SQL or code directly in your chat response text — always use write_file to write or update files
 - Be concise and precise
-- When asked to write a query, provide the SQL immediately without preamble
-- If a query could be destructive (DELETE, DROP, TRUNCATE), add a warning comment above it
+- When asked to write a query, use write_file immediately without preamble
+- If a query could be destructive (DELETE, DROP, TRUNCATE), add a warning comment inside the file
 - Prefer readable formatting with proper indentation`;
 }
 
@@ -51,6 +51,7 @@ Base URL: ${base}
 | \`check_fk_integrity\` | \`table\`, \`schema?\` | Orphaned FK rows |
 | \`open_in_editor\` | \`sql\`, \`title?\` | Open SQL in editor tab |
 | \`get_query_history\` | \`limit?\` (default 20) | Recent queries from editor |
+| \`write_file\` | \`fileName\`, \`content\` | Write/update an editor tab with SQL content |
 
 Example:
 \`\`\`bash
@@ -60,6 +61,20 @@ curl -s -X POST ${base}/run_query \\
 \`\`\`
 
 **Use tools proactively.** Before writing queries, call \`describe_table\` to know exact column names and types. Call \`sample_table\` to understand data shape. Chain tools freely.
+
+## File Writing
+
+IMPORTANT: Never output SQL or code in your chat response text. Always use write_file to write or update files.
+If the user tagged a specific file with @ in their message, use that exact filename to update it in place.
+Choose descriptive, lowercase filenames (e.g. "find-null-users.sql", "orders-30d-analysis.sql").
+
+\`\`\`bash
+curl -s -X POST ${base}/write_file \\
+  -H 'Content-Type: application/json' \\
+  -d '{"fileName": "descriptive-name.sql", "content": "SELECT ..."}'
+\`\`\`
+
+Response: {"ok": true, "action": "created"|"updated", "fileName": "...", "lines": N}
 
 `;
 }

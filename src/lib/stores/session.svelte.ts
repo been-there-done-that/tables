@@ -8,6 +8,7 @@ export interface ViewState {
     type: ViewType;
     title: string;
     data?: any; // To hold editor content, table state, etc.
+    streamingContent?: string; // set during write_file streaming, cleared on finalise
 }
 
 export interface ExplorerState {
@@ -169,5 +170,10 @@ export class Session {
 
             this.triggerSave();
         }
+    }
+
+    renameView(viewId: string, newTitle: string): void {
+        const view = this.views.find(v => v.id === viewId);
+        if (view) view.title = newTitle;
     }
 }
