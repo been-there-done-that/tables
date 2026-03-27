@@ -32,9 +32,7 @@ class AsyncQueue<T> {
                 if (this.done) {
                     return Promise.resolve({ value: undefined as any, done: true });
                 }
-                return new Promise((resolve) => {
-                    this.waiting = resolve;
-                });
+                return new Promise((resolve) => { this.waiting = resolve; });
             },
         };
     }
@@ -55,6 +53,8 @@ export class ClaudeSession {
     private ac = new AbortController();
     private firstMessage = true;
     private emitFn: (e: HarnessEvent) => void = () => {};
+    // Track Bash tool IDs that are /db/ API calls so we can suppress them
+    private suppressedBashIds = new Set<string>();
 
     constructor(
         private systemPrompt: string,
@@ -90,6 +90,14 @@ export class ClaudeSession {
                         } else if (block.type === "thinking") {
                             this.emitFn({ type: "thinking.delta", content: block.thinking as string });
                         } else if (block.type === "tool_use") {
+                            // Suppress Bash tool events that are /db/ API calls
+                            if (block.name === "Bash") {
+                                const cmd = ((block.input as any)?.command ?? "") as string;
+                                if (cmd.includes("/db/")) {
+                                    this.suppressedBashIds.add(block.id as string);
+                                    continue; // Don't emit tool.started — /db handler emits it
+                                }
+                            }
                             this.emitFn({
                                 type: "tool.started",
                                 toolId: block.id as string,
@@ -102,6 +110,12 @@ export class ClaudeSession {
                     const message = msg.message as { content: Array<Record<string, unknown>> };
                     for (const block of message?.content ?? []) {
                         if (block.type === "tool_result") {
+                            const toolUseId = block.tool_use_id as string;
+                            // Suppress tool_result for our suppressed Bash IDs
+                            if (this.suppressedBashIds.has(toolUseId)) {
+                                this.suppressedBashIds.delete(toolUseId);
+                                continue;
+                            }
                             const content = Array.isArray(block.content)
                                 ? (block.content as Array<Record<string, unknown>>)
                                       .filter((c) => c.type === "text")
@@ -110,7 +124,7 @@ export class ClaudeSession {
                                 : String(block.content ?? "");
                             this.emitFn({
                                 type: "tool.completed",
-                                toolId: block.tool_use_id as string,
+                                toolId: toolUseId,
                                 output: content,
                             });
                         }
