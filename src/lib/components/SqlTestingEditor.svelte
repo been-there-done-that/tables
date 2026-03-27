@@ -39,9 +39,12 @@
     import { tick } from "svelte";
     import { toast } from "svelte-sonner";
 
-    let { id = "playground", context = $bindable({}) } = $props<{
+    import type { ViewState } from "$lib/stores/session.svelte";
+
+    let { id = "playground", context = $bindable({}), view = null } = $props<{
         id?: string;
         context?: any;
+        view?: ViewState | null;
     }>();
 
     // Ensure context structure exists
@@ -226,6 +229,19 @@
                 fontFamily: family,
                 fontSize: settingsStore.editorFontSize,
             });
+        }
+    });
+
+    // Stream write_file content into the editor as the agent generates it
+    $effect(() => {
+        const streaming = view?.streamingContent;
+        if (streaming !== undefined && editorHandle?.editor) {
+            const ed = editorHandle.editor;
+            if (ed.getModel() && ed.getValue() !== streaming) {
+                ed.setValue(streaming);
+                const lineCount = ed.getModel()?.getLineCount() ?? 1;
+                ed.setPosition({ lineNumber: lineCount, column: 9999 });
+            }
         }
     });
 

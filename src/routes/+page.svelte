@@ -99,6 +99,7 @@
                               <SqlTestingEditor
                                 id={view.id}
                                 bind:context={view.data}
+                                {view}
                               />
                             {/if}
                           {/each}
@@ -111,6 +112,7 @@
                                 <SqlTestingEditor
                                   id={view.id}
                                   context={view.data}
+                                  {view}
                                 />
                               {:else if view.type === "table"}
                                 <TablePreview bind:context={view.data} />

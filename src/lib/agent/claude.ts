@@ -5,6 +5,7 @@ export type AgentEventType =
     | { type: "thinking.delta"; content: string }
     | { type: "tool.started"; toolId: string; toolName: string; input: unknown }
     | { type: "tool.completed"; toolId: string; output: string }
+    | { type: "tool.input_delta"; toolId: string; toolName: string; partialContent: string }
     | { type: "turn.done"; isError: boolean }
     | { type: "error"; message: string };
 

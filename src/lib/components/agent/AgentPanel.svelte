@@ -133,6 +133,26 @@
                 agentStore.completeToolCall(event.toolId, event.output);
                 break;
             }
+            case "tool.input_delta": {
+                const session = windowState.activeSession;
+                if (session) {
+                    const toolCall = agentStore.toolCalls.find((t) => t.id === event.toolId);
+                    const fileName = toolCall
+                        ? ((toolCall.input as Record<string, unknown>)?.fileName as string | undefined)
+                        : undefined;
+                    if (fileName) {
+                        let view = session.views.find((v) => v.title === fileName);
+                        if (!view) {
+                            session.openView("editor", fileName, { content: "" });
+                            view = session.views.find((v) => v.title === fileName);
+                        }
+                        if (view) {
+                            view.streamingContent = event.partialContent;
+                        }
+                    }
+                }
+                break;
+            }
             case "turn.done": {
                 stopTurnTimer();
                 if (streamingMsgId) {
