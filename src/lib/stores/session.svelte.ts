@@ -32,7 +32,6 @@ export class Session {
     views = $state<ViewState[]>([]);
     activeViewId = $state<string | null>(null);
 
-    private cleanup: (() => void) | null = null;
     private onStateChange?: () => void;
 
     constructor(id: string, connection: Connection, databaseName: string | null = null, windowLabel: string = "main", onStateChange?: () => void) {
