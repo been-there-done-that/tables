@@ -2,6 +2,7 @@
     import { type Driver } from "./DriverList";
     import PostgresForm from "./forms/PostgresForm.svelte";
     import SqliteForm from "./forms/SqliteForm.svelte";
+    import ProviderForm from "./forms/ProviderForm.svelte";
     import { IconMaximize, IconCircleCheck } from "@tabler/icons-svelte";
 
     interface Props {
@@ -26,11 +27,18 @@
     // Reset form data when driver changes (optional, or keep some fields)
     $effect(() => {
         if (driver) {
-            formData.name = driver.name; // Reset name to driver name default
+            formData.name = driver.name;
             formData.port = driver.defaultPort;
+            // For provider drivers, clear host so the user pastes their URI
+            if (driver.provider) {
+                formData.host = "";
+            } else {
+                formData.host = "localhost";
+            }
         } else {
             formData.name = "";
             formData.port = undefined;
+            formData.host = "localhost";
         }
     });
 
@@ -126,7 +134,13 @@
 
             <!-- Dynamic Form Content -->
             <div class="mt-4">
-                {#if driver.id === "postgresql" || driver.id === "mysql" || driver.id === "mariadb"}
+                {#if driver.provider}
+                    <ProviderForm
+                        providerId={driver.provider}
+                        data={formData}
+                        onChange={handleChange}
+                    />
+                {:else if driver.id === "postgresql" || driver.id === "mysql" || driver.id === "mariadb"}
                     <PostgresForm data={formData} onChange={handleChange} />
                 {:else if driver.id === "sqlite"}
                     <SqliteForm data={formData} onChange={handleChange} />
