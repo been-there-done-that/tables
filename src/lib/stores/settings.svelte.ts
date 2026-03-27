@@ -19,13 +19,6 @@ export interface Settings {
     activeRightPanel: string | null;
     // Editor settings
     editorShowAllRunButtons: boolean;
-    // AI settings
-    aiAgentName: string;
-    aiAgentUrl: string;
-    aiAgentApiKey: string;
-    aiAgentBasePath: string;
-    aiAgentModel: string;
-    aiAgentAvailableModels: string[];
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -43,13 +36,6 @@ const DEFAULT_SETTINGS: Settings = {
     expandedNodes: {},
     activeRightPanel: null,
     editorShowAllRunButtons: false,
-    // AI defaults
-    aiAgentName: "Assistant",
-    aiAgentUrl: "http://127.0.0.1:1234/v1",
-    aiAgentApiKey: "",
-    aiAgentBasePath: "",
-    aiAgentModel: "",
-    aiAgentAvailableModels: [],
 };
 
 function createSettingsStore() {
@@ -200,38 +186,6 @@ function createSettingsStore() {
             commandClient.updateAppSetting(`window:${windowLabel}:conn:${connId}:expanded`, nodes.join(","));
         },
 
-        // AI settings
-        get aiAgentName() { return settings.aiAgentName; },
-        set aiAgentName(v: string) {
-            settings.aiAgentName = v;
-            commandClient.updateAppSetting("ai_agent_name", v);
-        },
-        get aiAgentUrl() { return settings.aiAgentUrl; },
-        set aiAgentUrl(v: string) {
-            settings.aiAgentUrl = v;
-            commandClient.updateAppSetting("ai_agent_url", v);
-        },
-        get aiAgentApiKey() { return settings.aiAgentApiKey; },
-        set aiAgentApiKey(v: string) {
-            settings.aiAgentApiKey = v;
-            commandClient.updateAppSetting("ai_agent_api_key", v);
-        },
-        get aiAgentBasePath() { return settings.aiAgentBasePath; },
-        set aiAgentBasePath(v: string) {
-            settings.aiAgentBasePath = v;
-            commandClient.updateAppSetting("ai_agent_base_path", v);
-        },
-        get aiAgentModel() { return settings.aiAgentModel; },
-        set aiAgentModel(v: string) {
-            settings.aiAgentModel = v;
-            commandClient.updateAppSetting("ai_agent_model", v);
-        },
-        get aiAgentAvailableModels() { return settings.aiAgentAvailableModels; },
-        set aiAgentAvailableModels(v: string[]) {
-            settings.aiAgentAvailableModels = v;
-            commandClient.updateAppSetting("ai_agent_available_models", v.join(","));
-        },
-
         // Utility
         get initialized() {
             return initialized;
@@ -268,28 +222,8 @@ function createSettingsStore() {
                     const parsedSettings: any = {};
                     console.log("[Settings] Raw global settings:", globalSettings);
 
-                    // Handle nested aiSettings if present
-                    if (globalSettings.aiSettings) {
-                        console.log("[Settings] Found nested aiSettings:", globalSettings.aiSettings);
-                        const aiMap = globalSettings.aiSettings;
-
-                        // Map backend keys (snake_case) to frontend keys (camelCase)
-                        if (aiMap["ai_agent_name"]) parsedSettings["aiAgentName"] = aiMap["ai_agent_name"];
-                        if (aiMap["ai_agent_url"]) parsedSettings["aiAgentUrl"] = aiMap["ai_agent_url"];
-                        if (aiMap["ai_agent_api_key"]) parsedSettings["aiAgentApiKey"] = aiMap["ai_agent_api_key"];
-                        if (aiMap["ai_agent_base_path"]) parsedSettings["aiAgentBasePath"] = aiMap["ai_agent_base_path"];
-                        if (aiMap["ai_agent_model"]) parsedSettings["aiAgentModel"] = aiMap["ai_agent_model"];
-
-                        if (aiMap["ai_agent_available_models"]) {
-                            parsedSettings["aiAgentAvailableModels"] = (aiMap["ai_agent_available_models"] as string).split(",").filter(Boolean);
-                        } else {
-                            parsedSettings["aiAgentAvailableModels"] = [];
-                        }
-                    }
-
                     for (const [key, value] of Object.entries(globalSettings)) {
                         if (value === null || value === undefined) continue;
-                        if (key === "aiSettings") continue; // Skip the nested object in generic loop
 
                         // Handle Booleans
                         if (
@@ -376,24 +310,6 @@ function createSettingsStore() {
                         return;
                     case "editor_show_all_run_buttons":
                         settings.editorShowAllRunButtons = value === "true";
-                        return;
-                    case "ai_agent_name":
-                        settings.aiAgentName = value;
-                        return;
-                    case "ai_agent_url":
-                        settings.aiAgentUrl = value;
-                        return;
-                    case "ai_agent_api_key":
-                        settings.aiAgentApiKey = value;
-                        return;
-                    case "ai_agent_base_path":
-                        settings.aiAgentBasePath = value;
-                        return;
-                    case "ai_agent_model":
-                        settings.aiAgentModel = value;
-                        return;
-                    case "ai_agent_available_models":
-                        settings.aiAgentAvailableModels = value ? value.split(",") : [];
                         return;
                 }
 

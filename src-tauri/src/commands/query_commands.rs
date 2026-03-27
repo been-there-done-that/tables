@@ -932,6 +932,14 @@ async fn get_or_create_postgres_client(
     Ok(client)
 }
 
+/// Returns true if this SQL statement produces typed row results (needs prepare + query).
+/// Everything else — DML, DDL, transaction control — uses execute() which accepts all statement types.
+fn needs_typed_result(stmt: &str) -> bool {
+    let first = stmt.trim().split_ascii_whitespace().next().unwrap_or("").to_uppercase();
+    matches!(first.as_str(), "SELECT" | "WITH" | "TABLE" | "VALUES" | "SHOW" | "EXPLAIN")
+        || stmt.to_uppercase().contains(" RETURNING ")
+}
+
 async fn execute_postgres_query(
     session_manager: &QuerySessionManager,
     query_state: &QueryExecutionState,
@@ -967,69 +975,96 @@ async fn execute_postgres_query(
                 let stmt_text = &query[range.start_byte..range.end_byte];
                 debug!("[execute_postgres_query] Statement {}: {}", i, stmt_text);
                 
-                 let stmt_res = match timeout(Duration::from_secs(30), client.prepare(stmt_text)).await {
-                     Ok(res) => res,
-                     Err(_) => return Err("Query compilation timed out after 30 seconds".to_string()),
-                 };
-                 
-                 match stmt_res {
-                     Ok(stmt) => {
-                         let rows_res = match timeout(Duration::from_secs(30), client.query(&stmt, &[])).await {
-                             Ok(res) => res,
-                             Err(_) => return Err("Query timed out after 30 seconds".to_string()),
-                         };
-                         
-                         match rows_res {
-                             Ok(rows) => {
-                                  if i == statements.len() - 1 {
-                                      // Process success for last statement
-                                      let raw_columns = stmt.columns();
-         
-                                      let mut columns: Vec<ColumnInfo> = raw_columns.iter().map(|col| {
-                                          ColumnInfo {
-                                              name: col.name().to_string(),
-                                              column_type: format!("{:?}", col.type_()),
-                                              source_schema: None,
-                                              source_table: None,
-                                              source_column: None,
-                                              is_primary_key: false,
-                                          }
-                                      }).collect();
-         
-                                      // Enrich metadata
-                                      if !raw_columns.is_empty() {
-                                          if let Err(e) = enrich_postgres_metadata(&client, raw_columns, &mut columns).await {
-                                              warn!("Failed to enrich postgres metadata: {}", crate::pg_utils::format_postgres_error(&e));
-                                          }
-                                      }
-         
-                                      let json_rows: Vec<serde_json::Value> = rows.iter().map(|row| {
-                                          let mut obj = serde_json::Map::new();
-                                          for (i, col) in row.columns().iter().enumerate() {
-                                              let value = postgres_value_to_json(row, i);
-                                              obj.insert(col.name().to_string(), value);
-                                          }
-                                          serde_json::Value::Object(obj)
-                                      }).collect();
-         
-                                      last_result = Some(QueryResult {
-                                          rows: json_rows,
-                                          columns,
-                                          affected_rows: None,
-                                          duration_ms: 0,
-                                          total: None,
-                                      });
-                                  }
-                             }
-                             Err(e) => {
-                                  loop_err = Some(crate::pg_utils::format_postgres_error(&e));
-                                  break; 
+                 if needs_typed_result(stmt_text) {
+                     // --- Path 1: SELECT / WITH / RETURNING — typed results via prepare + query ---
+                     let stmt_res = match timeout(Duration::from_secs(30), client.prepare(stmt_text)).await {
+                         Ok(res) => res,
+                         Err(_) => return Err("Query compilation timed out after 30 seconds".to_string()),
+                     };
+
+                     match stmt_res {
+                         Ok(stmt) => {
+                             let rows_res = match timeout(Duration::from_secs(30), client.query(&stmt, &[])).await {
+                                 Ok(res) => res,
+                                 Err(_) => return Err("Query timed out after 30 seconds".to_string()),
+                             };
+
+                             match rows_res {
+                                 Ok(rows) => {
+                                     if i == statements.len() - 1 {
+                                         let raw_columns = stmt.columns();
+
+                                         let mut columns: Vec<ColumnInfo> = raw_columns.iter().map(|col| {
+                                             ColumnInfo {
+                                                 name: col.name().to_string(),
+                                                 column_type: format!("{:?}", col.type_()),
+                                                 source_schema: None,
+                                                 source_table: None,
+                                                 source_column: None,
+                                                 is_primary_key: false,
+                                             }
+                                         }).collect();
+
+                                         if !raw_columns.is_empty() {
+                                             if let Err(e) = enrich_postgres_metadata(&client, raw_columns, &mut columns).await {
+                                                 warn!("Failed to enrich postgres metadata: {}", crate::pg_utils::format_postgres_error(&e));
+                                             }
+                                         }
+
+                                         let json_rows: Vec<serde_json::Value> = rows.iter().map(|row| {
+                                             let mut obj = serde_json::Map::new();
+                                             for (i, col) in row.columns().iter().enumerate() {
+                                                 let value = postgres_value_to_json(row, i);
+                                                 obj.insert(col.name().to_string(), value);
+                                             }
+                                             serde_json::Value::Object(obj)
+                                         }).collect();
+
+                                         last_result = Some(QueryResult {
+                                             rows: json_rows,
+                                             columns,
+                                             affected_rows: None,
+                                             duration_ms: 0,
+                                             total: None,
+                                         });
+                                     }
+                                 }
+                                 Err(e) => {
+                                     loop_err = Some(crate::pg_utils::format_postgres_error(&e));
+                                     break;
+                                 }
                              }
                          }
+                         Err(e) => {
+                             loop_err = Some(crate::pg_utils::format_postgres_error(&e));
+                             break;
+                         }
                      }
-                     Err(e) => {
-                          loop_err = Some(crate::pg_utils::format_postgres_error(&e));
-                          break;
+                 } else {
+                     // --- Path 2: DML / DDL / transaction control (BEGIN/COMMIT/ROLLBACK/SET/CREATE/…) ---
+                     // client.execute() works for ALL PostgreSQL statement types including transaction control.
+                     // This is the fix that allows user-written BEGIN; UPDATE; COMMIT; to run correctly.
+                     let exec_res = match timeout(Duration::from_secs(30), client.execute(stmt_text, &[])).await {
+                         Ok(res) => res,
+                         Err(_) => return Err("Query timed out after 30 seconds".to_string()),
+                     };
+
+                     match exec_res {
+                         Ok(affected) => {
+                             if i == statements.len() - 1 {
+                                 last_result = Some(QueryResult {
+                                     rows: vec![],
+                                     columns: vec![],
+                                     affected_rows: Some(affected),
+                                     duration_ms: 0,
+                                     total: None,
+                                 });
+                             }
+                         }
+                         Err(e) => {
+                             loop_err = Some(crate::pg_utils::format_postgres_error(&e));
+                             break;
+                         }
                      }
                  }
              }
@@ -1505,4 +1540,130 @@ fn enrich_sqlite_metadata(
     }
 
     Ok(())
+}
+
+/// Parameters for the mutation batch command.
+#[derive(Debug, Deserialize)]
+pub struct MutationBatchParams {
+    pub connection_id: String,
+    pub session_id: String,
+    pub database: String,
+    /// SQL statements (UPDATE/INSERT/DELETE) pre-ordered: DELETEs first, INSERTs second, UPDATEs last.
+    pub queries: Vec<String>,
+}
+
+/// Execute a set of DML mutations atomically in a single transaction.
+///
+/// Follows the Supabase pattern: builds `BEGIN; stmts; COMMIT;` as one string and
+/// calls `batch_execute()` which uses the simple query protocol — supports all statement
+/// types and takes `&self` so it works on `Arc<Client>` without exclusive access.
+///
+/// On failure the connection is restored to idle state via ROLLBACK before returning.
+#[tauri::command]
+pub async fn execute_mutation_batch(
+    params: MutationBatchParams,
+    db_state: State<'_, DatabaseState>,
+    conn_state: State<'_, ConnectionManagerState>,
+    session_state: State<'_, QuerySessionManager>,
+) -> Result<usize, String> {
+    if params.queries.is_empty() {
+        return Ok(0);
+    }
+
+    // Determine engine from session or connection metadata
+    let engine = {
+        let sessions = session_state.sessions.lock().await;
+        match sessions.get(&(params.connection_id.clone(), params.session_id.clone())) {
+            Some(DBSession::Postgres(_)) => "postgres".to_string(),
+            Some(DBSession::Sqlite(_)) => "sqlite".to_string(),
+            None => {
+                let manager = ConnectionManager::from_state(&db_state, &conn_state);
+                manager.get_connection(&params.connection_id)
+                    .map(|(c, _)| c.engine)
+                    .map_err(|e| e)?
+            }
+        }
+    };
+
+    match engine.as_str() {
+        "postgres" | "postgresql" => {
+            execute_mutation_batch_postgres(&session_state, &conn_state, &db_state, &params).await
+        }
+        "sqlite" => {
+            execute_mutation_batch_sqlite(&session_state, &params).await
+        }
+        other => Err(format!("Mutation batch not supported for engine: {}", other)),
+    }
+}
+
+async fn execute_mutation_batch_postgres(
+    session_state: &QuerySessionManager,
+    conn_state: &State<'_, ConnectionManagerState>,
+    db_state: &State<'_, DatabaseState>,
+    params: &MutationBatchParams,
+) -> Result<usize, String> {
+    // Resolve config and credentials for get_or_create_postgres_client
+    let manager = ConnectionManager::from_state(db_state, conn_state);
+    let (connection, credentials) = manager.get_connection(&params.connection_id)?;
+    let config_val = serde_json::to_value(&connection).ok();
+
+    let client = get_or_create_postgres_client(
+        session_state,
+        &params.connection_id,
+        &params.session_id,
+        config_val.as_ref(),
+        Some(&credentials),
+        &params.database,
+    ).await?;
+
+    // Build: BEGIN; stmt1; stmt2; ...; COMMIT;
+    let mut batch = String::from("BEGIN;\n");
+    for q in &params.queries {
+        let stmt = q.trim().trim_end_matches(';');
+        if !stmt.is_empty() {
+            batch.push_str(stmt);
+            batch.push_str(";\n");
+        }
+    }
+    batch.push_str("COMMIT;");
+
+    info!("execute_mutation_batch: running {} statements in transaction", params.queries.len());
+
+    match client.batch_execute(&batch).await {
+        Ok(()) => Ok(params.queries.len()),
+        Err(e) => {
+            // Connection is in InError state after a failed transaction — must ROLLBACK
+            // before it can be used again. Ignore rollback errors.
+            let _ = client.batch_execute("ROLLBACK;").await;
+            Err(format!(
+                "Transaction rolled back — no changes were saved: {}",
+                crate::pg_utils::format_postgres_error(&e)
+            ))
+        }
+    }
+}
+
+async fn execute_mutation_batch_sqlite(
+    session_state: &QuerySessionManager,
+    params: &MutationBatchParams,
+) -> Result<usize, String> {
+    let conn_arc = {
+        let sessions = session_state.sessions.lock().await;
+        match sessions.get(&(params.connection_id.clone(), params.session_id.clone())) {
+            Some(DBSession::Sqlite(c)) => c.clone(),
+            _ => return Err("SQLite session not found for mutation batch".to_string()),
+        }
+    };
+
+    let conn = conn_arc.lock().await;
+    let count = params.queries.len();
+
+    // rusqlite transactions auto-rollback when dropped on error
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    for q in &params.queries {
+        tx.execute_batch(q).map_err(|e| format!("Mutation failed: {}", e))?;
+    }
+    tx.commit().map_err(|e| e.to_string())?;
+
+    Ok(count)
 }

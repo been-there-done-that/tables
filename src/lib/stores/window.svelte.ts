@@ -155,14 +155,6 @@ const COMMANDS: CommandConfig[] = [
             }
         }
     },
-    {
-        id: "workbench.action.toggleAgent",
-        label: "Toggle AI Agent",
-        defaultKeybinding: { mac: "Meta+Shift+a", win: "Control+Shift+a" },
-        execute: (s) => {
-            s.agentConsoleOpen = !s.agentConsoleOpen;
-        }
-    }
 ];
 
 class WindowStateStore {
@@ -170,18 +162,6 @@ class WindowStateStore {
     settingsWindowOpen = $state(false);
     datasourceWindowOpen = $state(false);
     initialized = $state(false);
-    get agentConsoleOpen() {
-        return this.activeRightPanel === "agent-chat" && this.layout.right;
-    }
-    set agentConsoleOpen(v: boolean) {
-        if (v) {
-            this.activeRightPanel = "agent-chat";
-            this.layout.right = true;
-        } else if (this.activeRightPanel === "agent-chat") {
-            this.layout.right = false;
-        }
-    }
-
     get layout() {
         const self = this;
         return {
@@ -238,6 +218,7 @@ class WindowStateStore {
 
     sessions = $state<Session[]>([]);
     activeSessionId = $state<string | null>(null);
+    restoringSession = $state(false);
 
     get activeSession() {
         return this.sessions.find(s => s.id === this.activeSessionId) || null;
@@ -303,43 +284,48 @@ class WindowStateStore {
     }
 
     async restoreForConnection(connection: Connection) {
-        // 1. Stash current sessions to their respective connection keys
-        if (this.sessions.length > 0) {
-            console.log("[WindowStateStore] Stashing existing sessions before switch...");
-            const sessionsByConn = new Map<string, Session[]>();
+        this.restoringSession = true;
+        console.log(`[WindowStateStore] restoreForConnection START at ${Date.now()}ms, conn=${connection.id}`);
+        try {
+            // 1. Stash current sessions to their respective connection keys
+            if (this.sessions.length > 0) {
+                console.log("[WindowStateStore] Stashing existing sessions before switch...");
+                const sessionsByConn = new Map<string, Session[]>();
 
-            // Group sessions by connection to ensure we save them to the correct buckets
-            // (fixes issue where mixed sessions were saved to the wrong connection key)
-            for (const s of this.sessions) {
-                if (!sessionsByConn.has(s.connectionId)) {
-                    sessionsByConn.set(s.connectionId, []);
+                for (const s of this.sessions) {
+                    if (!sessionsByConn.has(s.connectionId)) {
+                        sessionsByConn.set(s.connectionId, []);
+                    }
+                    sessionsByConn.get(s.connectionId)!.push(s);
                 }
-                sessionsByConn.get(s.connectionId)!.push(s);
+
+                for (const [connId, sessions] of sessionsByConn) {
+                    const activeId = this.activeSessionId && sessions.some(s => s.id === this.activeSessionId)
+                        ? this.activeSessionId
+                        : null;
+                    await persistenceStore.saveSessionState(sessions, activeId, this.label, connId);
+                }
             }
 
-            for (const [connId, sessions] of sessionsByConn) {
-                // Determine active session ID for this group (if applicable)
-                const activeId = this.activeSessionId && sessions.some(s => s.id === this.activeSessionId)
-                    ? this.activeSessionId
-                    : null;
+            // 2. Clear workspace completely
+            this.sessions = [];
+            this.activeSessionId = null;
 
-                await persistenceStore.saveSessionState(sessions, activeId, this.label, connId);
+            // 3. Restore state for the new connection
+            console.log(`[WindowStateStore] Restoring sessions for connection: ${connection.id}`);
+            const persistedState = await persistenceStore.loadSessionState(this.label, connection.id);
+
+            if (persistedState && persistedState.sessions.length > 0) {
+                this.hydrateSessions(persistedState, connection);
+            } else {
+                console.log("[WindowStateStore] No specific session state found for this connection, starting fresh");
+                this.startSession(connection);
             }
-        }
-
-        // 2. Clear workspace completely
-        this.sessions = [];
-        this.activeSessionId = null;
-
-        // 3. Restore state for the new connection
-        console.log(`[WindowStateStore] Restoring sessions for connection: ${connection.id}`);
-        const persistedState = await persistenceStore.loadSessionState(this.label, connection.id);
-
-        if (persistedState && persistedState.sessions.length > 0) {
-            this.hydrateSessions(persistedState, connection);
-        } else {
-            console.log("[WindowStateStore] No specific session state found for this connection, starting fresh");
-            this.startSession(connection);
+            console.log(`[WindowStateStore] restoreForConnection DONE at ${Date.now()}ms, sessions=${this.sessions.length}, activeSessionId=${this.activeSessionId}`);
+        } catch (e) {
+            console.error(`[WindowStateStore] restoreForConnection ERROR:`, e);
+        } finally {
+            this.restoringSession = false;
         }
     }
 

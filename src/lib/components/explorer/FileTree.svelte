@@ -353,9 +353,10 @@
                     style="padding-left: calc({indent}px * {depth} + 4px);"
                     onclick={(e) => {
                         e.stopPropagation();
-                        // Select on click and focus container
+                        // Focus the clicked node directly — not the container — so the
+                        // onfocus auto-select fallback doesn't fire before the DOM updates.
                         selectNode(key);
-                        treeContainer?.focus();
+                        (e.currentTarget as HTMLElement).focus();
                         // Tables and views trigger action on click, other folders toggle
                         const isActionable =
                             node.type === "table" || node.type === "view";

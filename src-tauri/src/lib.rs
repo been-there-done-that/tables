@@ -13,7 +13,6 @@ mod introspection;
 mod db_test;
 mod completion;
 mod settings;
-mod agent_manager;
 #[cfg(test)]
 mod backend_tests;
 pub mod constants;
@@ -36,8 +35,6 @@ use serde::Serialize;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 use log::{info, debug, warn, error, trace};
-use crate::agent_manager::AgentManager;
-use crate::commands::agent_commands::AgentManagerState;
 use crate::commands::*;
 use plugins::{PluginDiscovery, get_available_plugins, enable_plugin, disable_plugin, get_plugin_info, initialize_all_plugins};
 use credential_manager::CredentialManager;
@@ -195,10 +192,6 @@ pub fn run() {
                 active_connections: Arc::new(Mutex::new(HashMap::new())),
                 adapters: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
             });
-
-            debug!("Initializing agent manager");
-            let agent_manager = Arc::new(AgentManager::new(app.state::<DatabaseState>().conn.clone()));
-            app.manage(AgentManagerState(agent_manager));
 
             debug!("Initializing adapter registry");
             adapter_registry::init_builtins();

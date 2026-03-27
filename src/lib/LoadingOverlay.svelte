@@ -2,13 +2,15 @@
   import { getThemeContext } from "$lib/theme/context";
   import Loader from "$lib/svg/Loader.svelte";
 
-  let visible = $state(true);
+  let themeLoading = $state(true);
+  let visible = $derived(themeLoading);
 
   const { subscribe } = getThemeContext();
 
   $effect(() => {
     const unsub = subscribe((s) => {
-      visible = s.loading;
+      themeLoading = s.loading;
+      console.log(`[LoadingOverlay] themeLoading=${s.loading} at ${Date.now()}ms`);
     });
     return () => unsub();
   });

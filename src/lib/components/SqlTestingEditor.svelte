@@ -5,6 +5,7 @@
     import { MONACO_THEME_NAME } from "$lib/monaco/monaco-theme";
     import { cn } from "$lib/utils";
     import IconPlayerPlay from "@tabler/icons-svelte/icons/player-play";
+    import IconAlertTriangle from "@tabler/icons-svelte/icons/alert-triangle";
     import * as monaco from "monaco-editor";
     import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
     import { schemaStore } from "$lib/stores/schema.svelte";
@@ -35,6 +36,7 @@
     import type { EditDelta } from "$lib/components/table/TableEditManager.svelte";
     import { pendingChangesStore } from "$lib/stores/pendingChanges.svelte";
     import { tick } from "svelte";
+    import { toast } from "svelte-sonner";
 
     let { id = "playground", context = $bindable({}) } = $props<{
         id?: string;
@@ -77,6 +79,20 @@
     let logs: string[] = $state([]);
     let isLoadingSession = $state(true);
     let isRunning = $state(false);
+
+    // Dangerous query confirmation
+    let pendingRunAction = $state<(() => void) | null>(null);
+    let dangerousWarningMsg = $state("");
+    let runConfirmedOnce = false; // non-reactive bypass flag
+
+    function detectDangerousPattern(query: string): string | null {
+        const q = query.trim().toUpperCase();
+        if (/^DROP\s/.test(q)) return "DROP statement cannot be undone.";
+        if (/^TRUNCATE\s/.test(q)) return "TRUNCATE will delete all rows.";
+        if (/^DELETE\s/.test(q) && !q.includes("WHERE")) return "DELETE without WHERE will erase every row.";
+        if (/^UPDATE\s/.test(q) && !q.includes("WHERE")) return "UPDATE without WHERE will modify every row.";
+        return null;
+    }
 
     let headerController = $state<QueryHeaderController | null>(null);
 
@@ -179,13 +195,6 @@
         controller.dataFetcher = resultDataFetcher;
     });
 
-    // Sync run button visibility setting
-    $effect(() => {
-        if (headerController) {
-            headerController.showAll = settingsStore.editorShowAllRunButtons;
-        }
-    });
-
     // Debounced save for editor content
     const debouncedSave = createDebouncedSave(2000);
 
@@ -276,6 +285,14 @@
         }
 
         if (query.trim()) {
+            const danger = !runConfirmedOnce && detectDangerousPattern(query);
+            runConfirmedOnce = false;
+            if (danger) {
+                dangerousWarningMsg = danger;
+                pendingRunAction = () => { runConfirmedOnce = true; executeCurrent(); };
+                return;
+            }
+
             console.log(`[Execute] Running query from ${source}:`, query);
 
             // Auto-open bottom panel and ensure tab is visible
@@ -392,6 +409,9 @@
                 }
 
                 log("Query completed successfully.");
+                toast.success("Query executed", {
+                    description: `${results.currentBatchSize} rows · ${results.executionTime.toFixed(0)}ms`,
+                });
             } catch (e) {
                 if (startLine && headerController) {
                     headerController.updateStatus(startLine, query, {
@@ -401,6 +421,7 @@
                 }
                 console.error("Query execution failed:", e);
                 log(`Query failed: ${e}`);
+                toast.error("Query failed", { description: String(e) });
             } finally {
                 isRunning = false;
                 results.loading = false;
@@ -419,6 +440,14 @@
     ) {
         if (!queryText.trim()) {
             log("No query to execute");
+            return;
+        }
+
+        const danger = !runConfirmedOnce && detectDangerousPattern(queryText);
+        runConfirmedOnce = false;
+        if (danger) {
+            dangerousWarningMsg = danger;
+            pendingRunAction = () => { runConfirmedOnce = true; executeQueryText(queryText, startLine, endLine); };
             return;
         }
 
@@ -537,6 +566,9 @@
             }
 
             log("Query completed successfully.");
+            toast.success("Query executed", {
+                description: `${results.currentBatchSize} rows · ${results.executionTime.toFixed(0)}ms`,
+            });
         } catch (e) {
             // Mark error
             if (startLine && endLine && headerController) {
@@ -548,6 +580,7 @@
 
             console.error("Query execution failed:", e);
             log(`Query failed: ${e}`);
+            toast.error("Query failed", { description: String(e) });
         } finally {
             isRunning = false;
             results.loading = false;
@@ -606,6 +639,7 @@
     function handleExport(format: string) {
         console.log("Export requested:", format);
         log(`Exporting results to ${format} (stub)`);
+        toast.info("Export coming soon", { description: `${format.toUpperCase()} export is not yet implemented` });
     }
 
     function handleShowDdl() {
@@ -615,100 +649,101 @@
     async function handleApplyEdits(
         _edits: any[],
     ): Promise<{ success: boolean; conflicts?: string[] }> {
-        const deltas = tableRef?.getEditDeltas?.() ?? [];
+        const deltas = controller.getEditDeltas?.() ?? [];
         if (deltas.length === 0) return { success: true };
 
         const errors: string[] = [];
-        for (const delta of deltas) {
-            const { type, rowId, columnId, newValue, pkValues } = delta;
+        const deleteQueries: string[] = [];
+        const insertQueries: string[] = [];
+        const updateQueries: string[] = [];
 
-            // Resolve column to find source table
+        function resolveTarget(columnId: string, pkValues: Record<string, any>) {
             const colDef = results.columns.find((c: any) => c.id === columnId);
-            if (!colDef) {
-                errors.push(`Column ${columnId} not found in results.`);
-                continue;
+            if (!colDef?.sourceTable) {
+                errors.push(`Column "${columnId}" has no known source table — cannot edit.`);
+                return null;
             }
-
-            const sourceTable = colDef.sourceTable;
-            const sourceSchema =
-                colDef.sourceSchema || schemaStore.activeSchema || "public";
-
-            if (!sourceTable) {
-                errors.push(
-                    `Column ${columnId} does not have a known source table. Cannot edit.`,
-                );
-                continue;
-            }
-
-            // Find PKs for this source table from the available result columns
-            // We look for columns that belong to the same source table and are marked as PK
-            const targetPkCols = results.columns.filter(
+            const sourceTable = colDef.sourceTable as string;
+            const sourceSchema: string = (colDef as any).sourceSchema ?? schemaStore.activeSchema ?? "public";
+            const pkCols = results.columns.filter(
                 (c: any) => c.sourceTable === sourceTable && c.isPrimaryKey,
             );
-
-            if (targetPkCols.length === 0) {
-                // Try fallback to 'id' if present and unclaimed? No, strict mode requested.
-                errors.push(
-                    `No primary key found in results for table ${sourceTable}. Cannot edit safely.`,
-                );
-                continue;
+            if (pkCols.length === 0) {
+                errors.push(`Table "${sourceTable}" has no primary key in the result set — cannot edit safely.`);
+                return null;
             }
+            const missing = pkCols.filter((pk: any) => pkValues[pk.id] === undefined);
+            if (missing.length > 0) {
+                errors.push(`Missing PK value(s): ${missing.map((c: any) => c.id).join(", ")}.`);
+                return null;
+            }
+            const whereClause = pkCols
+                .map((pk: any) => `"${pk.id}" = ${formatSqlValue(pkValues[pk.id])}`)
+                .join(" AND ");
+            return { sourceTable, sourceSchema, whereClause };
+        }
 
-            // Check if we have values for all these PKs in the row (via pkValues or original row data?)
-            // tableRef.getEditDeltas provides pkValues map "colId" -> value.
-            // We assume table component populated this correctly using primaryKeyColumns,
-            // BUT primaryKeyColumns passes ALL PKs from ALL tables mixed.
-            // This is fine, as long as we pick the ones for THIS table.
+        // Group INSERT deltas by rowId
+        const insertGroups = new Map<any, typeof deltas>();
+        for (const d of deltas.filter((d: any) => d.type === "I")) {
+            if (!insertGroups.has(d.rowId)) insertGroups.set(d.rowId, []);
+            insertGroups.get(d.rowId)!.push(d);
+        }
 
-            const missingPks = targetPkCols.filter(
-                (pk: any) => pkValues[pk.id] === undefined,
+        // Build DELETE queries
+        const deletedRowIds = new Set(deltas.filter((d: any) => d.type === "D").map((d: any) => d.rowId));
+        for (const rowId of deletedRowIds) {
+            const d = deltas.find((x: any) => x.rowId === rowId && x.type === "D")!;
+            const t = resolveTarget(d.columnId, d.pkValues ?? {});
+            if (!t) continue;
+            deleteQueries.push(`DELETE FROM "${t.sourceSchema}"."${t.sourceTable}" WHERE ${t.whereClause};`);
+        }
+
+        // Build INSERT queries
+        for (const [, rowDeltas] of insertGroups) {
+            const firstD = rowDeltas[0];
+            const colDef = results.columns.find((c: any) => c.id === firstD?.columnId);
+            if (!(colDef as any)?.sourceTable) { errors.push("INSERT: no source table."); continue; }
+            const sourceSchema: string = (colDef as any).sourceSchema ?? schemaStore.activeSchema ?? "public";
+            const insertCols = rowDeltas.filter((d: any) => d.newValue !== undefined).map((d: any) => `"${d.columnId}"`);
+            const insertVals = rowDeltas.filter((d: any) => d.newValue !== undefined).map((d: any) => formatSqlValue(d.newValue));
+            if (insertCols.length > 0) {
+                insertQueries.push(
+                    `INSERT INTO "${sourceSchema}"."${(colDef as any).sourceTable}" (${insertCols.join(", ")}) VALUES (${insertVals.join(", ")});`
+                );
+            }
+        }
+
+        // Build UPDATE queries
+        for (const d of deltas.filter((x: any) => x.type === "U")) {
+            const t = resolveTarget(d.columnId, d.pkValues ?? {});
+            if (!t) continue;
+            updateQueries.push(
+                `UPDATE "${t.sourceSchema}"."${t.sourceTable}" SET "${d.columnId}" = ${formatSqlValue(d.newValue)} WHERE ${t.whereClause};`
             );
-            if (missingPks.length > 0) {
-                errors.push(
-                    `Missing primary key value for ${missingPks.map((c: any) => c.id).join(", ")} for table ${sourceTable}.`,
-                );
-                continue;
-            }
-
-            let sql = "";
-
-            if (type === "U") {
-                const setClause = `"${columnId}" = ${formatSqlValue(newValue)}`;
-                const whereClauses = targetPkCols.map(
-                    (pk: any) =>
-                        `"${pk.id}" = ${formatSqlValue(pkValues[pk.id])}`,
-                );
-                sql = `UPDATE "${sourceSchema}"."${sourceTable}" SET ${setClause} WHERE ${whereClauses.join(" AND ")};`;
-            } else if (type === "D") {
-                const whereClauses = targetPkCols.map(
-                    (pk: any) =>
-                        `"${pk.id}" = ${formatSqlValue(pkValues[pk.id])}`,
-                );
-                sql = `DELETE FROM "${sourceSchema}"."${sourceTable}" WHERE ${whereClauses.join(" AND ")};`;
-            } else if (type === "I") {
-                errors.push("INSERT not yet supported in playground results.");
-                continue;
-            }
-
-            try {
-                log(`Applying edit: ${sql}`);
-                await invoke("execute_query", {
-                    connectionId: schemaStore.activeConnection?.id,
-                    sessionId: id,
-                    database: schemaStore.selectedDatabase,
-                    schema: sourceSchema,
-                    query: sql,
-                });
-            } catch (e) {
-                errors.push(`Failed to apply edit for row ${rowId}: ${e}`);
-            }
         }
 
         if (errors.length > 0) return { success: false, conflicts: errors };
 
-        // Re-run original query
-        handleRefresh();
-        return { success: true };
+        // Order: DELETE → INSERT → UPDATE (prevents FK/PK conflicts)
+        const queries = [...deleteQueries, ...insertQueries, ...updateQueries];
+        if (queries.length === 0) return { success: true };
+
+        try {
+            log(`Applying ${queries.length} mutations in transaction`);
+            await invoke("execute_mutation_batch", {
+                params: {
+                    connectionId: schemaStore.activeConnection?.id,
+                    sessionId: id,
+                    database: schemaStore.selectedDatabase,
+                    queries,
+                },
+            });
+            handleRefresh();
+            return { success: true };
+        } catch (e) {
+            return { success: false, conflicts: [String(e)] };
+        }
     }
 
     async function handleSaveChanges(): Promise<{
@@ -719,7 +754,7 @@
         const res = await handleApplyEdits([]);
         results.isSaving = false;
         if (res.success) {
-            tableRef?.revertAll?.();
+            controller.revertAll?.();
         }
         return {
             success: res.success,
@@ -732,19 +767,22 @@
     }
 
     function handleShowChanges() {
-        if (tableRef?.getEditDeltas) {
-            results.pendingDeltas = tableRef.getEditDeltas();
-        }
+        results.pendingDeltas = controller.getEditDeltas?.() ?? [];
         tick().then(() => {
+            const firstDelta = results.pendingDeltas[0];
+            const firstCol = results.columns.find((c: any) => c.id === firstDelta?.columnId);
+            const displayName: string = (firstCol as any)?.sourceTable ?? "Query Result";
+            const displaySchema: string = (firstCol as any)?.sourceSchema ?? "";
+
             pendingChangesStore.setContext(
                 results.pendingDeltas,
-                "Result Set", // Generic name for multi-table/query results
+                displayName,
                 results.columns,
                 [],
-                "", // Schema agnostic
+                displaySchema,
                 {
-                    onRevertRow: (rid: any) => tableRef?.revertRow?.(rid),
-                    onRevertAll: () => tableRef?.revertAll?.(),
+                    onRevertRow: (rid: any) => controller.revertRow?.(rid),
+                    onRevertAll: () => controller.revertAll?.(),
                     onSaveChanges: handleSaveChanges,
                 },
             );
@@ -757,9 +795,7 @@
     }
 
     function handleEditChange() {
-        if (tableRef?.getEditDeltas) {
-            results.pendingDeltas = tableRef.getEditDeltas();
-        }
+        results.pendingDeltas = controller.getEditDeltas?.() ?? [];
     }
 
     async function handleCancel() {
@@ -769,6 +805,7 @@
                 connectionId: schemaStore.activeConnection.id,
             });
             log("Query cancellation requested.");
+            toast.info("Query cancelled");
         } catch (e) {
             console.error("Cancel failed:", e);
         }
@@ -1101,15 +1138,41 @@
     });
 </script>
 
+{#if pendingRunAction}
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div class="bg-background border border-border rounded-xl shadow-2xl p-5 max-w-sm w-full mx-4 space-y-4">
+            <div class="flex items-start gap-3">
+                <IconAlertTriangle class="size-5 text-amber-500 mt-0.5 shrink-0" />
+                <div>
+                    <h3 class="text-sm font-bold text-foreground">Dangerous query</h3>
+                    <p class="text-xs text-muted-foreground mt-1">{dangerousWarningMsg}</p>
+                </div>
+            </div>
+            <div class="flex justify-end gap-2">
+                <button
+                    type="button"
+                    class="h-7 px-3 rounded text-[11px] font-bold hover:bg-muted transition-colors text-muted-foreground"
+                    onclick={() => { pendingRunAction = null; dangerousWarningMsg = ""; }}
+                >
+                    Cancel
+                </button>
+                <button
+                    type="button"
+                    class="h-7 px-3 rounded text-[11px] font-bold bg-red-600 text-white hover:bg-red-700 transition-colors"
+                    onclick={() => { const action = pendingRunAction; pendingRunAction = null; dangerousWarningMsg = ""; action?.(); }}
+                >
+                    Run Anyway
+                </button>
+            </div>
+        </div>
+    </div>
+{/if}
+
 <div class="flex h-full w-full flex-col bg-background">
     <QueryEditorToolbar
         {isRunning}
         executionTime={results?.executionTime}
         activeSchema={schemaStore.activeSchema || "public"}
-        showAll={settingsStore.editorShowAllRunButtons}
-        onToggleShowAll={() =>
-            (settingsStore.editorShowAllRunButtons =
-                !settingsStore.editorShowAllRunButtons)}
         onExecute={executeCurrent}
         onStop={handleStop}
         onFormat={handleFormat}
@@ -1134,4 +1197,5 @@
 <style>
     /* No custom CSS padding on .view-lines as it breaks cursor coordinates. */
     /* Monaco's native 'padding' and 'lineDecorationsWidth' handle this correctly. */
+
 </style>

@@ -275,6 +275,7 @@ macro_rules! aggregate_plugin_commands {
             // Query commands
             fetch_table_preview,
             execute_query,
+            execute_mutation_batch,
             fetch_query_logs,
             clear_query_logs,
             cancel_query,
@@ -286,17 +287,6 @@ macro_rules! aggregate_plugin_commands {
             delete_editor_session,
             format_sql,
 
-            // Agent commands
-            create_agent_session,
-            list_agent_sessions,
-            add_agent_message,
-            get_agent_messages,
-            delete_agent_session,
-            update_agent_session,
-            fetch_models,
-
-            // LLM Proxy commands
-            llm_stream
         ]
     };
 }

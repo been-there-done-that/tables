@@ -4,7 +4,6 @@
         IconPlus,
         IconDatabase,
         IconSearch,
-        IconRobot,
     } from "@tabler/icons-svelte";
     import { connectionStore } from "$lib/commands/stores.svelte";
     import { windowState } from "$lib/stores/window.svelte";
@@ -46,18 +45,6 @@
             </div>
 
             <div class="flex items-center gap-1">
-                <button
-                    class="p-1.5 {windowState.agentConsoleOpen
-                        ? 'bg-primary/20 text-primary border-primary/30'
-                        : 'bg-accent/10 text-accent border-transparent'} hover:bg-primary/30 border rounded-md transition-all cursor-pointer"
-                    title="Open AI Agent (⌘⇧A)"
-                    onclick={() =>
-                        (windowState.agentConsoleOpen =
-                            !windowState.agentConsoleOpen)}
-                >
-                    <IconRobot size={16} />
-                </button>
-
                 <button
                     class="p-1.5 bg-accent/10 hover:bg-accent/20 text-accent rounded-md transition-colors cursor-pointer"
                     title="Add New Connection"

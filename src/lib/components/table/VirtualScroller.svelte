@@ -132,7 +132,6 @@
         class="virtual-scroll-content"
         style="height: {totalHeight}px; width: fit-content; min-width: 100%; position: relative;"
     >
-        <!-- Use absolute top positioning instead of transform for smoother rendering -->
         <div
             class="virtual-scroll-viewport"
             class:scrolling={isScrolling}

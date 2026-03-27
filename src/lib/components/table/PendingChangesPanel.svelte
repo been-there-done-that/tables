@@ -72,11 +72,13 @@
     // Generate SQL statements
     const generatedSql = $derived(() => {
         const statements: string[] = [];
-        const fullTableName = tableSchema
-            ? `"${tableSchema}"."${tableName}"`
-            : `"${tableName}"`;
 
         for (const [rowId, rowDeltas] of groupedDeltas()) {
+            const firstColDef = columns.find((c) => c.id === rowDeltas[0]?.columnId);
+            const rowTable = (firstColDef as any)?.sourceTable ?? tableName;
+            const rowSchema = (firstColDef as any)?.sourceSchema ?? tableSchema;
+            const fullTableName = rowSchema ? `"${rowSchema}"."${rowTable}"` : `"${rowTable}"`;
+
             const type = getOperationType(rowDeltas);
             let sql = "";
 
@@ -173,9 +175,10 @@
             if (!rowDeltas || rowDeltas.length === 0) return;
 
             const type = getOperationType(rowDeltas);
-            const fullTableName = tableSchema
-                ? `"${tableSchema}"."${tableName}"`
-                : `"${tableName}"`;
+            const firstColDef = columns.find((c) => c.id === rowDeltas[0]?.columnId);
+            const rowTable = (firstColDef as any)?.sourceTable ?? tableName;
+            const rowSchema = (firstColDef as any)?.sourceSchema ?? tableSchema;
+            const fullTableName = rowSchema ? `"${rowSchema}"."${rowTable}"` : `"${rowTable}"`;
 
             let sql = "";
             if (type === "I") {
@@ -447,9 +450,12 @@
                                     <span
                                         class="text-[9px] text-muted-foreground truncate leading-tight"
                                     >
-                                        {tableSchema
-                                            ? `${tableSchema}.`
-                                            : ""}{tableName}
+                                        {(() => {
+                                            const fd = columns.find((c) => c.id === rowDeltas[0]?.columnId);
+                                            const t = (fd as any)?.sourceTable ?? tableName;
+                                            const s = (fd as any)?.sourceSchema ?? tableSchema;
+                                            return s ? `${s}.${t}` : t;
+                                        })()}
                                     </span>
                                 </div>
                             </div>

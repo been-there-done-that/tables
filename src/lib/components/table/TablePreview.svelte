@@ -19,6 +19,7 @@
         NULL_TOKEN,
         DEFAULT_TOKEN,
     } from "$lib/components/table/valueUtils";
+    import { toast } from "svelte-sonner";
 
     interface Props {
         context: {
@@ -568,6 +569,7 @@
     function handleExport(format: "csv" | "tsv" | "json" | "sql") {
         // TODO: Implement export logic - copy formatted data to clipboard
         console.log("[TablePreview] Export requested:", format);
+        toast.info("Export coming soon", { description: `${format.toUpperCase()} export is not yet implemented` });
     }
 
     function handleShowDdl() {
