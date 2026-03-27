@@ -6,6 +6,7 @@ use tauri::State;
 // ── Types returned to the frontend ────────────────────────────────────────────
 
 #[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct AgentThread {
     pub id: String,
     pub title: String,
@@ -20,6 +21,7 @@ pub struct AgentThread {
 }
 
 #[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct AgentMessage {
     pub id: String,
     pub thread_id: String,
@@ -30,6 +32,7 @@ pub struct AgentMessage {
 }
 
 #[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct AgentToolCall {
     pub id: String,
     pub thread_id: String,
@@ -72,6 +75,8 @@ pub fn list_agent_threads(
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn
         .prepare(
+            // When database_name is None, returns all threads for the connection
+            // regardless of which database they belong to. This is a "show all" fallback.
             "SELECT id, title, connection_id, database_name, model, effort, sdk_session_id, summary, created_at, updated_at
              FROM agent_threads
              WHERE connection_id = ?1
@@ -162,6 +167,10 @@ pub fn append_agent_message(
         params![id, thread_id, role, content, thinking, timestamp],
     )
     .map_err(|e| e.to_string())?;
+    // Note: these two writes are not in an explicit transaction. If the process crashes
+    // between them, updated_at may be stale, but message data is still consistent.
+    // This is acceptable for a display cache. rusqlite's Mutex<Connection> prevents
+    // concurrent access, so the only risk is a crash between the two statements.
     conn.execute(
         "UPDATE agent_threads SET updated_at = ?1 WHERE id = ?2",
         params![now, thread_id],
