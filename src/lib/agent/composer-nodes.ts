@@ -24,7 +24,25 @@ function buildChipDom(
     dom.setAttribute("data-chip", iconType);
     dom.style.cssText =
         `display:inline-flex;align-items:center;gap:3px;border-radius:4px;padding:1px 6px;font-size:11px;font-weight:500;line-height:1.4;vertical-align:middle;user-select:none;cursor:default;margin:0 1px;${bgClass}`;
-    dom.innerHTML = `${svg(iconType, iconColor)}<span style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${label}</span>${suffix ? `<span style="opacity:0.55;font-size:10px">${suffix}</span>` : ""}`;
+    // SVG icon — safe, static string from constants
+    const iconWrapper = document.createElement("span");
+    iconWrapper.innerHTML = svg(iconType, iconColor);
+    dom.appendChild(iconWrapper.firstElementChild!);
+
+    // Label — set via textContent (safe, no XSS)
+    const labelSpan = document.createElement("span");
+    labelSpan.style.cssText = "max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
+    labelSpan.textContent = label;
+    dom.appendChild(labelSpan);
+
+    // Suffix — set via textContent (safe, no XSS)
+    if (suffix) {
+        const suffixSpan = document.createElement("span");
+        suffixSpan.style.cssText = "opacity:0.55;font-size:10px";
+        suffixSpan.textContent = suffix;
+        dom.appendChild(suffixSpan);
+    }
+
     return dom;
 }
 
@@ -49,12 +67,13 @@ export const FileChipNode = Node.create({
     },
 
     renderHTML({ node, HTMLAttributes }) {
+        const label = (node.attrs.lineStart != null && node.attrs.lineEnd != null)
+            ? `${node.attrs.path}:${node.attrs.lineStart}-${node.attrs.lineEnd}`
+            : node.attrs.path;
         return [
             "span",
             mergeAttributes(HTMLAttributes, { "data-type": "file-chip" }),
-            node.attrs.lineStart
-                ? `${node.attrs.path}:${node.attrs.lineStart}-${node.attrs.lineEnd}`
-                : node.attrs.path,
+            label,
         ];
     },
 
