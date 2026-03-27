@@ -139,7 +139,24 @@
                     dropdownItems = buildDropdownItems(query);
                     dropdownVisible = true;
                     const coords = e.view.coordsAtPos(from);
-                    dropdownPos = { x: coords.left, y: coords.bottom + 4 };
+                    const DROPDOWN_WIDTH = 280; // max-w from ComposerDropdown
+                    const DROPDOWN_HEIGHT = 200; // approximate max height
+                    const vw = window.innerWidth;
+                    const vh = window.innerHeight;
+
+                    let x = coords.left;
+                    let y = coords.bottom + 4;
+
+                    // Clamp horizontally
+                    if (x + DROPDOWN_WIDTH > vw) {
+                        x = Math.max(0, vw - DROPDOWN_WIDTH - 8);
+                    }
+                    // If near bottom, show above cursor instead
+                    if (y + DROPDOWN_HEIGHT > vh) {
+                        y = coords.top - DROPDOWN_HEIGHT - 4;
+                    }
+
+                    dropdownPos = { x, y };
                 } else {
                     dropdownVisible = false;
                     triggerRange = null;
