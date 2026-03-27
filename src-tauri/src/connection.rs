@@ -25,7 +25,8 @@ pub struct Connection {
     // UX / metadata
     pub is_favorite: bool,
     pub color_tag: Option<String>,
-    
+    pub provider: Option<String>,   // "supabase" | "neon" | "planetscale" | null
+
     pub created_at: i64,
     pub updated_at: i64,
     pub last_connected_at: Option<i64>,
@@ -62,6 +63,7 @@ impl Connection {
             config_json,
             is_favorite: false,
             color_tag: None,
+            provider: None,
             created_at: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
@@ -370,6 +372,7 @@ pub fn load_connection_from_row(row: &rusqlite::Row<'_>) -> Result<Connection, r
         updated_at: row.get(13)?,
         last_connected_at: row.get(14)?,
         connection_count: row.get(15)?,
+        provider: row.get(16)?,
     })
 }
 
@@ -393,6 +396,7 @@ mod tests {
             config_json: "".to_string(),
             is_favorite: false,
             color_tag: None,
+            provider: None,
             created_at: Utc::now().timestamp(),
             updated_at: Utc::now().timestamp(),
             last_connected_at: None,
@@ -449,6 +453,7 @@ mod tests {
             config_json: r#"{"version":1,"db":{"host":"oldhost"},"transport":{"type":"direct"},"tls":{"enabled":false},"options":{}}"#.to_string(),
             is_favorite: false,
             color_tag: None,
+            provider: None,
             created_at: Utc::now().timestamp(),
             updated_at: Utc::now().timestamp(),
             last_connected_at: None,
@@ -502,6 +507,7 @@ mod tests {
             config_json: "".to_string(),
             is_favorite: false,
             color_tag: None,
+            provider: None,
             created_at: Utc::now().timestamp(),
             updated_at: Utc::now().timestamp(),
             last_connected_at: None,
