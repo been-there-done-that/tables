@@ -96,6 +96,7 @@ export class Session {
                 orderByClause: "",
                 executionTime: 0,
                 executedQueryText: "",
+                fetchedAt: null as Date | null,
                 detectedTable: null,
                 pendingDeltas: [],
                 isSaving: false,
@@ -169,6 +170,14 @@ export class Session {
 
             this.triggerSave();
         }
+    }
+
+    openDdlTab(title: string, ddl: string) {
+        this.openView("editor", title, {
+            initialValue: ddl,
+            readOnly: true,
+            language: "sql",
+        });
     }
 
     renameView(viewId: string, newTitle: string): void {
