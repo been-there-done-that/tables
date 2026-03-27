@@ -1,9 +1,58 @@
 use tauri::State;
 use crate::DatabaseState;
-use crate::introspection::{Introspector, MetaTable, MetaDatabase, MetaSchema};
+use crate::introspection::{Introspector, MetaTable, MetaDatabase, MetaSchema, MetaFunction, FunctionKind, MetaSequence, MetaConstraint, ConstraintKind};
 use crate::connection_manager::{ConnectionManager, ConnectionManagerState};
 use log::{debug, info};
 use crate::constants::ENABLE_INTROSPECTION_EVENTS;
+
+pub(super) async fn pg_connect_for_commands(
+    connection_id: &str,
+    database: &str,
+    db_state: &tauri::State<'_, DatabaseState>,
+    conn_state: &tauri::State<'_, ConnectionManagerState>,
+) -> Result<tokio_postgres::Client, String> {
+    let manager = ConnectionManager::from_state(db_state, conn_state);
+    let (connection, credentials) = manager.get_connection(connection_id)?;
+    let mut config: serde_json::Value = serde_json::from_str(&connection.config_json)
+        .map_err(|e| format!("Config parse error: {}", e))?;
+
+    if let Some(db) = config.get_mut("db") {
+        if let Some(db_obj) = db.as_object_mut() {
+            if let Some(password) = &credentials.password {
+                db_obj.insert("password".to_string(), serde_json::Value::String(password.expose().to_string()));
+            }
+            // Override database to the requested one
+            db_obj.insert("database".to_string(), serde_json::Value::String(database.to_string()));
+        }
+    }
+
+    let db_config = config.get("db").ok_or("Missing db config")?;
+    let host = db_config.get("host").and_then(|v| v.as_str()).unwrap_or("localhost");
+    let port = db_config.get("port").and_then(|v| v.as_u64()).unwrap_or(5432) as u16;
+    let user = db_config.get("username").and_then(|v| v.as_str()).unwrap_or("postgres");
+    let pass = db_config.get("password").and_then(|v| v.as_str()).unwrap_or("");
+    let db = db_config.get("database").and_then(|v| v.as_str()).unwrap_or("postgres");
+    let use_tls = config.get("tls").and_then(|t| t.get("enabled")).and_then(|v| v.as_bool()).unwrap_or(false);
+
+    let conn_str = format!("postgres://{}:{}@{}:{}/{}", user, pass, host, port, db);
+
+    if use_tls {
+        let tls = native_tls::TlsConnector::builder()
+            .danger_accept_invalid_certs(true)
+            .build()
+            .map_err(|e| format!("TLS error: {}", e))?;
+        let connector = postgres_native_tls::MakeTlsConnector::new(tls);
+        let (client, conn) = tokio_postgres::connect(&conn_str, connector).await
+            .map_err(|e| format!("Connection error: {}", e))?;
+        tokio::spawn(async move { let _ = conn.await; });
+        Ok(client)
+    } else {
+        let (client, conn) = tokio_postgres::connect(&conn_str, tokio_postgres::NoTls).await
+            .map_err(|e| format!("Connection error: {}", e))?;
+        tokio::spawn(async move { let _ = conn.await; });
+        Ok(client)
+    }
+}
 
 #[tauri::command]
 pub async fn refresh_schema(
@@ -256,4 +305,220 @@ pub async fn refresh_schema_specific_progressive(
     }
 
     Ok(())
+}
+
+#[tauri::command]
+pub async fn get_functions(
+    connection_id: String,
+    database: String,
+    schema: String,
+    db_state: State<'_, DatabaseState>,
+    conn_state: State<'_, ConnectionManagerState>,
+) -> Result<Vec<MetaFunction>, String> {
+    let client = pg_connect_for_commands(&connection_id, &database, &db_state, &conn_state).await?;
+
+    let rows = client.query(
+        "SELECT
+            p.proname AS name,
+            l.lanname AS language,
+            p.prokind AS kind,
+            COALESCE(pg_get_function_result(p.oid), '') AS return_type,
+            COALESCE(p.prosrc, '') AS definition,
+            p.prosecdef AS security_definer,
+            CASE p.provolatile
+                WHEN 'v' THEN 'volatile'
+                WHEN 's' THEN 'stable'
+                WHEN 'i' THEN 'immutable'
+                ELSE 'volatile'
+            END AS volatility
+        FROM pg_proc p
+        JOIN pg_namespace n ON p.pronamespace = n.oid
+        JOIN pg_language l ON p.prolang = l.oid
+        WHERE n.nspname = $1
+          AND p.prokind IN ('f', 'p')
+        ORDER BY p.proname",
+        &[&schema],
+    ).await.map_err(|e| format!("Query error: {}", e))?;
+
+    let functions = rows.iter().map(|row| {
+        let kind_char: i8 = row.get::<_, i8>(2);
+        let kind = match kind_char as u8 as char {
+            'p' => FunctionKind::Procedure,
+            'a' => FunctionKind::Aggregate,
+            'w' => FunctionKind::Window,
+            _ => FunctionKind::Function,
+        };
+        MetaFunction {
+            connection_id: connection_id.clone(),
+            database: database.clone(),
+            name: row.get(0),
+            schema: schema.clone(),
+            language: row.get(1),
+            kind,
+            return_type: row.get(3),
+            definition: row.get(4),
+            security_definer: row.get(5),
+            volatility: row.get(6),
+            arguments: vec![],
+        }
+    }).collect();
+
+    Ok(functions)
+}
+
+#[tauri::command]
+pub async fn get_sequences(
+    connection_id: String,
+    database: String,
+    schema: String,
+    db_state: State<'_, DatabaseState>,
+    conn_state: State<'_, ConnectionManagerState>,
+) -> Result<Vec<MetaSequence>, String> {
+    let client = pg_connect_for_commands(&connection_id, &database, &db_state, &conn_state).await?;
+
+    let rows = client.query(
+        "SELECT
+            sequencename AS name,
+            data_type,
+            start_value,
+            min_value,
+            max_value,
+            increment_by,
+            cycle,
+            cache_size,
+            last_value
+        FROM pg_sequences
+        WHERE schemaname = $1
+        ORDER BY sequencename",
+        &[&schema],
+    ).await.map_err(|e| format!("Query error: {}", e))?;
+
+    let sequences = rows.iter().map(|row| MetaSequence {
+        connection_id: connection_id.clone(),
+        database: database.clone(),
+        name: row.get(0),
+        schema: schema.clone(),
+        data_type: row.get(1),
+        start_value: row.get(2),
+        min_value: row.get(3),
+        max_value: row.get(4),
+        increment_by: row.get(5),
+        cycle: row.get(6),
+        cache_size: row.get(7),
+        last_value: row.get(8),
+    }).collect();
+
+    Ok(sequences)
+}
+
+#[tauri::command]
+pub async fn get_constraints(
+    connection_id: String,
+    database: String,
+    schema: String,
+    table_name: String,
+    db_state: State<'_, DatabaseState>,
+    conn_state: State<'_, ConnectionManagerState>,
+) -> Result<Vec<MetaConstraint>, String> {
+    let client = pg_connect_for_commands(&connection_id, &database, &db_state, &conn_state).await?;
+    let qualified = format!("{}.{}", schema, table_name);
+
+    let rows = client.query(
+        "SELECT
+            c.conname AS name,
+            c.contype AS kind,
+            pg_get_constraintdef(c.oid) AS definition,
+            ARRAY(
+                SELECT a.attname
+                FROM pg_attribute a
+                WHERE a.attrelid = c.conrelid
+                  AND a.attnum = ANY(c.conkey)
+                  AND a.attnum > 0
+                ORDER BY array_position(c.conkey, a.attnum)
+            ) AS columns
+        FROM pg_constraint c
+        WHERE c.conrelid = $1::regclass
+          AND c.contype IN ('c', 'u', 'x')
+        ORDER BY c.conname",
+        &[&qualified],
+    ).await.map_err(|e| format!("Query error: {}", e))?;
+
+    let constraints = rows.iter().map(|row| {
+        let kind_char: i8 = row.get::<_, i8>(1);
+        let kind = match kind_char as u8 as char {
+            'u' => ConstraintKind::Unique,
+            'x' => ConstraintKind::Exclusion,
+            _ => ConstraintKind::Check,
+        };
+        let columns: Vec<String> = row.get(3);
+        MetaConstraint {
+            connection_id: connection_id.clone(),
+            database: database.clone(),
+            schema: schema.clone(),
+            table_name: table_name.clone(),
+            name: row.get(0),
+            kind,
+            definition: row.get(2),
+            columns,
+        }
+    }).collect();
+
+    Ok(constraints)
+}
+
+#[tauri::command]
+pub async fn get_index_details(
+    connection_id: String,
+    database: String,
+    schema: String,
+    table_name: String,
+    db_state: State<'_, DatabaseState>,
+    conn_state: State<'_, ConnectionManagerState>,
+) -> Result<Vec<crate::introspection::MetaIndex>, String> {
+    let client = pg_connect_for_commands(&connection_id, &database, &db_state, &conn_state).await?;
+    let qualified = format!("{}.{}", schema, table_name);
+
+    let rows = client.query(
+        "SELECT
+            i.relname AS index_name,
+            am.amname AS index_type,
+            ix.indisunique AS is_unique,
+            ix.indisprimary AS is_primary,
+            pg_get_indexdef(ix.indexrelid) AS definition,
+            ARRAY(
+                SELECT a.attname
+                FROM pg_attribute a
+                WHERE a.attrelid = t.oid
+                  AND a.attnum = ANY(ix.indkey)
+                  AND a.attnum > 0
+                ORDER BY array_position(ix.indkey::smallint[], a.attnum)
+            ) AS columns,
+            pg_get_expr(ix.indpred, ix.indrelid) AS predicate
+        FROM pg_index ix
+        JOIN pg_class t ON t.oid = ix.indrelid
+        JOIN pg_class i ON i.oid = ix.indexrelid
+        JOIN pg_am am ON am.oid = i.relam
+        WHERE t.oid = $1::regclass
+        ORDER BY i.relname",
+        &[&qualified],
+    ).await.map_err(|e| format!("Query error: {}", e))?;
+
+    let indexes = rows.iter().map(|row| {
+        let columns: Vec<String> = row.get(5);
+        crate::introspection::MetaIndex {
+            connection_id: connection_id.clone(),
+            database: database.clone(),
+            schema: schema.clone(),
+            table_name: table_name.clone(),
+            index_name: row.get(0),
+            is_unique: row.get(2),
+            is_primary: row.get(3),
+            index_type: row.get(1),
+            columns,
+            predicate: row.get(6),
+            definition: row.get(4),
+        }
+    }).collect();
+
+    Ok(indexes)
 }
