@@ -146,7 +146,9 @@ class AgentStore {
     }
 
     async loadThread(threadId: string) {
-        this.threadId = threadId;
+        // Set threadId to null while loading so any in-flight persists from the
+        // previous session don't accidentally write into the new thread's records.
+        this.threadId = null;
         this.messages = [];
         this.toolCalls = [];
         this.status = "idle";
@@ -183,6 +185,9 @@ class AgentStore {
                 timestamp: t.startedAt * 1000,
                 startedAt: t.startedAt * 1000,
             }));
+
+            // Only activate persists for this thread after all state is loaded.
+            this.threadId = threadId;
         } catch (e) {
             console.error("[agentStore] loadThread failed:", e);
         }
