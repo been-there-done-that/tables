@@ -111,6 +111,10 @@
             editorProps: {
                 attributes: {
                     class: "focus:outline-none min-h-[36px] max-h-[150px] overflow-y-auto text-sm text-foreground leading-relaxed",
+                    autocorrect: "off",
+                    autocapitalize: "off",
+                    autocomplete: "off",
+                    spellcheck: "false",
                 },
                 handleKeyDown(_view, event) {
                     if (dropdownVisible && dropdownRef) {
