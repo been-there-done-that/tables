@@ -176,6 +176,17 @@
         editor.setEditable(!disabled && !running);
     });
 
+    $effect(() => {
+        const chip = composerStore.pendingChip;
+        if (!chip || !editor) return;
+        editor.commands.insertContent({
+            type: "fileChip",
+            attrs: { path: chip.path, lineStart: chip.lineStart, lineEnd: chip.lineEnd },
+        });
+        editor.commands.focus();
+        composerStore.pendingChip = null;
+    });
+
     function escapeXml(str: string): string {
         return str
             .replace(/&/g, "&amp;")
