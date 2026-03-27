@@ -252,6 +252,10 @@ macro_rules! aggregate_plugin_commands {
             get_connection_capabilities,
             introspect_database,
             run_db_contention_test,
+            get_functions,
+            get_sequences,
+            get_constraints,
+            get_index_details,
             
             // Completion commands
             request_completions,
