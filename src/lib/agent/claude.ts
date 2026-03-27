@@ -6,6 +6,7 @@ export type AgentEventType =
     | { type: "tool.started"; toolId: string; toolName: string; input: unknown }
     | { type: "tool.completed"; toolId: string; output: string }
     | { type: "tool.input_delta"; toolId: string; toolName: string; partialContent: string }
+    | { type: "session.init"; sdkSessionId: string }
     | { type: "turn.done"; isError: boolean }
     | { type: "error"; message: string };
 
@@ -38,6 +39,10 @@ function waitForPort(timeoutMs: number): Promise<number> {
 export async function startAgentSession(opts: {
     systemPrompt: string;
     sessionId?: string;
+    threadId: string;
+    resumeSdkSessionId?: string;
+    model?: string;
+    effort?: "auto" | "low" | "medium" | "high" | "max";
     onEvent: (event: AgentEventType) => void;
     abortController: AbortController;
 }): Promise<AgentSession> {
@@ -45,11 +50,23 @@ export async function startAgentSession(opts: {
     const base = `http://127.0.0.1:${port}`;
     const sessionId = opts.sessionId ?? crypto.randomUUID();
 
-    console.log(`[claude] starting session ${sessionId} on port ${port}`);
-    const startRes = await fetch(`${base}/session/start`, {
+    console.log(`[claude] ${opts.resumeSdkSessionId ? "resuming" : "starting"} session ${sessionId} on port ${port}`);
+    const endpoint = opts.resumeSdkSessionId ? "/session/resume" : "/session/start";
+    const body: Record<string, unknown> = {
+        sessionId,
+        threadId: opts.threadId,
+        systemPrompt: opts.systemPrompt,
+        model: opts.model,
+        effort: opts.effort,
+    };
+    if (opts.resumeSdkSessionId) {
+        body.sdkSessionId = opts.resumeSdkSessionId;
+    }
+
+    const startRes = await fetch(`${base}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId, systemPrompt: opts.systemPrompt }),
+        body: JSON.stringify(body),
     });
     if (!startRes.ok) {
         throw new Error(`Failed to start harness session: ${startRes.status}`);
