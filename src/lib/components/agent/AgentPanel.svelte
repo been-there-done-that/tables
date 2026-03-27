@@ -269,7 +269,7 @@
         const model = settingsStore.aiModel;
         const effort = settingsStore.aiEffort;
         if (connId && (connId !== sessionConnectionId || db !== sessionDatabase || model !== sessionModel || effort !== sessionEffort)) {
-            initForConnection();
+            initForConnection().catch((e) => { sessionError = String(e); });
         }
     });
 
