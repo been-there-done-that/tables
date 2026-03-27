@@ -15,3 +15,11 @@ vite.config.ts.timestamp-*
 .fastembed_cache/
 .grepai/
 src-tauri/binaries/
+src-tauri/target/
+
+# Reference codebases (not part of this project)
+beekeeper-studio/
+nocodb/
+pgadmin4/
+supabase/
+.worktrees/
