@@ -210,7 +210,11 @@
                     lineEnd: number | null;
                 };
                 const session = windowState.activeSession;
-                const view = session?.views.find((v) => v.title === path);
+                const view = session?.views.find((v: { title: string }) => v.title === path);
+                if (!view) {
+                    xmlParts.push(`  <!-- file "${escapeXml(path)}" is not open in any tab -->`);
+                    continue;
+                }
                 const fullContent: string = (view?.data as Record<string, unknown>)?.content as string ?? "";
                 let content = fullContent;
                 if (lineStart != null && lineEnd != null) {
@@ -218,7 +222,7 @@
                     content = lines.slice(lineStart - 1, lineEnd).join("\n");
                 }
                 const attrs = lineStart != null && lineEnd != null ? ` lines="${lineStart}-${lineEnd}"` : "";
-                xmlParts.push(`  <file path="${escapeXml(path)}"${attrs}>\n${content}\n  </file>`);
+                xmlParts.push(`  <file path="${escapeXml(path)}"${attrs}><![CDATA[\n${content}\n]]></file>`);
             } else if (node.type === "tableChip") {
                 const { tableName } = node.attrs as { tableName: string };
                 const conn = schemaStore.activeConnection;
@@ -242,7 +246,7 @@
                         ? ` truncated="true" total_rows="${tagged.totalRows}"`
                         : ` truncated="false"`;
                     xmlParts.push(
-                        `  <query_result tool="${escapeXml(tagged.toolName)}"${truncAttr}>\n${tagged.output}\n  </query_result>`,
+                        `  <query_result tool="${escapeXml(tagged.toolName)}"${truncAttr}><![CDATA[\n${tagged.output}\n]]></query_result>`,
                     );
                 }
             }
@@ -256,9 +260,12 @@
         const prose = editor.getText({ blockSeparator: "\n" }).trim();
         if (!prose) return;
         const doc = editor.getJSON();
-        editor.commands.clearContent();
 
         const contextXml = await resolveChips(doc);
+        editor.commands.clearContent();
+
+        // Re-check state after async resolution
+        if (!editor || running) return;
         const fullText = contextXml ? `${contextXml}\n\n${prose}` : prose;
         onSend(fullText, doc);
     }
