@@ -9,7 +9,7 @@ pub struct ColumnRef {
 pub type ScopeId = usize;
 
 /// A source (table, CTE, or derived table) available in a scope.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Source {
     Table {
         schema: Option<String>,

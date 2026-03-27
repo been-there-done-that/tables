@@ -3,7 +3,7 @@ use std::ops::Range;
 use indexmap::IndexMap;
 use super::symbol::{ColumnRef, ScopeId, Source, VisibleSymbols};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ScopeType {
     Root,
     Cte { name: String },
@@ -89,10 +89,18 @@ impl ScopeTree {
         id
     }
 
+    /// Returns the scope with the given `id`.
+    ///
+    /// # Panics
+    /// Panics if `id` was not returned by [`ScopeTree::add_scope`].
     pub fn scope(&self, id: ScopeId) -> &Scope {
         &self.scopes[id]
     }
 
+    /// Returns a mutable reference to the scope with the given `id`.
+    ///
+    /// # Panics
+    /// Panics if `id` was not returned by [`ScopeTree::add_scope`].
     pub fn scope_mut(&mut self, id: ScopeId) -> &mut Scope {
         &mut self.scopes[id]
     }
@@ -102,8 +110,11 @@ impl ScopeTree {
         &self.scopes
     }
 
-    /// Find the innermost scope whose byte_range contains `cursor_byte`.
-    /// Iterates in reverse (highest id = deepest scope) to find the innermost.
+    /// Returns the innermost scope containing `cursor_byte`.
+    ///
+    /// Requires that scopes were added in pre-order (parent before child) —
+    /// a parent's `ScopeId` is always less than any of its children's ids.
+    /// The resolver must uphold this invariant.
     pub fn scope_at(&self, cursor_byte: usize) -> Option<&Scope> {
         self.scopes.iter().rev().find(|s| s.contains(cursor_byte))
     }
