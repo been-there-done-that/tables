@@ -1,3 +1,7 @@
+[workspace]
+members = [".", "crates/sql-scope"]
+resolver = "2"
+
 [package]
 name = "tables"
 version = "0.1.0"
