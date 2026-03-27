@@ -255,12 +255,9 @@ impl CompletionEngine {
         
         // Filter by prefix
         Self::filter_by_prefix(&mut items, &context.prefix);
-        
+
         log::debug!("[AfterDot] Returning {} items after filtering by prefix '{}'", items.len(), context.prefix);
-        
-        // Sort by score descending
-        items.sort_by(|a, b| b.score.cmp(&a.score));
-        
+
         items
     }
 
@@ -366,7 +363,6 @@ impl CompletionEngine {
         }
         
         Self::filter_by_prefix(&mut items, &context.prefix);
-        items.sort_by(|a, b| b.score.cmp(&a.score));
         items
     }
 
@@ -468,7 +464,6 @@ impl CompletionEngine {
         }
         
         Self::filter_by_prefix(&mut items, &context.prefix);
-        items.sort_by(|a, b| b.score.cmp(&a.score));
         items
     }
 
@@ -572,7 +567,6 @@ impl CompletionEngine {
         }
         
         Self::filter_by_prefix(&mut items, &context.prefix);
-        items.sort_by(|a, b| b.score.cmp(&a.score));
         items
     }
 
@@ -620,11 +614,10 @@ impl CompletionEngine {
         }
         
         Self::filter_by_prefix(&mut items, &context.prefix);
-        items.sort_by(|a, b| b.score.cmp(&a.score));
         items
     }
 
-    
+
     /// Complete at root/empty context: `|` → suggest statement starters
     fn complete_root_context(context: &Context) -> Vec<CompletionItem> {
         let mut items = Vec::new();
@@ -652,7 +645,6 @@ impl CompletionEngine {
         }
         
         Self::filter_by_prefix(&mut items, &context.prefix);
-        items.sort_by(|a, b| b.score.cmp(&a.score));
         items
     }
 
@@ -685,7 +677,6 @@ impl CompletionEngine {
         }
         
         Self::filter_by_prefix(&mut items, &context.prefix);
-        items.sort_by(|a, b| b.score.cmp(&a.score));
         items
     }
 
