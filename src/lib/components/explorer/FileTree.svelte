@@ -12,6 +12,11 @@
     import ViewIcon from "@tabler/icons-svelte/icons/eye"; // For Views
     import SqlIcon from "@tabler/icons-svelte/icons/file-database"; // Action icon
     import LoaderIcon from "@tabler/icons-svelte/icons/loader-2"; // Spinner
+    import IconMatView from "@tabler/icons-svelte/icons/eye-check"; // Materialized view
+    import IconFunction from "@tabler/icons-svelte/icons/math-function"; // Function
+    import IconProcedure from "@tabler/icons-svelte/icons/lambda"; // Procedure
+    import IconSequence from "@tabler/icons-svelte/icons/list-numbers"; // Sequence
+    import IconConstraint from "@tabler/icons-svelte/icons/shield-check"; // Constraint
     import ColumnIcon from "$lib/components/icons/ColumnIcon.svelte";
     import TableIcon from "$lib/components/icons/TableIcon.svelte";
     import PrimaryKeyIcon from "$lib/components/icons/PrimaryKeyIcon.svelte";
@@ -26,6 +31,11 @@
         | "schema"
         | "table"
         | "view"
+        | "materialized_view"
+        | "function"
+        | "procedure"
+        | "sequence"
+        | "constraint"
         | "column"
         | "index"
         | "trigger"
@@ -89,7 +99,12 @@
         key: Key,
         schema: Cube,
         table: TableIcon,
-        view: ViewIcon, // New!
+        view: ViewIcon,
+        materialized_view: IconMatView,
+        function: IconFunction,
+        procedure: IconProcedure,
+        sequence: IconSequence,
+        constraint: IconConstraint,
         column: ColumnIcon,
         primary_key: PrimaryKeyIcon,
         index: ListSearch,
