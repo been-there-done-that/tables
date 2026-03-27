@@ -4,6 +4,8 @@
     import StarterKit from "@tiptap/starter-kit";
     import { Placeholder } from "@tiptap/extension-placeholder";
     import { FileChipNode, TableChipNode, ResultChipNode } from "$lib/agent/composer-nodes";
+    import IconArrowUp from "@tabler/icons-svelte/icons/arrow-up";
+    import IconSquare from "@tabler/icons-svelte/icons/square";
     import ComposerDropdown from "./ComposerDropdown.svelte";
     import type { DropdownItem } from "./ComposerDropdown.svelte";
     import { composerStore } from "$lib/stores/composer.svelte";
@@ -110,7 +112,7 @@
             ],
             editorProps: {
                 attributes: {
-                    class: "focus:outline-none min-h-[36px] max-h-[150px] overflow-y-auto text-sm text-foreground leading-relaxed",
+                    class: "focus:outline-none min-h-[48px] max-h-[160px] overflow-y-auto text-sm text-foreground/90 leading-relaxed",
                     autocorrect: "off",
                     autocapitalize: "off",
                     autocomplete: "off",
@@ -291,40 +293,53 @@
     }
 </script>
 
-<div class="border-t border-border/50 p-2 flex flex-col gap-1.5">
-    <div
-        bind:this={editorEl}
-        class="rounded-md border border-input bg-background px-3 py-2 text-sm"
-    ></div>
-    <div class="flex justify-end">
-        {#if running}
-            <button
-                onclick={onStop}
-                class="rounded px-3 py-1 text-xs bg-destructive/10 text-destructive hover:bg-destructive/20"
-            >
-                Stop
-            </button>
-        {:else}
-            <button
-                onclick={() => void handleSend()}
-                disabled={disabled}
-                class="rounded px-3 py-1 text-xs bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-            >
-                Send
-            </button>
-        {/if}
-    </div>
-    {#if dropdownVisible}
+<div class="border-t border-border/40 px-3 py-2.5">
+    <!-- Unified composer container -->
+    <div class="rounded-xl border border-border/60 bg-background/80 transition-colors focus-within:border-border">
+        <!-- Editor area -->
         <div
-            class="fixed z-50"
-            style="left:{dropdownPos.x}px; top:{dropdownPos.y}px"
-        >
-            <ComposerDropdown
-                bind:this={dropdownRef}
-                items={dropdownItems}
-                onSelect={selectDropdownItem}
-                onClose={() => { dropdownVisible = false; }}
-            />
+            bind:this={editorEl}
+            class="px-3 pt-3 pb-1"
+        ></div>
+        <!-- Bottom bar -->
+        <div class="flex items-center justify-between px-3 pb-2.5 pt-1">
+            <span class="select-none font-mono text-[10px] text-muted-foreground/35">
+                @ attach · ⌘L from editor
+            </span>
+            <div class="flex items-center gap-1.5">
+                {#if running}
+                    <button
+                        onclick={onStop}
+                        title="Stop"
+                        class="flex h-6 w-6 items-center justify-center rounded-full bg-destructive/80 text-white transition-opacity hover:bg-destructive"
+                    >
+                        <IconSquare size={10} fill="currentColor" />
+                    </button>
+                {:else}
+                    <button
+                        onclick={() => void handleSend()}
+                        disabled={disabled}
+                        title="Send (↵)"
+                        class="flex h-6 w-6 items-center justify-center rounded-full bg-foreground text-background transition-opacity hover:opacity-80 disabled:opacity-25"
+                    >
+                        <IconArrowUp size={13} stroke-width={2.5} />
+                    </button>
+                {/if}
+            </div>
         </div>
-    {/if}
+    </div>
 </div>
+
+{#if dropdownVisible}
+    <div
+        class="fixed z-50"
+        style="left:{dropdownPos.x}px; top:{dropdownPos.y}px"
+    >
+        <ComposerDropdown
+            bind:this={dropdownRef}
+            items={dropdownItems}
+            onSelect={selectDropdownItem}
+            onClose={() => { dropdownVisible = false; }}
+        />
+    </div>
+{/if}
