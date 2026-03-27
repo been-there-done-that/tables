@@ -305,4 +305,22 @@ mod tests {
         assert!(names.contains(&"cte_a"));
         assert!(names.contains(&"cte_b"));
     }
+
+    #[test]
+    fn cte_a_cannot_see_cte_b_declared_after() {
+        // CTE `a` is declared before `b`; a's child scope must NOT contain `b` in cte_sources
+        let sql = "WITH a AS (SELECT 1 AS x), b AS (SELECT 2 AS y) SELECT * FROM a";
+        let stmt = parse_postgres(sql).unwrap();
+        let schema = mock(&[]);
+        let tree = traverse_scope(&stmt, &schema);
+        // Find the CTE scope for "a" — its cte_sources must not contain "b"
+        let cte_a_scope = tree.all_scopes()
+            .iter()
+            .find(|s| matches!(&s.scope_type, ScopeType::Cte { name } if name == "a"))
+            .expect("CTE scope 'a' not found");
+        assert!(
+            !cte_a_scope.cte_sources.contains_key("b"),
+            "CTE 'a' should not be able to see CTE 'b' which is declared after it"
+        );
+    }
 }
