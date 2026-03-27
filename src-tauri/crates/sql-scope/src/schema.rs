@@ -1,8 +1,13 @@
+use std::str::FromStr;
+
 /// Type of a SQL column as understood by sql-scope.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SqlType {
     Integer,
     BigInt,
+    /// Covers FLOAT, REAL, DOUBLE PRECISION, NUMERIC, DECIMAL.
+    /// Note: NUMERIC/DECIMAL are fixed-point but mapped here for simplicity;
+    /// full type-safety checking would distinguish them.
     Float,
     Text,
     Boolean,
@@ -15,9 +20,9 @@ pub enum SqlType {
 
 impl SqlType {
     /// Map a data_type string (from schema introspection) to SqlType.
-    pub fn from_str(s: &str) -> Self {
+    pub fn from_db_type(s: &str) -> Self {
         match s.to_lowercase().as_str() {
-            t if t.contains("bigint") || t == "int8" => SqlType::BigInt,
+            t if t.contains("bigint") || t.contains("int8") => SqlType::BigInt,
             // "interval" contains "int" — exclude it explicitly
             t if t.contains("int") && !t.contains("interval") => SqlType::Integer,
             t if t.contains("float")
@@ -45,6 +50,13 @@ impl SqlType {
     }
 }
 
+impl FromStr for SqlType {
+    type Err = std::convert::Infallible;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(SqlType::from_db_type(s))
+    }
+}
+
 /// A foreign key relationship from `from_column` in the current table
 /// to `to_column` in `to_table`.
 #[derive(Debug, Clone)]
@@ -69,310 +81,315 @@ mod tests {
     use super::*;
 
     // -------------------------------------------------------------------------
-    // SqlType::from_str — integer variants
+    // SqlType::from_db_type — integer variants
     // -------------------------------------------------------------------------
 
     #[test]
     fn integer_lowercase() {
-        assert_eq!(SqlType::from_str("integer"), SqlType::Integer);
+        assert_eq!(SqlType::from_db_type("integer"), SqlType::Integer);
     }
 
     #[test]
     fn integer_int4() {
-        assert_eq!(SqlType::from_str("int4"), SqlType::Integer);
+        assert_eq!(SqlType::from_db_type("int4"), SqlType::Integer);
     }
 
     #[test]
     fn integer_smallint() {
-        assert_eq!(SqlType::from_str("smallint"), SqlType::Integer);
+        assert_eq!(SqlType::from_db_type("smallint"), SqlType::Integer);
     }
 
     #[test]
     fn integer_tinyint() {
-        assert_eq!(SqlType::from_str("tinyint"), SqlType::Integer);
+        assert_eq!(SqlType::from_db_type("tinyint"), SqlType::Integer);
     }
 
     #[test]
     fn integer_mediumint() {
-        assert_eq!(SqlType::from_str("mediumint"), SqlType::Integer);
+        assert_eq!(SqlType::from_db_type("mediumint"), SqlType::Integer);
     }
 
     #[test]
     fn integer_uppercase() {
-        assert_eq!(SqlType::from_str("INTEGER"), SqlType::Integer);
+        assert_eq!(SqlType::from_db_type("INTEGER"), SqlType::Integer);
     }
 
     #[test]
     fn integer_int_bare() {
-        assert_eq!(SqlType::from_str("int"), SqlType::Integer);
+        assert_eq!(SqlType::from_db_type("int"), SqlType::Integer);
     }
 
     // -------------------------------------------------------------------------
-    // SqlType::from_str — bigint variants (must match before int)
+    // SqlType::from_db_type — bigint variants (must match before int)
     // -------------------------------------------------------------------------
 
     #[test]
     fn bigint_int8() {
-        assert_eq!(SqlType::from_str("int8"), SqlType::BigInt);
+        assert_eq!(SqlType::from_db_type("int8"), SqlType::BigInt);
+    }
+
+    #[test]
+    fn bigint_int8_with_constraint() {
+        assert_eq!(SqlType::from_db_type("int8 not null"), SqlType::BigInt);
     }
 
     #[test]
     fn bigint_bigint() {
-        assert_eq!(SqlType::from_str("bigint"), SqlType::BigInt);
+        assert_eq!(SqlType::from_db_type("bigint"), SqlType::BigInt);
     }
 
     #[test]
     fn bigint_uppercase() {
-        assert_eq!(SqlType::from_str("BIGINT"), SqlType::BigInt);
+        assert_eq!(SqlType::from_db_type("BIGINT"), SqlType::BigInt);
     }
 
     #[test]
     fn bigint_mixed_case() {
-        assert_eq!(SqlType::from_str("BigInt"), SqlType::BigInt);
+        assert_eq!(SqlType::from_db_type("BigInt"), SqlType::BigInt);
     }
 
     // -------------------------------------------------------------------------
-    // SqlType::from_str — float variants
+    // SqlType::from_db_type — float variants
     // -------------------------------------------------------------------------
 
     #[test]
     fn float_float4() {
-        assert_eq!(SqlType::from_str("float4"), SqlType::Float);
+        assert_eq!(SqlType::from_db_type("float4"), SqlType::Float);
     }
 
     #[test]
     fn float_float8() {
-        assert_eq!(SqlType::from_str("float8"), SqlType::Float);
+        assert_eq!(SqlType::from_db_type("float8"), SqlType::Float);
     }
 
     #[test]
     fn float_real() {
-        assert_eq!(SqlType::from_str("real"), SqlType::Float);
+        assert_eq!(SqlType::from_db_type("real"), SqlType::Float);
     }
 
     #[test]
     fn float_double_precision() {
-        assert_eq!(SqlType::from_str("double precision"), SqlType::Float);
+        assert_eq!(SqlType::from_db_type("double precision"), SqlType::Float);
     }
 
     #[test]
     fn float_numeric_with_precision() {
-        assert_eq!(SqlType::from_str("numeric(10,2)"), SqlType::Float);
+        assert_eq!(SqlType::from_db_type("numeric(10,2)"), SqlType::Float);
     }
 
     #[test]
     fn float_decimal() {
-        assert_eq!(SqlType::from_str("decimal"), SqlType::Float);
+        assert_eq!(SqlType::from_db_type("decimal"), SqlType::Float);
     }
 
     #[test]
     fn float_decimal_with_precision() {
-        assert_eq!(SqlType::from_str("decimal(18,4)"), SqlType::Float);
+        assert_eq!(SqlType::from_db_type("decimal(18,4)"), SqlType::Float);
     }
 
     #[test]
     fn float_numeric_bare() {
-        assert_eq!(SqlType::from_str("numeric"), SqlType::Float);
+        assert_eq!(SqlType::from_db_type("numeric"), SqlType::Float);
     }
 
     #[test]
     fn float_uppercase() {
-        assert_eq!(SqlType::from_str("FLOAT"), SqlType::Float);
+        assert_eq!(SqlType::from_db_type("FLOAT"), SqlType::Float);
     }
 
     // -------------------------------------------------------------------------
-    // SqlType::from_str — text variants
+    // SqlType::from_db_type — text variants
     // -------------------------------------------------------------------------
 
     #[test]
     fn text_varchar_with_len() {
-        assert_eq!(SqlType::from_str("varchar(255)"), SqlType::Text);
+        assert_eq!(SqlType::from_db_type("varchar(255)"), SqlType::Text);
     }
 
     #[test]
     fn text_character_varying() {
-        assert_eq!(SqlType::from_str("character varying"), SqlType::Text);
+        assert_eq!(SqlType::from_db_type("character varying"), SqlType::Text);
     }
 
     #[test]
     fn text_text() {
-        assert_eq!(SqlType::from_str("text"), SqlType::Text);
+        assert_eq!(SqlType::from_db_type("text"), SqlType::Text);
     }
 
     #[test]
     fn text_char_with_len() {
-        assert_eq!(SqlType::from_str("char(10)"), SqlType::Text);
+        assert_eq!(SqlType::from_db_type("char(10)"), SqlType::Text);
     }
 
     #[test]
     fn text_string() {
-        assert_eq!(SqlType::from_str("string"), SqlType::Text);
+        assert_eq!(SqlType::from_db_type("string"), SqlType::Text);
     }
 
     #[test]
     fn text_varchar_uppercase() {
-        assert_eq!(SqlType::from_str("VARCHAR"), SqlType::Text);
+        assert_eq!(SqlType::from_db_type("VARCHAR"), SqlType::Text);
     }
 
     #[test]
     fn text_tinytext() {
-        assert_eq!(SqlType::from_str("tinytext"), SqlType::Text);
+        assert_eq!(SqlType::from_db_type("tinytext"), SqlType::Text);
     }
 
     #[test]
     fn text_mediumtext() {
-        assert_eq!(SqlType::from_str("mediumtext"), SqlType::Text);
+        assert_eq!(SqlType::from_db_type("mediumtext"), SqlType::Text);
     }
 
     #[test]
     fn text_longtext() {
-        assert_eq!(SqlType::from_str("longtext"), SqlType::Text);
+        assert_eq!(SqlType::from_db_type("longtext"), SqlType::Text);
     }
 
     #[test]
     fn text_nvarchar() {
-        assert_eq!(SqlType::from_str("nvarchar(100)"), SqlType::Text);
+        assert_eq!(SqlType::from_db_type("nvarchar(100)"), SqlType::Text);
     }
 
     // -------------------------------------------------------------------------
-    // SqlType::from_str — boolean variants
+    // SqlType::from_db_type — boolean variants
     // -------------------------------------------------------------------------
 
     #[test]
     fn boolean_boolean() {
-        assert_eq!(SqlType::from_str("boolean"), SqlType::Boolean);
+        assert_eq!(SqlType::from_db_type("boolean"), SqlType::Boolean);
     }
 
     #[test]
     fn boolean_bool() {
-        assert_eq!(SqlType::from_str("bool"), SqlType::Boolean);
+        assert_eq!(SqlType::from_db_type("bool"), SqlType::Boolean);
     }
 
     #[test]
     fn boolean_uppercase() {
-        assert_eq!(SqlType::from_str("BOOLEAN"), SqlType::Boolean);
+        assert_eq!(SqlType::from_db_type("BOOLEAN"), SqlType::Boolean);
     }
 
     // -------------------------------------------------------------------------
-    // SqlType::from_str — timestamp variants
+    // SqlType::from_db_type — timestamp variants
     // -------------------------------------------------------------------------
 
     #[test]
     fn timestamp_timestamp() {
-        assert_eq!(SqlType::from_str("timestamp"), SqlType::Timestamp);
+        assert_eq!(SqlType::from_db_type("timestamp"), SqlType::Timestamp);
     }
 
     #[test]
     fn timestamp_with_time_zone() {
         assert_eq!(
-            SqlType::from_str("timestamp with time zone"),
+            SqlType::from_db_type("timestamp with time zone"),
             SqlType::Timestamp
         );
     }
 
     #[test]
     fn timestamp_timestamptz() {
-        assert_eq!(SqlType::from_str("timestamptz"), SqlType::Timestamp);
+        assert_eq!(SqlType::from_db_type("timestamptz"), SqlType::Timestamp);
     }
 
     #[test]
     fn timestamp_datetime() {
-        assert_eq!(SqlType::from_str("datetime"), SqlType::Timestamp);
+        assert_eq!(SqlType::from_db_type("datetime"), SqlType::Timestamp);
     }
 
     #[test]
     fn timestamp_without_time_zone() {
         assert_eq!(
-            SqlType::from_str("timestamp without time zone"),
+            SqlType::from_db_type("timestamp without time zone"),
             SqlType::Timestamp
         );
     }
 
     #[test]
     fn timestamp_uppercase() {
-        assert_eq!(SqlType::from_str("TIMESTAMP"), SqlType::Timestamp);
+        assert_eq!(SqlType::from_db_type("TIMESTAMP"), SqlType::Timestamp);
     }
 
     // -------------------------------------------------------------------------
-    // SqlType::from_str — date (must not match timestamp since "timestamp"
+    // SqlType::from_db_type — date (must not match timestamp since "timestamp"
     // is checked before "date")
     // -------------------------------------------------------------------------
 
     #[test]
     fn date_date() {
-        assert_eq!(SqlType::from_str("date"), SqlType::Date);
+        assert_eq!(SqlType::from_db_type("date"), SqlType::Date);
     }
 
     #[test]
     fn date_uppercase() {
-        assert_eq!(SqlType::from_str("DATE"), SqlType::Date);
+        assert_eq!(SqlType::from_db_type("DATE"), SqlType::Date);
     }
 
     // -------------------------------------------------------------------------
-    // SqlType::from_str — uuid
+    // SqlType::from_db_type — uuid
     // -------------------------------------------------------------------------
 
     #[test]
     fn uuid_uuid() {
-        assert_eq!(SqlType::from_str("uuid"), SqlType::Uuid);
+        assert_eq!(SqlType::from_db_type("uuid"), SqlType::Uuid);
     }
 
     #[test]
     fn uuid_uppercase() {
-        assert_eq!(SqlType::from_str("UUID"), SqlType::Uuid);
+        assert_eq!(SqlType::from_db_type("UUID"), SqlType::Uuid);
     }
 
     // -------------------------------------------------------------------------
-    // SqlType::from_str — json variants
+    // SqlType::from_db_type — json variants
     // -------------------------------------------------------------------------
 
     #[test]
     fn json_json() {
-        assert_eq!(SqlType::from_str("json"), SqlType::Json);
+        assert_eq!(SqlType::from_db_type("json"), SqlType::Json);
     }
 
     #[test]
     fn json_jsonb() {
-        assert_eq!(SqlType::from_str("jsonb"), SqlType::Json);
+        assert_eq!(SqlType::from_db_type("jsonb"), SqlType::Json);
     }
 
     #[test]
     fn json_uppercase() {
-        assert_eq!(SqlType::from_str("JSON"), SqlType::Json);
+        assert_eq!(SqlType::from_db_type("JSON"), SqlType::Json);
     }
 
     // -------------------------------------------------------------------------
-    // SqlType::from_str — unknown / fallthrough
+    // SqlType::from_db_type — unknown / fallthrough
     // -------------------------------------------------------------------------
 
     #[test]
     fn unknown_bytea() {
-        assert_eq!(SqlType::from_str("bytea"), SqlType::Unknown);
+        assert_eq!(SqlType::from_db_type("bytea"), SqlType::Unknown);
     }
 
     #[test]
     fn unknown_blob() {
-        assert_eq!(SqlType::from_str("blob"), SqlType::Unknown);
+        assert_eq!(SqlType::from_db_type("blob"), SqlType::Unknown);
     }
 
     #[test]
     fn unknown_empty_string() {
-        assert_eq!(SqlType::from_str(""), SqlType::Unknown);
+        assert_eq!(SqlType::from_db_type(""), SqlType::Unknown);
     }
 
     #[test]
     fn unknown_binary() {
-        assert_eq!(SqlType::from_str("binary"), SqlType::Unknown);
+        assert_eq!(SqlType::from_db_type("binary"), SqlType::Unknown);
     }
 
     #[test]
     fn unknown_varbinary() {
-        assert_eq!(SqlType::from_str("varbinary(255)"), SqlType::Unknown);
+        assert_eq!(SqlType::from_db_type("varbinary(255)"), SqlType::Unknown);
     }
 
     #[test]
     fn unknown_completely_made_up() {
-        assert_eq!(SqlType::from_str("xyzzy_type"), SqlType::Unknown);
+        assert_eq!(SqlType::from_db_type("xyzzy_type"), SqlType::Unknown);
     }
 
     #[test]
@@ -380,12 +397,36 @@ mod tests {
         // "time" does not contain "timestamp", "datetime", or "date" as substrings
         // after the timestamp/date arms; but "time" doesn't contain "date" either.
         // Verify it falls to Unknown rather than a false positive.
-        assert_eq!(SqlType::from_str("time"), SqlType::Unknown);
+        assert_eq!(SqlType::from_db_type("time"), SqlType::Unknown);
     }
 
     #[test]
     fn unknown_interval() {
-        assert_eq!(SqlType::from_str("interval"), SqlType::Unknown);
+        assert_eq!(SqlType::from_db_type("interval"), SqlType::Unknown);
+    }
+
+    // -------------------------------------------------------------------------
+    // FromStr / .parse::<SqlType>() — standard trait
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn parse_integer() {
+        assert_eq!("integer".parse::<SqlType>().unwrap(), SqlType::Integer);
+    }
+
+    #[test]
+    fn parse_bigint() {
+        assert_eq!("bigint".parse::<SqlType>().unwrap(), SqlType::BigInt);
+    }
+
+    #[test]
+    fn parse_text() {
+        assert_eq!("text".parse::<SqlType>().unwrap(), SqlType::Text);
+    }
+
+    #[test]
+    fn parse_unknown() {
+        assert_eq!("xyzzy".parse::<SqlType>().unwrap(), SqlType::Unknown);
     }
 
     // -------------------------------------------------------------------------
