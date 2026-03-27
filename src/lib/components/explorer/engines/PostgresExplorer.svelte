@@ -12,6 +12,7 @@
     import PlaylistAdd from "@tabler/icons-svelte/icons/playlist-add";
     import ExplorerToolbar from "../ExplorerToolbar.svelte";
     import { getDefaultDatabase } from "$lib/engine-config";
+    import { toast } from "svelte-sonner";
 
     let fileTree = $state<any>(null);
     let selectedNodeId = $state<string | null>(null);
@@ -190,7 +191,7 @@
                         name: idx.name,
                         type: "index" as NodeType,
                         detail: [idx.index_type, idx.is_unique ? "unique" : ""].filter(Boolean).join(" · "),
-                        metadata: { dbName: table.database || '', schemaName: table.schema || '', tableName: table.table_name },
+                        metadata: { dbName, schemaName, tableName: table.table_name },
                     })),
                 },
                 {
@@ -217,7 +218,7 @@
                         name: c.name,
                         type: "constraint" as NodeType,
                         detail: c.kind,
-                        metadata: { dbName: table.database || '', schemaName: table.schema || '', tableName: table.table_name, constraintName: c.name, definition: c.definition },
+                        metadata: { dbName, schemaName, tableName: table.table_name, constraintName: c.name, definition: c.definition },
                     })),
                 },
             ];
@@ -459,6 +460,7 @@
                     session.openDdlTab(`DDL: ${node.name}`, ddl);
                 } catch (e) {
                     console.error("DDL fetch failed:", e);
+                    toast.error(`Failed to load ${node.name}`, { description: String(e) });
                 }
                 break;
             }
@@ -507,6 +509,7 @@
                     session.openDdlTab(`${node.name}`, ddl);
                 } catch (e) {
                     console.error("Definition fetch failed:", e);
+                    toast.error(`Failed to load ${node.name}`, { description: String(e) });
                 }
                 break;
             }
@@ -551,6 +554,7 @@
                     await navigator.clipboard.writeText(ddl);
                 } catch (e) {
                     console.error("Copy DDL failed:", e);
+                    toast.error(`Failed to load ${node.name}`, { description: String(e) });
                 }
                 break;
             }
@@ -563,6 +567,9 @@
 
             case "refresh_schema": {
                 await schemaStore.refresh();
+                tableDetailsCache = new Map();
+                functionsCache = new Map();
+                sequencesCache = new Map();
                 break;
             }
 

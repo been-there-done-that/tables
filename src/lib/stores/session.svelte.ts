@@ -173,6 +173,12 @@ export class Session {
     }
 
     openDdlTab(title: string, ddl: string) {
+        // Deduplicate: if a read-only tab with this title already exists, reuse it
+        const existing = this.views.find(v => v.type === "editor" && v.title === title && v.data?.readOnly === true);
+        if (existing) {
+            this.activeViewId = existing.id;
+            return;
+        }
         this.openView("editor", title, {
             initialValue: ddl,
             readOnly: true,
