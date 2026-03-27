@@ -4,10 +4,11 @@ version = "0.1.0"
 edition = "2021"
 description = "Multi-dialect SQL scope resolver and diagnostic engine"
 license = "MIT"
+publish = false
 
 [dependencies]
 pg_query = "6.1"
-sqlparser = { version = "0.61", features = [] }
+sqlparser = "0.61"
 indexmap = "2"
 thiserror = "1"
 
