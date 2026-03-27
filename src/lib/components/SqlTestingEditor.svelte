@@ -15,6 +15,7 @@
 
     import { settingsStore } from "$lib/stores/settings.svelte";
     import { windowState } from "$lib/stores/window.svelte";
+    import { composerStore } from "$lib/stores/composer.svelte";
 
     import { invoke } from "@tauri-apps/api/core";
     import {
@@ -95,6 +96,7 @@
     }
 
     let headerController = $state<QueryHeaderController | null>(null);
+    let selectionButton = $state<{ visible: boolean; x: number; y: number }>({ visible: false, x: 0, y: 0 });
 
     let tableRef: any = $state(null); // Still need a ref for potential actions
 
@@ -907,6 +909,26 @@
         editorHandle.editor.focus();
     }
 
+    function addSelectionToChat(ed: import("monaco-editor").editor.ICodeEditor) {
+        const selection = ed.getSelection();
+        if (!selection) return;
+        const isEmpty =
+            selection.startLineNumber === selection.endLineNumber &&
+            selection.startColumn === selection.endColumn;
+        if (isEmpty) return;
+
+        const session = windowState.activeSession;
+        const activeView = session?.views.find(v => v.id === session.activeViewId);
+        const path = activeView?.title ?? "query.sql";
+
+        composerStore.pendingChip = {
+            path,
+            lineStart: selection.startLineNumber,
+            lineEnd: selection.endLineNumber,
+        };
+        selectionButton = { visible: false, x: 0, y: 0 };
+    }
+
     useMonacoEditor(
         {
             contextId: stableContextId,
@@ -1083,11 +1105,50 @@
                 }
             });
 
+            // Selection → floating "Add to chat" button
+            const selectionChangeDisposable = handle.editor.onDidChangeCursorSelection((e) => {
+                const sel = e.selection;
+                const isEmpty =
+                    sel.startLineNumber === sel.endLineNumber &&
+                    sel.startColumn === sel.endColumn;
+                if (isEmpty) {
+                    selectionButton = { visible: false, x: 0, y: 0 };
+                    return;
+                }
+                const endPos = handle.editor.getScrolledVisiblePosition({
+                    lineNumber: sel.endLineNumber,
+                    column: sel.endColumn,
+                });
+                if (!endPos) {
+                    selectionButton = { visible: false, x: 0, y: 0 };
+                    return;
+                }
+                const containerRect = editorContainer.getBoundingClientRect();
+                selectionButton = {
+                    visible: true,
+                    x: containerRect.left + endPos.left + 4,
+                    y: containerRect.top + endPos.top - 30,
+                };
+            });
+
+            // Cmd+L / Ctrl+L keybinding to add selection to chat
+            handle.editor.addAction({
+                id: "add-to-agent-chat",
+                label: "Add to Agent Chat",
+                keybindings: [
+                    monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyL,
+                ],
+                run(ed) {
+                    addSelectionToChat(ed);
+                },
+            });
+
             // Store disposables for cleanup on unmount
             editorDisposables = [
                 contentChangeDisposable,
                 cursorChangeDisposable,
                 mouseDownDisposable,
+                selectionChangeDisposable,
             ];
 
             // Enable Rich Headers (ViewZones above queries)
@@ -1193,6 +1254,16 @@
         </div>
     </div>
 </div>
+
+{#if selectionButton.visible}
+    <button
+        class="fixed z-50 flex items-center gap-1 rounded border border-blue-500/50 bg-popover px-2 py-1 text-xs text-blue-400 shadow-md hover:bg-accent"
+        style="left:{selectionButton.x}px; top:{selectionButton.y}px"
+        onclick={() => { if (editorHandle?.editor) addSelectionToChat(editorHandle.editor); }}
+    >
+        + Add to chat
+    </button>
+{/if}
 
 <style>
     /* No custom CSS padding on .view-lines as it breaks cursor coordinates. */
