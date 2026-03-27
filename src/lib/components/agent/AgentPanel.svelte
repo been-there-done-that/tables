@@ -25,7 +25,7 @@
     let sessionModel = $state<string | null>(null);
     let sessionEffort = $state<string | null>(null);
     let streamingMsgId: string | null = null;
-    let titleSet = false; // whether we've auto-titled this thread yet
+    let titleSet = $state(false); // whether we've auto-titled this thread yet
 
     // Turn-level elapsed timer
     let turnStartedAt = $state<number | null>(null);

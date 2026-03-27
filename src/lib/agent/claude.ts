@@ -7,7 +7,7 @@ export type AgentEventType =
     | { type: "tool.completed"; toolId: string; output: string }
     | { type: "tool.input_delta"; toolId: string; toolName: string; partialContent: string }
     | { type: "session.init"; sdkSessionId: string }
-    | { type: "turn.done"; isError: boolean }
+    | { type: "turn.done" }
     | { type: "error"; message: string };
 
 export interface AgentSession {
