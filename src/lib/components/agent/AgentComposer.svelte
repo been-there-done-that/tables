@@ -1,7 +1,7 @@
 <!-- src/lib/components/agent/AgentComposer.svelte -->
 <script lang="ts">
     import { Editor } from "@tiptap/core";
-    import { History } from "@tiptap/extension-history";
+    import StarterKit from "@tiptap/starter-kit";
     import { Placeholder } from "@tiptap/extension-placeholder";
 
     interface Props {
@@ -21,7 +21,7 @@
         const e = new Editor({
             element: editorEl,
             extensions: [
-                History,
+                StarterKit.configure({ history: true }),
                 Placeholder.configure({ placeholder: "Ask Claude about your database..." }),
             ],
             editorProps: {
@@ -43,6 +43,11 @@
             e.destroy();
             editor = null;
         };
+    });
+
+    $effect(() => {
+        if (!editor) return;
+        editor.setEditable(!disabled && !running);
     });
 
     function handleSend() {
