@@ -44,8 +44,7 @@ fn build_select_scope(
     }
 
     // Register FROM sources
-    let from_refs = sel.body.from.clone();
-    for table_ref in &from_refs {
+    for table_ref in &sel.body.from {
         register_table_ref(table_ref, scope_id, tree, schema);
     }
 
@@ -81,8 +80,7 @@ fn process_ctes(
         }
 
         // Register CTE body's FROM sources into cte scope
-        let cte_from = cte_ir.body.from.clone();
-        for tref in &cte_from {
+        for tref in &cte_ir.body.from {
             register_table_ref(tref, cte_scope_id, tree, schema);
         }
 
@@ -304,6 +302,23 @@ mod tests {
         let names: Vec<&str> = vis.sources.iter().map(|(a, _)| a.as_str()).collect();
         assert!(names.contains(&"cte_a"));
         assert!(names.contains(&"cte_b"));
+    }
+
+    #[test]
+    fn wildcard_through_cte_expands_from_schema() {
+        // CTE uses SELECT * from a real table, main query selects from CTE
+        // resolve_cte_columns should expand * to the table's columns
+        let sql = "WITH cte AS (SELECT * FROM users) SELECT * FROM cte";
+        let stmt = parse_postgres(sql).unwrap();
+        let schema = mock(&[("users", &["id", "name", "email"])]);
+        let tree = traverse_scope(&stmt, &schema);
+        // The CTE scope should have resolved columns from users table
+        let root = tree.all_scopes().iter()
+            .find(|s| s.parent.is_none())
+            .expect("root scope not found");
+        let cte_info = root.cte_sources.get("cte").expect("cte not found");
+        assert_eq!(cte_info.columns, vec!["id", "name", "email"],
+            "CTE SELECT * should expand to table columns");
     }
 
     #[test]

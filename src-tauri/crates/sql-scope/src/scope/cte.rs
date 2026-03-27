@@ -80,6 +80,13 @@ fn expand_table_ref_columns(
     }
 }
 
+fn unwrap_alias(source: &Source) -> &Source {
+    match source {
+        Source::Alias { target, .. } => unwrap_alias(target),
+        other => other,
+    }
+}
+
 fn expand_source_columns(
     alias: &str,
     scope_id: ScopeId,
@@ -98,8 +105,9 @@ fn expand_source_columns(
             Source::Table { schema: tschema, name } => {
                 schema.table_columns(tschema.as_deref(), name).unwrap_or_default()
             }
-            Source::Alias { target, .. } => {
-                match target.as_ref() {
+            Source::Alias { .. } => {
+                let inner = unwrap_alias(source);
+                match inner {
                     Source::Table { schema: tschema, name } => {
                         schema.table_columns(tschema.as_deref(), name).unwrap_or_default()
                     }
@@ -114,7 +122,10 @@ fn expand_source_columns(
                             vec![]
                         }
                     }
-                    _ => vec![],
+                    Source::Alias { .. } => {
+                        // Unreachable due to unwrap_alias, kept for exhaustiveness
+                        vec![]
+                    }
                 }
             }
             Source::DerivedTable { scope_id: child_id } => {
