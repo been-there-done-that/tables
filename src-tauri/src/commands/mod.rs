@@ -29,7 +29,3 @@ pub mod debug_commands;
 pub use debug_commands::*;
 pub mod editor_commands;
 pub use editor_commands::*;
-pub mod agent_commands;
-pub use agent_commands::*;
-pub mod llm_proxy;
-pub use llm_proxy::*;

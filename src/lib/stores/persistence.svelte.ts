@@ -73,6 +73,16 @@ export const persistenceStore = {
                     if (data && typeof data === 'object' && 'rows' in data) {
                         delete data.rows;
                     }
+                    // Clear transient query results — prevents auto-run on restore
+                    if (data && typeof data === 'object' && 'results' in data && data.results && typeof data.results === 'object') {
+                        data.results.executedQueryText = "";
+                        data.results.columns = [];
+                        data.results.total = 0;
+                        data.results.visible = false;
+                        data.results.loading = false;
+                        data.results.pendingDeltas = [];
+                        data.results.isCountLoading = false;
+                    }
                     return {
                         id: v.id,
                         type: v.type,

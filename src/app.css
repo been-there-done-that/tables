@@ -257,6 +257,22 @@
   }
 }
 
+/* Skeleton shimmer for loading states */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--theme-bg-secondary) 25%,
+    var(--theme-bg-tertiary) 50%,
+    var(--theme-bg-secondary) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
 /* Monaco Editor Gutter Border */
 .monaco-editor .margin {
   border-right: 1px solid var(--theme-border-subtle);

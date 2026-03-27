@@ -8,12 +8,16 @@
   import TablePreview from "$lib/components/table/TablePreview.svelte";
   import QueryLogsPanel from "$lib/components/QueryLogsPanel.svelte";
   import PendingChangesPanel from "$lib/components/table/PendingChangesPanel.svelte";
-  import AiAssistantPanel from "$lib/components/AiAssistantPanel.svelte";
-  import AgentChat from "$lib/components/agent/AgentChat.svelte";
   import { logsStore } from "$lib/stores/logs.svelte";
   import BottomPanel from "$lib/components/BottomPanel.svelte";
+  import { schemaStore } from "$lib/stores/schema.svelte";
 
   const activeSession = $derived(windowState.activeSession);
+  const editorRestoring = $derived(windowState.restoringSession);
+
+  $effect(() => {
+    console.log(`[Page] activeSession=${activeSession?.id ?? "null"}, restoringSession=${editorRestoring} at ${Date.now()}ms`);
+  });
 </script>
 
 <div class="flex h-full w-full flex-col bg-background text-foreground">
@@ -64,7 +68,28 @@
                     <div class="flex h-full flex-col bg-background">
                       <EditorTabs />
 
-                      {#if !activeSession || activeSession.views.length === 0}
+                      {#if editorRestoring || (!activeSession && schemaStore.status === "connecting")}
+                        <!-- Schema connecting or sessions hydrating — code skeleton shimmer -->
+                        <div class="flex flex-1 flex-col gap-0 overflow-hidden">
+                          <!-- fake toolbar -->
+                          <div class="flex h-8 shrink-0 items-center gap-2 border-b border-border px-3">
+                            <div class="shimmer h-4 w-16 rounded"></div>
+                            <div class="shimmer h-4 w-10 rounded"></div>
+                            <div class="ml-auto shimmer h-4 w-8 rounded"></div>
+                            <div class="shimmer h-4 w-8 rounded"></div>
+                          </div>
+                          <!-- fake code lines -->
+                          <div class="flex flex-1 flex-col gap-2.5 p-4">
+                            {#each [40, 65, 55, 80, 0, 45, 70, 0, 60, 50, 75, 35] as w}
+                              {#if w === 0}
+                                <div class="h-2"></div>
+                              {:else}
+                                <div class="shimmer h-3.5 rounded" style="width: {w}%;"></div>
+                              {/if}
+                            {/each}
+                          </div>
+                        </div>
+                      {:else if !activeSession || activeSession.views.length === 0}
                         <EditorHome />
                       {:else if windowState.layout.showSqlEditor}
                         <div class="flex-1 relative overflow-hidden">
@@ -116,12 +141,6 @@
                 <QueryLogsPanel />
               {:else if windowState.activeRightPanel === "pending-changes"}
                 <PendingChangesPanel />
-              {:else if windowState.activeRightPanel === "ai-assistant"}
-                <AiAssistantPanel />
-              {:else if windowState.activeRightPanel === "agent-chat"}
-                <div class="h-full w-full bg-background border-l border-border">
-                  <AgentChat />
-                </div>
               {:else}
                 <div class="flex h-full flex-col bg-muted/10">
                   <div
@@ -139,3 +158,4 @@
     </ResizableSplitPane>
   </div>
 </div>
+

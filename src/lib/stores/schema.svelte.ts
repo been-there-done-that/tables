@@ -1,8 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "svelte-sonner";
-import LoaderIcon from "@tabler/icons-svelte/icons/loader-2";
-import CheckIcon from "@tabler/icons-svelte/icons/check";
-import XIcon from "@tabler/icons-svelte/icons/x";
 import type { Connection, MetaDatabase } from "$lib/commands/types";
 import { settingsStore } from "./settings.svelte";
 import { windowState } from "./window.svelte";
@@ -58,6 +55,7 @@ export class SchemaStore {
 
     async connect(conn: Connection, silent: boolean = false) {
         const previousId = this.activeConnection?.id;
+        console.log(`[SchemaStore] connect() START at ${Date.now()}ms, conn=${conn.id}, silent=${silent}`);
 
         // Guard against duplicate concurrent connects to same connection
         if (this.status === "connecting" && this.activeConnection?.id === conn.id) {
@@ -135,14 +133,13 @@ export class SchemaStore {
             const engineLower = conn.engine?.toLowerCase() ?? "postgres";
             const selectedDbForCompletion = engineLower === "sqlite" ? null : conn.database;
 
-            console.time("[SchemaStore] update_completion_schema");
-            await invoke("update_completion_schema", {
+            // Fire-and-forget: completion schema is not needed to render the UI
+            invoke("update_completion_schema", {
                 connectionId: conn.id,
                 databases: data,
                 selectedDatabase: selectedDbForCompletion,
-                engineType: conn.engine  // Pass engine for dialect-specific completions
-            });
-            console.timeEnd("[SchemaStore] update_completion_schema");
+                engineType: conn.engine
+            }).catch(console.error);
 
             console.time("[SchemaStore] state update");
             this.databases = data;
@@ -195,6 +192,7 @@ export class SchemaStore {
 
             this.status = "idle";
             this.lastRefreshed = new Date();
+            console.log(`[SchemaStore] Schema loaded, status=idle at ${Date.now()}ms. Databases: ${this.databases.length}`);
             // 5. Restore window state sessions for this specific connection
             await windowState.restoreForConnection(conn);
 
@@ -202,7 +200,7 @@ export class SchemaStore {
             if (this.selectedDatabase) {
                 windowState.switchDatabaseSession(conn, this.selectedDatabase);
             }
-            console.log(`[SchemaStore] Status changed to: ${this.status}, databases count: ${this.databases.length}`);
+            console.log(`[SchemaStore] Session restore complete at ${Date.now()}ms. sessions=${windowState.sessions.length}`);
 
             if (!silent) {
                 if (data.length === 0) {
@@ -273,14 +271,14 @@ export class SchemaStore {
                 this.databases[index] = { ...updatedDb, is_loading: false };
             }
 
-            // Sync completion cache - for SQLite, don't filter by database name
+            // Fire-and-forget: completion schema is not needed to render the UI
             const isSqlite = this.activeConnection.engine?.toLowerCase() === "sqlite";
-            await invoke("update_completion_schema", {
+            invoke("update_completion_schema", {
                 connectionId: this.activeConnection.id,
                 databases: this.databases,
                 selectedDatabase: isSqlite ? null : dbName,
                 engineType: this.activeConnection.engine
-            });
+            }).catch(console.error);
 
             toast.success(`Database Loaded`, {
                 id: toastId,
@@ -311,16 +309,16 @@ export class SchemaStore {
             await invoke("refresh_schema", { connectionId: this.activeConnection.id });
             const data = await invoke<MetaDatabase[]>("get_schema", { connectionId: this.activeConnection.id });
 
-            // Sync completion cache - for SQLite, don't filter by database name
+            this.databases = data;
+
+            // Fire-and-forget: completion schema is not needed to render the UI
             const isSqlite = this.activeConnection.engine?.toLowerCase() === "sqlite";
-            await invoke<void>("update_completion_schema", {
+            invoke("update_completion_schema", {
                 connectionId: this.activeConnection.id,
                 databases: data,
                 selectedDatabase: isSqlite ? null : this.selectedDatabase,
                 engineType: this.activeConnection.engine
-            });
-
-            this.databases = data;
+            }).catch(console.error);
             this.status = "idle";
             this.lastRefreshed = new Date();
             toast.success("Schema Refreshed");

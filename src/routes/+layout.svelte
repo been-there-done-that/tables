@@ -19,8 +19,6 @@
 
 	import { resolveClipboardApi } from "$lib/components/table/clipboardUtils";
 
-	import AgentChat from "$lib/components/agent/AgentChat.svelte";
-
 	const appWindow = getCurrentWindow();
 
 	let isFullScreen = $state(false);

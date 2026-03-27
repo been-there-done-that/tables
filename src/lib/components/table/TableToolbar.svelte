@@ -59,6 +59,8 @@
         onSaveChanges?: () => Promise<void>;
         isSaving?: boolean;
         hideFilters?: boolean;
+        hideExecute?: boolean;
+        hidePagination?: boolean;
         extraActions?: import("svelte").Snippet;
         leftActions?: import("svelte").Snippet;
     }
@@ -95,6 +97,8 @@
         onSaveChanges,
         isSaving = false,
         hideFilters = false,
+        hideExecute = false,
+        hidePagination = false,
         extraActions,
         leftActions,
     }: Props = $props();
@@ -255,6 +259,11 @@
     <!-- Row 1: Pagination, Execute, Export, Timing -->
     <div class="flex items-center gap-2 px-2 h-8 text-xs w-full">
         <!-- Pagination Controls -->
+        {#if hidePagination}
+            <span class="text-[11px] tabular-nums text-muted-foreground px-1">
+                {currentBatchSize} {currentBatchSize === 1 ? "row" : "rows"}
+            </span>
+        {:else}
         <div class="flex items-center">
             <Button
                 variant="ghost"
@@ -382,12 +391,14 @@
                 <IconPlayerSkipForward class="size-4" stroke={3} />
             </Button>
         </div>
+        {/if}
 
         <div class="w-px h-5 bg-border/50"></div>
 
         <div class="w-px h-4 bg-border/40 mx-1"></div>
 
         <div class="flex items-center gap-1">
+            {#if !hideExecute}
             <Button
                 variant="ghost"
                 size="sm"
@@ -424,6 +435,7 @@
                 </svg>
                 <span class="text-xs font-medium">Add Row</span>
             </Button>
+            {/if}
 
             {#if isLoading}
                 <Button

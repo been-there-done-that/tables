@@ -137,7 +137,7 @@ impl Introspector {
         // We will introspect "main"
         let mut tables = Vec::new();
 
-        let mut stmt = target_conn.prepare("SELECT name, type FROM sqlite_master WHERE type IN ('table', 'view') AND name NOT LIKE 'sqlite_%'")
+        let mut stmt = target_conn.prepare("SELECT name, type FROM sqlite_master WHERE type IN ('table', 'view') AND name NOT LIKE 'sqlite_%' ORDER BY name")
             .map_err(|e| e.to_string())?;
 
         let table_iter = stmt.query_map([], |row| {
@@ -370,9 +370,10 @@ impl Introspector {
 
         // === LEVEL 3: Tables + Columns (bulk) ===
         let table_rows = client.query(
-            "SELECT table_schema, table_name, table_type 
-             FROM information_schema.tables 
-             WHERE table_type IN ('BASE TABLE', 'VIEW')", 
+            "SELECT table_schema, table_name, table_type
+             FROM information_schema.tables
+             WHERE table_type IN ('BASE TABLE', 'VIEW')
+             ORDER BY table_schema, table_name",
             &[]
         ).await.map_err(|e| e.to_string())?;
         let now = chrono::Utc::now().timestamp_millis();
@@ -432,10 +433,15 @@ impl Introspector {
             }));
         }
 
-        // === LEVEL 4: FKs + Indexes + Triggers (bulk) ===
-        let fk_map = self.introspect_postgres_foreign_keys_bulk(&client, connection_id, database_name, &all_schemas).await?;
-        let idx_map = self.introspect_postgres_indexes_bulk(&client, connection_id, database_name, &all_schemas).await?;
-        let trg_map = self.introspect_postgres_triggers_bulk(&client, connection_id, database_name, &all_schemas).await?;
+        // === LEVEL 4: FKs + Indexes + Triggers (bulk, parallel) ===
+        let (fk_result, idx_result, trg_result) = tokio::join!(
+            self.introspect_postgres_foreign_keys_bulk(&client, connection_id, database_name, &all_schemas),
+            self.introspect_postgres_indexes_bulk(&client, connection_id, database_name, &all_schemas),
+            self.introspect_postgres_triggers_bulk(&client, connection_id, database_name, &all_schemas),
+        );
+        let fk_map = fk_result?;
+        let idx_map = idx_result?;
+        let trg_map = trg_result?;
 
         // Save LEVEL 4 results
         {
@@ -1298,11 +1304,12 @@ impl Introspector {
         // 2. Introspect only the CURRENT database's tables/schemas
         debug!("Fetching tables for current database...");
         let table_rows = client.query(
-            "SELECT table_schema, table_name, table_type 
-             FROM information_schema.tables 
+            "SELECT table_schema, table_name, table_type
+             FROM information_schema.tables
              WHERE table_type IN ('BASE TABLE', 'VIEW')
-             AND table_schema NOT LIKE 'pg_temp_%' 
-             AND table_schema NOT LIKE 'pg_toast_temp_%'", 
+             AND table_schema NOT LIKE 'pg_temp_%'
+             AND table_schema NOT LIKE 'pg_toast_temp_%'
+             ORDER BY table_schema, table_name",
             &[]
         ).await.map_err(|e| e.to_string())?;
 
@@ -1321,10 +1328,15 @@ impl Introspector {
         let schemas_vec: Vec<String> = schemas_to_fetch.into_iter().collect();
         debug!("Fetching details for {} schemas using bulk queries...", schemas_vec.len());
 
-        // Bulk Fetch everything
-        let columns_map = self.introspect_postgres_columns_bulk(&client, connection_id, current_database, &schemas_vec).await?;
-        let fks_map = self.introspect_postgres_foreign_keys_bulk(&client, connection_id, current_database, &schemas_vec).await?;
-        let indexes_map = self.introspect_postgres_indexes_bulk(&client, connection_id, current_database, &schemas_vec).await?;
+        // Bulk Fetch everything — run all three independently in parallel
+        let (columns_result, fks_result, indexes_result) = tokio::join!(
+            self.introspect_postgres_columns_bulk(&client, connection_id, current_database, &schemas_vec),
+            self.introspect_postgres_foreign_keys_bulk(&client, connection_id, current_database, &schemas_vec),
+            self.introspect_postgres_indexes_bulk(&client, connection_id, current_database, &schemas_vec),
+        );
+        let columns_map = columns_result?;
+        let fks_map = fks_result?;
+        let indexes_map = indexes_result?;
 
         let mut tables = Vec::new();
         let now = chrono::Utc::now().timestamp_millis();
@@ -1895,9 +1907,10 @@ impl Introspector {
 
         // === LEVEL 3: Tables + Columns (bulk) ===
         let table_rows = current_client.query(
-            "SELECT table_schema, table_name, table_type 
-             FROM information_schema.tables 
-             WHERE table_type IN ('BASE TABLE', 'VIEW')", 
+            "SELECT table_schema, table_name, table_type
+             FROM information_schema.tables
+             WHERE table_type IN ('BASE TABLE', 'VIEW')
+             ORDER BY table_schema, table_name",
             &[]
         ).await.map_err(|e| e.to_string())?;
         let now = chrono::Utc::now().timestamp_millis();
@@ -2017,12 +2030,17 @@ impl Introspector {
         }
         info!("Level 3 complete: {} tables", all_tables.len());
 
-        // === LEVEL 4: FK + Indexes + Triggers (bulk) ===
+        // === LEVEL 4: FK + Indexes + Triggers (bulk, parallel) ===
         // We could prioritize here too, but Level 3 is the "unblock" point.
         let level4_res: Result<(), String> = (async {
-            let mut fk_map = self.introspect_postgres_foreign_keys_bulk(&current_client, connection_id, &effective_database, &all_schemas).await?;
-            let mut idx_map = self.introspect_postgres_indexes_bulk(&current_client, connection_id, &effective_database, &all_schemas).await?;
-            let mut trg_map = self.introspect_postgres_triggers_bulk(&current_client, connection_id, &effective_database, &all_schemas).await?;
+            let (fk_result, idx_result, trg_result) = tokio::join!(
+                self.introspect_postgres_foreign_keys_bulk(&current_client, connection_id, &effective_database, &all_schemas),
+                self.introspect_postgres_indexes_bulk(&current_client, connection_id, &effective_database, &all_schemas),
+                self.introspect_postgres_triggers_bulk(&current_client, connection_id, &effective_database, &all_schemas),
+            );
+            let mut fk_map = fk_result?;
+            let mut idx_map = idx_result?;
+            let mut trg_map = trg_result?;
 
             for table in &mut all_tables {
                 let key = (table.schema.clone(), table.table_name.clone());
@@ -2125,9 +2143,10 @@ impl Introspector {
         }
 
         let table_rows = client.query(
-            "SELECT table_schema, table_name, table_type 
-             FROM information_schema.tables 
-             WHERE table_schema = $1 AND table_type IN ('BASE TABLE', 'VIEW')", 
+            "SELECT table_schema, table_name, table_type
+             FROM information_schema.tables
+             WHERE table_schema = $1 AND table_type IN ('BASE TABLE', 'VIEW')
+             ORDER BY table_schema, table_name",
             &[&schema]
         ).await.map_err(|e| e.to_string())?;
 
@@ -2186,10 +2205,15 @@ impl Introspector {
             }));
         }
 
-        // Level 4: Relations
-        let mut fk_map = self.introspect_postgres_foreign_keys_bulk(&client, connection_id, database, &s_list).await?;
-        let mut idx_map = self.introspect_postgres_indexes_bulk(&client, connection_id, database, &s_list).await?;
-        let mut trg_map = self.introspect_postgres_triggers_bulk(&client, connection_id, database, &s_list).await?;
+        // Level 4: Relations (parallel)
+        let (fk_result, idx_result, trg_result) = tokio::join!(
+            self.introspect_postgres_foreign_keys_bulk(&client, connection_id, database, &s_list),
+            self.introspect_postgres_indexes_bulk(&client, connection_id, database, &s_list),
+            self.introspect_postgres_triggers_bulk(&client, connection_id, database, &s_list),
+        );
+        let mut fk_map = fk_result?;
+        let mut idx_map = idx_result?;
+        let mut trg_map = trg_result?;
 
         for table in &mut tables {
             let key = (table.schema.clone(), table.table_name.clone());

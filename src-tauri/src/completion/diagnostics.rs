@@ -19,7 +19,10 @@ impl DiagnosticEngine {
         
         // Traverse the tree once for efficiency
         Self::traverse(tree.root_node(), source, schema, &mut diagnostics, &mut cte_scopes);
-        
+
+        // Pass 4: Dangerous statement detection (text-based — grammar lacks DML node types)
+        Self::check_dangerous_stmts(tree.root_node(), source, &mut diagnostics);
+
         diagnostics
     }
 
@@ -165,6 +168,61 @@ impl DiagnosticEngine {
         }
     }
 
+    /// Pass 4: Text-based dangerous statement detection.
+    ///
+    /// tree-sitter-sql 0.0.2 only defines named nodes for SELECT and CREATE TABLE —
+    /// DELETE/UPDATE/DROP/TRUNCATE all parse as unnamed/error nodes, so AST-based
+    /// detection is unreliable. Instead, we examine the text of each top-level statement.
+    fn check_dangerous_stmts(root: Node, source: &str, diagnostics: &mut Vec<Diagnostic>) {
+        let mut cursor = root.walk();
+        for stmt in root.children(&mut cursor) {
+            let Ok(text) = stmt.utf8_text(source.as_bytes()) else { continue };
+            let trimmed = text.trim();
+            if trimmed.is_empty() || trimmed == ";" {
+                continue;
+            }
+
+            let upper = trimmed.to_uppercase();
+            let first_word = upper.split_ascii_whitespace().next().unwrap_or("");
+
+            match first_word {
+                "DROP" => {
+                    diagnostics.push(Diagnostic {
+                        message: "Destructive: DROP cannot be undone".to_string(),
+                        start: stmt.start_byte(),
+                        end: stmt.end_byte(),
+                        severity: 2,
+                    });
+                }
+                "TRUNCATE" => {
+                    diagnostics.push(Diagnostic {
+                        message: "Destructive: TRUNCATE will delete all rows".to_string(),
+                        start: stmt.start_byte(),
+                        end: stmt.end_byte(),
+                        severity: 2,
+                    });
+                }
+                "DELETE" if !upper.contains("WHERE") => {
+                    diagnostics.push(Diagnostic {
+                        message: "DELETE without WHERE will erase every row".to_string(),
+                        start: stmt.start_byte(),
+                        end: stmt.end_byte(),
+                        severity: 2,
+                    });
+                }
+                "UPDATE" if !upper.contains("WHERE") => {
+                    diagnostics.push(Diagnostic {
+                        message: "UPDATE without WHERE will modify every row".to_string(),
+                        start: stmt.start_byte(),
+                        end: stmt.end_byte(),
+                        severity: 2,
+                    });
+                }
+                _ => {}
+            }
+        }
+    }
+
     /// Helper script to find the first child of a certain kind
     fn find_first_child_of_kind<'a>(node: Node<'a>, kind: &str) -> Option<Node<'a>> {
         let mut cursor = node.walk();
@@ -281,6 +339,51 @@ CREATE TABLE IF NOT EXISTS production.tableau_user_license (
         for d in &diagnostics {
             println!("DIAGNOSTIC: {:?}", d);
         }
+    }
+
+    #[test]
+    fn test_delete_without_where() {
+        let sql = "DELETE FROM orders;";
+        let tree = parse_sql(sql, None).unwrap();
+        let schema = SchemaGraph::new();
+        let diagnostics = DiagnosticEngine::check(&tree, sql, &schema);
+        assert!(diagnostics.iter().any(|d| d.message.contains("DELETE without WHERE")));
+    }
+
+    #[test]
+    fn test_delete_with_where() {
+        let sql = "DELETE FROM orders WHERE id = 1;";
+        let tree = parse_sql(sql, None).unwrap();
+        let schema = SchemaGraph::new();
+        let diagnostics = DiagnosticEngine::check(&tree, sql, &schema);
+        assert!(!diagnostics.iter().any(|d| d.message.contains("DELETE without WHERE")));
+    }
+
+    #[test]
+    fn test_update_without_where() {
+        let sql = "UPDATE users SET active = false;";
+        let tree = parse_sql(sql, None).unwrap();
+        let schema = SchemaGraph::new();
+        let diagnostics = DiagnosticEngine::check(&tree, sql, &schema);
+        assert!(diagnostics.iter().any(|d| d.message.contains("UPDATE without WHERE")));
+    }
+
+    #[test]
+    fn test_drop_table() {
+        let sql = "DROP TABLE IF EXISTS users;";
+        let tree = parse_sql(sql, None).unwrap();
+        let schema = SchemaGraph::new();
+        let diagnostics = DiagnosticEngine::check(&tree, sql, &schema);
+        assert!(diagnostics.iter().any(|d| d.message.contains("DROP cannot be undone")));
+    }
+
+    #[test]
+    fn test_truncate() {
+        let sql = "TRUNCATE TABLE logs;";
+        let tree = parse_sql(sql, None).unwrap();
+        let schema = SchemaGraph::new();
+        let diagnostics = DiagnosticEngine::check(&tree, sql, &schema);
+        assert!(diagnostics.iter().any(|d| d.message.contains("TRUNCATE will delete all rows")));
     }
 
     #[test]

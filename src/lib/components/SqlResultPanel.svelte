@@ -18,12 +18,13 @@
 
     let tableRef: any = $state(null);
 
-    // Bind the table's refresh method to the shared controller
+    // Bind table methods to the shared controller so SqlTestingEditor can reach them
     $effect(() => {
         if (controller && tableRef) {
-            controller.refreshTable = () => {
-                tableRef.refresh();
-            };
+            controller.refreshTable = () => tableRef.refresh();
+            controller.getEditDeltas = () => tableRef.getEditDeltas?.() ?? [];
+            controller.revertRow = (rid: any) => tableRef.revertRow?.(rid);
+            controller.revertAll = () => tableRef.revertAll?.();
         }
     });
 </script>
@@ -59,6 +60,8 @@
             onSaveChanges={controller.saveChanges}
             isSaving={results.isSaving}
             hideFilters={true}
+            hideExecute={true}
+            hidePagination={true}
         >
             {#snippet extraActions()}
                 <Popover.Root>

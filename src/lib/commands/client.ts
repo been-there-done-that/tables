@@ -233,10 +233,6 @@ export class CommandClient {
     return this.invokeCommand('update_app_setting', { key, value });
   }
 
-  // Agent Commands
-  async fetchModels(apiUrl: string, apiKey?: string): Promise<CommandResponse<string[]>> {
-    return this.invokeCommand('fetch_models', { apiUrl, apiKey });
-  }
 }
 
 // Create singleton instance
@@ -319,5 +315,3 @@ export const getPluginInfo = (...args: Parameters<CommandClient["getPluginInfo"]
   commandClient.getPluginInfo(...args);
 export const initializeAllPlugins = (...args: Parameters<CommandClient["initializeAllPlugins"]>) =>
   commandClient.initializeAllPlugins(...args);
-export const fetchModels = (...args: Parameters<CommandClient["fetchModels"]>) =>
-  commandClient.fetchModels(...args);
