@@ -6,6 +6,7 @@
     import MongodbForm from "./forms/MongodbForm.svelte";
     import RedisForm from "./forms/RedisForm.svelte";
     import ElasticsearchForm from "./forms/ElasticsearchForm.svelte";
+    import ProviderForm from "./forms/ProviderForm.svelte";
     import FormInput from "$lib/components/FormInput.svelte";
     import Button from "$lib/components/Button.svelte";
     import { connectionForm } from "$lib/components/datasource/connectionStore.svelte";
@@ -126,6 +127,7 @@
                 id: isEdit && fields.id ? fields.id : crypto.randomUUID(),
                 name: fields.name || `My ${driver.name} Database`,
                 engine: driver.id,
+                provider: driver.provider ?? null,
                 config_json: JSON.stringify(fields),
                 connection_params: fields,
                 auth_type: "password",
@@ -264,7 +266,13 @@
         <!-- Dynamic Form Content -->
         <div class="grow px-8 overflow-y-auto min-h-0">
             <div class="max-w-2xl">
-                {#if driver.id === "postgres"}
+                {#if driver.provider}
+                    <ProviderForm
+                        providerId={driver.provider}
+                        data={formState.fields as any}
+                        onChange={handleChange}
+                    />
+                {:else if driver.id === "postgres"}
                     <PostgresForm
                         data={formState.fields as any}
                         onChange={handleChange}
