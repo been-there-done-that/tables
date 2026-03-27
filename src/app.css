@@ -381,3 +381,12 @@
 .popover-editor[data-placement="left"]::after {
   right: -5px;
 }
+
+/* Tiptap composer placeholder */
+.tiptap p.is-editor-empty:first-child::before {
+  color: var(--muted-foreground);
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
