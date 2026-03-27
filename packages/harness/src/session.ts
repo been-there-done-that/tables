@@ -84,16 +84,23 @@ export class ClaudeSession {
         // The SDK won't emit system/init until the first user message is queued
         // via send(), at which point setEmit() has already been called by the
         // /session/send SSE handler. So session.init arrives after emitFn is set.
+        // Strip Claude Code self-detection vars so the child claude process
+        // doesn't think it's nested inside another Claude Code instance.
+        const childEnv = { ...process.env };
+        delete childEnv.CLAUDECODE;
+        delete childEnv.CLAUDE_CODE_ENTRYPOINT;
+        delete childEnv.CLAUDE_CODE_VERSION;
+
         const stream = query({
             prompt: this.queue as any,
             options: {
                 permissionMode: "bypassPermissions",
                 abortController: this.ac,
-                env: { ...process.env },
+                env: childEnv,
                 includePartialMessages: true,
                 ...(claudePath ? { pathToClaudeCodeExecutable: claudePath } : {}),
                 ...(model ? { model } : {}),
-                ...(effort ? { effort } : {}),
+                ...(effort && effort !== "auto" ? { effort } : {}),
                 ...(cwd ? { cwd } : {}),
                 ...(resumeSessionId ? { resume: resumeSessionId } : {}),
                 persistSession: true,
