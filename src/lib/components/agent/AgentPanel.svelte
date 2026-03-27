@@ -8,7 +8,7 @@
     import { dispatchTool, type ToolContext } from "$lib/agent/tool-executor";
     import { harnessStore } from "$lib/stores/harness.svelte";
     import MessageList from "./MessageList.svelte";
-    import ComposerInput from "./ComposerInput.svelte";
+    import AgentComposer from "./AgentComposer.svelte";
     import IconAi from "@tabler/icons-svelte/icons/ai";
     import IconAlertCircle from "@tabler/icons-svelte/icons/alert-circle";
 
@@ -231,10 +231,11 @@
         </div>
     {:else}
         <MessageList onRunQuery={handleRunQuery} />
-        <ComposerInput
-            running={agentStore.status === "running"}
-            onSend={send}
+        <AgentComposer
+            onSend={(text, _doc) => send(text)}
             onStop={stop}
+            running={agentStore.status === "running"}
+            disabled={!sessionReady || !!sessionError}
         />
     {/if}
 </div>
