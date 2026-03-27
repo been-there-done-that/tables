@@ -126,7 +126,7 @@
             const connectionData: any = {
                 id: isEdit && fields.id ? fields.id : crypto.randomUUID(),
                 name: fields.name || `My ${driver.name} Database`,
-                engine: driver.id,
+                engine: driver.provider ? "postgres" : driver.id,
                 provider: driver.provider ?? null,
                 config_json: JSON.stringify(fields),
                 connection_params: fields,
@@ -265,7 +265,7 @@
 
         <!-- Dynamic Form Content -->
         <div class="grow px-8 overflow-y-auto min-h-0">
-            <div class="max-w-2xl">
+            <div class={driver.provider ? "" : "max-w-2xl"}>
                 {#if driver.provider}
                     <ProviderForm
                         providerId={driver.provider}

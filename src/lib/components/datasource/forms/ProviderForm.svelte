@@ -23,19 +23,19 @@
 		const p = provider; // tracked: re-runs when provider changes
 		if (!p) return;
 		untrack(() => {
-			if (!data.host) onChange("host", "");
-			if (!data.port) onChange("port", p.defaults.port);
-			if (!data.database) onChange("database", p.defaults.database);
-			if (!data.username) onChange("username", p.defaults.username);
+			if (!data.db?.host) onChange("db.host", "");
+			if (!data.db?.port) onChange("db.port", p.defaults.port);
+			if (!data.db?.database) onChange("db.database", p.defaults.database);
+			if (!data.db?.username) onChange("db.username", p.defaults.username);
 		});
 	});
 
 	function handleParsed(result: Partial<PostgresFormData>) {
-		if (result.host !== undefined) onChange("host", result.host);
-		if (result.port !== undefined) onChange("port", result.port);
-		if (result.username !== undefined) onChange("username", result.username);
-		if (result.password !== undefined) onChange("password", result.password);
-		if (result.database !== undefined) onChange("database", result.database);
+		if (result.host !== undefined) onChange("db.host", result.host);
+		if (result.port !== undefined) onChange("db.port", result.port);
+		if (result.username !== undefined) onChange("db.username", result.username);
+		if (result.password !== undefined) onChange("db.password", result.password);
+		if (result.database !== undefined) onChange("db.database", result.database);
 	}
 </script>
 

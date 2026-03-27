@@ -29,7 +29,8 @@ function getDefaultConfig(driver: Driver): NamedConfig {
   //         ? "elasticsearch"
   //         : "postgres"; // fallback
 
-  const baseConfig = createEmptyConfig(driver.id as any);
+  const engineId = driver.provider ? "postgres" : driver.id;
+  const baseConfig = createEmptyConfig(engineId as any);
   return { ...baseConfig, name: driver.name } as NamedConfig;
 }
 
