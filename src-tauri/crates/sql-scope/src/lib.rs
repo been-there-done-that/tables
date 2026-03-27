@@ -1,5 +1,6 @@
 // sql-scope: multi-dialect SQL scope resolver
 pub mod dialect;
+pub mod diagnostics;
 pub mod error;
 pub mod ir;
 pub mod parser;
@@ -16,3 +17,4 @@ pub use scope::{
     Source, VisibleSymbols,
 };
 pub use scope::traverse_scope;
+pub use diagnostics::run_diagnostics;
