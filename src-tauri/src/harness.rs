@@ -62,11 +62,13 @@ pub fn spawn(app: AppHandle) {
         // Pass through shell env so the harness can find the claude CLI in PATH
         let path_env = std::env::var("PATH").unwrap_or_default();
         let home_env = std::env::var("HOME").unwrap_or_default();
+        let user_env = std::env::var("USER").unwrap_or_default();
         log::info!("[harness] PATH={}", path_env);
 
         let mut child = match Command::new(&binary_path)
             .env("PATH", path_env)
             .env("HOME", home_env)
+            .env("USER", user_env)
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit())
             .spawn()
