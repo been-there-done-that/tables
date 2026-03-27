@@ -15,3 +15,4 @@ pub use scope::{
     ColumnRef, CteInfo, DiagSeverity, Scope, ScopeId, ScopeDiagnostic, ScopeTree, ScopeType,
     Source, VisibleSymbols,
 };
+pub use scope::traverse_scope;
