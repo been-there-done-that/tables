@@ -3,6 +3,7 @@
     import { Editor } from "@tiptap/core";
     import StarterKit from "@tiptap/starter-kit";
     import { Placeholder } from "@tiptap/extension-placeholder";
+    import { FileChipNode, TableChipNode, ResultChipNode } from "$lib/agent/composer-nodes";
 
     interface Props {
         onSend: (text: string, rawDoc: unknown) => void;
@@ -23,6 +24,9 @@
             extensions: [
                 StarterKit.configure({ history: true }),
                 Placeholder.configure({ placeholder: "Ask Claude about your database..." }),
+                FileChipNode,
+                TableChipNode,
+                ResultChipNode,
             ],
             editorProps: {
                 attributes: {
