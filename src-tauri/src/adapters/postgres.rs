@@ -646,6 +646,11 @@ impl DatabaseAdapter for PostgresAdapter {
                 table_name: table.name.clone(),
                 index_name,
                 is_unique,
+                is_primary: false,
+                index_type: "btree".to_string(),
+                columns: vec![],
+                predicate: None,
+                definition: String::new(),
             }
         }).collect())
     }
@@ -874,6 +879,11 @@ impl DatabaseAdapter for PostgresAdapter {
                 table_name,
                 index_name,
                 is_unique,
+                is_primary: false,
+                index_type: "btree".to_string(),
+                columns: vec![],
+                predicate: None,
+                definition: String::new(),
             }
         }).collect())
     }
