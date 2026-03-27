@@ -7,7 +7,7 @@ export interface AgentThread {
     connectionId: string;
     databaseName: string | null;
     model: string;
-    effort: "auto" | "low" | "medium" | "high" | "max";
+    effort: string;
     sdkSessionId: string | null;
     summary: string | null;
     createdAt: number;
