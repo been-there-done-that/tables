@@ -287,6 +287,17 @@ macro_rules! aggregate_plugin_commands {
             delete_editor_session,
             format_sql,
 
+            // Agent thread commands
+            create_agent_thread,
+            list_agent_threads,
+            update_agent_thread_title,
+            update_agent_thread_sdk_session,
+            delete_agent_thread,
+            append_agent_message,
+            list_agent_messages,
+            upsert_agent_tool_call,
+            list_agent_tool_calls,
+
             // Harness sidecar
             crate::harness::get_harness_port,
 
