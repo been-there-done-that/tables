@@ -14,7 +14,7 @@
 
 	let { providerId, data, onChange }: Props = $props();
 
-	const provider = PROVIDERS[providerId];
+	const provider = $derived(PROVIDERS[providerId]);
 
 	// Apply provider defaults on mount
 	$effect(() => {
