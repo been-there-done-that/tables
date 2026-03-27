@@ -7,6 +7,8 @@
     import IconChevronDown from "@tabler/icons-svelte/icons/chevron-down";
     import IconChevronRight from "@tabler/icons-svelte/icons/chevron-right";
     import IconPlayerPlay from "@tabler/icons-svelte/icons/player-play";
+    import IconListSearch from "@tabler/icons-svelte/icons/list-search";
+    import { composerStore } from "$lib/stores/composer.svelte";
 
     interface Props {
         toolCall: AgentToolCall;
@@ -117,15 +119,33 @@
                 <div>
                     <div class="mb-1 flex items-center justify-between">
                         <span class="text-[10px] uppercase tracking-wide text-muted-foreground">Output</span>
-                        {#if getSql() && onRun && toolCall.status === "done"}
-                            <button
-                                onclick={(e) => { e.stopPropagation(); onRun?.(getSql()!); }}
-                                class="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-accent hover:bg-accent/10"
-                            >
-                                <IconPlayerPlay size={9} />
-                                Run
-                            </button>
-                        {/if}
+                        <div class="flex items-center gap-2">
+                            {#if getSql() && onRun && toolCall.status === "done"}
+                                <button
+                                    onclick={(e) => { e.stopPropagation(); onRun?.(getSql()!); }}
+                                    class="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-accent hover:bg-accent/10"
+                                >
+                                    <IconPlayerPlay size={9} />
+                                    Run
+                                </button>
+                            {/if}
+                            {#if toolCall.status === "done" && toolCall.output}
+                                {#if composerStore.isTagged(toolCall.id)}
+                                    <span class="flex items-center gap-1 text-[10px] text-green-400">
+                                        <IconListSearch size={11} />
+                                        tagged
+                                    </span>
+                                {:else}
+                                    <button
+                                        onclick={(e) => { e.stopPropagation(); composerStore.tagResult(toolCall.id, toolCall.toolName, toolCall.output!); }}
+                                        class="flex items-center gap-1 rounded border border-border/50 px-1.5 py-0.5 text-[10px] text-muted-foreground hover:border-blue-500/40 hover:text-blue-400"
+                                    >
+                                        <IconListSearch size={11} />
+                                        @ use as context
+                                    </button>
+                                {/if}
+                            {/if}
+                        </div>
                     </div>
                     <pre
                         class="max-h-48 overflow-y-auto whitespace-pre-wrap break-all text-[11px] {toolCall.status ===
