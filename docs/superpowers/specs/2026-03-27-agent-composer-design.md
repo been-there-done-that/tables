@@ -36,12 +36,12 @@ packages/harness/src/session.ts                    — emit tool.input_delta for
 
 Four chip types, all rendered inline inside Tiptap as non-editable nodes:
 
-| Node name | Visual | Colour | Resolves to at send time |
+| Node name | Icon | Colour | Resolves to at send time |
 |---|---|---|---|
-| `file-chip` | `📄 orders.sql` | blue | full `view.data.content` from session tab |
-| `file-chip` (ranged) | `📄 orders.sql:13–16` | blue | content sliced to line range |
-| `table-chip` | `🗄️ orders` | purple | `invoke("get_schema_table_details", ...)` |
-| `result-chip` | `📊 run_query result` | green | stored tool output, max 50 rows |
+| `file-chip` | `IconFileText` + filename | blue | full `view.data.content` from session tab |
+| `file-chip` (ranged) | `IconFileText` + `filename:13–16` | blue | content sliced to line range |
+| `table-chip` | `IconTable` + tablename | purple | `invoke("get_schema_table_details", ...)` |
+| `result-chip` | `IconListSearch` + `{toolName} result` | green | stored tool output, max 50 rows |
 
 ---
 
@@ -69,9 +69,9 @@ Tiptap editor (`@tiptap/core` + `@tiptap/extension-mention`) with three custom e
 
 Floating dropdown anchored to the `@` cursor position. Three search buckets merged and filtered by query string:
 
-- **Open tabs** — all `view.type === "editor"` tabs in the active session. Label: `📄 {title}`.
-- **Tables** — all table names from `schemaStore` for the active connection. Label: `🗄️ {tableName}`.
-- **Recent results** — last 10 tagged results from `composerStore.taggedResults`. Label: `📊 {toolName} result`.
+- **Open tabs** — all `view.type === "editor"` tabs in the active session. Icon: `IconFileText`. Label: `{title}`.
+- **Tables** — all table names from `schemaStore` for the active connection. Icon: `IconTable`. Label: `{tableName}`.
+- **Recent results** — last 10 tagged results from `composerStore.taggedResults`. Icon: `IconListSearch`. Label: `{toolName} result`.
 
 Keyboard: `↑↓` navigate, `Enter`/`Tab` select, `Escape` close.
 
