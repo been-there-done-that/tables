@@ -732,8 +732,14 @@ impl CompletionEngine {
         if prefix.is_empty() {
             return;
         }
-        let prefix_lower = prefix.to_lowercase();
-        items.retain(|item| item.label.to_lowercase().starts_with(&prefix_lower));
+        // Filter: only keep items with non-zero match score
+        items.retain(|item| sql_scope::match_score(prefix, &item.label) > 0);
+        // Re-sort by match score (higher is better), then by existing score
+        items.sort_by(|a, b| {
+            let sa = sql_scope::match_score(prefix, &a.label);
+            let sb = sql_scope::match_score(prefix, &b.label);
+            sb.cmp(&sa).then(b.score.cmp(&a.score))
+        });
     }
 }
 

@@ -24,3 +24,21 @@ pub use scope::{
 pub use scope::traverse_scope;
 pub use diagnostics::run_diagnostics;
 pub use types::resolve_column_type;
+
+/// Resolve scope for a single SQL statement.
+/// Use `split_statements()` first for multi-statement input.
+pub fn resolve(
+    sql: &str,
+    dialect: Dialect,
+    schema: &dyn schema::SchemaSnapshot,
+) -> Result<ScopeTree, error::ScopeError> {
+    let stmt = match dialect {
+        Dialect::Postgres => parser::postgres::parse_postgres(sql)
+            .ok_or_else(|| error::ScopeError::Parse("PostgreSQL parse failed".into()))?,
+        Dialect::Sqlite => parser::sqlite::parse_sqlite(sql)
+            .ok_or_else(|| error::ScopeError::Parse("SQLite parse failed".into()))?,
+        Dialect::Mysql => parser::mysql::parse_mysql(sql)
+            .ok_or_else(|| error::ScopeError::Parse("MySQL parse failed".into()))?,
+    };
+    Ok(scope::resolver::traverse_scope(&stmt, schema))
+}
