@@ -302,6 +302,15 @@ macro_rules! aggregate_plugin_commands {
             upsert_agent_tool_call,
             list_agent_tool_calls,
 
+            // DDL generation commands
+            get_table_ddl,
+            get_view_definition,
+            get_matview_definition,
+            get_function_ddl,
+            get_sequence_ddl,
+            get_index_ddl,
+            get_trigger_definition,
+
             // Harness sidecar
             crate::harness::get_harness_port,
 
