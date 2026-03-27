@@ -44,6 +44,7 @@ export async function startAgentSession(opts: {
     const base = `http://127.0.0.1:${port}`;
     const sessionId = opts.sessionId ?? crypto.randomUUID();
 
+    console.log(`[claude] starting session ${sessionId} on port ${port}`);
     const startRes = await fetch(`${base}/session/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -52,6 +53,7 @@ export async function startAgentSession(opts: {
     if (!startRes.ok) {
         throw new Error(`Failed to start harness session: ${startRes.status}`);
     }
+    console.log(`[claude] session started ok`);
 
     let currentReader: ReadableStreamDefaultReader<Uint8Array> | null = null;
 
@@ -68,21 +70,26 @@ export async function startAgentSession(opts: {
     opts.abortController.signal.addEventListener("abort", stop);
 
     async function consumeSSE(response: Response) {
+        console.log("[claude] consumeSSE started");
         const reader = response.body!.getReader();
         currentReader = reader;
         const decoder = new TextDecoder();
         let buffer = "";
+        let eventCount = 0;
         try {
             while (true) {
                 const { done, value } = await reader.read();
-                if (done) break;
+                if (done) { console.log(`[claude] SSE stream done, total events: ${eventCount}`); break; }
                 buffer += decoder.decode(value, { stream: true });
                 const parts = buffer.split("\n\n");
                 buffer = parts.pop() ?? "";
                 for (const part of parts) {
                     if (part.startsWith("data: ")) {
                         const event = JSON.parse(part.slice(6)) as AgentEventType;
+                        eventCount++;
+                        console.log(`[claude] event #${eventCount}: ${event.type}${"content" in event ? ` "${(event as any).content?.slice?.(0, 20)}"` : ""}`);
                         opts.onEvent(event);
+                        await Promise.resolve();
                     }
                 }
             }
@@ -99,6 +106,7 @@ export async function startAgentSession(opts: {
         sessionId,
         port,
         send(text: string) {
+            console.log(`[claude] send → "${text.slice(0, 40)}"`);
             fetch(`${base}/session/send`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },

@@ -14,3 +14,4 @@ vite.config.ts.timestamp-*
 .coderev/
 .fastembed_cache/
 .grepai/
+src-tauri/binaries/

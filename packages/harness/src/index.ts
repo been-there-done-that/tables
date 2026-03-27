@@ -61,16 +61,18 @@ const server = Bun.serve({
             });
 
             session.setEmit((e) => {
+                console.error(`[harness] emit → ${e.type}${"content" in e ? ` "${(e as any).content?.slice?.(0, 20)}"` : ""}`);
                 try {
                     controller.enqueue(encoder.encode(`data: ${JSON.stringify(e)}\n\n`));
                     if (e.type === "turn.done" || e.type === "error") {
                         controller.close();
                     }
-                } catch {
-                    // Stream already closed
+                } catch (err) {
+                    console.error(`[harness] enqueue failed (stream closed?):`, err);
                 }
             });
 
+            console.error(`[harness] calling session.send for ${sessionId}`);
             session.send(text);
 
             return new Response(stream, {

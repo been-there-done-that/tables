@@ -46,13 +46,20 @@ export type HarnessEvent =
     | { type: "turn.done" }
     | { type: "error"; message: string };
 
-type SDKMsg = { type: "user"; message: { role: "user"; content: string }; parent_tool_use_id: null };
+type SDKMsg = {
+    type: "user";
+    session_id: string;
+    parent_tool_use_id: null;
+    message: { role: "user"; content: Array<{ type: "text"; text: string }> };
+};
 
 export class ClaudeSession {
     private queue = new AsyncQueue<SDKMsg>();
     private ac = new AbortController();
     private firstMessage = true;
     private emitFn: (e: HarnessEvent) => void = () => {};
+    // Track whether stream_event text tokens have arrived this turn
+    private turnHasStreamEvents = false;
     // Track Bash tool IDs that are /db/ API calls so we can suppress them
     private suppressedBashIds = new Set<string>();
 
@@ -65,6 +72,8 @@ export class ClaudeSession {
             options: {
                 permissionMode: "bypassPermissions",
                 abortController: this.ac,
+                env: { ...process.env },
+                includePartialMessages: true,
                 ...(claudePath ? { pathToClaudeCodeExecutable: claudePath } : {}),
             } as any,
         });
@@ -80,22 +89,45 @@ export class ClaudeSession {
     }
 
     private async consume(stream: AsyncIterable<unknown>) {
+        console.error("[session] consume() started");
         try {
             for await (const msg of stream as AsyncIterable<Record<string, unknown>>) {
-                if (msg.type === "assistant") {
+                console.error(`[session] sdk msg type: ${msg.type}`);
+
+                if (msg.type === "stream_event") {
+                    // Per-token streaming — preferred path when SDK emits these
+                    const streamEvent = (msg as any).event as Record<string, unknown>;
+                    console.error(`[session] stream_event: ${streamEvent?.type}`);
+                    if (streamEvent?.type === "content_block_delta") {
+                        const delta = streamEvent.delta as Record<string, unknown>;
+                        if (delta?.type === "text_delta" && delta.text) {
+                            this.turnHasStreamEvents = true;
+                            this.emitFn({ type: "text.delta", content: delta.text as string });
+                        } else if (delta?.type === "thinking_delta" && delta.thinking) {
+                            this.turnHasStreamEvents = true;
+                            this.emitFn({ type: "thinking.delta", content: delta.thinking as string });
+                        }
+                    }
+
+                } else if (msg.type === "assistant") {
                     const message = msg.message as { content: Array<Record<string, unknown>> };
                     for (const block of message?.content ?? []) {
                         if (block.type === "text") {
-                            this.emitFn({ type: "text.delta", content: block.text as string });
+                            // Only emit from assistant block if stream_event didn't already stream it
+                            if (!this.turnHasStreamEvents) {
+                                console.error(`[session] assistant text fallback: "${String(block.text).slice(0, 40)}"`);
+                                this.emitFn({ type: "text.delta", content: block.text as string });
+                            }
                         } else if (block.type === "thinking") {
-                            this.emitFn({ type: "thinking.delta", content: block.thinking as string });
+                            if (!this.turnHasStreamEvents) {
+                                this.emitFn({ type: "thinking.delta", content: block.thinking as string });
+                            }
                         } else if (block.type === "tool_use") {
-                            // Suppress Bash tool events that are /db/ API calls
                             if (block.name === "Bash") {
                                 const cmd = ((block.input as any)?.command ?? "") as string;
                                 if (cmd.includes("/db/")) {
                                     this.suppressedBashIds.add(block.id as string);
-                                    continue; // Don't emit tool.started — /db handler emits it
+                                    continue;
                                 }
                             }
                             this.emitFn({
@@ -106,12 +138,12 @@ export class ClaudeSession {
                             });
                         }
                     }
+
                 } else if (msg.type === "user") {
                     const message = msg.message as { content: Array<Record<string, unknown>> };
                     for (const block of message?.content ?? []) {
                         if (block.type === "tool_result") {
                             const toolUseId = block.tool_use_id as string;
-                            // Suppress tool_result for our suppressed Bash IDs
                             if (this.suppressedBashIds.has(toolUseId)) {
                                 this.suppressedBashIds.delete(toolUseId);
                                 continue;
@@ -129,19 +161,31 @@ export class ClaudeSession {
                             });
                         }
                     }
+
                 } else if (msg.type === "result") {
+                    console.error(`[session] result:`, JSON.stringify(msg).slice(0, 200));
+                    this.turnHasStreamEvents = false; // reset for next turn
                     this.emitFn({ type: "turn.done" });
+
+                } else {
+                    console.error(`[session] unhandled msg type: ${msg.type}`);
                 }
             }
         } catch (e: unknown) {
             if (!this.ac.signal.aborted) {
+                console.error(`[session] stream error:`, String(e));
                 this.emitFn({ type: "error", message: String(e) });
             }
         }
     }
 
     private msg(content: string): SDKMsg {
-        return { type: "user", message: { role: "user", content }, parent_tool_use_id: null };
+        return {
+            type: "user",
+            session_id: "",
+            parent_tool_use_id: null,
+            message: { role: "user", content: [{ type: "text", text: content }] },
+        };
     }
 
     send(text: string) {
