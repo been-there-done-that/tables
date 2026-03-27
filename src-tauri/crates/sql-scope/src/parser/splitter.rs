@@ -71,11 +71,21 @@ pub fn split_statements(sql: &str) -> Vec<(usize, &str)> {
             // Double-quoted identifier
             b'"' => {
                 i += 1;
-                while i < len && bytes[i] != b'"' {
-                    i += 1;
-                }
-                if i < len {
-                    i += 1; // consume closing "
+                loop {
+                    if i >= len {
+                        break;
+                    }
+                    if bytes[i] == b'"' {
+                        // Check for SQL-standard escaped "" (two consecutive double quotes)
+                        if i + 1 < len && bytes[i + 1] == b'"' {
+                            i += 2; // skip both quotes, still inside identifier
+                        } else {
+                            i += 1; // closing quote
+                            break;
+                        }
+                    } else {
+                        i += 1;
+                    }
                 }
             }
 
@@ -151,8 +161,31 @@ fn find_dollar_quote_tag(sql: &str, pos: usize) -> Option<(usize, &str)> {
     if bytes[pos] != b'$' {
         return None;
     }
-    // The tag body may be empty ($$) or consist of letters, digits, underscores
+    // The tag body may be empty ($$) or consist of [letter|underscore][letter|digit|underscore]*
+    // Tags must NOT start with a digit.
     let mut j = pos + 1;
+    // Check the first character of the tag body
+    if j < bytes.len() {
+        match bytes[j] {
+            b'$' => {
+                // $$ case — empty tag, valid
+                let end = j + 1;
+                let tag = &sql[pos..end];
+                return Some((end, tag));
+            }
+            b'A'..=b'Z' | b'a'..=b'z' | b'_' => {
+                // Valid first character, continue
+                j += 1;
+            }
+            _ => {
+                // Digit or other — invalid tag start
+                return None;
+            }
+        }
+    } else {
+        return None;
+    }
+    // Subsequent characters: letters, digits, underscores, or closing $
     while j < bytes.len() {
         match bytes[j] {
             b'$' => {
@@ -531,5 +564,25 @@ $$ LANGUAGE plpgsql; SELECT 1"#;
         );
         let r = stmts(sql);
         assert_eq!(r.len(), 4);
+    }
+
+    // ── Double-quoted identifier with "" escape ──────────────────────────────
+
+    #[test]
+    fn double_quoted_identifier_escaped_double_quote() {
+        // "col""name" is a single identifier with an embedded double-quote
+        let sql = r#"SELECT "col""name" FROM t"#;
+        assert_eq!(stmts(sql).len(), 1);
+    }
+
+    // ── Dollar-quote tag cannot start with a digit ───────────────────────────
+
+    #[test]
+    fn dollar_tag_starting_with_digit_not_dollar_quoted() {
+        // $1abc$ is not a valid dollar-quote tag (starts with digit),
+        // so the semicolon DOES split the input.
+        let sql = r#"$1abc$hello;world$1abc$"#;
+        let r = stmts(sql);
+        assert_eq!(r.len(), 2, "digit-leading dollar tag should not be treated as dollar-quoted");
     }
 }
