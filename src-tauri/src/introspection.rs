@@ -150,6 +150,8 @@ pub struct MetaFunctionArg {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MetaFunction {
+    pub connection_id: String,
+    pub database: String,
     pub name: String,
     pub schema: String,
     pub language: String,
@@ -163,6 +165,8 @@ pub struct MetaFunction {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MetaSequence {
+    pub connection_id: String,
+    pub database: String,
     pub name: String,
     pub schema: String,
     pub data_type: String,
@@ -184,6 +188,10 @@ pub enum ConstraintKind {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MetaConstraint {
+    pub connection_id: String,
+    pub database: String,
+    pub schema: String,
+    pub table_name: String,
     pub name: String,
     pub kind: ConstraintKind,
     pub definition: String,
