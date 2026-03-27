@@ -14,6 +14,7 @@
     let { onNewThread, onSelectThread }: Props = $props();
 
     const activeThread = $derived(threadsStore.activeThread);
+    const activeThreadId = $derived(threadsStore.activeThreadId);
     const threads = $derived(threadsStore.threads);
     const title = $derived(activeThread?.title ?? "New chat");
 </script>
@@ -48,7 +49,7 @@
 
         {#each threads as thread (thread.id)}
             <Menu.Item
-                class="group flex items-center justify-between gap-2 rounded px-2 py-1.5 text-[11px] cursor-pointer {thread.id === threadsStore.activeThreadId ? 'bg-accent/10 text-foreground' : 'text-foreground/70 hover:bg-foreground/5 hover:text-foreground'}"
+                class="group flex items-center justify-between gap-2 rounded px-2 py-1.5 text-[11px] cursor-pointer {thread.id === activeThreadId ? 'bg-accent/10 text-foreground' : 'text-foreground/70 hover:bg-foreground/5 hover:text-foreground'}"
                 onclick={() => onSelectThread(thread)}
             >
                 <span class="truncate">{thread.title}</span>
