@@ -31,3 +31,5 @@ pub mod editor_commands;
 pub use editor_commands::*;
 pub mod agent_commands;
 pub use agent_commands::*;
+pub mod ddl_commands;
+pub use ddl_commands::*;
