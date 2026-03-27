@@ -80,6 +80,10 @@ export class ClaudeSession {
         if (cwd) {
             Bun.spawnSync(["mkdir", "-p", cwd]);
         }
+        // Note: consume() starts immediately but the queue is empty.
+        // The SDK won't emit system/init until the first user message is queued
+        // via send(), at which point setEmit() has already been called by the
+        // /session/send SSE handler. So session.init arrives after emitFn is set.
         const stream = query({
             prompt: this.queue as any,
             options: {
@@ -212,6 +216,7 @@ export class ClaudeSession {
                 } else if (msg.type === "system") {
                     const sessionId = (msg as any).session_id as string | undefined;
                     if (sessionId) {
+                        console.error(`[session] session.init: ${sessionId}`);
                         this.emitFn({ type: "session.init", sdkSessionId: sessionId });
                     }
 
