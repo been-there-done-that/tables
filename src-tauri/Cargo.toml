@@ -70,6 +70,7 @@ sqlformat = "0.5.0"
 reqwest = { version = "0.13.1", features = ["stream", "json"] }
 futures-util = "0.3.31"
 tree-sitter-sql = "0.0.2"
+sql-scope = { path = "crates/sql-scope" }
 [profile.release]
 strip = true
 lto = true
