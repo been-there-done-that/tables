@@ -237,16 +237,20 @@ class AgentStore {
                 timestamp: m.timestamp * 1000,
             }));
 
-            this.toolCalls = tools.map((t) => ({
-                id: t.id,
-                toolName: t.toolName,
-                input: JSON.parse(t.input),
-                status: t.status as "running" | "done" | "error",
-                output: t.output ?? undefined,
-                timestamp: t.startedAt * 1000,
-                startedAt: t.startedAt * 1000,
-                completedAt: t.completedAt != null ? t.completedAt * 1000 : undefined,
-            }));
+            this.toolCalls = tools.map((t) => {
+                const rawStatus = t.status as "running" | "awaiting" | "done" | "error";
+                const isStale = rawStatus === "running" || rawStatus === "awaiting";
+                return {
+                    id: t.id,
+                    toolName: t.toolName,
+                    input: JSON.parse(t.input),
+                    status: isStale ? ("error" as const) : rawStatus,
+                    output: isStale ? "Session ended while tool was pending" : (t.output ?? undefined),
+                    timestamp: t.startedAt * 1000,
+                    startedAt: t.startedAt * 1000,
+                    completedAt: t.completedAt != null ? t.completedAt * 1000 : undefined,
+                };
+            });
 
             this.turnSummaries = summaries.map((s) => ({
                 id: s.id,
