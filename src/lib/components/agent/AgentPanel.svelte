@@ -22,6 +22,16 @@
     // Read-only tools and write_file auto-execute. Only run_query is gated.
     let planMode = $state(false);
     const APPROVAL_REQUIRED = new Set(["run_query"]);
+
+    function toolToPhase(toolName: string): "gather" | "draft" | "execute" | null {
+        const GATHER = ["describe_table", "sample_table", "list_tables", "list_schemas", "list_databases", "check_fk_integrity", "read_file"];
+        const DRAFT = ["write_file"];
+        const EXECUTE = ["run_query"];
+        if (GATHER.includes(toolName)) return "gather";
+        if (DRAFT.includes(toolName)) return "draft";
+        if (EXECUTE.includes(toolName)) return "execute";
+        return null;
+    }
     type PendingApproval = { toolName: string; input: unknown; ctx: ToolContext };
     const pendingApprovals = new Map<string, PendingApproval>();
 
@@ -249,6 +259,17 @@
                 const ctx = getToolContext();
                 const needsApproval = planMode && APPROVAL_REQUIRED.has(event.toolName) && !!ctx;
                 agentStore.addToolCall(event.toolId, event.toolName, event.input, needsApproval ? "awaiting" : "running");
+                // Advance matching plan step to "running"
+                const activePlanStarted = plansStore.plans[plansStore.plans.length - 1] ?? null;
+                if (activePlanStarted) {
+                    const phase = toolToPhase(event.toolName);
+                    const step = activePlanStarted.steps.find(
+                        (s) => (phase == null || s.phase === phase) && s.status === "pending"
+                    );
+                    if (step) {
+                        plansStore.updateStep(step.id, "running", event.toolId).catch(console.error);
+                    }
+                }
                 if (ctx) {
                     if (needsApproval) {
                         // Hold execution — user must approve before the POST goes to harness.
@@ -263,6 +284,16 @@
             }
             case "tool.completed": {
                 agentStore.completeToolCall(event.toolId, event.output);
+                // Mark plan step as done
+                const activePlanCompleted = plansStore.plans[plansStore.plans.length - 1] ?? null;
+                if (activePlanCompleted) {
+                    const step = activePlanCompleted.steps.find(
+                        (s) => s.toolCallId === event.toolId || s.status === "running"
+                    );
+                    if (step) {
+                        plansStore.updateStep(step.id, "done").catch(console.error);
+                    }
+                }
                 break;
             }
             case "tool.input_delta": {
