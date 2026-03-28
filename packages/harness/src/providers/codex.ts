@@ -1,31 +1,47 @@
 import { JsonRpcAdapter } from "../adapters/jsonrpc-adapter";
 import type { HarnessEvent, SessionConfig } from "../types";
 
-// Codex JSON-RPC notification method → HarnessEvent mapping
+// Codex app-server JSON-RPC notification method → HarnessEvent mapping
+// Method names sourced from `codex app-server generate-ts` (v0.117.0)
 const NOTIFICATION_MAP: Record<string, (params: any) => HarnessEvent | null> = {
     "item/agentMessage/delta": (p) => ({
         type: "text.delta",
         content: p?.delta ?? "",
     }),
-    "item/thinkingMessage/delta": (p) => ({
+    "item/reasoning/textDelta": (p) => ({
         type: "thinking.delta",
         content: p?.delta ?? "",
     }),
-    "item/toolCall/start": (p) => ({
-        type: "tool.started",
-        toolId: p?.id ?? "",
-        toolName: p?.name ?? "",
-        input: p?.input ?? {},
+    "item/reasoning/summaryTextDelta": (p) => ({
+        type: "thinking.delta",
+        content: p?.delta ?? "",
     }),
-    "item/toolCall/complete": (p) => ({
-        type: "tool.completed",
-        toolId: p?.id ?? "",
-        output: typeof p?.output === "string" ? p.output : JSON.stringify(p?.output ?? ""),
-    }),
-    "thread/turn/complete": () => ({ type: "turn.done" }),
-    "session/ready": (p) => ({
+    "item/started": (p) => {
+        // Only emit tool.started for non-message items (file changes, commands)
+        if (p?.item?.type && p.item.type !== "message") {
+            return {
+                type: "tool.started",
+                toolId: p.item.id ?? "",
+                toolName: p.item.type ?? "",
+                input: p.item.params ?? {},
+            };
+        }
+        return null;
+    },
+    "item/completed": (p) => {
+        if (p?.item?.type && p.item.type !== "message") {
+            return {
+                type: "tool.completed",
+                toolId: p.item.id ?? "",
+                output: typeof p.item.output === "string" ? p.item.output : JSON.stringify(p.item.output ?? ""),
+            };
+        }
+        return null;
+    },
+    "turn/completed": () => ({ type: "turn.done" }),
+    "thread/started": (p) => ({
         type: "session.init",
-        sdkSessionId: p?.sessionId ?? "",
+        sdkSessionId: p?.thread?.id ?? "",
     }),
 };
 
@@ -44,23 +60,27 @@ export class CodexProvider extends JsonRpcAdapter {
     }
 
     private async init() {
-        // 1. Send initialize request
+        // 1. Send initialize with capabilities
         await this.sendRequest("initialize", {
-            clientInfo: { name: "tables-harness", version: "1.0.0" },
+            clientInfo: { name: "tables-harness", title: null, version: "1.0.0" },
+            capabilities: { experimentalApi: false },
         });
 
-        // 2. Send initialized notification
+        // 2. Confirm initialization
         this.sendNotification("initialized");
 
-        // 3. Verify account access
-        await this.sendRequest("account/read", {});
-
-        // 4. Open a thread for this session
-        const response = await this.sendRequest<{ threadId: string }>("thread/start", {
-            cwd: `${Bun.env.HOME ?? ""}/.config/tables/sessions/${this.config.threadId}`,
+        // 3. Start a thread — system prompt goes in developerInstructions
+        //    experimentalRawEvents and persistExtendedHistory are required fields
+        const response = await this.sendRequest<{ thread: { id: string } }>("thread/start", {
+            cwd: process.cwd(),
+            developerInstructions: this.config.systemPrompt || undefined,
+            approvalPolicy: "never",
+            experimentalRawEvents: false,
+            persistExtendedHistory: false,
+            ephemeral: true,
             ...(this.config.model ? { model: this.config.model } : {}),
         });
-        this.threadId = response.threadId;
+        this.threadId = response.thread.id;
         this.ready = true;
     }
 
@@ -82,10 +102,10 @@ export class CodexProvider extends JsonRpcAdapter {
             this.emitFn({ type: "error", message: "Codex session not ready" });
             return;
         }
-        this.sendRequest("thread/message", {
+        // turn/start sends a user message and starts a new agent turn
+        this.sendRequest("turn/start", {
             threadId: this.threadId,
-            content: text,
-            systemPrompt: this.config.systemPrompt,
+            input: [{ type: "text", text, text_elements: [] }],
         }).catch((e) =>
             this.emitFn({ type: "error", message: `Codex send failed: ${String(e)}` })
         );

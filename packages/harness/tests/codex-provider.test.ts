@@ -32,23 +32,33 @@ describe("CodexProvider.handleNotification", () => {
         expect((textEvents[0] as Extract<HarnessEvent, { type: "text.delta" }>).content).toBe("Hello world");
     });
 
-    it("item/thinkingMessage/delta maps to thinking.delta with correct content", () => {
+    it("item/reasoning/textDelta maps to thinking.delta with correct content", () => {
         const { provider, events } = makeProvider();
 
-        (provider as any).handleNotification("item/thinkingMessage/delta", { delta: "Deep thought" });
+        (provider as any).handleNotification("item/reasoning/textDelta", { delta: "Deep thought" });
 
         const thinkEvents = events.filter((e) => e.type === "thinking.delta");
         expect(thinkEvents.length).toBe(1);
         expect((thinkEvents[0] as Extract<HarnessEvent, { type: "thinking.delta" }>).content).toBe("Deep thought");
     });
 
-    it("thread/turn/complete maps to turn.done", () => {
+    it("turn/completed maps to turn.done", () => {
         const { provider, events } = makeProvider();
 
-        (provider as any).handleNotification("thread/turn/complete", {});
+        (provider as any).handleNotification("turn/completed", {});
 
         const doneEvents = events.filter((e) => e.type === "turn.done");
         expect(doneEvents.length).toBe(1);
+    });
+
+    it("thread/started maps to session.init with thread id", () => {
+        const { provider, events } = makeProvider();
+
+        (provider as any).handleNotification("thread/started", { thread: { id: "thread-abc-123" } });
+
+        const initEvents = events.filter((e) => e.type === "session.init");
+        expect(initEvents.length).toBe(1);
+        expect((initEvents[0] as Extract<HarnessEvent, { type: "session.init" }>).sdkSessionId).toBe("thread-abc-123");
     });
 
     it("unknown method emits no event", () => {
