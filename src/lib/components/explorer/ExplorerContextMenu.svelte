@@ -69,7 +69,7 @@
         </ContextMenu.Item>
         <ContextMenu.Item onclick={() => act("copy_function_ddl")}>
             <IconCopy class="mr-2 size-4 opacity-60" />
-            <span>Copy as CREATE FUNCTION</span>
+            <span>{node.type === "procedure" ? "Copy as CREATE PROCEDURE" : "Copy as CREATE FUNCTION"}</span>
         </ContextMenu.Item>
     {/if}
 
@@ -114,6 +114,10 @@
     {/if}
 
     {#if isSchema}
+        <ContextMenu.Item onclick={() => act("open_schema_ddl")}>
+            <IconCode class="mr-2 size-4 opacity-60" />
+            <span>Open DDL</span>
+        </ContextMenu.Item>
         <ContextMenu.Separator />
         <ContextMenu.Item onclick={() => act("refresh_schema")}>
             <IconRefresh class="mr-2 size-4 opacity-60" />

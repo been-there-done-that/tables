@@ -384,7 +384,7 @@ pub async fn get_sequences(
     let rows = client.query(
         "SELECT
             sequencename AS name,
-            data_type,
+            data_type::text,
             start_value,
             min_value,
             max_value,
