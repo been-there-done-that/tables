@@ -585,31 +585,39 @@ impl Introspector {
         }
 
         // === LEVEL 4 (extended): Constraints per table + Functions + Sequences per schema ===
-        // Fetch constraints per table (async, outside lock), then save in a single transaction
-        {
-            let mut table_constraints: Vec<(String, String, Vec<MetaConstraint>)> = Vec::new();
-            for t in &all_tables {
-                match self.fetch_postgres_constraints(&client, connection_id, database_name, &t.schema, &t.table_name).await {
-                    Ok(constraints) => table_constraints.push((t.schema.clone(), t.table_name.clone(), constraints)),
-                    Err(e) => debug!("Failed to fetch constraints for {}.{}: {}", t.schema, t.table_name, e),
+        // Gate on postgres-specific capabilities (always true here, but explicit)
+        let supports_constraints = true;
+        let supports_functions = true;
+
+        if supports_constraints {
+            // Bulk-fetch constraints per schema (one query per schema, not per table)
+            let mut constraints_by_schema: Vec<(String, HashMap<String, Vec<MetaConstraint>>)> = Vec::new();
+            for s_name in &all_schemas {
+                match self.fetch_postgres_constraints_bulk(&client, connection_id, database_name, s_name).await {
+                    Ok(m) => constraints_by_schema.push((s_name.clone(), m)),
+                    Err(e) => debug!("Failed to fetch constraints for schema {}: {}", s_name, e),
                 }
             }
             let app_db = self.app_db.lock().unwrap();
             let tx = app_db.unchecked_transaction().map_err(|e| e.to_string())?;
-            for (schema, table_name, constraints) in &table_constraints {
-                if let Ok(table_id) = tx.query_row(
-                    "SELECT table_id FROM meta_tables WHERE connection_id = ?1 AND database = ?2 AND schema = ?3 AND table_name = ?4",
-                    params![connection_id, database_name, schema, table_name],
-                    |row| row.get::<_, i64>(0),
-                ) {
-                    let _ = self.save_constraints_internal(&tx, table_id, constraints);
+            for (s_name, mut constraints_by_table) in constraints_by_schema {
+                for t in all_tables.iter().filter(|t| t.schema == s_name) {
+                    let constraints = constraints_by_table.remove(&t.table_name).unwrap_or_default();
+                    if let Ok(table_id) = tx.query_row(
+                        "SELECT table_id FROM meta_tables WHERE connection_id = ?1 AND database = ?2 AND schema = ?3 AND table_name = ?4",
+                        params![connection_id, database_name, &t.schema, &t.table_name],
+                        |row| row.get::<_, i64>(0),
+                    ) {
+                        self.save_constraints_internal(&tx, table_id, &constraints)
+                            .map_err(|e| format!("Failed to save constraints: {}", e))?;
+                    }
                 }
             }
             tx.commit().map_err(|e| e.to_string())?;
         }
 
-        // Fetch functions and sequences per schema (async outside lock), then save
-        {
+        if supports_functions {
+            // Fetch functions and sequences per schema (async outside lock), then save
             let mut schema_fns: Vec<(String, Vec<MetaFunction>, Vec<MetaSequence>)> = Vec::new();
             for s_name in &all_schemas {
                 let fns = self.fetch_postgres_functions(&client, connection_id, database_name, s_name).await.unwrap_or_default();
@@ -624,8 +632,10 @@ impl Introspector {
                     params![connection_id, database_name, s_name],
                     |row| row.get::<_, i64>(0),
                 ) {
-                    let _ = self.save_functions_internal(&tx, schema_id, connection_id, database_name, s_name, fns);
-                    let _ = self.save_sequences_internal(&tx, schema_id, connection_id, database_name, s_name, seqs);
+                    self.save_functions_internal(&tx, schema_id, connection_id, database_name, s_name, fns)
+                        .map_err(|e| format!("Failed to save functions: {}", e))?;
+                    self.save_sequences_internal(&tx, schema_id, connection_id, database_name, s_name, seqs)
+                        .map_err(|e| format!("Failed to save sequences: {}", e))?;
                 }
             }
             tx.commit().map_err(|e| e.to_string())?;
@@ -1762,14 +1772,38 @@ impl Introspector {
         }
 
         // 3b. Fetch and save constraints per table + functions/sequences per schema
-        {
-            let mut table_constraints: Vec<(String, String, Vec<MetaConstraint>)> = Vec::new();
-            for t in &tables {
-                match self.fetch_postgres_constraints(&client, connection_id, current_database, &t.schema, &t.table_name).await {
-                    Ok(constraints) => table_constraints.push((t.schema.clone(), t.table_name.clone(), constraints)),
-                    Err(e) => debug!("Failed to fetch constraints for {}.{}: {}", t.schema, t.table_name, e),
+        // Gate on postgres-specific capabilities (always true here, but explicit)
+        let supports_constraints = true;
+        let supports_functions = true;
+
+        if supports_constraints {
+            // Bulk-fetch constraints per schema (one query per schema, not per table)
+            let mut constraints_by_schema: Vec<(String, HashMap<String, Vec<MetaConstraint>>)> = Vec::new();
+            for s_name in &schemas_vec {
+                match self.fetch_postgres_constraints_bulk(&client, connection_id, current_database, s_name).await {
+                    Ok(m) => constraints_by_schema.push((s_name.clone(), m)),
+                    Err(e) => debug!("Failed to fetch constraints for schema {}: {}", s_name, e),
                 }
             }
+            let app_db = self.app_db.lock().unwrap();
+            let tx = app_db.unchecked_transaction().map_err(|e| e.to_string())?;
+            for (s_name, mut constraints_by_table) in constraints_by_schema {
+                for t in tables.iter().filter(|t| t.schema == s_name) {
+                    let constraints = constraints_by_table.remove(&t.table_name).unwrap_or_default();
+                    if let Ok(table_id) = tx.query_row(
+                        "SELECT table_id FROM meta_tables WHERE connection_id = ?1 AND database = ?2 AND schema = ?3 AND table_name = ?4",
+                        params![connection_id, current_database, &t.schema, &t.table_name],
+                        |row| row.get::<_, i64>(0),
+                    ) {
+                        self.save_constraints_internal(&tx, table_id, &constraints)
+                            .map_err(|e| format!("Failed to save constraints: {}", e))?;
+                    }
+                }
+            }
+            tx.commit().map_err(|e| e.to_string())?;
+        }
+
+        if supports_functions {
             let mut schema_fns: Vec<(String, Vec<MetaFunction>, Vec<MetaSequence>)> = Vec::new();
             for s_name in &schemas_vec {
                 let fns = self.fetch_postgres_functions(&client, connection_id, current_database, s_name).await.unwrap_or_default();
@@ -1778,23 +1812,16 @@ impl Introspector {
             }
             let app_db = self.app_db.lock().unwrap();
             let tx = app_db.unchecked_transaction().map_err(|e| e.to_string())?;
-            for (schema, table_name, constraints) in &table_constraints {
-                if let Ok(table_id) = tx.query_row(
-                    "SELECT table_id FROM meta_tables WHERE connection_id = ?1 AND database = ?2 AND schema = ?3 AND table_name = ?4",
-                    params![connection_id, current_database, schema, table_name],
-                    |row| row.get::<_, i64>(0),
-                ) {
-                    let _ = self.save_constraints_internal(&tx, table_id, constraints);
-                }
-            }
             for (s_name, fns, seqs) in &schema_fns {
                 if let Ok(schema_id) = tx.query_row(
                     "SELECT schema_id FROM meta_schemas WHERE connection_id = ?1 AND database = ?2 AND name = ?3",
                     params![connection_id, current_database, s_name],
                     |row| row.get::<_, i64>(0),
                 ) {
-                    let _ = self.save_functions_internal(&tx, schema_id, connection_id, current_database, s_name, fns);
-                    let _ = self.save_sequences_internal(&tx, schema_id, connection_id, current_database, s_name, seqs);
+                    self.save_functions_internal(&tx, schema_id, connection_id, current_database, s_name, fns)
+                        .map_err(|e| format!("Failed to save functions: {}", e))?;
+                    self.save_sequences_internal(&tx, schema_id, connection_id, current_database, s_name, seqs)
+                        .map_err(|e| format!("Failed to save sequences: {}", e))?;
                 }
             }
             tx.commit().map_err(|e| e.to_string())?;
@@ -2305,9 +2332,10 @@ impl Introspector {
     }
 
     /// Fetch constraints for a table directly from a postgres client.
-    async fn fetch_postgres_constraints(&self, client: &tokio_postgres::Client, connection_id: &str, database: &str, schema: &str, table_name: &str) -> Result<Vec<MetaConstraint>, String> {
+    async fn fetch_postgres_constraints_bulk(&self, client: &tokio_postgres::Client, connection_id: &str, database: &str, schema: &str) -> Result<HashMap<String, Vec<MetaConstraint>>, String> {
         let rows = client.query(
             "SELECT
+                 t.relname AS table_name,
                  c.conname,
                  CASE c.contype
                      WHEN 'p' THEN 'PrimaryKey'
@@ -2327,18 +2355,19 @@ impl Introspector {
              FROM pg_constraint c
              JOIN pg_class t ON t.oid = c.conrelid
              JOIN pg_namespace n ON n.oid = t.relnamespace
-             WHERE n.nspname = $1 AND t.relname = $2
+             WHERE n.nspname = $1
                AND c.contype IN ('p','f','u','c','x')
-             ORDER BY c.contype, c.conname",
-            &[&schema, &table_name],
-        ).await.map_err(|e| format!("Failed to list constraints for {}.{}: {}", schema, table_name, e))?;
+             ORDER BY t.relname, c.contype, c.conname",
+            &[&schema],
+        ).await.map_err(|e| format!("Failed to list constraints for schema {}: {}", schema, e))?;
 
-        let mut constraints = Vec::new();
+        let mut map: HashMap<String, Vec<MetaConstraint>> = HashMap::new();
         for row in rows {
-            let name: String = row.get(0);
-            let kind_str: String = row.get(1);
-            let definition: String = row.get(2);
-            let columns_json: String = row.get(3);
+            let table_name: String = row.get(0);
+            let name: String = row.get(1);
+            let kind_str: String = row.get(2);
+            let definition: String = row.get(3);
+            let columns_json: String = row.get(4);
 
             let kind = match kind_str.as_str() {
                 "PrimaryKey" => ConstraintKind::PrimaryKey,
@@ -2350,18 +2379,18 @@ impl Introspector {
 
             let columns: Vec<String> = serde_json::from_str(&columns_json).unwrap_or_default();
 
-            constraints.push(MetaConstraint {
+            map.entry(table_name.clone()).or_default().push(MetaConstraint {
                 connection_id: connection_id.to_string(),
                 database: database.to_string(),
                 schema: schema.to_string(),
-                table_name: table_name.to_string(),
+                table_name,
                 name,
                 kind,
                 definition,
                 columns,
             });
         }
-        Ok(constraints)
+        Ok(map)
     }
 
     /// Progressive introspection with event emission at each level
@@ -2661,14 +2690,38 @@ impl Introspector {
         }
 
         // === LEVEL 4 (extended): Constraints per table + Functions + Sequences per schema ===
-        {
-            let mut table_constraints: Vec<(String, String, Vec<MetaConstraint>)> = Vec::new();
-            for t in &all_tables {
-                match self.fetch_postgres_constraints(&current_client, connection_id, &effective_database, &t.schema, &t.table_name).await {
-                    Ok(constraints) => table_constraints.push((t.schema.clone(), t.table_name.clone(), constraints)),
-                    Err(e) => debug!("Failed to fetch constraints for {}.{}: {}", t.schema, t.table_name, e),
+        // Gate on postgres-specific capabilities (always true here, but explicit)
+        let supports_constraints = true;
+        let supports_functions = true;
+
+        if supports_constraints {
+            // Bulk-fetch constraints per schema (one query per schema, not per table)
+            let mut constraints_by_schema: Vec<(String, HashMap<String, Vec<MetaConstraint>>)> = Vec::new();
+            for s_name in &all_schemas {
+                match self.fetch_postgres_constraints_bulk(&current_client, connection_id, &effective_database, s_name).await {
+                    Ok(m) => constraints_by_schema.push((s_name.clone(), m)),
+                    Err(e) => debug!("Failed to fetch constraints for schema {}: {}", s_name, e),
                 }
             }
+            let app_db = self.app_db.lock().unwrap();
+            let tx = app_db.unchecked_transaction().map_err(|e| format!("[TX_START_L4_EXT] {}", e))?;
+            for (s_name, mut constraints_by_table) in constraints_by_schema {
+                for t in all_tables.iter().filter(|t| t.schema == s_name) {
+                    let constraints = constraints_by_table.remove(&t.table_name).unwrap_or_default();
+                    if let Ok(table_id) = tx.query_row(
+                        "SELECT table_id FROM meta_tables WHERE connection_id = ?1 AND database = ?2 AND schema = ?3 AND table_name = ?4",
+                        params![connection_id, &effective_database, &t.schema, &t.table_name],
+                        |row| row.get::<_, i64>(0),
+                    ) {
+                        self.save_constraints_internal(&tx, table_id, &constraints)
+                            .map_err(|e| format!("Failed to save constraints: {}", e))?;
+                    }
+                }
+            }
+            tx.commit().map_err(|e| format!("[TX_COMMIT_L4_EXT] {}", e))?;
+        }
+
+        if supports_functions {
             let mut schema_fns: Vec<(String, Vec<MetaFunction>, Vec<MetaSequence>)> = Vec::new();
             for s_name in &all_schemas {
                 let fns = self.fetch_postgres_functions(&current_client, connection_id, &effective_database, s_name).await.unwrap_or_default();
@@ -2676,27 +2729,20 @@ impl Introspector {
                 schema_fns.push((s_name.clone(), fns, seqs));
             }
             let app_db = self.app_db.lock().unwrap();
-            let tx = app_db.unchecked_transaction().map_err(|e| format!("[TX_START_L4_EXT] {}", e))?;
-            for (schema, table_name, constraints) in &table_constraints {
-                if let Ok(table_id) = tx.query_row(
-                    "SELECT table_id FROM meta_tables WHERE connection_id = ?1 AND database = ?2 AND schema = ?3 AND table_name = ?4",
-                    params![connection_id, &effective_database, schema, table_name],
-                    |row| row.get::<_, i64>(0),
-                ) {
-                    let _ = self.save_constraints_internal(&tx, table_id, constraints);
-                }
-            }
+            let tx = app_db.unchecked_transaction().map_err(|e| format!("[TX_START_L4_FNS] {}", e))?;
             for (s_name, fns, seqs) in &schema_fns {
                 if let Ok(schema_id) = tx.query_row(
                     "SELECT schema_id FROM meta_schemas WHERE connection_id = ?1 AND database = ?2 AND name = ?3",
                     params![connection_id, &effective_database, s_name],
                     |row| row.get::<_, i64>(0),
                 ) {
-                    let _ = self.save_functions_internal(&tx, schema_id, connection_id, &effective_database, s_name, fns);
-                    let _ = self.save_sequences_internal(&tx, schema_id, connection_id, &effective_database, s_name, seqs);
+                    self.save_functions_internal(&tx, schema_id, connection_id, &effective_database, s_name, fns)
+                        .map_err(|e| format!("Failed to save functions: {}", e))?;
+                    self.save_sequences_internal(&tx, schema_id, connection_id, &effective_database, s_name, seqs)
+                        .map_err(|e| format!("Failed to save sequences: {}", e))?;
                 }
             }
-            tx.commit().map_err(|e| format!("[TX_COMMIT_L4_EXT] {}", e))?;
+            tx.commit().map_err(|e| format!("[TX_COMMIT_L4_FNS] {}", e))?;
         }
 
         let fk_count: usize = all_tables.iter().map(|t| t.foreign_keys.len()).sum();
@@ -2871,6 +2917,52 @@ impl Introspector {
                 "level": 4,
                 "connection_id": connection_id,
             }));
+        }
+
+        // === LEVEL 4 (extended): Constraints + Functions + Sequences for this schema ===
+        // Gate on postgres-specific capabilities (always true here, but explicit)
+        let supports_constraints = true;
+        let supports_functions = true;
+
+        if supports_constraints {
+            // Bulk-fetch constraints for this schema (one query, not per table)
+            match self.fetch_postgres_constraints_bulk(&client, connection_id, database, schema).await {
+                Ok(mut constraints_by_table) => {
+                    let app_db = self.app_db.lock().unwrap();
+                    let tx = app_db.unchecked_transaction().map_err(|e| e.to_string())?;
+                    for t in &tables {
+                        let constraints = constraints_by_table.remove(&t.table_name).unwrap_or_default();
+                        if let Ok(table_id) = tx.query_row(
+                            "SELECT table_id FROM meta_tables WHERE connection_id = ?1 AND database = ?2 AND schema = ?3 AND table_name = ?4",
+                            params![connection_id, database, schema, &t.table_name],
+                            |row| row.get::<_, i64>(0),
+                        ) {
+                            self.save_constraints_internal(&tx, table_id, &constraints)
+                                .map_err(|e| format!("Failed to save constraints: {}", e))?;
+                        }
+                    }
+                    tx.commit().map_err(|e| e.to_string())?;
+                }
+                Err(e) => debug!("Failed to fetch constraints for schema {}: {}", schema, e),
+            }
+        }
+
+        if supports_functions {
+            let fns = self.fetch_postgres_functions(&client, connection_id, database, schema).await.unwrap_or_default();
+            let seqs = self.fetch_postgres_sequences(&client, connection_id, database, schema).await.unwrap_or_default();
+            let app_db = self.app_db.lock().unwrap();
+            if let Ok(schema_id) = app_db.query_row(
+                "SELECT schema_id FROM meta_schemas WHERE connection_id = ?1 AND database = ?2 AND name = ?3",
+                params![connection_id, database, schema],
+                |row| row.get::<_, i64>(0),
+            ) {
+                let tx = app_db.unchecked_transaction().map_err(|e| e.to_string())?;
+                self.save_functions_internal(&tx, schema_id, connection_id, database, schema, &fns)
+                    .map_err(|e| format!("Failed to save functions: {}", e))?;
+                self.save_sequences_internal(&tx, schema_id, connection_id, database, schema, &seqs)
+                    .map_err(|e| format!("Failed to save sequences: {}", e))?;
+                tx.commit().map_err(|e| e.to_string())?;
+            }
         }
 
         info!("Specific schema introspection completed in {:.2?}", start_time.elapsed());
