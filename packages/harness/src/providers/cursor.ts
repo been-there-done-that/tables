@@ -60,8 +60,8 @@ export class CursorProvider extends AcpAdapter {
                     // Collect text from tool call content if present
                     const outputParts = (update.content ?? [])
                         .map((c) => {
-                            if (c.type === "content" && c.content?.type === "text") {
-                                return c.content.text as string;
+                            if (c.type === "content" && c.content?.type === "text" && c.content.text) {
+                                return c.content.text;
                             }
                             return "";
                         })

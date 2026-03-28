@@ -57,7 +57,10 @@ class AcpClientImpl implements Pick<Client, "sessionUpdate" | "requestPermission
  *
  * Bun's global WebSocket follows the browser API so no extra packages needed.
  */
-function makeWebSocketStream(ws: WebSocket): {
+function makeWebSocketStream(
+    ws: WebSocket,
+    onError: (msg: string) => void,
+): {
     stream: Stream;
     opened: Promise<void>;
     closed: Promise<void>;
@@ -93,8 +96,10 @@ function makeWebSocketStream(ws: WebSocket): {
         }
     };
 
-    ws.onerror = () => {
-        // Connection errors surface via onclose
+    ws.onerror = (event) => {
+        // Capture the OS-level error message before onclose fires with a generic 1006
+        const msg = (event as ErrorEvent).message;
+        if (msg) onError(`WS error: ${msg}`);
     };
 
     ws.onclose = () => {
@@ -124,7 +129,8 @@ export abstract class AcpAdapter implements Session {
     private connection: ClientSideConnection | null = null;
     private sessionId: string | null = null;
     private aborted = false;
-    private closeWs: (() => void) | null = null;
+    // Guards against concurrent send() calls racing on connection init
+    private initPromise: Promise<void> | null = null;
 
     constructor(config: SessionConfig) {
         this.config = config;
@@ -140,7 +146,6 @@ export abstract class AcpAdapter implements Session {
 
     stop() {
         this.aborted = true;
-        this.closeWs?.();
         this.ws?.close();
     }
 
@@ -156,6 +161,60 @@ export abstract class AcpAdapter implements Session {
     protected abstract getEndpoint(): string;
 
     /**
+     * Open the WS, negotiate ACP init, and create the session.
+     * Called once; concurrent send() calls share this promise.
+     */
+    private async _initialize(): Promise<void> {
+        const endpoint = this.getEndpoint();
+        const ws = new WebSocket(endpoint);
+        this.ws = ws;
+
+        const { stream, opened, closed } = makeWebSocketStream(ws, (msg) => {
+            if (!this.aborted) this.emitFn({ type: "error", message: msg });
+        });
+
+        // Wait for WS handshake before talking ACP
+        await opened;
+        if (this.aborted) return;
+
+        const client = new AcpClientImpl((params) => this.handleUpdate(params));
+        this.connection = new ClientSideConnection((_agent) => client as Client, stream);
+
+        // Close the connection when WS drops unexpectedly
+        closed.then(() => {
+            if (!this.aborted) {
+                this.emitFn({ type: "error", message: "ACP WebSocket closed unexpectedly" });
+            }
+        });
+
+        // Protocol negotiation
+        await this.connection.initialize({
+            protocolVersion: PROTOCOL_VERSION,
+            clientCapabilities: {},
+        });
+        if (this.aborted) return;
+
+        // Create the session
+        const sessionResult = await this.connection.newSession({
+            cwd: process.cwd(),
+            mcpServers: [],
+        });
+        if (this.aborted) return;
+
+        this.sessionId = sessionResult.sessionId;
+        this.emitFn({ type: "session.init", sdkSessionId: sessionResult.sessionId });
+
+        // Send system prompt as context before the real message, if present.
+        // ACP has no dedicated system prompt slot — we send it as the first prompt.
+        if (this.config.systemPrompt) {
+            await this.connection.prompt({
+                sessionId: this.sessionId,
+                prompt: [{ type: "text", text: this.config.systemPrompt }],
+            });
+        }
+    }
+
+    /**
      * Connect, initialize the ACP session, and send the first prompt.
      * Subsequent send() calls reuse the same session.
      */
@@ -163,57 +222,15 @@ export abstract class AcpAdapter implements Session {
         if (this.aborted) return;
 
         try {
-            // Establish WS + ClientSideConnection on first message
+            // Ensure only one initialization runs even with concurrent send() calls
             if (!this.connection) {
-                const endpoint = this.getEndpoint();
-                const ws = new WebSocket(endpoint);
-                this.ws = ws;
-
-                const { stream, opened, closed } = makeWebSocketStream(ws);
-                this.closeWs = () => ws.close();
-
-                // Wait for WS handshake before talking ACP
-                await opened;
-                if (this.aborted) return;
-
-                const client = new AcpClientImpl((params) => this.handleUpdate(params));
-                this.connection = new ClientSideConnection((_agent) => client as Client, stream);
-
-                // Close the connection when WS drops
-                closed.then(() => {
-                    if (!this.aborted) {
-                        this.emitFn({ type: "error", message: "ACP WebSocket closed unexpectedly" });
-                    }
-                });
-
-                // Protocol negotiation
-                await this.connection.initialize({
-                    protocolVersion: PROTOCOL_VERSION,
-                    clientCapabilities: {},
-                });
-                if (this.aborted) return;
-
-                // Send system prompt as the first user message if we have one,
-                // then the actual user text. ACP doesn't have a dedicated system
-                // prompt method on the session — we create the session first.
-                const sessionResult = await this.connection.newSession({
-                    cwd: process.cwd(),
-                    mcpServers: [],
-                });
-                this.sessionId = sessionResult.sessionId;
-                this.emitFn({ type: "session.init", sdkSessionId: sessionResult.sessionId });
-
-                // Send system prompt as context before the real message, if present
-                if (this.config.systemPrompt) {
-                    await this.connection.prompt({
-                        sessionId: this.sessionId,
-                        prompt: [{ type: "text", text: this.config.systemPrompt }],
-                    });
-                    if (this.aborted) return;
+                if (!this.initPromise) {
+                    this.initPromise = this._initialize();
                 }
+                await this.initPromise;
             }
 
-            if (!this.connection || !this.sessionId) return;
+            if (this.aborted || !this.connection || !this.sessionId) return;
 
             // Send the user message and wait for the turn to complete
             const result = await this.connection.prompt({
@@ -222,14 +239,10 @@ export abstract class AcpAdapter implements Session {
             });
 
             if (!this.aborted) {
-                // Map stop reasons to turn.done
-                if (
-                    result.stopReason === "end_turn" ||
-                    result.stopReason === "max_tokens" ||
-                    result.stopReason === "max_turn_requests"
-                ) {
-                    this.emitFn({ type: "turn.done" });
-                } else if (result.stopReason === "cancelled") {
+                // Emit turn.done for all known terminal stop reasons.
+                // Unknown stop reasons are also treated as turn completion — the
+                // safer default for a harness that must not hang.
+                if (result.stopReason === "cancelled") {
                     // aborted by caller — no event needed
                 } else {
                     this.emitFn({ type: "turn.done" });
