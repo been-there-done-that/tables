@@ -13,6 +13,7 @@ const MIGRATIONS: &[(&str, &str)] = &[
     ("007_create_agent_tables", include_str!("../migrations/007_create_agent_tables.sql")),
     ("008_add_provider", include_str!("../migrations/008_add_provider.sql")),
     ("009_create_turn_summaries", include_str!("../migrations/009_create_turn_summaries.sql")),
+    ("010_functions_sequences_constraints", include_str!("../migrations/010_functions_sequences_constraints.sql")),
 ];
 
 #[derive(Debug, Deserialize)]
