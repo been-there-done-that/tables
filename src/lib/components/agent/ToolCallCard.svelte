@@ -12,6 +12,8 @@
     import IconFile from "@tabler/icons-svelte/icons/file";
     import IconDatabase from "@tabler/icons-svelte/icons/database";
     import IconLink from "@tabler/icons-svelte/icons/link";
+    import IconCircleCheck from "@tabler/icons-svelte/icons/circle-check";
+    import IconCircleX from "@tabler/icons-svelte/icons/circle-x";
 
     interface Props {
         toolCall: AgentToolCall;
@@ -113,20 +115,7 @@
         }
     });
 
-    const dotClass = $derived.by((): string => {
-        switch (toolCall.status) {
-            case "running":
-                return "bg-accent animate-pulse";
-            case "done":
-                return "bg-foreground/40";
-            case "error":
-                return "bg-destructive/70";
-            case "awaiting":
-                return "bg-amber-400";
-            default:
-                return "bg-muted-foreground/30";
-        }
-    });
+    const dotClass = "bg-amber-400";
 
     const fileId = $derived.by((): string | undefined => {
         if (toolCall.toolName !== "write_file" && toolCall.toolName !== "read_file") return undefined;
@@ -267,7 +256,12 @@
         <!-- status dot -->
         {#if toolCall.status === "running"}
             <IconLoader2 size={11} class="mt-0.5 shrink-0 animate-spin text-accent" />
+        {:else if toolCall.status === "done"}
+            <IconCircleCheck size={11} class="mt-0.5 shrink-0 text-foreground/40" />
+        {:else if toolCall.status === "error"}
+            <IconCircleX size={11} class="mt-0.5 shrink-0 text-destructive/70" />
         {:else}
+            <!-- awaiting: keep the amber dot -->
             <div class="mt-0.5 h-2 w-2 shrink-0 rounded-full {dotClass}"></div>
         {/if}
         <!-- bottom line (hidden for last item, grows to fill row height) -->
@@ -277,7 +271,7 @@
     <!-- RIGHT CONTENT -->
     <div class="flex min-w-0 flex-1 flex-col pb-1">
         <!-- ROW HEADER -->
-        <div class="flex min-h-[20px] w-full items-center gap-1.5">
+        <div class="flex min-h-[20px] w-full items-center gap-1.5  mt-[4px] ">
             <!-- Clickable area: icon + labels + chevron -->
             <button
                 onclick={() => (expanded = !expanded)}
