@@ -1,5 +1,6 @@
 <script lang="ts">
     import { onDestroy } from "svelte";
+    import { invoke } from "@tauri-apps/api/core";
     import { schemaStore } from "$lib/stores/schema.svelte";
     import { settingsStore } from "$lib/stores/settings.svelte";
     import { agentStore } from "$lib/stores/agent.svelte";
@@ -169,7 +170,23 @@
             openInEditor: (sql: string, _title: string) => {
                 handleRunQuery(sql);
             },
-            executeQuery: async (_sql: string) => ({ columns: [] as string[], rows: [] as unknown[], totalRows: 0 }), // stub — replaced in Task 4
+            executeQuery: async (sql: string) => {
+                const result = await invoke<any>("execute_query", {
+                    connectionId: conn.id,
+                    sessionId: "agent",
+                    database: schemaStore.selectedDatabase ?? "",
+                    schema: schemaStore.activeSchema ?? "public",
+                    query: sql,
+                    component: "agent",
+                    limit: 50,
+                    offset: 0,
+                });
+                return {
+                    columns: (result?.columns ?? []).map((c: any) => c.name ?? c) as string[],
+                    rows: result?.rows ?? [],
+                    totalRows: result?.total ?? result?.rows?.length ?? 0,
+                };
+            },
         };
     }
 
