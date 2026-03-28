@@ -3,16 +3,13 @@
     import type { AgentPlan } from "$lib/stores/plans.svelte";
     import IconChevronDown from "@tabler/icons-svelte/icons/chevron-down";
     import IconChevronRight from "@tabler/icons-svelte/icons/chevron-right";
-    import IconCheck from "@tabler/icons-svelte/icons/check";
     import IconLoader2 from "@tabler/icons-svelte/icons/loader-2";
-    import IconX from "@tabler/icons-svelte/icons/x";
-    import IconClock from "@tabler/icons-svelte/icons/clock";
 
     interface Props {
         plan: AgentPlan;
     }
     let { plan }: Props = $props();
-    let expanded = $state(false);
+    let expanded = $state(true);
 
     const doneCount = $derived(plan.steps.filter((s) => s.status === "done").length);
     const totalCount = $derived(plan.steps.length);
@@ -52,18 +49,25 @@
         <div class="border-t border-amber-400/15 px-2.5 py-1.5 flex flex-col gap-0.5">
             {#each plan.steps as step (step.id)}
                 <div class="flex items-start gap-2 py-0.5">
-                    <!-- Status icon -->
-                    <div class="mt-0.5 shrink-0">
+                    <!-- Status indicator -->
+                    <div class="mt-0.5 shrink-0 w-3 h-3 flex items-center justify-center">
                         {#if step.status === "done"}
-                            <IconCheck size={10} class="text-green-500/80" />
+                            <div class="w-3 h-3 rounded-sm bg-green-500/80 flex items-center justify-center">
+                                <svg viewBox="0 0 10 10" class="w-2 h-2 text-white" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="1.5,5 4,7.5 8.5,2.5" />
+                                </svg>
+                            </div>
                         {:else if step.status === "running"}
-                            <IconLoader2 size={10} class="animate-spin text-accent" />
+                            <IconLoader2 size={11} class="animate-spin text-accent" />
                         {:else if step.status === "error"}
-                            <IconX size={10} class="text-destructive/70" />
-                        {:else if step.status === "pending"}
-                            <IconClock size={10} class="text-muted-foreground/30" />
+                            <div class="w-3 h-3 rounded-sm border border-destructive/50 flex items-center justify-center">
+                                <span class="text-[8px] text-destructive/70 font-bold leading-none">×</span>
+                            </div>
+                        {:else if step.status === "skipped"}
+                            <span class="text-[10px] text-muted-foreground/30 leading-none">—</span>
                         {:else}
-                            <span class="block h-2.5 w-2.5"></span>
+                            <!-- pending: empty checkbox -->
+                            <div class="w-3 h-3 rounded-sm border border-muted-foreground/25"></div>
                         {/if}
                     </div>
                     <!-- Phase badge -->
