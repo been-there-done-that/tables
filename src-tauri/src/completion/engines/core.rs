@@ -639,8 +639,36 @@ impl CoreCompletionEngine {
     }
 }
 
-/// Resolve an alias to its actual table name.
-pub fn resolve_table_name_from_alias(name: &str, semantic: &SemanticModel) -> Option<String> {
+/// Extract the table/CTE name from a Source, recursively unwrapping Alias.
+fn resolve_table_name(source: &sql_scope::Source) -> Option<&str> {
+    match source {
+        sql_scope::Source::Table { name, .. } => Some(name.as_str()),
+        sql_scope::Source::Cte { name } => Some(name.as_str()),
+        sql_scope::Source::Alias { target, .. } => resolve_table_name(target),
+        sql_scope::Source::DerivedTable { .. } => None,
+    }
+}
+
+/// Get the column list for a CTE visible at the cursor position.
+fn get_cte_columns<'a>(scope_tree: &'a sql_scope::ScopeTree, cursor: usize, cte_name: &str) -> &'a [String] {
+    scope_tree
+        .scope_at(cursor)
+        .and_then(|s| s.cte_sources.get(cte_name))
+        .map(|info| info.columns.as_slice())
+        .unwrap_or(&[])
+}
+
+/// Resolve an alias to its actual table/CTE name using the full scope tree.
+fn resolve_alias_to_table(alias: &str, scope_tree: &sql_scope::ScopeTree) -> Option<String> {
+    scope_tree.visible_at(usize::MAX)
+        .get_source(alias)
+        .and_then(|s| resolve_table_name(s))
+        .map(|s| s.to_string())
+}
+
+/// Resolve an alias to its actual table name (legacy SemanticModel version).
+/// TODO(Task 2): Remove once CoreCompletionEngine is rewritten to use ScopeTree.
+fn resolve_table_name_from_alias(name: &str, semantic: &SemanticModel) -> Option<String> {
     for scope in &semantic.scopes {
         if let Some(sym) = scope.find_symbol(name) {
             if let Some(table) = sym.resolve_table_name() {
@@ -649,4 +677,36 @@ pub fn resolve_table_name_from_alias(name: &str, semantic: &SemanticModel) -> Op
         }
     }
     None
+}
+
+#[cfg(test)]
+mod helper_tests {
+    use super::*;
+
+    #[test]
+    fn resolve_table_name_from_table_source() {
+        let src = sql_scope::Source::Table { schema: None, name: "users".to_string() };
+        assert_eq!(resolve_table_name(&src), Some("users"));
+    }
+
+    #[test]
+    fn resolve_table_name_from_cte_source() {
+        let src = sql_scope::Source::Cte { name: "my_cte".to_string() };
+        assert_eq!(resolve_table_name(&src), Some("my_cte"));
+    }
+
+    #[test]
+    fn resolve_table_name_unwraps_alias() {
+        let src = sql_scope::Source::Alias {
+            alias: "u".to_string(),
+            target: Box::new(sql_scope::Source::Table { schema: None, name: "users".to_string() }),
+        };
+        assert_eq!(resolve_table_name(&src), Some("users"));
+    }
+
+    #[test]
+    fn resolve_table_name_derived_is_none() {
+        let src = sql_scope::Source::DerivedTable { scope_id: 0 };
+        assert_eq!(resolve_table_name(&src), None);
+    }
 }

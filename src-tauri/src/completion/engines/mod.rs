@@ -14,7 +14,6 @@ pub use postgres::PostgresEngine;
 pub use sqlite::SqliteEngine;
 
 use crate::completion::document::Dialect;
-use crate::completion::analysis::SemanticModel;
 use crate::completion::context::Context;
 use crate::completion::schema::SchemaGraph;
 use crate::adapter::DatabaseCapabilities;
@@ -40,7 +39,7 @@ pub trait CompletionEngineVariant: Send + Sync {
     /// Generate completions using this engine's specific behavior.
     fn complete(
         &self,
-        semantic: &SemanticModel,
+        scope_tree: &sql_scope::ScopeTree,
         context: &Context,
         schema: &SchemaGraph,
         default_schema: Option<&str>,
