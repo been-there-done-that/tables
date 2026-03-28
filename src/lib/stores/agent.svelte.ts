@@ -17,7 +17,7 @@ export interface AgentToolCall {
     id: string;
     toolName: string;
     input: unknown;
-    status: "running" | "done" | "error";
+    status: "awaiting" | "running" | "done" | "error";
     output?: string;
     timestamp: number;
     startedAt: number;
@@ -119,17 +119,22 @@ class AgentStore {
         }
     }
 
-    addToolCall(toolId: string, toolName: string, input: unknown) {
+    addToolCall(toolId: string, toolName: string, input: unknown, initialStatus: "awaiting" | "running" = "running") {
         const tc: AgentToolCall = {
             id: toolId,
             toolName,
             input,
-            status: "running",
+            status: initialStatus,
             timestamp: Date.now(),
             startedAt: Date.now(),
         };
         this.toolCalls.push(tc);
         this.persistToolCall(tc);
+    }
+
+    setToolCallRunning(toolId: string) {
+        const tc = this.toolCalls.find((t) => t.id === toolId);
+        if (tc) tc.status = "running";
     }
 
     completeToolCall(toolId: string, output: string) {
@@ -142,11 +147,12 @@ class AgentStore {
         }
     }
 
-    failToolCall(toolId: string) {
+    failToolCall(toolId: string, output?: string) {
         const tc = this.toolCalls.find((t) => t.id === toolId);
         if (tc) {
             tc.status = "error";
             tc.completedAt = Date.now();
+            if (output) tc.output = output;
             this.persistToolCall(tc);
         }
     }

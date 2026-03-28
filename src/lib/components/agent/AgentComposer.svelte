@@ -23,16 +23,17 @@
     interface Props {
         onSend: (displayText: string, fullText: string, rawDoc: unknown) => void;
         onStop: () => void;
+        onPlanModeToggle: () => void;
         running: boolean;
         disabled: boolean;
+        planMode: boolean;
     }
 
-    let { onSend, onStop, running, disabled }: Props = $props();
+    let { onSend, onStop, onPlanModeToggle, running, disabled, planMode }: Props = $props();
 
     let editorEl: HTMLDivElement;
     let editor: Editor | null = $state(null);
 
-    let planMode = $state(false);
     let dropdownVisible = $state(false);
     let dropdownItems = $state<DropdownItem[]>([]);
     let dropdownPos = $state({ x: 0, y: 0 });
@@ -338,10 +339,7 @@
         // Re-check state after async resolution
         if (!editor || running) return;
         const agentBody = prose || displayText;
-        const planPrefix = planMode
-            ? "Before making any changes, write a concise step-by-step plan and ask me to confirm before proceeding.\n\n"
-            : "";
-        const fullText = contextXml ? `${contextXml}\n\n${planPrefix}${agentBody}` : `${planPrefix}${agentBody}`;
+        const fullText = contextXml ? `${contextXml}\n\n${agentBody}` : agentBody;
         onSend(displayText, fullText, doc);
     }
 
@@ -364,9 +362,9 @@
             <div class="flex items-center gap-0.5">
                 <!-- Plan mode toggle -->
                 <button
-                    onclick={() => { planMode = !planMode; }}
-                    title={planMode ? "Plan mode on — agent will propose a plan before acting" : "Plan mode off — click to enable"}
-                    class="flex items-center gap-1 rounded px-1.5 py-1 text-[10.5px] transition-colors {planMode ? 'text-accent hover:bg-accent/10' : 'text-muted-foreground/50 hover:bg-foreground/5 hover:text-muted-foreground'}"
+                    onclick={onPlanModeToggle}
+                    title={planMode ? "Plan mode on — run_query requires your approval before executing" : "Plan mode off — all tools auto-execute"}
+                    class="flex items-center gap-1 rounded px-1.5 py-1 text-[10.5px] transition-colors {planMode ? 'text-amber-400 hover:bg-amber-400/10' : 'text-muted-foreground/50 hover:bg-foreground/5 hover:text-muted-foreground'}"
                 >
                     <IconMap size={11} />
                     {#if planMode}<span class="font-mono">Plan</span>{/if}

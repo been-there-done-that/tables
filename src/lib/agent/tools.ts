@@ -6,6 +6,7 @@ export function buildSystemPrompt(
     engine: string | null,
     toolCtx?: { port: number; sessionId: string; schema: string },
     openTabs?: Array<{ id: string; title: string }>,
+    planMode?: boolean,
 ): string {
     const engineLabel = engine ?? "SQL";
     const dbLabel = activeDb ?? "unknown";
@@ -16,13 +17,26 @@ export function buildSystemPrompt(
     const tabsSection = openTabs && openTabs.length > 0
         ? `## Open Editor Tabs\n\nThe user currently has these files open:\n${openTabs.map((t) => `- ${t.title} (id: ${t.id})`).join("\n")}\n\nUse read_file or write_file with the id for precise targeting (avoids ambiguity when multiple tabs share a name).\n\n`
         : "";
+    const planSection = planMode
+        ? `## Plan Mode
+
+You are operating in Plan Mode. Follow this protocol strictly:
+
+1. Before using any tools, write a brief **## Plan** section listing what you intend to do and why
+2. Read-only tools (describe_table, sample_table, count_rows, column_stats, etc.) execute automatically — use them freely
+3. write_file executes automatically — use it to draft and iterate on queries before running them
+4. **run_query requires user approval** — when you call run_query, the user is shown the SQL and must explicitly approve before it executes. Do not assume approval.
+5. If a run_query is rejected, the tool returns an error. Acknowledge it, then either revise the query in write_file and try again, or ask the user what to change.
+
+The approval gate exists so the user can review every SQL execution against their live data. Work WITH this — gather info first, draft in write_file, then run with run_query.\n\n`
+        : "";
 
     return `You are an expert ${engineLabel} database analyst integrated into Tables, a desktop database IDE.
 
 Active connection: ${engineLabel} — database: "${dbLabel}"
 
 ${schemaSection}
-${tabsSection}${toolSection}
+${planSection}${tabsSection}${toolSection}
 Guidelines:
 - NEVER output SQL or code directly in your chat response text — always use write_file to write or update files
 - Be concise and precise
