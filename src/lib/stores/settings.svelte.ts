@@ -19,6 +19,9 @@ export interface Settings {
     activeRightPanel: string | null;
     // Editor settings
     editorShowAllRunButtons: boolean;
+    // AI settings
+    aiModel: string;
+    aiEffort: "auto" | "low" | "medium" | "high" | "max";
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -36,6 +39,8 @@ const DEFAULT_SETTINGS: Settings = {
     expandedNodes: {},
     activeRightPanel: null,
     editorShowAllRunButtons: false,
+    aiModel: "claude-sonnet-4-6",
+    aiEffort: "auto",
 };
 
 function createSettingsStore() {
@@ -71,6 +76,22 @@ function createSettingsStore() {
     }, 300);
 
     return {
+        // AI settings
+        get aiModel() {
+            return settings.aiModel;
+        },
+        set aiModel(v: string) {
+            settings.aiModel = v;
+            commandClient.updateAppSetting("ai_model", v);
+        },
+        get aiEffort(): "auto" | "low" | "medium" | "high" | "max" {
+            return settings.aiEffort;
+        },
+        set aiEffort(v: "auto" | "low" | "medium" | "high" | "max") {
+            settings.aiEffort = v;
+            commandClient.updateAppSetting("ai_effort", v);
+        },
+
         // Run button visibility
         get editorShowAllRunButtons() {
             return settings.editorShowAllRunButtons;

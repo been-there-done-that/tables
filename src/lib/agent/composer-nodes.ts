@@ -23,7 +23,7 @@ function buildChipDom(
     dom.setAttribute("contenteditable", "false");
     dom.setAttribute("data-chip", iconType);
     dom.style.cssText =
-        `display:inline-flex;align-items:center;gap:3px;border-radius:5px;padding:2px 7px;font-size:11.5px;font-weight:500;line-height:1.3;vertical-align:middle;user-select:none;cursor:default;margin:0 2px;position:relative;top:-0.5px;${bgClass}`;
+        `display:inline-flex;align-items:center;gap:2px;border-radius:3px;padding:1px 4px;font-size:10.5px;font-weight:500;line-height:1.4;vertical-align:middle;user-select:none;cursor:default;margin:0 1px;position:relative;top:-0.5px;${bgClass}`;
     // SVG icon — safe, static string from constants
     const iconWrapper = document.createElement("span");
     iconWrapper.innerHTML = svg(iconType, iconColor);
@@ -31,7 +31,7 @@ function buildChipDom(
 
     // Label — set via textContent (safe, no XSS)
     const labelSpan = document.createElement("span");
-    labelSpan.style.cssText = "max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
+    labelSpan.style.cssText = "max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
     labelSpan.textContent = label;
     dom.appendChild(labelSpan);
 

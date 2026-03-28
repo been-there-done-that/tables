@@ -51,31 +51,27 @@
 </script>
 
 <div
-    class="z-50 min-w-[200px] max-w-[280px] rounded-md border border-border bg-popover shadow-lg overflow-hidden"
+    class="z-50 min-w-[220px] max-w-[300px] rounded-md border border-border bg-popover shadow-xl overflow-hidden max-h-[220px] overflow-y-auto"
     role="listbox"
 >
-    {#if items.length === 0}
-        <div class="px-3 py-2 text-xs text-muted-foreground">No matches</div>
-    {:else}
-        {#each items as item, i}
-            <button
-                class="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left hover:bg-accent {i === activeIndex ? 'bg-accent' : ''}"
-                onclick={() => onSelect(item)}
-                role="option"
-                aria-selected={i === activeIndex}
-            >
-                {#if item.type === "file"}
-                    <IconFileText size={13} class="shrink-0 text-blue-400" />
-                {:else if item.type === "table"}
-                    <IconTable size={13} class="shrink-0 text-purple-400" />
-                {:else}
-                    <IconListSearch size={13} class="shrink-0 text-green-400" />
-                {/if}
-                <span class="truncate text-foreground">{item.label}</span>
-                {#if item.sublabel}
-                    <span class="ml-auto shrink-0 text-muted-foreground text-[10px]">{item.sublabel}</span>
-                {/if}
-            </button>
-        {/each}
-    {/if}
+    {#each items as item, i}
+        <button
+            class="w-full flex items-center gap-2 px-2.5 py-1.5 text-[11px] text-left transition-colors {i === activeIndex ? 'bg-foreground/10 text-foreground' : 'text-foreground/80 hover:bg-foreground/5'}"
+            onclick={() => onSelect(item)}
+            role="option"
+            aria-selected={i === activeIndex}
+        >
+            {#if item.type === "file"}
+                <IconFileText size={12} class="shrink-0 text-blue-400 opacity-80" />
+            {:else if item.type === "table"}
+                <IconTable size={12} class="shrink-0 text-purple-400 opacity-80" />
+            {:else}
+                <IconListSearch size={12} class="shrink-0 text-green-400 opacity-80" />
+            {/if}
+            <span class="truncate font-medium">{item.label}</span>
+            {#if item.sublabel}
+                <span class="ml-auto shrink-0 text-muted-foreground/60 text-[10px]">{item.sublabel}</span>
+            {/if}
+        </button>
+    {/each}
 </div>

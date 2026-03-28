@@ -22,7 +22,9 @@
 
     const showThinking = $derived(
         agentStore.status === "running" &&
-            !agentStore.messages.some((m) => m.role === "assistant" && m.streaming && m.content.length > 0),
+            !agentStore.messages.some(
+                (m) => m.role === "assistant" && m.streaming && (m.content.length > 0 || m.thinking),
+            ),
     );
 
     function onScroll() {
