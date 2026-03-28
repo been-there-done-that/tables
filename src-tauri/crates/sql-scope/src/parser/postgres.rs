@@ -242,10 +242,23 @@ fn parse_select_item(rt: &pg_query::protobuf::ResTarget) -> SelectItemIr {
                 }
                 return SelectItemIr::Wildcard;
             }
+
+            // Simple (or qualified) column reference with no explicit alias.
+            // Use the column name itself as the implicit output name so CTE projection works:
+            //   SELECT id FROM t    → alias = "id"
+            //   SELECT t.id FROM t  → alias = "id"  (last field)
+            if rt.name.is_empty() {
+                if let Some(NodeEnum::String(s)) = last.node.as_ref() {
+                    return SelectItemIr::Expr {
+                        alias: Some(s.sval.to_lowercase()),
+                        byte_range: 0..1,
+                    };
+                }
+            }
         }
     }
 
-    // Otherwise it's an expression
+    // Otherwise it's an expression (function call, arithmetic, etc.)
     let alias = if rt.name.is_empty() {
         None
     } else {
@@ -277,8 +290,9 @@ mod tests {
                 matches!(&sel.body.from[0], TableRefIr::Table { name, .. } if name == "users")
             );
             assert_eq!(sel.body.select_list.len(), 2);
-            assert!(matches!(&sel.body.select_list[0], SelectItemIr::Expr { alias: None, .. }));
-            assert!(matches!(&sel.body.select_list[1], SelectItemIr::Expr { alias: None, .. }));
+            // Simple column refs use their name as the implicit alias for CTE projection
+            assert!(matches!(&sel.body.select_list[0], SelectItemIr::Expr { alias: Some(a), .. } if a == "id"));
+            assert!(matches!(&sel.body.select_list[1], SelectItemIr::Expr { alias: Some(a), .. } if a == "name"));
         } else {
             panic!("Expected Select");
         }
@@ -823,11 +837,13 @@ mod tests {
 
     #[test]
     fn test_select_expr_no_alias() {
+        // Simple column reference: implicit alias is the column name itself
         let sql = "SELECT id FROM users";
         let result = parse_postgres(sql).expect("should parse");
         if let ParsedStatement::Select(sel) = result {
             if let SelectItemIr::Expr { alias, .. } = &sel.body.select_list[0] {
-                assert!(alias.is_none());
+                assert_eq!(alias.as_deref(), Some("id"),
+                    "simple column ref should use column name as implicit alias");
             } else {
                 panic!("Expected Expr");
             }

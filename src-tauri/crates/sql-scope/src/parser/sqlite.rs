@@ -1,6 +1,6 @@
 use sqlparser::ast::{
-    Cte, ObjectNamePart, Query, Select, SelectItem, SelectItemQualifiedWildcardKind, SetExpr,
-    Statement, TableFactor, TableWithJoins, With,
+    Cte, Expr, Ident, ObjectNamePart, Query, Select, SelectItem, SelectItemQualifiedWildcardKind,
+    SetExpr, Statement, TableFactor, TableWithJoins, With,
 };
 use sqlparser::dialect::{Dialect, SQLiteDialect};
 use sqlparser::parser::Parser;
@@ -211,10 +211,27 @@ fn convert_select_item(item: SelectItem) -> SelectItemIr {
             alias: Some(alias.value.to_lowercase()),
             byte_range: 0..1,
         },
-        SelectItem::UnnamedExpr(_) => SelectItemIr::Expr {
-            alias: None,
+        SelectItem::UnnamedExpr(expr) => SelectItemIr::Expr {
+            alias: extract_implicit_column_name(&expr),
             byte_range: 0..1,
         },
+    }
+}
+
+/// Extract the implicit column name from an unnamed SELECT expression.
+///
+/// SQL output columns take their name from the expression when no `AS` alias is given:
+///   `SELECT id`      → implicit name "id"
+///   `SELECT t.id`    → implicit name "id"  (last identifier)
+///   `SELECT 1 + 2`   → no name (complex expression)
+///   `SELECT COUNT(*)` → no name (function call)
+fn extract_implicit_column_name(expr: &Expr) -> Option<String> {
+    match expr {
+        Expr::Identifier(Ident { value, .. }) => Some(value.to_lowercase()),
+        Expr::CompoundIdentifier(parts) => {
+            parts.last().map(|Ident { value, .. }| value.to_lowercase())
+        }
+        _ => None,
     }
 }
 
