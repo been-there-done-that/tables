@@ -9,12 +9,15 @@
 pub mod parsing;
 pub mod document;
 pub mod context;
-pub mod engine;
+pub mod items;
 pub mod analysis;
 pub mod schema;
 pub mod ranges;
 pub mod diagnostics;
 pub mod engines;
+
+// Re-export completion item types so existing paths still compile
+pub use items::{CompletionItem, CompletionKind};
 
 #[cfg(test)]
 pub mod tests;

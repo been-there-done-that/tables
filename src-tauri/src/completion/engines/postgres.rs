@@ -6,7 +6,7 @@
 use crate::adapter::DatabaseCapabilities;
 use crate::completion::context::{Context, CursorContext};
 use crate::completion::document::Dialect;
-use crate::completion::engine::{CompletionItem, CompletionKind};
+use crate::completion::items::{CompletionItem, CompletionKind};
 use crate::completion::schema::SchemaGraph;
 use super::core::CoreCompletionEngine;
 use super::CompletionEngineVariant;
@@ -181,7 +181,7 @@ impl CompletionEngineVariant for PostgresEngine {
             CursorContext::FromClause | CursorContext::JoinTable =>
                 CoreCompletionEngine::complete_table_names(schema, scope_tree, context, Some(&effective_schema), FROM_KEYWORDS),
             CursorContext::JoinCondition { left_table, right_table } =>
-                CoreCompletionEngine::complete_join_condition(left_table, right_table, scope_tree, schema),
+                CoreCompletionEngine::complete_join_condition(left_table, right_table, scope_tree, schema, context.cursor_offset),
             CursorContext::JoinConditionRhs { .. } => {
                 let operators = self.operators();
                 CoreCompletionEngine::complete_where_clause(scope_tree, context, schema, WHERE_KEYWORDS, WHERE_FUNCTIONS, &operators)

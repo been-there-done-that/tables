@@ -8,7 +8,7 @@ use std::collections::HashSet;
 use sql_scope::{Source, ScopeTree};
 use crate::completion::context::{Context, CursorContext};
 use crate::completion::schema::SchemaGraph;
-use super::super::engine::{CompletionItem, CompletionKind};
+use crate::completion::items::{CompletionItem, CompletionKind};
 
 // ============================================================================
 // Scoring Constants (Additive Model)
@@ -78,14 +78,30 @@ impl CoreCompletionEngine {
                 log::debug!("[AfterDot] Table name: '{}'", table_name);
                 let columns = schema.get_columns(table_name);
                 log::debug!("[AfterDot] Found {} columns", columns.len());
-                for col in columns {
-                    items.push(CompletionItem {
-                        label: col.name.clone(),
-                        kind: CompletionKind::Column,
-                        detail: Some(format!("{} ({})", col.data_type, table_name)),
-                        insert_text: col.name.clone(),
-                        score: Self::column_score(col.is_primary_key, col.is_indexed),
-                    });
+                if !columns.is_empty() {
+                    for col in columns {
+                        items.push(CompletionItem {
+                            label: col.name.clone(),
+                            kind: CompletionKind::Column,
+                            detail: Some(format!("{} ({})", col.data_type, table_name)),
+                            insert_text: col.name.clone(),
+                            score: Self::column_score(col.is_primary_key, col.is_indexed),
+                        });
+                    }
+                } else {
+                    // No schema columns — check if table_name is actually a CTE
+                    // (sql_scope may register CTE references as Table sources)
+                    let cte_cols = get_cte_columns(scope_tree, context.cursor_offset, table_name);
+                    log::debug!("[AfterDot] CTE fallback: {} columns for '{}'", cte_cols.len(), table_name);
+                    for col_name in cte_cols {
+                        items.push(CompletionItem {
+                            label: col_name.clone(),
+                            kind: CompletionKind::Column,
+                            detail: Some(format!("CTE Column ({})", table_name)),
+                            insert_text: col_name.clone(),
+                            score: 90,
+                        });
+                    }
                 }
             }
         }
@@ -206,12 +222,13 @@ impl CoreCompletionEngine {
         right_table: &Option<String>,
         scope_tree: &ScopeTree,
         schema: &SchemaGraph,
+        cursor: usize,
     ) -> Vec<CompletionItem> {
         let mut items = Vec::new();
 
         if let (Some(left), Some(right)) = (left_table, right_table) {
-            let left_resolved = resolve_alias_to_table(left, scope_tree).unwrap_or_else(|| left.clone());
-            let right_resolved = resolve_alias_to_table(right, scope_tree).unwrap_or_else(|| right.clone());
+            let left_resolved = resolve_alias_to_table(left, scope_tree, cursor).unwrap_or_else(|| left.clone());
+            let right_resolved = resolve_alias_to_table(right, scope_tree, cursor).unwrap_or_else(|| right.clone());
 
             if let Some((condition, score)) = schema.infer_join_condition(
                 &left_resolved, &right_resolved, Some(left), Some(right)
@@ -227,7 +244,7 @@ impl CoreCompletionEngine {
         }
 
         if let Some(left) = left_table {
-            let left_resolved = resolve_alias_to_table(left, scope_tree).unwrap_or_else(|| left.clone());
+            let left_resolved = resolve_alias_to_table(left, scope_tree, cursor).unwrap_or_else(|| left.clone());
             for col in schema.get_columns(&left_resolved) {
                 items.push(CompletionItem {
                     label: format!("{}.{}", left, col.name),
@@ -601,17 +618,28 @@ fn resolve_table_name(source: &sql_scope::Source) -> Option<&str> {
 }
 
 /// Get the column list for a CTE visible at the cursor position.
+///
+/// Walks up the scope chain from the innermost scope to find the CTE.
 fn get_cte_columns<'a>(scope_tree: &'a sql_scope::ScopeTree, cursor: usize, cte_name: &str) -> &'a [String] {
-    scope_tree
-        .scope_at(cursor)
-        .and_then(|s| s.cte_sources.get(cte_name))
-        .map(|info| info.columns.as_slice())
-        .unwrap_or(&[])
+    let Some(start) = scope_tree.scope_at(cursor) else {
+        return &[];
+    };
+    let mut current_id = start.id;
+    loop {
+        let scope = scope_tree.scope(current_id);
+        if let Some(info) = scope.cte_sources.get(cte_name) {
+            return info.columns.as_slice();
+        }
+        match scope.parent {
+            Some(pid) => current_id = pid,
+            None => return &[],
+        }
+    }
 }
 
-/// Resolve an alias to its actual table/CTE name using the full scope tree.
-fn resolve_alias_to_table(alias: &str, scope_tree: &sql_scope::ScopeTree) -> Option<String> {
-    scope_tree.visible_at(usize::MAX)
+/// Resolve an alias to its actual table/CTE name using the scope visible at cursor.
+fn resolve_alias_to_table(alias: &str, scope_tree: &sql_scope::ScopeTree, cursor: usize) -> Option<String> {
+    scope_tree.visible_at(cursor)
         .get_source(alias)
         .and_then(|s| resolve_table_name(s))
         .map(|s| s.to_string())
