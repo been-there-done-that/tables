@@ -10,6 +10,7 @@ export interface AgentThread {
     effort: string;
     sdkSessionId: string | null;
     summary: string | null;
+    parentThreadId: string | null;
     createdAt: number;
     updatedAt: number;
 }
@@ -44,6 +45,7 @@ class ThreadsStore {
         databaseName: string | null;
         model: string;
         effort: "auto" | "low" | "medium" | "high" | "max";
+        parentThreadId?: string | null;
     }): Promise<AgentThread> {
         const id = crypto.randomUUID();
         const now = nowSecs();
@@ -54,6 +56,7 @@ class ThreadsStore {
                 databaseName: opts.databaseName,
                 model: opts.model,
                 effort: opts.effort,
+                parentThreadId: opts.parentThreadId ?? null,
                 now,
             });
         } catch (e) {
@@ -69,6 +72,7 @@ class ThreadsStore {
             effort: opts.effort,
             sdkSessionId: null,
             summary: null,
+            parentThreadId: opts.parentThreadId ?? null,
             createdAt: now,
             updatedAt: now,
         };
