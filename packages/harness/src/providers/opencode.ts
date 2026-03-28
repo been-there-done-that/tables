@@ -6,7 +6,7 @@ import type {
     ToolPart,
 } from "@opencode-ai/sdk";
 import { HttpAdapter } from "../adapters/http-adapter";
-import type { HarnessEvent, SessionConfig } from "../types";
+import type { SessionConfig } from "../types";
 
 export class OpenCodeProvider extends HttpAdapter {
     private client: ReturnType<typeof createOpencodeClient>;
