@@ -10,6 +10,7 @@ export interface AgentMessage {
     thinkingStreaming?: boolean;
     timestamp: number;
     docJson?: unknown; // TipTap doc JSON for user messages with @chips
+    isError?: boolean; // inline error messages from failed turns
 }
 
 export interface AgentToolCall {
@@ -20,6 +21,14 @@ export interface AgentToolCall {
     output?: string;
     timestamp: number;
     startedAt: number;
+    completedAt?: number; // wall-clock ms when tool finished (for accurate duration)
+}
+
+export interface TurnSummary {
+    id: string;
+    totalMs: number;
+    model: string;
+    timestamp: number;
 }
 
 function nowSecs(): number {
@@ -29,6 +38,7 @@ function nowSecs(): number {
 class AgentStore {
     messages = $state<AgentMessage[]>([]);
     toolCalls = $state<AgentToolCall[]>([]);
+    turnSummaries = $state<TurnSummary[]>([]);
     status = $state<"idle" | "running" | "error">("idle");
     session = $state<AgentSession | null>(null);
     errorMessage = $state<string | null>(null);
@@ -126,6 +136,7 @@ class AgentStore {
         if (tc) {
             tc.status = "done";
             tc.output = output;
+            tc.completedAt = Date.now();
             this.persistToolCall(tc);
         }
     }
@@ -134,8 +145,30 @@ class AgentStore {
         const tc = this.toolCalls.find((t) => t.id === toolId);
         if (tc) {
             tc.status = "error";
+            tc.completedAt = Date.now();
             this.persistToolCall(tc);
         }
+    }
+
+    addTurnSummary(totalMs: number, model: string) {
+        this.turnSummaries.push({
+            id: crypto.randomUUID(),
+            totalMs,
+            model,
+            timestamp: Date.now(),
+        });
+    }
+
+    addErrorMessage(text: string) {
+        this.messages.push({
+            id: crypto.randomUUID(),
+            role: "assistant",
+            content: text,
+            streaming: false,
+            isError: true,
+            timestamp: Date.now(),
+        });
+        // Not persisted — errors are transient UI feedback
     }
 
     setStatus(s: "idle" | "running" | "error") {
@@ -186,6 +219,7 @@ class AgentStore {
                 output: t.output ?? undefined,
                 timestamp: t.startedAt * 1000,
                 startedAt: t.startedAt * 1000,
+                completedAt: t.completedAt != null ? t.completedAt * 1000 : undefined,
             }));
 
             // Only activate persists for this thread after all state is loaded.
@@ -198,6 +232,7 @@ class AgentStore {
     clear() {
         this.messages = [];
         this.toolCalls = [];
+        this.turnSummaries = [];
         this.status = "idle";
         this.errorMessage = null;
         this.threadId = null;

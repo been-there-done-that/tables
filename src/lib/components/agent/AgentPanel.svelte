@@ -218,6 +218,7 @@
                     agentStore.finalizeMessage(streamingMsgId);
                     streamingMsgId = null;
                 }
+                agentStore.addTurnSummary(turnElapsed, sessionModel ?? "");
                 agentStore.setStatus("idle");
                 break;
             }
@@ -227,6 +228,7 @@
                     agentStore.finalizeMessage(streamingMsgId);
                     streamingMsgId = null;
                 }
+                agentStore.addErrorMessage(event.message);
                 agentStore.setError(event.message);
                 break;
             }
