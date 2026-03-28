@@ -62,15 +62,16 @@ impl CoreCompletionEngine {
     ) -> Vec<CompletionItem> {
         let mut items = Vec::new();
 
-        log::debug!("[AfterDot] Looking up '{}' at cursor offset {}", alias, context.cursor_offset);
-
         let visible = scope_tree.visible_at(context.cursor_offset);
+        let all_sources: Vec<_> = visible.sources.iter().map(|(k, _)| k.clone()).collect();
+        log::info!("[AfterDot] alias={:?} cursor={} visible_sources={:?}", alias, context.cursor_offset, all_sources);
+
         if let Some(source) = visible.get_source(alias) {
-            log::debug!("[AfterDot] Resolved source: {:?}", source);
+            log::info!("[AfterDot] resolved source={:?}", source);
 
             if let Source::Cte { name: cte_name } = source {
                 let cte_cols = get_cte_columns(scope_tree, context.cursor_offset, cte_name);
-                log::debug!("[AfterDot] Found {} CTE columns for '{}'", cte_cols.len(), cte_name);
+                log::info!("[AfterDot] CTE '{}' has {} columns", cte_name, cte_cols.len());
                 for col_name in cte_cols {
                     items.push(CompletionItem {
                         label: col_name.clone(),
@@ -81,12 +82,12 @@ impl CoreCompletionEngine {
                     });
                 }
             } else if let Some(table_name) = resolve_table_name(source) {
-                log::debug!("[AfterDot] Table name: '{}'", table_name);
+                log::info!("[AfterDot] table_name={:?}", table_name);
                 // CTE takes priority over a real schema table with the same name (CTE shadowing).
                 // A CTE named `users` must shadow `public.users` — check CTE first.
                 let cte_cols = get_cte_columns(scope_tree, context.cursor_offset, table_name);
                 if !cte_cols.is_empty() {
-                    log::debug!("[AfterDot] CTE shadows table '{}': {} columns", table_name, cte_cols.len());
+                    log::info!("[AfterDot] CTE shadows table '{}'", table_name);
                     for col_name in cte_cols {
                         items.push(CompletionItem {
                             label: col_name.clone(),
@@ -98,7 +99,7 @@ impl CoreCompletionEngine {
                     }
                 } else {
                     let columns = schema.get_columns(table_name);
-                    log::debug!("[AfterDot] Schema columns for '{}': {}", table_name, columns.len());
+                    log::info!("[AfterDot] schema.get_columns({:?}) → {} columns", table_name, columns.len());
                     for col in columns {
                         items.push(CompletionItem {
                             label: col.name.clone(),
@@ -113,7 +114,7 @@ impl CoreCompletionEngine {
         }
 
         if items.is_empty() {
-            log::debug!("[AfterDot] No alias match, checking if '{}' is a schema name", alias);
+            log::info!("[AfterDot] alias={:?} not found in scope — checking if it is a schema name", alias);
             let alias_lower = alias.to_lowercase();
             let schema_tables: Vec<_> = schema.tables.values()
                 .filter(|t| t.schema.to_lowercase() == alias_lower)
