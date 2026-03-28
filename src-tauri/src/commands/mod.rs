@@ -33,6 +33,8 @@ pub mod agent_commands;
 pub use agent_commands::*;
 pub mod ddl_commands;
 pub use ddl_commands::*;
+pub mod explain_commands;
+pub use explain_commands::*;
 
 #[cfg(test)]
 mod pg_sprint_tests;

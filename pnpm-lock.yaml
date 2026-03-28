@@ -117,15 +117,26 @@ importers:
 
   packages/harness:
     dependencies:
+      '@agentclientprotocol/sdk':
+        specifier: ^0.17.1
+        version: 0.17.1(zod@4.3.6)
       '@anthropic-ai/claude-agent-sdk':
         specifier: ^0.2.84
         version: 0.2.85(zod@4.3.6)
+      '@opencode-ai/sdk':
+        specifier: ^1.3.3
+        version: 1.3.3
     devDependencies:
       '@types/bun':
         specifier: ^1.3.11
         version: 1.3.11
 
 packages:
+
+  '@agentclientprotocol/sdk@0.17.1':
+    resolution: {integrity: sha512-yjyIn8POL18IOXioLySYiL0G44kZ/IZctAls7vS3AC3X+qLhFXbWmzABSZehwRnWFShMXT+ODa/HJG1+mGXZ1A==}
+    peerDependencies:
+      zod: ^3.25.0 || ^4.0.0
 
   '@antfu/install-pkg@1.1.0':
     resolution: {integrity: sha512-MGQsmw10ZyI+EJo45CdSER4zEb+p31LpDAFp2Z3gkSd1yqVZGi0Ebx++YTEMonJy4oChEMLsxZ64j8FH6sSqtQ==}
@@ -474,6 +485,9 @@ packages:
 
   '@monaco-editor/loader@1.7.0':
     resolution: {integrity: sha512-gIwR1HrJrrx+vfyOhYmCZ0/JcWqG5kbfG7+d3f/C1LXk2EvzAbHSg3MQ5lO2sMlo9izoAZ04shohfKLVT6crVA==}
+
+  '@opencode-ai/sdk@1.3.3':
+    resolution: {integrity: sha512-qg7DwEVUpZArsYajs0DcaHqmIYB3EfHCuuTdMJir7Yc976DUWDfLR/5y9h8fKb9HAMJXe4TZkAIEr0/3OmK67g==}
 
   '@polka/url@1.0.0-next.29':
     resolution: {integrity: sha512-wwQAWhWSuHaag8c4q/KN/vCoeOJYshAIvMQwD4GpSb3OiZklFfvAgmj0VCBBImRpuF/aFgIRzllXlVX93Jevww==}
@@ -1845,6 +1859,10 @@ packages:
 
 snapshots:
 
+  '@agentclientprotocol/sdk@0.17.1(zod@4.3.6)':
+    dependencies:
+      zod: 4.3.6
+
   '@antfu/install-pkg@1.1.0':
     dependencies:
       package-manager-detector: 1.6.0
@@ -2110,6 +2128,8 @@ snapshots:
   '@monaco-editor/loader@1.7.0':
     dependencies:
       state-local: 1.0.7
+
+  '@opencode-ai/sdk@1.3.3': {}
 
   '@polka/url@1.0.0-next.29': {}
 

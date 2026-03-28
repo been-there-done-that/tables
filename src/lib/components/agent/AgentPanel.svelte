@@ -446,6 +446,15 @@
         }
     });
 
+    // Auto-send pending message when set from outside (e.g. Explain panel "Ask AI")
+    $effect(() => {
+        const pending = agentStore.pendingMessage;
+        if (pending && sessionReady) {
+            agentStore.pendingMessage = null;
+            send(pending, pending);
+        }
+    });
+
     onDestroy(() => {
         abortController?.abort();
         if (turnTimerInterval !== null) clearInterval(turnTimerInterval);

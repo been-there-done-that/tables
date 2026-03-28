@@ -320,6 +320,9 @@ macro_rules! aggregate_plugin_commands {
             get_index_ddl,
             get_trigger_definition,
 
+            // Explain commands
+            explain_query,
+
             // Harness sidecar
             crate::harness::get_harness_port,
 

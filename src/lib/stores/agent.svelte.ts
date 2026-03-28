@@ -45,6 +45,7 @@ class AgentStore {
     session = $state<AgentSession | null>(null);
     errorMessage = $state<string | null>(null);
     threadId = $state<string | null>(null);
+    pendingMessage = $state<string | null>(null);
 
     private persistMessage(msg: AgentMessage) {
         if (!this.threadId) return;
