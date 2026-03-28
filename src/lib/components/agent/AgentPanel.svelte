@@ -273,6 +273,17 @@
     }
 
     function stop() {
+        // Drain pending approvals so the harness unblocks immediately
+        for (const [toolId, pending] of pendingApprovals) {
+            agentStore.failToolCall(toolId, "Session stopped");
+            fetch(`http://127.0.0.1:${pending.ctx.port}/tool-result/${toolId}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ error: "Session stopped by user" }),
+            }).catch(console.error);
+        }
+        pendingApprovals.clear();
+
         stopTurnTimer();
         abortController?.abort();
         if (streamingMsgId) {
@@ -340,6 +351,19 @@
         }
     });
 
+    // Restart the harness session when planMode is toggled mid-conversation so
+    // the system prompt reflects the new mode. Guard: only restart if the thread
+    // already has messages (avoid restarting a fresh empty thread).
+    let prevPlanMode = planMode;
+    $effect(() => {
+        const current = planMode;
+        if (current === prevPlanMode) return;
+        prevPlanMode = current;
+        if (agentStore.messages.length > 0 && threadsStore.activeThread) {
+            startThread(threadsStore.activeThread).catch(console.error);
+        }
+    });
+
     onDestroy(() => {
         abortController?.abort();
         if (turnTimerInterval !== null) clearInterval(turnTimerInterval);
@@ -395,6 +419,12 @@
             />
         </div>
         <div class="flex items-center gap-2 shrink-0">
+            {#if planMode}
+                {@const pendingCount = pendingApprovals.size}
+                <span class="flex items-center gap-1 rounded-full bg-amber-400/15 px-2 py-0.5 text-[9.5px] font-medium text-amber-400 select-none">
+                    Plan{pendingCount > 0 ? ` · ${pendingCount}` : ""}
+                </span>
+            {/if}
             {#if agentStore.status === "running" && turnStartedAt !== null}
                 <span class="font-mono text-[10px] text-accent">
                     {formatTurnElapsed(turnElapsed)}
