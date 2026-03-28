@@ -340,6 +340,7 @@ export class SchemaStore {
                 windowState.switchDatabaseSession(this.activeConnection, name);
             }
 
+
             // Trigger load if needed (optional, or rely on tree expansion)
             this.loadDatabase(name);
         }
