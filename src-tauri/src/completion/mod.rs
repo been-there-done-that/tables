@@ -21,4 +21,7 @@ pub mod tests;
 #[cfg(test)]
 pub mod pg_test_helpers;
 
+#[cfg(test)]
+pub mod pg_integration_tests;
+
 // Re-exports
