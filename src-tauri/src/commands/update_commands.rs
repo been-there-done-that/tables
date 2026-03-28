@@ -91,5 +91,6 @@ pub async fn install_update(state: State<'_, UpdaterState>) -> Result<(), String
         .ok_or("Update not downloaded yet")?;
 
     update.install(bytes).map_err(|e| e.to_string())?;
+    *state.pending_update.lock().unwrap() = None;
     Ok(())
 }
