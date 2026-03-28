@@ -85,6 +85,7 @@ Base URL: ${base}
 | \`get_query_history\` | \`limit?\` (default 20) | Recent queries from editor |
 | \`read_file\` | \`fileId?\`, \`fileName?\`, \`lineStart?\`, \`lineEnd?\` | Read content of an open tab; returns fileId for future reference |
 | \`write_file\` | \`fileId?\`, \`fileName\`, \`content\` | Create or update a tab; use fileId from a previous write_file response to update the same file precisely |
+| \`list_files\` | _(none)_ | List all files you have created in this session; returns [{fileId, fileName}] for reuse |
 
 Example (open query in editor):
 \`\`\`bash
@@ -123,6 +124,12 @@ curl -s -X POST ${base}/write_file \\
 \`\`\`
 
 Response: {"ok": true, "action": "created"|"updated", "fileId": "...", "fileName": "...", "lines": N}
+
+## File Management
+
+Use \`list_files\` at the start of a task to check what files you have already created. When updating an existing file, always prefer the fileId returned from a previous write_file — this avoids creating duplicates. If you have lost the fileId, call list_files to recover it by name.
+
+Do NOT create a new file for each iteration or revision. Update the existing one.
 
 `;
 }
