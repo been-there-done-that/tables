@@ -1,3 +1,14 @@
+[workspace]
+members = [".", "crates/sql-scope"]
+resolver = "2"
+
+[workspace.dependencies]
+thiserror = "1"
+indexmap = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+
 [package]
 name = "tables"
 version = "0.1.0"
@@ -59,6 +70,7 @@ sqlformat = "0.5.0"
 reqwest = { version = "0.13.1", features = ["stream", "json"] }
 futures-util = "0.3.31"
 tree-sitter-sql = "0.0.2"
+sql-scope = { path = "crates/sql-scope" }
 [profile.release]
 strip = true
 lto = true
