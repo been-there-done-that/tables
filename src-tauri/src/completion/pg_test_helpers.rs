@@ -381,10 +381,17 @@ pub async fn build_schema_graph_from_pg(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio::sync::OnceCell;
+
+    static PG_SCHEMA: OnceCell<SchemaGraph> = OnceCell::const_new();
+
+    async fn get_schema() -> &'static SchemaGraph {
+        PG_SCHEMA.get_or_init(|| async { build_pg_test_schema().await }).await
+    }
 
     #[tokio::test]
     async fn smoke_setup_creates_tables() {
-        let schema = build_pg_test_schema().await;
+        let schema = get_schema().await;
         assert!(schema.get_table("users").is_some(),      "public.users missing");
         assert!(schema.get_table("employees").is_some(),  "hr.employees missing");
         assert!(schema.get_table("orders").is_some(),     "sales.orders missing");
@@ -399,7 +406,7 @@ mod tests {
 
     #[tokio::test]
     async fn schema_has_expected_columns() {
-        let schema = build_pg_test_schema().await;
+        let schema = get_schema().await;
 
         let users = schema.get_table("users").expect("users");
         let col_names: Vec<&str> = users.columns.iter().map(|c| c.name.as_str()).collect();
@@ -425,7 +432,7 @@ mod tests {
 
     #[tokio::test]
     async fn schema_has_foreign_keys() {
-        let schema = build_pg_test_schema().await;
+        let schema = get_schema().await;
         let fk_path = schema.find_fk_path("orders", "users");
         assert!(fk_path.is_some(), "FK path orders→users missing");
         let fk_oi = schema.find_fk_path("order_items", "orders");
@@ -434,7 +441,7 @@ mod tests {
 
     #[tokio::test]
     async fn schema_has_indexed_columns() {
-        let schema = build_pg_test_schema().await;
+        let schema = get_schema().await;
         let employees = schema.get_table("employees").expect("employees");
         let user_id_col = employees.columns.iter()
             .find(|c| c.name == "user_id").expect("employees.user_id");
