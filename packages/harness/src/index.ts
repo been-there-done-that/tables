@@ -86,8 +86,8 @@ const server = Bun.serve({
                     if (e.type === "turn.done" || e.type === "error") {
                         controller.close();
                     }
-                } catch (err) {
-                    console.error(`[harness] enqueue failed (stream closed?):`, err);
+                } catch {
+                    // SSE stream already closed (client disconnected) — ignore
                 }
             });
 
