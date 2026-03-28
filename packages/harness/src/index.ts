@@ -1,19 +1,8 @@
-import { ClaudeSession } from "./session";
+import { createSession } from "./registry";
+import type { Session } from "./types";
 
-const claudePath =
-    Bun.which("claude") ??
-    (Bun.env.HOME ? `${Bun.env.HOME}/.claude/local/claude` : null) ??
-    "/usr/local/bin/claude";
-
-console.error(`[harness] claude path: ${claudePath} (exists: ${await Bun.file(claudePath ?? "").exists()})`);
-console.error(`[harness] PATH: ${Bun.env.PATH}`);
-
-const sessions = new Map<string, ClaudeSession>();
+const sessions = new Map<string, Session>();
 const pendingToolResults = new Map<string, { sessionId: string; resolve: (v: unknown) => void; reject: (e: Error) => void }>();
-
-function threadCwd(threadId: string): string {
-    return `${Bun.env.HOME ?? ""}/.config/tables/sessions/${threadId}`;
-}
 
 const CORS = {
     "Access-Control-Allow-Origin": "*",
@@ -32,17 +21,18 @@ const server = Bun.serve({
         }
 
         if (req.method === "POST" && url.pathname === "/session/start") {
-            const { sessionId, threadId, systemPrompt, model, effort } = (await req.json()) as {
+            const { sessionId, threadId, systemPrompt, model, effort, provider = "claude", providerConfig } = (await req.json()) as {
                 sessionId: string;
                 threadId: string;
                 systemPrompt: string;
                 model?: string;
                 effort?: "auto" | "low" | "medium" | "high" | "max";
+                provider?: string;
+                providerConfig?: Record<string, unknown>;
             };
-            const cwd = threadCwd(threadId);
             sessions.get(sessionId)?.stop();
-            sessions.set(sessionId, new ClaudeSession(systemPrompt, claudePath, model, effort, cwd));
-            console.error(`[harness] session started: ${sessionId} cwd: ${cwd}`);
+            sessions.set(sessionId, createSession({ sessionId, threadId, systemPrompt, provider, providerConfig, model, effort }));
+            console.error(`[harness] session started: ${sessionId}`);
             return Response.json({ ok: true }, { headers: CORS });
         }
 
@@ -113,17 +103,18 @@ const server = Bun.serve({
         }
 
         if (req.method === "POST" && url.pathname === "/session/resume") {
-            const { sessionId, threadId, sdkSessionId, systemPrompt, model, effort } = (await req.json()) as {
+            const { sessionId, threadId, sdkSessionId, systemPrompt, model, effort, provider = "claude", providerConfig } = (await req.json()) as {
                 sessionId: string;
                 threadId: string;
                 sdkSessionId: string;
                 systemPrompt: string;
                 model?: string;
                 effort?: "auto" | "low" | "medium" | "high" | "max";
+                provider?: string;
+                providerConfig?: Record<string, unknown>;
             };
-            const cwd = threadCwd(threadId);
             sessions.get(sessionId)?.stop();
-            sessions.set(sessionId, new ClaudeSession(systemPrompt, claudePath, model, effort, cwd, sdkSessionId));
+            sessions.set(sessionId, createSession({ sessionId, threadId, systemPrompt, provider, providerConfig, model, effort, sdkSessionId }));
             console.error(`[harness] session resumed: ${sessionId} sdk: ${sdkSessionId}`);
             return Response.json({ ok: true }, { headers: CORS });
         }
