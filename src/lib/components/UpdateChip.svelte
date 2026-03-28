@@ -25,12 +25,15 @@
   <button
     class="flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-opacity select-none"
     style={
-      updaterStore.status === 'ready'
-        ? 'background: var(--chip-result-bg); border-color: var(--chip-result-border); color: var(--chip-result-color);'
-        : updaterStore.status === 'error'
-        ? 'background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.4); color: rgb(248,113,113);'
-        : 'background: color-mix(in srgb, var(--theme-accent-primary) 15%, transparent); border-color: color-mix(in srgb, var(--theme-accent-primary) 40%, transparent); color: var(--theme-accent-primary);'
+      '-webkit-app-region: no-drag; ' + (
+        updaterStore.status === 'ready'
+          ? 'background: var(--chip-result-bg); border-color: var(--chip-result-border); color: var(--chip-result-color);'
+          : updaterStore.status === 'error'
+          ? 'background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.4); color: rgb(248,113,113);'
+          : 'background: color-mix(in srgb, var(--theme-accent-primary) 15%, transparent); border-color: color-mix(in srgb, var(--theme-accent-primary) 40%, transparent); color: var(--theme-accent-primary);'
+      )
     }
+    title={updaterStore.status === 'available' ? 'Download update' : updaterStore.status === 'ready' ? 'Restart to install' : 'Retry update'}
     onclick={handleChipClick}
   >
     {#if updaterStore.status === 'downloading'}
