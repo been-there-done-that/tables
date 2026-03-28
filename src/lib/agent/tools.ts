@@ -5,6 +5,7 @@ export function buildSystemPrompt(
     activeDb: string | null,
     engine: string | null,
     toolCtx?: { port: number; sessionId: string; schema: string },
+    openTabs?: string[],
 ): string {
     const engineLabel = engine ?? "SQL";
     const dbLabel = activeDb ?? "unknown";
@@ -12,19 +13,23 @@ export function buildSystemPrompt(
     const toolSection = toolCtx
         ? buildToolInstructions(toolCtx.port, toolCtx.sessionId, toolCtx.schema)
         : "";
+    const tabsSection = openTabs && openTabs.length > 0
+        ? `## Open Editor Tabs\n\nThe user currently has these files open:\n${openTabs.map((t) => `- ${t}`).join("\n")}\n\nUse read_file to read a tab's current content, or write_file to update it.\n\n`
+        : "";
 
     return `You are an expert ${engineLabel} database analyst integrated into Tables, a desktop database IDE.
 
 Active connection: ${engineLabel} — database: "${dbLabel}"
 
 ${schemaSection}
-${toolSection}
+${tabsSection}${toolSection}
 Guidelines:
 - NEVER output SQL or code directly in your chat response text — always use write_file to write or update files
 - Be concise and precise
 - When asked to write a query, use write_file immediately without preamble
 - If a query could be destructive (DELETE, DROP, TRUNCATE), add a warning comment inside the file
-- Prefer readable formatting with proper indentation`;
+- Prefer readable formatting with proper indentation
+- If a request is ambiguous or could be interpreted multiple ways, ask one targeted clarifying question before proceeding`;
 }
 
 export function buildToolInstructions(port: number, sessionId: string, schema: string): string {
@@ -51,6 +56,7 @@ Base URL: ${base}
 | \`check_fk_integrity\` | \`table\`, \`schema?\` | Orphaned FK rows |
 | \`open_in_editor\` | \`sql\`, \`title?\` | Open SQL in editor tab |
 | \`get_query_history\` | \`limit?\` (default 20) | Recent queries from editor |
+| \`read_file\` | \`fileName\` | Read current content of an open editor tab |
 | \`write_file\` | \`fileName\`, \`content\` | Write/update an editor tab with SQL content |
 
 Example (open query in editor):

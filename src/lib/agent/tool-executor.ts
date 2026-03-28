@@ -254,6 +254,16 @@ async function executeTool(toolName: string, input: unknown, ctx: ToolContext): 
             return { success: true };
         }
 
+        case "read_file": {
+            const { fileName } = inp as { fileName: string };
+            const session = windowState.activeSession;
+            if (!session) return { error: "no active session" };
+            const view = session.views.find((v) => v.title === fileName);
+            if (!view) return { error: `File "${fileName}" is not open. Open tabs: ${session.views.filter(v => v.type === "editor").map(v => v.title).join(", ") || "none"}` };
+            const content: string = (view.data as Record<string, unknown>)?.content as string ?? "";
+            return { fileName, content, lines: content.split("\n").length };
+        }
+
         case "write_file": {
             const { fileName, content } = inp as { fileName: string; content: string };
             const session = windowState.activeSession;

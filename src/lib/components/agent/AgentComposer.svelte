@@ -10,6 +10,7 @@
     import IconBrain from "@tabler/icons-svelte/icons/brain";
     import IconCheck from "@tabler/icons-svelte/icons/check";
     import IconChevronDown from "@tabler/icons-svelte/icons/chevron-down";
+    import IconMap from "@tabler/icons-svelte/icons/map";
     import ComposerDropdown from "./ComposerDropdown.svelte";
     import type { DropdownItem } from "./ComposerDropdown.svelte";
     import * as Menu from "$lib/components/ui/dropdown-menu";
@@ -31,6 +32,7 @@
     let editorEl: HTMLDivElement;
     let editor: Editor | null = $state(null);
 
+    let planMode = $state(false);
     let dropdownVisible = $state(false);
     let dropdownItems = $state<DropdownItem[]>([]);
     let dropdownPos = $state({ x: 0, y: 0 });
@@ -336,7 +338,10 @@
         // Re-check state after async resolution
         if (!editor || running) return;
         const agentBody = prose || displayText;
-        const fullText = contextXml ? `${contextXml}\n\n${agentBody}` : agentBody;
+        const planPrefix = planMode
+            ? "Before making any changes, write a concise step-by-step plan and ask me to confirm before proceeding.\n\n"
+            : "";
+        const fullText = contextXml ? `${contextXml}\n\n${planPrefix}${agentBody}` : `${planPrefix}${agentBody}`;
         onSend(displayText, fullText, doc);
     }
 
@@ -357,6 +362,16 @@
         <!-- Bottom bar -->
         <div class="flex items-center justify-between px-2 pb-2 pt-1">
             <div class="flex items-center gap-0.5">
+                <!-- Plan mode toggle -->
+                <button
+                    onclick={() => { planMode = !planMode; }}
+                    title={planMode ? "Plan mode on — agent will propose a plan before acting" : "Plan mode off — click to enable"}
+                    class="flex items-center gap-1 rounded px-1.5 py-1 text-[10.5px] transition-colors {planMode ? 'text-accent hover:bg-accent/10' : 'text-muted-foreground/50 hover:bg-foreground/5 hover:text-muted-foreground'}"
+                >
+                    <IconMap size={11} />
+                    {#if planMode}<span class="font-mono">Plan</span>{/if}
+                </button>
+
                 <!-- Model picker -->
                 <Menu.Root>
                     <Menu.Trigger>

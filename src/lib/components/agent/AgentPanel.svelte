@@ -57,11 +57,15 @@
         const conn = schemaStore.activeConnection!;
         const port = harnessStore.port ?? 0;
         const schema = schemaStore.activeSchema ?? "public";
+        const openTabs = windowState.activeSession?.views
+            .filter((v) => v.type === "editor")
+            .map((v) => v.title) ?? [];
         return buildSystemPrompt(
             schemaStore.databases,
             schemaStore.selectedDatabase,
             conn.engine,
             port > 0 ? { port, sessionId, schema } : undefined,
+            openTabs,
         );
     }
 
@@ -266,6 +270,16 @@
         agentStore.setStatus("idle");
     }
 
+    function handleFocusFile(fileName: string) {
+        const activeSess = windowState.activeSession;
+        if (!activeSess) return;
+        const view = activeSess.views.find((v) => v.title === fileName);
+        if (view) {
+            activeSess.activeViewId = view.id;
+            windowState.layout.showSqlEditor = false;
+        }
+    }
+
     function handleRunQuery(sql: string, autoRun = false) {
         const activeSess = windowState.activeSession;
         if (!activeSess) return;
@@ -381,7 +395,7 @@
             <span class="text-[12px]">Starting session…</span>
         </div>
     {:else}
-        <MessageList onRunQuery={handleRunQuery} />
+        <MessageList onRunQuery={handleRunQuery} onFocusFile={handleFocusFile} />
         <AgentComposer
             onSend={(displayText, fullText, doc) => send(displayText, fullText, doc)}
             onStop={stop}

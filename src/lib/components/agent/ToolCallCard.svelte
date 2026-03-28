@@ -12,9 +12,10 @@
     interface Props {
         toolCall: AgentToolCall;
         onRun?: (sql: string) => void;
+        onFocusFile?: (fileName: string) => void;
     }
 
-    let { toolCall, onRun }: Props = $props();
+    let { toolCall, onRun, onFocusFile }: Props = $props();
     let expanded = $state(false);
     let elapsed = $state(0);
     let intervalId: ReturnType<typeof setInterval> | null = null;
@@ -121,7 +122,7 @@
     <!-- Header -->
     <div class="flex min-w-[160px] items-center gap-1.5 px-2 py-1 w-full">
         <button
-            class="flex flex-1 min-w-0 items-center gap-1.5 text-left"
+            class="flex min-w-0 items-center gap-1.5 text-left"
             onclick={() => (expanded = !expanded)}
         >
             <IconTool size={10} class="shrink-0 text-muted-foreground/40" />
@@ -134,16 +135,23 @@
                 <IconX size={10} class="shrink-0 text-destructive/80" />
             {/if}
 
-            <span class="flex-1 truncate font-mono text-[10.5px] text-muted-foreground/70">
-                {toolCall.toolName}
-                {#if toolCall.toolName === "write_file"}
-                    {@const inp = toolCall.input as Record<string, unknown>}
-                    {#if inp?.fileName}
-                        <span class="text-foreground/50"> — {inp.fileName}</span>
-                    {/if}
-                {/if}
-            </span>
+            <span class="font-mono text-[10.5px] text-muted-foreground/70">{toolCall.toolName}</span>
         </button>
+
+        {#if (toolCall.toolName === "write_file" || toolCall.toolName === "read_file") && (toolCall.input as Record<string, unknown>)?.fileName}
+            {@const fileName = (toolCall.input as Record<string, unknown>).fileName as string}
+            {#if onFocusFile}
+                <button
+                    onclick={() => onFocusFile?.(fileName)}
+                    class="truncate font-mono text-[10.5px] text-accent/60 hover:text-accent hover:underline transition-colors"
+                    title="Open {fileName}"
+                > — {fileName}</button>
+            {:else}
+                <span class="truncate font-mono text-[10.5px] text-foreground/50"> — {fileName}</span>
+            {/if}
+        {:else}
+            <span class="flex-1"></span>
+        {/if}
 
         {#if SQL_TOOLS.has(toolCall.toolName) && onRun}
             {@const sql = getSql()}
