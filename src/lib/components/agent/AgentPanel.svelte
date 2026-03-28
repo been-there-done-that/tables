@@ -293,6 +293,33 @@
                 }
                 agentStore.addTurnSummary(turnElapsed, sessionModel ?? "");
                 agentStore.setStatus("idle");
+
+                // On turn.done: check if the last assistant message contains <plan> XML
+                const lastMsg = agentStore.messages.findLast((m) => m.role === "assistant" && !m.isError);
+                if (lastMsg) {
+                    const planMatch = lastMsg.content.match(/<plan[^>]*>([\s\S]*?)<\/plan>/i);
+                    if (planMatch && threadsStore.activeThreadId) {
+                        // Parse steps
+                        const stepRe = /<step\s+phase="([^"]+)"[^>]*>([\s\S]*?)<\/step>/gi;
+                        const parsedSteps: Array<{ phase: string; description: string }> = [];
+                        let sm: RegExpExecArray | null;
+                        while ((sm = stepRe.exec(planMatch[1])) !== null) {
+                            parsedSteps.push({ phase: sm[1].trim(), description: sm[2].trim() });
+                        }
+                        if (parsedSteps.length > 0) {
+                            // Create plan and steps in store/DB
+                            plansStore.createPlan(threadsStore.activeThreadId, "Plan")
+                                .then((plan) => {
+                                    agentStore.setMessagePlanId(lastMsg.id, plan.id);
+                                    for (const s of parsedSteps) {
+                                        plansStore.addStep(plan.id, s.phase as "gather" | "draft" | "execute", s.description)
+                                            .catch(console.error);
+                                    }
+                                })
+                                .catch(console.error);
+                        }
+                    }
+                }
                 break;
             }
             case "error": {

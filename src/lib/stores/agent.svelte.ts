@@ -11,6 +11,7 @@ export interface AgentMessage {
     timestamp: number;
     docJson?: unknown; // TipTap doc JSON for user messages with @chips
     isError?: boolean; // inline error messages from failed turns
+    planId?: string; // linked plan created from <plan> XML in this message
 }
 
 export interface AgentToolCall {
@@ -179,6 +180,11 @@ class AgentStore {
             cancelled: s.cancelled ?? false,
             createdAt: Math.floor(s.timestamp / 1000),
         }).catch((e) => console.error("[agentStore] persist turn summary failed:", e));
+    }
+
+    setMessagePlanId(msgId: string, planId: string) {
+        const msg = this.messages.find((m) => m.id === msgId);
+        if (msg) msg.planId = planId;
     }
 
     addErrorMessage(text: string) {
