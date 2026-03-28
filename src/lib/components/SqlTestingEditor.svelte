@@ -159,7 +159,7 @@
             const result = await invoke<any>("execute_query", {
                 connectionId: schemaStore.activeConnection.id,
                 sessionId: id,
-                database: schemaStore.selectedDatabase,
+                database: context.databaseContext || schemaStore.selectedDatabase,
                 schema: schemaStore.activeSchema || "public",
                 query: results.executedQueryText,
                 component: "editor",
@@ -546,7 +546,7 @@
             const result = await invoke<any>("execute_query", {
                 connectionId: schemaStore.activeConnection.id,
                 sessionId: id,
-                database: schemaStore.selectedDatabase,
+                database: context.databaseContext || schemaStore.selectedDatabase,
                 schema: schemaStore.activeSchema || "public",
                 query: queryText,
                 component: "editor",
@@ -1310,6 +1310,11 @@
         {isRunning}
         executionTime={results?.executionTime}
         activeSchema={schemaStore.activeSchema || "public"}
+        viewData={context}
+        showAll={settingsStore.editorShowAllRunButtons}
+        onToggleShowAll={() =>
+            (settingsStore.editorShowAllRunButtons =
+                !settingsStore.editorShowAllRunButtons)}
         onExecute={executeCurrent}
         onStop={handleStop}
         onFormat={handleFormat}
