@@ -284,7 +284,6 @@ WHERE EXISTS (
 /// ```
 /// Expected: columns from the CTE (which inherits from users)
 #[test]
-#[ignore = "TODO: add assertion — currently only observes output"]
 fn t8_cte_visibility() {
     let sql = r#"
 WITH active_users AS (
@@ -294,10 +293,12 @@ SELECT a.| FROM active_users a"#;
 
     let suggestions = complete(sql);
 
-    // This test documents expected behavior for CTEs
-    // CTE 'active_users' should be treated like a table
-    // Currently we may not fully parse CTEs, so this might need work
-    println!("CTE suggestions: {:?}", suggestions);
+    // CTE wildcards expand from the source table — active_users inherits users' columns
+    assert!(suggestions.contains(&"id".to_string()), "should contain 'id', got: {:?}", suggestions);
+    assert!(suggestions.contains(&"email".to_string()), "should contain 'email', got: {:?}", suggestions);
+    assert!(suggestions.contains(&"created_at".to_string()), "should contain 'created_at', got: {:?}", suggestions);
+    // Should NOT suggest unrelated table names
+    assert!(!suggestions.contains(&"orders".to_string()), "should not suggest unrelated tables");
 }
 
 /// T9. CTE shadows real table
@@ -312,7 +313,6 @@ SELECT a.| FROM active_users a"#;
 /// Expected: id (only, from CTE's select list)
 /// NOT: email (from real users table)
 #[test]
-#[ignore = "TODO: add assertion — currently only observes output"]
 fn t9_cte_shadows_real_table() {
     let sql = r#"
 WITH users AS (
@@ -322,9 +322,12 @@ SELECT u.| FROM users u"#;
 
     let suggestions = complete(sql);
 
-    // The CTE 'users' should shadow the real 'users' table
-    // This is advanced functionality - document expected behavior
-    println!("CTE shadow suggestions: {:?}", suggestions);
+    // CTE 'users' shadows the real schema table — only the CTE's projected columns should appear
+    assert!(suggestions.contains(&"id".to_string()), "should contain 'id' from CTE, got: {:?}", suggestions);
+    assert!(!suggestions.contains(&"email".to_string()),
+        "should NOT contain 'email' from real users table (CTE shadows it), got: {:?}", suggestions);
+    assert!(!suggestions.contains(&"created_at".to_string()),
+        "should NOT contain 'created_at' from real users table, got: {:?}", suggestions);
 }
 
 // =============================================================================
@@ -403,17 +406,16 @@ fn t12_indexed_column_boost() {
 ///
 /// Type-aware filtering.
 #[test]
-#[ignore = "TODO: add assertion — currently only observes output"]
 fn t13_function_argument_typing() {
     let suggestions = complete("SELECT SUM(|) FROM orders o");
 
-    // Should prioritize numeric columns
-    println!("SUM argument suggestions: {:?}", suggestions);
-
-    // If we have type filtering implemented:
-    // - 'amount' and 'total' are decimal/numeric
-    // - 'description' is text
-    // The text column should be filtered out
+    // Columns from the in-scope table (orders) must be present
+    assert!(suggestions.contains(&"amount".to_string()),
+        "should suggest 'amount' (numeric) in SUM(), got: {:?}", suggestions);
+    assert!(suggestions.contains(&"total".to_string()),
+        "should suggest 'total' (numeric) in SUM(), got: {:?}", suggestions);
+    // Note: type-aware filtering (excluding text columns like 'description') is not yet
+    // implemented — the engine returns all columns for now.
 }
 
 // =============================================================================
@@ -428,14 +430,16 @@ fn t13_function_argument_typing() {
 ///
 /// DataGrip suggests this. Most tools don't.
 #[test]
-#[ignore = "TODO: add assertion — currently only observes output"]
 fn t14_multi_hop_join() {
     let items = complete_with_details("SELECT * FROM users u JOIN teams t ON |");
 
-    // This is advanced - we're looking for multi-hop suggestions
-    // Expected: u.id = ut.user_id AND ut.team_id = t.id (or similar)
-    println!("Multi-hop join suggestions: {:?}",
+    // Should produce join condition suggestions (qualified column names from visible tables)
+    assert!(!items.is_empty(), "should return join condition suggestions, got empty");
+    let has_qualified = items.iter().any(|i| i.insert_text.contains('.'));
+    assert!(has_qualified, "join suggestions should be qualified (e.g. u.id), got: {:?}",
         items.iter().map(|i| &i.insert_text).collect::<Vec<_>>());
+    // Note: multi-hop inference (suggesting the intermediate user_teams join path) is not yet
+    // implemented — the engine returns direct column candidates.
 }
 
 // =============================================================================
@@ -801,13 +805,11 @@ fn t32_cte_beats_schema_tables() {
 ///
 /// Aliasing a nonexistent table should return empty column suggestions.
 #[test]
-#[ignore = "TODO: add assertion — currently only observes output"]
 fn t33_wrong_table_no_columns() {
     let items = complete("SELECT x.| FROM nonexistent_table x");
 
-    // Should be empty or have no column suggestions
-    // This tests graceful handling of unknown tables
-    println!("Nonexistent table columns: {:?}", items);
+    // Unknown table → no column suggestions (graceful empty result)
+    assert!(items.is_empty(), "should return no columns for unknown table, got: {:?}", items);
 }
 
 /// T34. Schema in completion detail

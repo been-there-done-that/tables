@@ -82,23 +82,11 @@ impl CoreCompletionEngine {
                 }
             } else if let Some(table_name) = resolve_table_name(source) {
                 log::debug!("[AfterDot] Table name: '{}'", table_name);
-                let columns = schema.get_columns(table_name);
-                log::debug!("[AfterDot] Found {} columns", columns.len());
-                if !columns.is_empty() {
-                    for col in columns {
-                        items.push(CompletionItem {
-                            label: col.name.clone(),
-                            kind: CompletionKind::Column,
-                            detail: Some(format!("{} ({})", col.data_type, table_name)),
-                            insert_text: col.name.clone(),
-                            score: Self::column_score(col.is_primary_key, col.is_indexed),
-                        });
-                    }
-                } else {
-                    // No schema columns — check if table_name is actually a CTE
-                    // (sql_scope may register CTE references as Table sources)
-                    let cte_cols = get_cte_columns(scope_tree, context.cursor_offset, table_name);
-                    log::debug!("[AfterDot] CTE fallback: {} columns for '{}'", cte_cols.len(), table_name);
+                // CTE takes priority over a real schema table with the same name (CTE shadowing).
+                // A CTE named `users` must shadow `public.users` — check CTE first.
+                let cte_cols = get_cte_columns(scope_tree, context.cursor_offset, table_name);
+                if !cte_cols.is_empty() {
+                    log::debug!("[AfterDot] CTE shadows table '{}': {} columns", table_name, cte_cols.len());
                     for col_name in cte_cols {
                         items.push(CompletionItem {
                             label: col_name.clone(),
@@ -106,6 +94,18 @@ impl CoreCompletionEngine {
                             detail: Some(format!("CTE Column ({})", table_name)),
                             insert_text: col_name.clone(),
                             score: 90,
+                        });
+                    }
+                } else {
+                    let columns = schema.get_columns(table_name);
+                    log::debug!("[AfterDot] Schema columns for '{}': {}", table_name, columns.len());
+                    for col in columns {
+                        items.push(CompletionItem {
+                            label: col.name.clone(),
+                            kind: CompletionKind::Column,
+                            detail: Some(format!("{} ({})", col.data_type, table_name)),
+                            insert_text: col.name.clone(),
+                            score: Self::column_score(col.is_primary_key, col.is_indexed),
                         });
                     }
                 }
