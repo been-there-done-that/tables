@@ -909,7 +909,7 @@ impl DatabaseAdapter for PostgresAdapter {
             JOIN pg_class ref_tab ON con.confrelid = ref_tab.oid
             JOIN pg_namespace ref_sch ON ref_tab.relnamespace = ref_sch.oid
             CROSS JOIN LATERAL unnest(con.conkey, con.confkey) WITH ORDINALITY AS cols(attnum, ref_attnum, ordinality)
-            JOIN pg_attribute src_att ON src_att.attrelid = tab.oid AND src_att.attnum = cols.src_attnum
+            JOIN pg_attribute src_att ON src_att.attrelid = tab.oid AND src_att.attnum = cols.attnum
             JOIN pg_attribute ref_att ON ref_att.attrelid = ref_tab.oid AND ref_att.attnum = cols.ref_attnum
             WHERE con.contype = 'f' AND sch.nspname = $1
             ORDER BY tab.relname, cols.ordinality",
