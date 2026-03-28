@@ -140,6 +140,7 @@
             databaseName: schemaStore.selectedDatabase,
             model: settingsStore.aiModel,
             effort: settingsStore.aiEffort,
+            provider: settingsStore.aiProvider,
         });
         await startThread(thread);
     }

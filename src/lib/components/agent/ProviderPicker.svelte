@@ -47,13 +47,9 @@
                     {p.available
                         ? p.id === selected
                             ? 'border-accent/60 bg-accent/5 cursor-pointer'
-                            : 'border-border/50 bg-background hover:border-border cursor-pointer hover:bg-foreground/[0.02]'
+                            : 'border-border/50 bg-background hover:border-border cursor-pointer hover:bg-foreground/[0.02] ring-1 ring-green-600/35'
                         : 'border-border/20 bg-background/50 cursor-not-allowed opacity-35'}"
-                style={p.available
-                    ? p.id === selected
-                        ? 'box-shadow: 0 0 0 1.5px hsl(var(--accent) / 0.5)'
-                        : 'box-shadow: 0 0 0 1.5px hsl(142 76% 36% / 0.35)'
-                    : ''}
+                style={p.available && p.id === selected ? 'box-shadow: 0 0 0 1.5px hsl(var(--accent) / 0.5)' : ''}
                 title={p.available ? `Use ${p.label}` : `${p.label} not installed`}
             >
                 <span class="text-[10.5px] font-medium {p.id === selected ? 'text-accent' : 'text-foreground/80'}">
