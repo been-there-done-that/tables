@@ -77,6 +77,7 @@ fn expand_table_ref_columns(
             cols.extend(expand_table_ref_columns(right, scope_id, tree, schema, depth));
             cols
         }
+        TableRefIr::WhereSubquery { .. } => vec![], // WHERE subqueries don't contribute to SELECT *
     }
 }
 

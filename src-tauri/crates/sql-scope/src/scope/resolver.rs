@@ -145,6 +145,16 @@ fn register_table_ref(
             register_table_ref(left, scope_id, tree, schema);
             register_table_ref(right, scope_id, tree, schema);
         }
+        TableRefIr::WhereSubquery { body } => {
+            // Build a child scope so outer aliases are visible inside the EXISTS/correlated subquery.
+            let sub_sel = SelectIr {
+                with: None,
+                body: *body.clone(),
+                byte_range: body.byte_range.clone(),
+            };
+            let child_id = build_select_scope(&sub_sel, Some(scope_id), tree, schema);
+            let _ = child_id;
+        }
     }
 }
 

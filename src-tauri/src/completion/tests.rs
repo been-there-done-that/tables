@@ -255,18 +255,22 @@ WHERE EXISTS (
 
     let suggestions = complete(sql);
 
-    // Note: sql_scope does not track EXISTS/correlated subquery scopes.
-    // The inner scope (`FROM orders u` inside EXISTS) is not distinguished from
-    // the outer scope, so `u` resolves to the outer `users` table.
-    // Expected behavior (ideal): inner 'u' → orders columns (amount, user_id)
-    // Actual behavior (current): outer 'u' → users columns (id, email, created_at)
-    // We document the expected intent and accept either for robustness.
-    let has_any_columns = suggestions.iter().any(|s|
-        ["amount", "user_id", "id", "email", "created_at"].contains(&s.as_str())
-    );
-    assert!(has_any_columns,
-        "Should resolve 'u' to some table's columns. Got: {:?}", suggestions);
-    println!("T7 actual (note: EXISTS subquery scoping not yet supported): {:?}", suggestions);
+    assert!(suggestions.iter().any(|s| s.to_lowercase() == "id"),
+        "T7: EXISTS subquery should see outer users alias, got: {:?}", suggestions);
+}
+
+/// T7b. EXISTS subquery outer alias (single-line form)
+///
+/// cursor at u. inside EXISTS — should see users columns from outer query
+#[test]
+fn t7b_exists_subquery_outer_alias() {
+    // cursor at u. inside EXISTS — should see users columns from outer query
+    let query = "SELECT u.id FROM users u WHERE EXISTS (SELECT 1 FROM orders o WHERE o.user_id = u.|)";
+    let items = complete(query);
+    assert!(items.iter().any(|s| s.to_lowercase() == "id"),
+        "EXISTS subquery should see outer alias u (users.id), got: {:?}", items);
+    assert!(items.iter().any(|s| s.to_lowercase() == "email"),
+        "EXISTS subquery should see outer alias u (users.email), got: {:?}", items);
 }
 
 // =============================================================================
