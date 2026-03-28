@@ -44,6 +44,17 @@ pub struct AgentToolCall {
     pub completed_at: Option<i64>,
 }
 
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentTurnSummary {
+    pub id: String,
+    pub thread_id: String,
+    pub total_ms: i64,
+    pub model: String,
+    pub cancelled: bool,
+    pub created_at: i64,
+}
+
 // ── Thread commands ────────────────────────────────────────────────────────────
 
 #[tauri::command]
@@ -254,6 +265,55 @@ pub fn list_agent_tool_calls(
                 status: row.get(5)?,
                 started_at: row.get(6)?,
                 completed_at: row.get(7)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+}
+
+// ── Turn summary commands ──────────────────────────────────────────────────────
+
+#[tauri::command]
+pub fn save_turn_summary(
+    state: State<'_, DatabaseState>,
+    id: String,
+    thread_id: String,
+    total_ms: i64,
+    model: String,
+    cancelled: bool,
+    created_at: i64,
+) -> Result<(), String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    conn.execute(
+        "INSERT OR IGNORE INTO agent_turn_summaries (id, thread_id, total_ms, model, cancelled, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        params![id, thread_id, total_ms, model, cancelled as i64, created_at],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn list_turn_summaries(
+    state: State<'_, DatabaseState>,
+    thread_id: String,
+) -> Result<Vec<AgentTurnSummary>, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, thread_id, total_ms, model, cancelled, created_at
+             FROM agent_turn_summaries WHERE thread_id = ?1 ORDER BY created_at ASC",
+        )
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map(params![thread_id], |row| {
+            Ok(AgentTurnSummary {
+                id: row.get(0)?,
+                thread_id: row.get(1)?,
+                total_ms: row.get(2)?,
+                model: row.get(3)?,
+                cancelled: row.get::<_, i64>(4)? != 0,
+                created_at: row.get(5)?,
             })
         })
         .map_err(|e| e.to_string())?;

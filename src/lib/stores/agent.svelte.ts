@@ -152,13 +152,27 @@ class AgentStore {
     }
 
     addTurnSummary(totalMs: number, model: string, cancelled = false) {
-        this.turnSummaries.push({
+        const summary: TurnSummary = {
             id: crypto.randomUUID(),
             totalMs,
             model,
             timestamp: Date.now(),
             cancelled,
-        });
+        };
+        this.turnSummaries.push(summary);
+        this.persistTurnSummary(summary);
+    }
+
+    private persistTurnSummary(s: TurnSummary) {
+        if (!this.threadId) return;
+        invoke("save_turn_summary", {
+            id: s.id,
+            threadId: this.threadId,
+            totalMs: s.totalMs,
+            model: s.model,
+            cancelled: s.cancelled ?? false,
+            createdAt: Math.floor(s.timestamp / 1000),
+        }).catch((e) => console.error("[agentStore] persist turn summary failed:", e));
     }
 
     addErrorMessage(text: string) {
@@ -192,7 +206,7 @@ class AgentStore {
         this.errorMessage = null;
 
         try {
-            const [msgs, tools] = await Promise.all([
+            const [msgs, tools, summaries] = await Promise.all([
                 invoke<Array<{
                     id: string; threadId: string; role: string;
                     content: string; thinking: string | null; timestamp: number;
@@ -202,6 +216,10 @@ class AgentStore {
                     input: string; output: string | null; status: string;
                     startedAt: number; completedAt: number | null;
                 }>>("list_agent_tool_calls", { threadId }),
+                invoke<Array<{
+                    id: string; threadId: string; totalMs: number;
+                    model: string; cancelled: boolean; createdAt: number;
+                }>>("list_turn_summaries", { threadId }),
             ]);
 
             this.messages = msgs.map((m) => ({
@@ -222,6 +240,14 @@ class AgentStore {
                 timestamp: t.startedAt * 1000,
                 startedAt: t.startedAt * 1000,
                 completedAt: t.completedAt != null ? t.completedAt * 1000 : undefined,
+            }));
+
+            this.turnSummaries = summaries.map((s) => ({
+                id: s.id,
+                totalMs: s.totalMs,
+                model: s.model,
+                timestamp: s.createdAt * 1000,
+                cancelled: s.cancelled,
             }));
 
             // Only activate persists for this thread after all state is loaded.

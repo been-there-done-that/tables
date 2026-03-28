@@ -301,6 +301,8 @@ macro_rules! aggregate_plugin_commands {
             list_agent_messages,
             upsert_agent_tool_call,
             list_agent_tool_calls,
+            save_turn_summary,
+            list_turn_summaries,
 
             // DDL generation commands
             get_table_ddl,
