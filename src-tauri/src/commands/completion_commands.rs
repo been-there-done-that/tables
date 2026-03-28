@@ -17,7 +17,6 @@ use crate::introspection::MetaDatabase;
 use crate::completion::schema::graph::{SchemaGraph, TableInfo, ColumnInfo, ForeignKey};
 use crate::completion::parsing::parse_sql;
 use crate::completion::context::Context;
-use crate::completion::analysis::build_semantic_model;
 use crate::completion::engine::{CompletionItem, CompletionKind};
 use crate::completion::document::Dialect;
 use crate::completion::engines::create_engine;
@@ -325,25 +324,29 @@ pub async fn request_completions(
             return vec![];
         }
         
-        // Build semantic model
-        let semantic = tree.as_ref()
-            .map(|t| build_semantic_model(&text, t))
-            .unwrap_or_default();
-        
+        // Build scope tree via sql_scope::resolve
+        let scope_dialect = match dialect {
+            Dialect::Postgres => sql_scope::Dialect::Postgres,
+            Dialect::SQLite => sql_scope::Dialect::Sqlite,
+            Dialect::MySQL => sql_scope::Dialect::Mysql,
+        };
+        let scope_tree = sql_scope::resolve(&text, scope_dialect, schema.as_ref())
+            .unwrap_or_else(|_| sql_scope::ScopeTree::new());
+
         // Analyze cursor context
         let context = Context::analyze(&text, tree.as_ref(), cursor_offset);
-        
-        log::debug!("[request_completions] context_type={:?}, prefix='{}', cursor_offset={}", 
+
+        log::debug!("[request_completions] context_type={:?}, prefix='{}', cursor_offset={}",
             context.context_type, context.prefix, context.cursor_offset);
-        
+
         // Check cancellation before completion
         if cancel_token.is_cancelled() {
             return vec![];
         }
-        
+
         // Create dialect-specific engine and run completion
         let engine = create_engine(dialect);
-        let items = engine.complete(&semantic, &context, &schema, default_schema.as_deref(), None);
+        let items = engine.complete(&scope_tree, &context, &schema, default_schema.as_deref(), None);
         
         log::debug!("[request_completions] completion returned {} items", items.len());
         

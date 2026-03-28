@@ -4,7 +4,6 @@
 //! Uses the shared core logic from `core.rs`.
 
 use crate::adapter::DatabaseCapabilities;
-use crate::completion::analysis::SemanticModel;
 use crate::completion::context::{Context, CursorContext};
 use crate::completion::document::Dialect;
 use crate::completion::engine::{CompletionItem, CompletionKind};
@@ -161,7 +160,7 @@ impl CompletionEngineVariant for SqliteEngine {
     
     fn complete(
         &self,
-        semantic: &SemanticModel,
+        scope_tree: &sql_scope::ScopeTree,
         context: &Context,
         schema: &SchemaGraph,
         default_schema: Option<&str>,
@@ -171,14 +170,13 @@ impl CompletionEngineVariant for SqliteEngine {
             .map(|s| s.to_string())
             .or_else(|| capabilities.and_then(|c| c.default_schema.clone()))
             .unwrap_or_else(|| self.default_schema().to_string());
-        
+
         match &context.context_type {
-            CursorContext::AfterDot { alias } => {
-                CoreCompletionEngine::complete_after_dot(alias, semantic, context, schema)
-            }
+            CursorContext::AfterDot { alias } =>
+                CoreCompletionEngine::complete_after_dot(alias, scope_tree, context, schema),
             CursorContext::SelectClause | CursorContext::AfterSelectList => {
                 let mut items = CoreCompletionEngine::complete_select_clause(
-                    semantic, context, schema, SELECT_KEYWORDS, SELECT_FUNCTIONS
+                    scope_tree, context, schema, SELECT_KEYWORDS, SELECT_FUNCTIONS
                 );
                 // Add SQLite-specific ROWID suggestion
                 self.add_rowid_suggestion(&mut items, context);
@@ -190,32 +188,22 @@ impl CompletionEngineVariant for SqliteEngine {
                 self.add_sqlite_root_items(&mut items, context);
                 items
             }
-            CursorContext::FromClause | CursorContext::JoinTable => {
-                CoreCompletionEngine::complete_table_names(
-                    schema, semantic, context, Some(&effective_schema), FROM_KEYWORDS
-                )
-            }
-            CursorContext::JoinCondition { left_table, right_table } => {
-                CoreCompletionEngine::complete_join_condition(left_table, right_table, semantic, schema)
-            }
+            CursorContext::FromClause | CursorContext::JoinTable =>
+                CoreCompletionEngine::complete_table_names(schema, scope_tree, context, Some(&effective_schema), FROM_KEYWORDS),
+            CursorContext::JoinCondition { left_table, right_table } =>
+                CoreCompletionEngine::complete_join_condition(left_table, right_table, scope_tree, schema),
             CursorContext::JoinConditionRhs { .. } => {
                 let operators = self.operators();
-                CoreCompletionEngine::complete_where_clause(
-                    semantic, context, schema, WHERE_KEYWORDS, WHERE_FUNCTIONS, &operators
-                )
+                CoreCompletionEngine::complete_where_clause(scope_tree, context, schema, WHERE_KEYWORDS, WHERE_FUNCTIONS, &operators)
             }
             CursorContext::WhereClause => {
                 let operators = self.operators();
-                CoreCompletionEngine::complete_where_clause(
-                    semantic, context, schema, WHERE_KEYWORDS, WHERE_FUNCTIONS, &operators
-                )
+                CoreCompletionEngine::complete_where_clause(scope_tree, context, schema, WHERE_KEYWORDS, WHERE_FUNCTIONS, &operators)
             }
-            CursorContext::FunctionArgument { function_name } => {
-                CoreCompletionEngine::complete_function_argument(function_name, semantic, context, schema)
-            }
-            CursorContext::Unknown => {
-                CoreCompletionEngine::complete_generic(semantic, context, GENERIC_KEYWORDS)
-            }
+            CursorContext::FunctionArgument { function_name } =>
+                CoreCompletionEngine::complete_function_argument(function_name, scope_tree, context, schema),
+            CursorContext::Unknown =>
+                CoreCompletionEngine::complete_generic(scope_tree, context, GENERIC_KEYWORDS),
         }
     }
 }
