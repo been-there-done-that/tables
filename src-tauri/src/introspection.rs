@@ -24,6 +24,8 @@ pub struct MetaSchema {
     pub kind: NamespaceKind, // New Flexible Hierarchy
     pub is_introspected: bool,
     pub tables: Vec<MetaTable>,
+    pub functions: Vec<MetaFunction>,   // NEW
+    pub sequences: Vec<MetaSequence>,   // NEW
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -39,6 +41,7 @@ pub struct MetaTable {
     pub foreign_keys: Vec<MetaForeignKey>,
     pub indexes: Vec<MetaIndex>,
     pub triggers: Vec<MetaTrigger>,
+    pub constraints: Vec<MetaConstraint>,  // NEW
 }
 
 use crate::schema_types::{EngineType, NormalizedType, NamespaceKind, IntegerSize, FloatPrecision};
@@ -154,6 +157,7 @@ pub struct MetaFunction {
     pub database: String,
     pub name: String,
     pub schema: String,
+    pub oid: i64,              // NEW — pg_proc.oid, differentiates overloads
     pub language: String,
     pub kind: FunctionKind,
     pub return_type: String,
@@ -181,6 +185,8 @@ pub struct MetaSequence {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ConstraintKind {
+    PrimaryKey,   // NEW
+    ForeignKey,   // NEW
     Check,
     Unique,
     Exclusion,
@@ -268,6 +274,7 @@ impl Introspector {
                 foreign_keys,
                 indexes,
                 triggers: vec![],  // SQLite triggers introspection TODO
+                constraints: vec![],
             };
 
             // Save everything to DB (Cache)
@@ -289,6 +296,8 @@ impl Introspector {
                 kind: NamespaceKind::LogicalGroup,
                 is_introspected: true,
                 tables,
+                functions: vec![],
+                sequences: vec![],
             }],
         }])
     }
@@ -481,6 +490,7 @@ impl Introspector {
                 foreign_keys: vec![],
                 indexes: vec![],
                 triggers: vec![],
+                constraints: vec![],
             });
         }
 
@@ -575,6 +585,8 @@ impl Introspector {
                 kind: NamespaceKind::Schema,
                 is_introspected: true,
                 tables: s_tables,
+                functions: vec![],
+                sequences: vec![],
             });
         }
         schema_vec.sort_by(|a, b| a.name.cmp(&b.name));
@@ -986,6 +998,7 @@ impl Introspector {
                 foreign_keys: vec![],
                 indexes: vec![],
                 triggers: vec![],
+                constraints: vec![],
             })
         }).map_err(|e| e.to_string())?;
 
@@ -1169,6 +1182,8 @@ impl Introspector {
                 kind,
                 is_introspected: row.get(3)?,
                 tables: vec![],
+                functions: vec![],
+                sequences: vec![],
             })
         }).map_err(|e| e.to_string())?;
 
@@ -1204,6 +1219,7 @@ impl Introspector {
                 foreign_keys: vec![],
                 indexes: vec![],
                 triggers: vec![],
+                constraints: vec![],
             })
         }).map_err(|e| e.to_string())?;
 
@@ -1454,6 +1470,7 @@ impl Introspector {
                 foreign_keys,
                 indexes,
                 triggers: vec![],
+                constraints: vec![],
             });
         }
 
@@ -1499,12 +1516,14 @@ impl Introspector {
                     } else {
                         "user"
                     };
-                    schemas.push(MetaSchema { 
-                        name: s_name, 
-                        schema_type: schema_type.to_string(), 
+                    schemas.push(MetaSchema {
+                        name: s_name,
+                        schema_type: schema_type.to_string(),
                         kind: NamespaceKind::Schema,
                         is_introspected: true,
-                        tables: s_tables 
+                        tables: s_tables,
+                        functions: vec![],
+                        sequences: vec![],
                     });
                 }
             }
@@ -2055,6 +2074,7 @@ impl Introspector {
                 foreign_keys: vec![],
                 indexes: vec![],
                 triggers: vec![],
+                constraints: vec![],
             });
         }
 
@@ -2102,6 +2122,7 @@ impl Introspector {
                 foreign_keys: vec![],
                 indexes: vec![],
                 triggers: vec![],
+                constraints: vec![],
             });
         }
 
@@ -2275,6 +2296,7 @@ impl Introspector {
                 foreign_keys: vec![],
                 indexes: vec![],
                 triggers: vec![],
+                constraints: vec![],
             });
         }
 

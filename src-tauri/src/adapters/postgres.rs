@@ -507,12 +507,14 @@ impl DatabaseAdapter for PostgresAdapter {
         Ok(rows.iter().map(|row| {
             let name: String = row.get(0);
             let schema_type: String = row.get(1);
-            MetaSchema { 
-                name, 
-                schema_type, 
+            MetaSchema {
+                name,
+                schema_type,
                 kind: crate::schema_types::NamespaceKind::Schema,
-                is_introspected: false, 
-                tables: vec![] 
+                is_introspected: false,
+                tables: vec![],
+                functions: vec![],
+                sequences: vec![],
             }
         }).collect())
     }
@@ -561,6 +563,7 @@ impl DatabaseAdapter for PostgresAdapter {
                 foreign_keys: vec![],
                 indexes: vec![],
                 triggers: vec![],
+                constraints: vec![],
             }
         }).collect())
     }
