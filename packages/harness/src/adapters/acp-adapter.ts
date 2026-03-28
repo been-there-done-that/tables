@@ -177,7 +177,7 @@ export abstract class AcpAdapter implements Session {
                 if (this.aborted) return;
 
                 const client = new AcpClientImpl((params) => this.handleUpdate(params));
-                this.connection = new ClientSideConnection((_agent) => client, stream);
+                this.connection = new ClientSideConnection((_agent) => client as Client, stream);
 
                 // Close the connection when WS drops
                 closed.then(() => {
