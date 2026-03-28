@@ -330,7 +330,6 @@ export class SchemaStore {
         } catch (e) {
             this.status = "idle";
             toast.error("Refresh Failed", { description: String(e) });
-            toast.error("Refresh Failed", { description: String(e) });
         }
     }
 
