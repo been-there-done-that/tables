@@ -101,11 +101,17 @@ fn convert_set_expr(expr: SetExpr, sql: &str) -> SelectBodyIr {
 }
 
 fn convert_select(sel: Select, sql: &str) -> SelectBodyIr {
-    let from: Vec<TableRefIr> = sel
+    let mut from: Vec<TableRefIr> = sel
         .from
         .into_iter()
         .flat_map(|twj| convert_table_with_joins(twj, sql))
         .collect();
+
+    // Collect scalar/EXISTS subqueries from the WHERE clause
+    if let Some(where_expr) = sel.selection {
+        collect_where_subqueries_expr(&where_expr, sql, &mut from);
+    }
+
     let select_list: Vec<SelectItemIr> = sel
         .projection
         .into_iter()
@@ -115,6 +121,29 @@ fn convert_select(sel: Select, sql: &str) -> SelectBodyIr {
         from,
         select_list,
         byte_range: 0..sql.len(),
+    }
+}
+
+fn collect_where_subqueries_expr(expr: &Expr, sql: &str, out: &mut Vec<TableRefIr>) {
+    match expr {
+        Expr::Exists { subquery, .. } => {
+            let body = convert_query(*subquery.clone(), sql).body;
+            out.push(TableRefIr::WhereSubquery { body: Box::new(body) });
+        }
+        Expr::Subquery(subquery) => {
+            let body = convert_query(*subquery.clone(), sql).body;
+            out.push(TableRefIr::WhereSubquery { body: Box::new(body) });
+        }
+        Expr::InSubquery { subquery, .. } => {
+            let body = convert_query(*subquery.clone(), sql).body;
+            out.push(TableRefIr::WhereSubquery { body: Box::new(body) });
+        }
+        Expr::BinaryOp { left, right, .. } => {
+            collect_where_subqueries_expr(left, sql, out);
+            collect_where_subqueries_expr(right, sql, out);
+        }
+        Expr::UnaryOp { expr, .. } => collect_where_subqueries_expr(expr, sql, out),
+        _ => {}
     }
 }
 

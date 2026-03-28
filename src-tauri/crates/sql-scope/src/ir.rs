@@ -89,6 +89,12 @@ pub enum TableRefIr {
         left: Box<TableRefIr>,
         right: Box<TableRefIr>,
     },
+    /// A scalar or EXISTS subquery appearing in a WHERE/HAVING clause.
+    /// Not in the FROM list, so has no alias. Registered to build a child scope
+    /// that inherits the enclosing query's sources (enabling outer alias propagation).
+    WhereSubquery {
+        body: Box<SelectBodyIr>,
+    },
 }
 
 impl TableRefIr {
@@ -101,6 +107,7 @@ impl TableRefIr {
             }
             TableRefIr::Subquery { alias, .. } => Some(alias.as_str()),
             TableRefIr::Join { .. } => None,
+            TableRefIr::WhereSubquery { .. } => None,
         }
     }
 }

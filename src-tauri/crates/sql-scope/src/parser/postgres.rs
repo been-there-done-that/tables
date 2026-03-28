@@ -136,13 +136,19 @@ fn convert_select_body(
     sel: &pg_query::protobuf::SelectStmt,
     sql: &str,
 ) -> SelectBodyIr {
-    let from = sel
+    let mut from: Vec<TableRefIr> = sel
         .from_clause
         .iter()
         .filter_map(|node| {
             node.node.as_ref().and_then(|n| parse_table_ref(n, sql))
         })
         .collect();
+
+    // Extract scalar/EXISTS subqueries from the WHERE clause so the resolver
+    // can build child scopes that inherit the outer query's aliases.
+    if let Some(where_node) = &sel.where_clause {
+        collect_where_subqueries(where_node, sql, &mut from);
+    }
 
     let select_list = sel
         .target_list
@@ -160,6 +166,37 @@ fn convert_select_body(
         from,
         select_list,
         byte_range: 0..sql.len(),
+    }
+}
+
+/// Walk a WHERE-clause expression tree and emit WhereSubquery entries for
+/// any scalar subquery or EXISTS(subquery) nodes found.
+fn collect_where_subqueries(
+    node: &pg_query::protobuf::Node,
+    sql: &str,
+    out: &mut Vec<TableRefIr>,
+) {
+    let Some(n) = node.node.as_ref() else { return };
+    match n {
+        NodeEnum::SubLink(sub) => {
+            // EXISTS, ANY, ALL, EXPR sublinks — all have a subquery body
+            if let Some(subsel_node) = &sub.subselect {
+                if let Some(NodeEnum::SelectStmt(subsel)) = subsel_node.node.as_ref() {
+                    let body = convert_select_body(subsel, sql);
+                    out.push(TableRefIr::WhereSubquery { body: Box::new(body) });
+                }
+            }
+        }
+        NodeEnum::BoolExpr(b) => {
+            for arg in &b.args {
+                collect_where_subqueries(arg, sql, out);
+            }
+        }
+        NodeEnum::AExpr(a) => {
+            if let Some(l) = &a.lexpr { collect_where_subqueries(l, sql, out); }
+            if let Some(r) = &a.rexpr { collect_where_subqueries(r, sql, out); }
+        }
+        _ => {}
     }
 }
 
