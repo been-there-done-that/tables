@@ -1,5 +1,6 @@
 import type { Connection, MetaSchema } from "$lib/commands/types";
 import { settingsStore } from "./settings.svelte";
+import { schemaStore } from "./schema.svelte";
 
 export type ViewType = "editor" | "table" | "custom";
 
@@ -81,9 +82,16 @@ export class Session {
             }
         }
 
+        // Capture database context for both editors and tables
+        if (type === "editor" || type === "table") {
+            data.databaseContext = data.databaseName || schemaStore.selectedDatabase;
+        }
+
         const id = crypto.randomUUID();
         if (type === "editor") {
             data = data || {};
+            // Capture the current database context for this editor instance
+            data.databaseContext = schemaStore.selectedDatabase;
             data.results = {
                 rows: [],
                 columns: [],
@@ -122,6 +130,33 @@ export class Session {
             this.activeViewId = this.views.length > 0 ? this.views[this.views.length - 1].id : null;
         }
         this.triggerSave();
+    }
+
+    /**
+     * Clean up views that don't belong to the current database
+     * Called when switching databases to maintain consistency
+     */
+    cleanupViewsForDatabaseSwitch(currentDatabase: string | null) {
+        if (!currentDatabase) return;
+
+        const viewsToKeep = this.views.filter(view => {
+            // Keep views that don't have database context (they'll use current database)
+            if (!view.data?.databaseContext) {
+                return true;
+            }
+            // Keep views that match the current database
+            return view.data.databaseContext === currentDatabase;
+        });
+
+        if (viewsToKeep.length !== this.views.length) {
+            console.log(`[Session] Cleaning up views for database switch to ${currentDatabase}. Removed ${this.views.length - viewsToKeep.length} views.`);
+            this.views = viewsToKeep;
+            // If active view was removed, select the first remaining view or none
+            if (this.activeViewId && !this.views.some(v => v.id === this.activeViewId)) {
+                this.activeViewId = this.views.length > 0 ? this.views[0].id : null;
+            }
+            this.triggerSave();
+        }
     }
 
     closeOtherViews(viewId: string) {

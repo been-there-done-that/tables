@@ -142,6 +142,8 @@ pub struct DatabaseCapabilities {
     pub supports_triggers: bool,
     /// Whether the engine supports user-defined functions/procedures/sequences
     pub supports_functions: bool,
+    /// Whether the engine supports table-level constraints (PK, FK, UNIQUE, CHECK, EXCLUSION)
+    pub supports_constraints: bool,
 
     // Defaults (used when hierarchy level doesn't exist)
     /// Default database name for engines without database support
@@ -167,6 +169,7 @@ impl Default for DatabaseCapabilities {
             supports_foreign_keys: true,
             supports_triggers: true,
             supports_functions: false,
+            supports_constraints: false,
             default_database: None,
             default_schema: None,
             requires_qualified_names: false,
@@ -187,6 +190,7 @@ impl DatabaseCapabilities {
             supports_foreign_keys: true,
             supports_triggers: true,
             supports_functions: true,
+            supports_constraints: true,
             default_database: None,
             default_schema: Some("public".to_string()),
             requires_qualified_names: false,
@@ -205,6 +209,7 @@ impl DatabaseCapabilities {
             supports_foreign_keys: true,
             supports_triggers: true,
             supports_functions: false,
+            supports_constraints: false,
             default_database: Some("main".to_string()),
             default_schema: Some("main".to_string()),
             requires_qualified_names: false,
@@ -223,6 +228,7 @@ impl DatabaseCapabilities {
             supports_foreign_keys: true,
             supports_triggers: true,
             supports_functions: false,
+            supports_constraints: false,
             default_database: None,
             default_schema: None,
             requires_qualified_names: false,
@@ -241,6 +247,7 @@ impl DatabaseCapabilities {
             supports_foreign_keys: false,
             supports_triggers: false,
             supports_functions: false,
+            supports_constraints: false,
             default_database: None,
             default_schema: Some("default".to_string()),
             requires_qualified_names: true,
@@ -259,6 +266,7 @@ impl DatabaseCapabilities {
             supports_foreign_keys: false,
             supports_triggers: false,
             supports_functions: false,
+            supports_constraints: false,
             default_database: None,
             default_schema: None,
             requires_qualified_names: false,
@@ -277,6 +285,7 @@ impl DatabaseCapabilities {
             supports_foreign_keys: false,
             supports_triggers: false,
             supports_functions: false,
+            supports_constraints: false,
             default_database: Some("0".to_string()),
             default_schema: None,
             requires_qualified_names: false,
