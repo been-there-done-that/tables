@@ -13,7 +13,7 @@ export type HarnessEvent =
 export interface Session {
     setEmit(fn: (e: HarnessEvent) => void): void;
     emitToolEvent(e: HarnessEvent): void;
-    send(text: string): void;
+    send(text: string): void | Promise<void>;
     stop(): void;
 }
 
