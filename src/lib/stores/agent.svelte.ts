@@ -69,7 +69,7 @@ class AgentStore {
             output: tc.output ?? null,
             status: tc.status,
             startedAt: Math.floor(tc.startedAt / 1000),
-            completedAt: tc.status !== "running" ? nowSecs() : null,
+            completedAt: (tc.status === "done" || tc.status === "error") ? nowSecs() : null,
         }).catch((e) => console.error("[agentStore] persist tool call failed:", e));
     }
 
