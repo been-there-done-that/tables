@@ -51,12 +51,18 @@ src-tauri/crates/sql-scope/
       resolver.rs       # traverse_scope() — main algorithm
       cte.rs            # CTE registry, ordered processing, wildcard expansion
       symbol.rs         # Symbol, SymbolKind, ColumnRef, Source
+    match.rs            # match_score() — fuzzy/acronym/prefix scoring
+    join.rs             # JOIN condition inference (FK → heuristics → shared columns)
+    types.rs            # SqlType enum, basic column type resolution
   tests/
     postgres_ctes.rs
     mysql_ctes.rs
     sqlite_ctes.rs
     wildcard_expansion.rs
     false_positive_diagnostics.rs
+    fuzzy_match.rs
+    join_inference.rs
+    type_resolution.rs
 ```
 
 ---
@@ -108,6 +114,8 @@ pub trait SchemaSnapshot {
     fn table_columns(&self, schema: Option<&str>, table: &str) -> Option<Vec<String>>;
     fn table_exists(&self, schema: Option<&str>, table: &str) -> bool;
     fn default_schema(&self) -> Option<&str>;
+    fn foreign_keys(&self, schema: Option<&str>, table: &str) -> Vec<ForeignKey>;
+    fn column_type(&self, schema: Option<&str>, table: &str, column: &str) -> Option<SqlType>;
 }
 ```
 
@@ -315,10 +323,69 @@ Each dialect gets its own test file. Key scenarios to cover:
 
 ---
 
+## Additional Features (In Scope)
+
+### Fuzzy / Acronym Completion Matching
+
+A pure scoring utility moved from `engine.rs` into `sql-scope`:
+
+```rust
+/// Score how well `input` matches `candidate`. Higher is better.
+/// Handles prefix match, acronym match (e.g. "ui" → "user_id"), substring match.
+pub fn match_score(input: &str, candidate: &str) -> u32;
+```
+
+Lives in `src/match.rs`. No dependencies. Replaces the current `starts_with`-only filter in `engine.rs`.
+
+### JOIN Condition Inference
+
+Moved from existing FK heuristic code into `sql-scope`. Requires extending `SchemaSnapshot`:
+
+```rust
+pub trait SchemaSnapshot {
+    fn table_columns(&self, schema: Option<&str>, table: &str) -> Option<Vec<String>>;
+    fn table_exists(&self, schema: Option<&str>, table: &str) -> bool;
+    fn default_schema(&self) -> Option<&str>;
+    // New:
+    fn foreign_keys(&self, schema: Option<&str>, table: &str) -> Vec<ForeignKey>;
+}
+
+pub struct ForeignKey {
+    pub from_column: String,
+    pub to_table: String,
+    pub to_column: String,
+}
+```
+
+3-tier inference stays the same (FK graph → naming heuristics → shared column names), just lives in `src/join.rs` instead of `engine.rs`.
+
+### Basic Type Resolution (v1)
+
+Resolve column types from the schema snapshot. Enables type-mismatch diagnostics (`WHERE age = 'foo'`).
+
+```rust
+pub enum SqlType {
+    Integer, BigInt, Float, Text, Boolean, Date, Timestamp, Uuid, Json, Unknown,
+}
+
+impl ScopeTree {
+    /// Resolve the type of a column reference at the given cursor position.
+    pub fn column_type(&self, col: &ColumnRef) -> SqlType;
+}
+```
+
+Requires extending `SchemaSnapshot`:
+```rust
+fn column_type(&self, schema: Option<&str>, table: &str, column: &str) -> Option<SqlType>;
+```
+
+**v1 scope:** column type lookup from schema only — no expression type propagation, no function return types.
+**v2 (future):** full expression type inference, PostgreSQL coercion rules, function signatures.
+
+---
+
 ## Out of Scope (This Crate)
 
-- Fuzzy / acronym completion matching (scoring layer concern, stays in `engine.rs`)
-- JOIN condition inference (stays in existing FK heuristic code)
-- Type inference (not planned)
+- Full expression type inference / PostgreSQL coercion rules (v2 follow-up)
 - Full replacement of `engine.rs` / `diagnostics.rs` (follow-up, Option A)
 - MongoDB / Redis (not SQL dialects)
