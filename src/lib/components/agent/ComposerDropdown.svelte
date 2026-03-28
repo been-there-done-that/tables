@@ -21,6 +21,13 @@
 
     let { items, onSelect, onClose }: Props = $props();
     let activeIndex = $state(0);
+    let listEl = $state<HTMLElement | null>(null);
+
+    $effect(() => {
+        // Scroll active item into view when activeIndex changes
+        const el = listEl?.children[activeIndex] as HTMLElement | undefined;
+        el?.scrollIntoView({ block: "nearest" });
+    });
 
     export function handleKey(event: KeyboardEvent): boolean {
         if (event.key === "ArrowDown") {
@@ -51,6 +58,7 @@
 </script>
 
 <div
+    bind:this={listEl}
     class="z-50 min-w-[220px] max-w-[300px] rounded-md border border-border bg-popover shadow-xl overflow-hidden max-h-[220px] overflow-y-auto"
     role="listbox"
 >
