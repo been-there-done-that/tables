@@ -151,6 +151,7 @@ mod tests {
 
         let get_user_idx = names.iter().position(|n| n == "get_user_email").unwrap();
         let mark_user_idx = names.iter().position(|n| n == "mark_user_active").unwrap();
+        // pg_proc.prokind is "char" type → tokio_postgres maps it to i8; cast i8→u8→char for ASCII comparison
         assert_eq!(kinds[get_user_idx] as u8 as char, 'f', "get_user_email should be kind 'f'");
         assert_eq!(kinds[mark_user_idx] as u8 as char, 'p', "mark_user_active should be kind 'p'");
 
@@ -430,8 +431,8 @@ mod tests {
         let trigger_ddl: String = row.get(0);
         assert!(trigger_ddl.contains("TRIGGER users_audit"), "trigger DDL missing name: {}", trigger_ddl);
         assert!(
-            trigger_ddl.contains("AFTER INSERT OR UPDATE") || trigger_ddl.contains("AFTER INSERT") || trigger_ddl.contains("AFTER UPDATE"),
-            "trigger DDL missing event: {}", trigger_ddl
+            trigger_ddl.contains("AFTER INSERT OR UPDATE"),
+            "trigger DDL missing 'AFTER INSERT OR UPDATE': {}", trigger_ddl
         );
 
         println!("✓ get_trigger_definition: {}", trigger_ddl);
