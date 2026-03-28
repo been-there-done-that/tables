@@ -191,8 +191,6 @@ pub fn schema_graph_from_meta(databases: &[MetaDatabase], selected_database: Opt
     log::info!("[schema_graph_from_meta] Building schema graph from {} databases, selected: {:?}", 
         databases.len(), selected_database);
     
-    // Collect all indexed columns for lookup
-    let mut _indexed_columns: HashMap<(String, String), bool> = HashMap::new();
     let mut total_tables = 0;
     let mut total_columns = 0;
     
@@ -213,14 +211,13 @@ pub fn schema_graph_from_meta(databases: &[MetaDatabase], selected_database: Opt
                 schema.name, schema.tables.len());
             
             for table in &schema.tables {
-            // Collect indexed columns
-            for _index in &table.indexes {
-                // For each index, we need to mark columns as indexed
-                // Since MetaIndex doesn't include column names directly,
-                // we assume all columns with matching table are potentially indexed
-                // (This is a simplification - you may need to enhance MetaIndex)
-            }
-            
+            // Build set of column names that appear in at least one index
+            let indexed_columns: std::collections::HashSet<&str> = table
+                .indexes
+                .iter()
+                .flat_map(|idx| idx.columns.iter().map(|c| c.as_str()))
+                .collect();
+
             // Add table with columns
             let columns: Vec<ColumnInfo> = table.columns.iter().map(|col| {
                 ColumnInfo {
@@ -228,7 +225,7 @@ pub fn schema_graph_from_meta(databases: &[MetaDatabase], selected_database: Opt
                     data_type: col.raw_type.clone(),
                     is_nullable: col.nullable,
                     is_primary_key: col.is_primary_key,
-                    is_indexed: false, // We'd need index_columns join for this
+                    is_indexed: indexed_columns.contains(col.column_name.as_str()),
                 }
             }).collect();
             
