@@ -12,7 +12,8 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use crate::introspection::{
-    MetaDatabase, MetaSchema, MetaTable, MetaColumn, MetaIndex, MetaForeignKey, MetaTrigger
+    MetaDatabase, MetaSchema, MetaTable, MetaColumn, MetaIndex, MetaForeignKey, MetaTrigger,
+    MetaFunction, MetaSequence, MetaConstraint,
 };
 
 // =============================================================================
@@ -139,6 +140,8 @@ pub struct DatabaseCapabilities {
     pub supports_foreign_keys: bool,
     /// Whether the engine supports triggers
     pub supports_triggers: bool,
+    /// Whether the engine supports user-defined functions/procedures/sequences
+    pub supports_functions: bool,
 
     // Defaults (used when hierarchy level doesn't exist)
     /// Default database name for engines without database support
@@ -163,6 +166,7 @@ impl Default for DatabaseCapabilities {
             supports_indexes: true,
             supports_foreign_keys: true,
             supports_triggers: true,
+            supports_functions: false,
             default_database: None,
             default_schema: None,
             requires_qualified_names: false,
@@ -182,6 +186,7 @@ impl DatabaseCapabilities {
             supports_indexes: true,
             supports_foreign_keys: true,
             supports_triggers: true,
+            supports_functions: true,
             default_database: None,
             default_schema: Some("public".to_string()),
             requires_qualified_names: false,
@@ -199,6 +204,7 @@ impl DatabaseCapabilities {
             supports_indexes: true,
             supports_foreign_keys: true,
             supports_triggers: true,
+            supports_functions: false,
             default_database: Some("main".to_string()),
             default_schema: Some("main".to_string()),
             requires_qualified_names: false,
@@ -216,6 +222,7 @@ impl DatabaseCapabilities {
             supports_indexes: true,
             supports_foreign_keys: true,
             supports_triggers: true,
+            supports_functions: false,
             default_database: None,
             default_schema: None,
             requires_qualified_names: false,
@@ -233,6 +240,7 @@ impl DatabaseCapabilities {
             supports_indexes: false,  // Athena doesn't support indexes
             supports_foreign_keys: false,
             supports_triggers: false,
+            supports_functions: false,
             default_database: None,
             default_schema: Some("default".to_string()),
             requires_qualified_names: true,
@@ -250,6 +258,7 @@ impl DatabaseCapabilities {
             supports_indexes: true,
             supports_foreign_keys: false,
             supports_triggers: false,
+            supports_functions: false,
             default_database: None,
             default_schema: None,
             requires_qualified_names: false,
@@ -267,6 +276,7 @@ impl DatabaseCapabilities {
             supports_indexes: false,
             supports_foreign_keys: false,
             supports_triggers: false,
+            supports_functions: false,
             default_database: Some("0".to_string()),
             default_schema: None,
             requires_qualified_names: false,
@@ -497,6 +507,25 @@ pub trait DatabaseAdapter: Send + Sync {
     async fn list_triggers(&self, table: &TableRef) -> Result<Vec<MetaTrigger>, AdapterError>;
 
     // =========================================================================
+    // Level 4: Functions, Sequences, Constraints
+    // =========================================================================
+
+    /// List all functions/procedures for a schema. Default: not supported.
+    async fn list_functions(&self, _database: &str, _schema: &str) -> Result<Vec<MetaFunction>, AdapterError> {
+        Ok(vec![])
+    }
+
+    /// List all sequences for a schema. Default: not supported.
+    async fn list_sequences(&self, _database: &str, _schema: &str) -> Result<Vec<MetaSequence>, AdapterError> {
+        Ok(vec![])
+    }
+
+    /// List all constraints for a table. Default: not supported.
+    async fn list_constraints(&self, _table: &TableRef) -> Result<Vec<MetaConstraint>, AdapterError> {
+        Ok(vec![])
+    }
+
+    // =========================================================================
     // Bulk Optimizations (Optional Override)
     // =========================================================================
 
@@ -621,6 +650,18 @@ impl DatabaseAdapter for Box<dyn DatabaseAdapter> {
 
     async fn list_triggers(&self, table: &TableRef) -> Result<Vec<MetaTrigger>, AdapterError> {
         (**self).list_triggers(table).await
+    }
+
+    async fn list_functions(&self, database: &str, schema: &str) -> Result<Vec<MetaFunction>, AdapterError> {
+        (**self).list_functions(database, schema).await
+    }
+
+    async fn list_sequences(&self, database: &str, schema: &str) -> Result<Vec<MetaSequence>, AdapterError> {
+        (**self).list_sequences(database, schema).await
+    }
+
+    async fn list_constraints(&self, table: &TableRef) -> Result<Vec<MetaConstraint>, AdapterError> {
+        (**self).list_constraints(table).await
     }
 }
 
