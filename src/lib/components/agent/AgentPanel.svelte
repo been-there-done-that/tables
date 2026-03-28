@@ -101,6 +101,7 @@
         if (!conn) return;
 
         threadsStore.setActive(thread.id);
+        settingsStore.lastActiveThreadId = thread.id;
         await agentStore.loadThread(thread.id);
         await plansStore.loadForThread(thread.id);
 
@@ -152,8 +153,10 @@
         if (threadsStore.threads.length === 0) {
             await createAndStartThread();
         } else {
-            // Resume the most recent thread
-            await startThread(threadsStore.threads[0]);
+            const toResume =
+                threadsStore.threads.find((t) => t.id === settingsStore.lastActiveThreadId)
+                ?? threadsStore.threads[0];
+            await startThread(toResume);
         }
     }
 
