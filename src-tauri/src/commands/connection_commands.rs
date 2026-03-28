@@ -88,7 +88,9 @@ pub async fn delete_connection(
     let manager = ConnectionManager::from_state(&db_state, &conn_state);
     let result = manager.delete_connection(&id);
     if result.is_ok() {
-        info!("Connection '{}' deleted successfully", id);
+        // Evict cached adapter so it doesn't leak memory after deletion
+        conn_state.adapters.write().await.remove(&id);
+        info!("Connection '{}' deleted and adapter cache evicted", id);
     }
     result
 }
