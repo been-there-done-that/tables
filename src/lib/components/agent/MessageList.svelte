@@ -8,9 +8,10 @@
 
     interface Props {
         onRunQuery?: (sql: string) => void;
+        onFocusFile?: (fileName: string) => void;
     }
 
-    let { onRunQuery }: Props = $props();
+    let { onRunQuery, onFocusFile }: Props = $props();
     let container: HTMLDivElement;
     let stickToBottom = $state(true);
 
@@ -123,7 +124,7 @@
                     <MessageBubble message={msg} />
                 {:else if entry.kind === "tool"}
                     <div class="px-3">
-                        <ToolCallCard toolCall={entry.item} onRun={onRunQuery} />
+                        <ToolCallCard toolCall={entry.item} onRun={onRunQuery} onFocusFile={onFocusFile} />
                     </div>
                 {:else if entry.kind === "turn-summary"}
                     {@const s = entry.item}
