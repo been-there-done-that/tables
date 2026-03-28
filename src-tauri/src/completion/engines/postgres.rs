@@ -4,7 +4,6 @@
 //! Uses the shared core logic from `core.rs`.
 
 use crate::adapter::DatabaseCapabilities;
-use crate::completion::analysis::SemanticModel;
 use crate::completion::context::{Context, CursorContext};
 use crate::completion::document::Dialect;
 use crate::completion::engine::{CompletionItem, CompletionKind};
@@ -157,7 +156,7 @@ impl CompletionEngineVariant for PostgresEngine {
     
     fn complete(
         &self,
-        semantic: &SemanticModel,
+        scope_tree: &sql_scope::ScopeTree,
         context: &Context,
         schema: &SchemaGraph,
         default_schema: Option<&str>,
@@ -167,48 +166,34 @@ impl CompletionEngineVariant for PostgresEngine {
             .map(|s| s.to_string())
             .or_else(|| capabilities.and_then(|c| c.default_schema.clone()))
             .unwrap_or_else(|| self.default_schema().to_string());
-        
+
         match &context.context_type {
-            CursorContext::AfterDot { alias } => {
-                CoreCompletionEngine::complete_after_dot(alias, semantic, context, schema)
-            }
-            CursorContext::SelectClause | CursorContext::AfterSelectList => {
-                CoreCompletionEngine::complete_select_clause(
-                    semantic, context, schema, SELECT_KEYWORDS, SELECT_FUNCTIONS
-                )
-            }
+            CursorContext::AfterDot { alias } =>
+                CoreCompletionEngine::complete_after_dot(alias, scope_tree, context, schema),
+            CursorContext::SelectClause | CursorContext::AfterSelectList =>
+                CoreCompletionEngine::complete_select_clause(scope_tree, context, schema, SELECT_KEYWORDS, SELECT_FUNCTIONS),
             CursorContext::RootContext => {
                 let mut items = CoreCompletionEngine::complete_root_context(context);
                 // Add PostgreSQL-specific root items
                 self.add_postgres_root_items(&mut items, context);
                 items
             }
-            CursorContext::FromClause | CursorContext::JoinTable => {
-                CoreCompletionEngine::complete_table_names(
-                    schema, semantic, context, Some(&effective_schema), FROM_KEYWORDS
-                )
-            }
-            CursorContext::JoinCondition { left_table, right_table } => {
-                CoreCompletionEngine::complete_join_condition(left_table, right_table, semantic, schema)
-            }
+            CursorContext::FromClause | CursorContext::JoinTable =>
+                CoreCompletionEngine::complete_table_names(schema, scope_tree, context, Some(&effective_schema), FROM_KEYWORDS),
+            CursorContext::JoinCondition { left_table, right_table } =>
+                CoreCompletionEngine::complete_join_condition(left_table, right_table, scope_tree, schema),
             CursorContext::JoinConditionRhs { .. } => {
                 let operators = self.operators();
-                CoreCompletionEngine::complete_where_clause(
-                    semantic, context, schema, WHERE_KEYWORDS, WHERE_FUNCTIONS, &operators
-                )
+                CoreCompletionEngine::complete_where_clause(scope_tree, context, schema, WHERE_KEYWORDS, WHERE_FUNCTIONS, &operators)
             }
             CursorContext::WhereClause => {
                 let operators = self.operators();
-                CoreCompletionEngine::complete_where_clause(
-                    semantic, context, schema, WHERE_KEYWORDS, WHERE_FUNCTIONS, &operators
-                )
+                CoreCompletionEngine::complete_where_clause(scope_tree, context, schema, WHERE_KEYWORDS, WHERE_FUNCTIONS, &operators)
             }
-            CursorContext::FunctionArgument { function_name } => {
-                CoreCompletionEngine::complete_function_argument(function_name, semantic, context, schema)
-            }
-            CursorContext::Unknown => {
-                CoreCompletionEngine::complete_generic(semantic, context, GENERIC_KEYWORDS)
-            }
+            CursorContext::FunctionArgument { function_name } =>
+                CoreCompletionEngine::complete_function_argument(function_name, scope_tree, context, schema),
+            CursorContext::Unknown =>
+                CoreCompletionEngine::complete_generic(scope_tree, context, GENERIC_KEYWORDS),
         }
     }
 }
@@ -236,5 +221,58 @@ impl PostgresEngine {
         
         CoreCompletionEngine::filter_by_prefix(items, &context.prefix);
         items.sort_by(|a, b| b.score.cmp(&a.score));
+    }
+}
+
+#[cfg(test)]
+mod postgres_scope_tree_tests {
+    use super::*;
+    use sql_scope::{ScopeTree, Source};
+    use sql_scope::scope::tree::{Scope, ScopeType};
+    use crate::completion::context::{Context, CursorContext};
+    use crate::completion::schema::loader::MockSchemaLoader;
+
+    fn tree_with_alias(alias: &str, table: &str) -> ScopeTree {
+        let mut tree = ScopeTree::new();
+        let mut scope = Scope::new(0, None, ScopeType::Root, 0..1000);
+        scope.sources.insert(alias.to_string(), Source::Alias {
+            alias: alias.to_string(),
+            target: Box::new(Source::Table { schema: None, name: table.to_string() }),
+        });
+        tree.add_scope(scope);
+        tree
+    }
+
+    #[test]
+    fn postgres_complete_after_dot_returns_columns() {
+        let engine = PostgresEngine::new();
+        let schema = MockSchemaLoader::create_test_schema();
+        let scope_tree = tree_with_alias("u", "users");
+        let context = Context {
+            cursor_offset: 20,
+            context_type: CursorContext::AfterDot { alias: "u".to_string() },
+            prefix: String::new(),
+            previous_word: String::new(),
+            scope_depth: 0,
+        };
+        let items = engine.complete(&scope_tree, &context, &schema, None, None);
+        assert!(!items.is_empty(), "should return column completions for 'u' alias");
+        assert!(items.iter().any(|i| i.label == "id"), "should contain 'id' column");
+    }
+
+    #[test]
+    fn postgres_complete_from_clause_returns_tables() {
+        let engine = PostgresEngine::new();
+        let schema = MockSchemaLoader::create_test_schema();
+        let scope_tree = ScopeTree::new();
+        let context = Context {
+            cursor_offset: 10,
+            context_type: CursorContext::FromClause,
+            prefix: String::new(),
+            previous_word: String::new(),
+            scope_depth: 0,
+        };
+        let items = engine.complete(&scope_tree, &context, &schema, None, None);
+        assert!(!items.is_empty(), "should return table completions");
     }
 }
