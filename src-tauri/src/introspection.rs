@@ -585,11 +585,8 @@ impl Introspector {
         }
 
         // === LEVEL 4 (extended): Constraints per table + Functions + Sequences per schema ===
-        // Gate on postgres-specific capabilities (always true here, but explicit)
-        let supports_constraints = true;
-        let supports_functions = true;
-
-        if supports_constraints {
+        // Fetch constraints (Postgres-specific — always supported in this path)
+        {
             // Bulk-fetch constraints per schema (one query per schema, not per table)
             let mut constraints_by_schema: Vec<(String, HashMap<String, Vec<MetaConstraint>>)> = Vec::new();
             for s_name in &all_schemas {
@@ -616,7 +613,8 @@ impl Introspector {
             tx.commit().map_err(|e| e.to_string())?;
         }
 
-        if supports_functions {
+        // Fetch functions + sequences (Postgres-specific — always supported in this path)
+        {
             // Fetch functions and sequences per schema (async outside lock), then save
             let mut schema_fns: Vec<(String, Vec<MetaFunction>, Vec<MetaSequence>)> = Vec::new();
             for s_name in &all_schemas {
@@ -1772,11 +1770,8 @@ impl Introspector {
         }
 
         // 3b. Fetch and save constraints per table + functions/sequences per schema
-        // Gate on postgres-specific capabilities (always true here, but explicit)
-        let supports_constraints = true;
-        let supports_functions = true;
-
-        if supports_constraints {
+        // Fetch constraints (Postgres-specific — always supported in this path)
+        {
             // Bulk-fetch constraints per schema (one query per schema, not per table)
             let mut constraints_by_schema: Vec<(String, HashMap<String, Vec<MetaConstraint>>)> = Vec::new();
             for s_name in &schemas_vec {
@@ -1803,7 +1798,8 @@ impl Introspector {
             tx.commit().map_err(|e| e.to_string())?;
         }
 
-        if supports_functions {
+        // Fetch functions + sequences (Postgres-specific — always supported in this path)
+        {
             let mut schema_fns: Vec<(String, Vec<MetaFunction>, Vec<MetaSequence>)> = Vec::new();
             for s_name in &schemas_vec {
                 let fns = self.fetch_postgres_functions(&client, connection_id, current_database, s_name).await.unwrap_or_default();
@@ -2690,11 +2686,8 @@ impl Introspector {
         }
 
         // === LEVEL 4 (extended): Constraints per table + Functions + Sequences per schema ===
-        // Gate on postgres-specific capabilities (always true here, but explicit)
-        let supports_constraints = true;
-        let supports_functions = true;
-
-        if supports_constraints {
+        // Fetch constraints (Postgres-specific — always supported in this path)
+        {
             // Bulk-fetch constraints per schema (one query per schema, not per table)
             let mut constraints_by_schema: Vec<(String, HashMap<String, Vec<MetaConstraint>>)> = Vec::new();
             for s_name in &all_schemas {
@@ -2721,7 +2714,8 @@ impl Introspector {
             tx.commit().map_err(|e| format!("[TX_COMMIT_L4_EXT] {}", e))?;
         }
 
-        if supports_functions {
+        // Fetch functions + sequences (Postgres-specific — always supported in this path)
+        {
             let mut schema_fns: Vec<(String, Vec<MetaFunction>, Vec<MetaSequence>)> = Vec::new();
             for s_name in &all_schemas {
                 let fns = self.fetch_postgres_functions(&current_client, connection_id, &effective_database, s_name).await.unwrap_or_default();
@@ -2920,11 +2914,8 @@ impl Introspector {
         }
 
         // === LEVEL 4 (extended): Constraints + Functions + Sequences for this schema ===
-        // Gate on postgres-specific capabilities (always true here, but explicit)
-        let supports_constraints = true;
-        let supports_functions = true;
-
-        if supports_constraints {
+        // Fetch constraints (Postgres-specific — always supported in this path)
+        {
             // Bulk-fetch constraints for this schema (one query, not per table)
             match self.fetch_postgres_constraints_bulk(&client, connection_id, database, schema).await {
                 Ok(mut constraints_by_table) => {
@@ -2947,7 +2938,8 @@ impl Introspector {
             }
         }
 
-        if supports_functions {
+        // Fetch functions + sequences (Postgres-specific — always supported in this path)
+        {
             let fns = self.fetch_postgres_functions(&client, connection_id, database, schema).await.unwrap_or_default();
             let seqs = self.fetch_postgres_sequences(&client, connection_id, database, schema).await.unwrap_or_default();
             let app_db = self.app_db.lock().unwrap();
