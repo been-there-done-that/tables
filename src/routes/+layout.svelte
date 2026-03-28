@@ -19,6 +19,7 @@
 
 	import { resolveClipboardApi } from "$lib/components/table/clipboardUtils";
 	import "$lib/stores/harness.svelte"; // eagerly register harness://ready listener
+	import { updaterStore } from '$lib/stores/updater.svelte';
 
 	const appWindow = getCurrentWindow();
 
@@ -40,6 +41,8 @@
 			await checkFullScreen();
 			unlisten = await appWindow.onResized(checkFullScreen);
 			await windowState.init();
+			// Check for updates in background — 3s delay avoids competing with startup
+			setTimeout(() => updaterStore.checkForUpdate(), 3000);
 			// Initialize schema store with the window label to restore sessions
 			await schemaStore.initialize(windowState.label);
 		};
