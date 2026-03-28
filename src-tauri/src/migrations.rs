@@ -18,6 +18,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "011_agent_plans",
         include_str!("../migrations/011_agent_plans.sql"),
     ),
+    (
+        "012_agent_thread_provider",
+        include_str!("../migrations/012_agent_thread_provider.sql"),
+    ),
 ];
 
 #[derive(Debug, Deserialize)]

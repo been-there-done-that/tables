@@ -14,6 +14,7 @@ pub struct AgentThread {
     pub database_name: Option<String>,
     pub model: String,
     pub effort: String,
+    pub provider: String,
     pub sdk_session_id: Option<String>,
     pub summary: Option<String>,
     pub parent_thread_id: Option<String>,
@@ -66,14 +67,15 @@ pub fn create_agent_thread(
     database_name: Option<String>,
     model: String,
     effort: String,
+    provider: String,
     parent_thread_id: Option<String>,
     now: i64,
 ) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     conn.execute(
-        "INSERT INTO agent_threads (id, title, connection_id, database_name, model, effort, parent_thread_id, created_at, updated_at)
-         VALUES (?1, 'New chat', ?2, ?3, ?4, ?5, ?6, ?7, ?7)",
-        params![id, connection_id, database_name, model, effort, parent_thread_id, now],
+        "INSERT INTO agent_threads (id, title, connection_id, database_name, model, effort, provider, parent_thread_id, created_at, updated_at)
+         VALUES (?1, 'New chat', ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?8)",
+        params![id, connection_id, database_name, model, effort, provider, parent_thread_id, now],
     )
     .map_err(|e| e.to_string())?;
     Ok(())
@@ -90,7 +92,8 @@ pub fn list_agent_threads(
         .prepare(
             // When database_name is None, returns all threads for the connection
             // regardless of which database they belong to. This is a "show all" fallback.
-            "SELECT id, title, connection_id, database_name, model, effort, sdk_session_id, summary, parent_thread_id, created_at, updated_at
+            "SELECT id, title, connection_id, database_name, model, effort, provider,
+                    sdk_session_id, summary, parent_thread_id, created_at, updated_at
              FROM agent_threads
              WHERE connection_id = ?1
                AND (database_name IS ?2 OR ?2 IS NULL)
@@ -106,11 +109,12 @@ pub fn list_agent_threads(
                 database_name: row.get(3)?,
                 model: row.get(4)?,
                 effort: row.get(5)?,
-                sdk_session_id: row.get(6)?,
-                summary: row.get(7)?,
-                parent_thread_id: row.get(8)?,
-                created_at: row.get(9)?,
-                updated_at: row.get(10)?,
+                provider: row.get(6)?,
+                sdk_session_id: row.get(7)?,
+                summary: row.get(8)?,
+                parent_thread_id: row.get(9)?,
+                created_at: row.get(10)?,
+                updated_at: row.get(11)?,
             })
         })
         .map_err(|e| e.to_string())?;
@@ -236,9 +240,13 @@ pub fn upsert_agent_tool_call(
 ) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     conn.execute(
-        "INSERT OR REPLACE INTO agent_tool_calls
+        "INSERT INTO agent_tool_calls
          (id, thread_id, tool_name, input, output, status, started_at, completed_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+         ON CONFLICT(id) DO UPDATE SET
+           output = excluded.output,
+           status = excluded.status,
+           completed_at = COALESCE(excluded.completed_at, agent_tool_calls.completed_at)",
         params![id, thread_id, tool_name, input, output, status, started_at, completed_at],
     )
     .map_err(|e| e.to_string())?;
