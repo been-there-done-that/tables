@@ -232,18 +232,12 @@ SELECT o.| FROM orders o"#;
     INNER JOIN dept_tree dt ON d.parent_id = dt.id
 )
 SELECT dt.| FROM dept_tree dt"#;
+        // The engine does not fully resolve recursive CTE UNION ALL anchor columns.
+        // We verify the engine doesn't panic and returns a Vec (may be empty).
+        // TODO: strengthen once sql_scope resolves recursive CTE projections.
         let labels = complete_labels(sql, schema);
-        // Recursive CTE anchor columns should be available; depth is a synthetic column.
-        // Engine limitation: recursive CTE UNION ALL bodies may not expose the anchor's
-        // full column list. We assert on the minimum viable result (no crash, and at
-        // least the anchor columns that are clearly projected appear).
-        assert!(
-            labels.len() >= 0,
-            "Engine should not crash on recursive CTE, got: {:?}",
-            labels
-        );
-        // Ideally id, name, parent_id, depth appear — assert weakly in case of engine limits.
-        println!("pg_b5 recursive CTE labels: {:?}", labels);
+        // Explicit no-op: just calling complete_labels without panicking is the test.
+        let _ = labels;
     }
 
     #[tokio::test]
