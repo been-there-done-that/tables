@@ -39,9 +39,7 @@ export async function checkAvailability(): Promise<AvailableProvider[]> {
     return Promise.all(
         Object.entries(PROVIDERS).map(async ([id, factory]) => {
             const instance = factory({ sessionId: "", threadId: "", systemPrompt: "", provider: id });
-            const available = typeof (instance as any).isAvailable === "function"
-                ? await (instance as any).isAvailable().catch(() => false)
-                : false;
+            const available = await instance.isAvailable().catch(() => false);
             instance.stop();
             return { id, label: PROVIDER_LABELS[id] ?? id, available };
         })
