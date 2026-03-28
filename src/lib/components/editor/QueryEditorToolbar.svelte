@@ -16,6 +16,7 @@
         IconArrowBackUp,
         IconArrowForwardUp,
     } from "@tabler/icons-svelte";
+    import IconBolt from "@tabler/icons-svelte/icons/bolt";
     import { schemaStore } from "$lib/stores/schema.svelte";
 
     interface Props {
@@ -93,6 +94,17 @@
                 <span class="text-xs font-semibold">Run</span>
             </Button>
         {/if}
+
+        <Button
+            variant="ghost"
+            size="sm"
+            class="h-7 px-2.5 flex items-center gap-1.5 text-orange-400/80 hover:text-orange-400 hover:bg-orange-500/10 transition-colors"
+            onclick={() => onExplain(false)}
+            title="Explain Query (Cmd+Shift+E)"
+        >
+            <IconBolt class="size-3.5" />
+            <span class="text-xs font-medium">Explain</span>
+        </Button>
 
         <div class="w-px h-4 bg-border/40 mx-1"></div>
 

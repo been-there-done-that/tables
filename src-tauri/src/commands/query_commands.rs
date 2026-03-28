@@ -853,7 +853,7 @@ fn postgres_value_to_json(row: &tokio_postgres::Row, idx: usize) -> serde_json::
     crate::pg_utils::pg_value_to_json(row, idx, col)
 }
 
-async fn get_or_create_postgres_client(
+pub async fn get_or_create_postgres_client_pub(
     session_manager: &QuerySessionManager,
     connection_id: &str,
     session_id: &str,
@@ -959,7 +959,7 @@ async fn execute_postgres_query(
     query: &str,
 ) -> Result<QueryResult, String> {
     for attempt in 0..2 {
-        let client = get_or_create_postgres_client(session_manager, connection_id, session_id, config, credentials, database).await?;
+        let client = get_or_create_postgres_client_pub(session_manager, connection_id, session_id, config, credentials, database).await?;
 
         // Register native cancel token
         {
@@ -1614,7 +1614,7 @@ async fn execute_mutation_batch_postgres(
     let (connection, credentials) = manager.get_connection(&params.connection_id)?;
     let config_val = serde_json::to_value(&connection).ok();
 
-    let client = get_or_create_postgres_client(
+    let client = get_or_create_postgres_client_pub(
         session_state,
         &params.connection_id,
         &params.session_id,
