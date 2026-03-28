@@ -263,7 +263,7 @@
     <!-- LEFT RAIL: line + dot + line -->
     <div class="flex w-5 shrink-0 flex-col items-center">
         <!-- top line (hidden for first item) -->
-        <div class="w-px {isFirst ? 'opacity-0' : 'bg-border/50'} h-2 flex-none"></div>
+        <div class="w-px {isFirst ? 'opacity-0' : 'bg-muted-foreground/25'} h-2 flex-none"></div>
         <!-- status dot -->
         {#if toolCall.status === "running"}
             <IconLoader2 size={11} class="mt-0.5 shrink-0 animate-spin text-accent" />
@@ -271,13 +271,13 @@
             <div class="mt-0.5 h-2 w-2 shrink-0 rounded-full {dotClass}"></div>
         {/if}
         <!-- bottom line (hidden for last item, grows to fill row height) -->
-        <div class="w-px flex-1 {isLast ? 'opacity-0' : 'bg-border/50'} mt-0.5"></div>
+        <div class="w-px flex-1 {isLast ? 'opacity-0' : 'bg-muted-foreground/25'} mt-0.5"></div>
     </div>
 
     <!-- RIGHT CONTENT -->
-    <div class="flex min-w-0 flex-1 flex-col pb-1.5">
+    <div class="flex min-w-0 flex-1 flex-col pb-1">
         <!-- ROW HEADER -->
-        <div class="flex min-h-[22px] w-full items-center gap-1.5">
+        <div class="flex min-h-[20px] w-full items-center gap-1.5">
             <!-- Clickable area: icon + labels + chevron -->
             <button
                 onclick={() => (expanded = !expanded)}
@@ -285,7 +285,7 @@
             >
                 <!-- Tool icon -->
                 {#each [toolIcon] as Icon (toolCall.toolName)}
-                    <Icon size={11} class="mt-0.5 shrink-0 {toolIconClass}" />
+                    <Icon size={11} class="shrink-0 {toolIconClass}" />
                 {/each}
 
                 <!-- Verb (bold) + target -->
