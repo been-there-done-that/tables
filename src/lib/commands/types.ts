@@ -51,6 +51,7 @@ export interface Connection {
   id: string;
   name: string;
   engine: string;
+  provider?: string | null;
   host?: string;
   port?: number;
   database?: string;

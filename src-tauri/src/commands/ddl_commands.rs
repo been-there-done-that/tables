@@ -113,7 +113,7 @@ pub async fn get_view_definition(
     ).await.map_err(|e| format!("View {}.{} not found: {}", schema, view_name, e))?;
 
     let definition: &str = row.get(0);
-    Ok(format!("CREATE OR REPLACE VIEW {}.{} AS\n{}", schema, view_name, definition.trim_end()))
+    Ok(format!("CREATE OR REPLACE VIEW \"{}\".\"{}\" AS\n{}", schema, view_name, definition.trim_end()))
 }
 
 #[tauri::command]
@@ -209,7 +209,13 @@ pub async fn get_sequence_ddl(
     let cache: i64 = row.get(6);
 
     Ok(format!(
-        "CREATE SEQUENCE {}.{}\n    AS {}\n    START WITH {}\n    INCREMENT BY {}\n    MINVALUE {}\n    MAXVALUE {}\n    CACHE {}{};",
+        "CREATE SEQUENCE \"{}\".\"{}\"
+    AS {}
+    START WITH {}
+    INCREMENT BY {}
+    MINVALUE {}
+    MAXVALUE {}
+    CACHE {}{};",
         schema, sequence_name, data_type, start, increment, min, max, cache,
         if cycle { "\n    CYCLE" } else { "\n    NO CYCLE" }
     ))
@@ -260,4 +266,50 @@ pub async fn get_trigger_definition(
     ).await.map_err(|e| format!("Trigger {} on {}.{} not found: {}", trigger_name, schema, table_name, e))?;
 
     Ok(row.get(0))
+}
+
+#[cfg(test)]
+mod tests {
+    fn build_sequence_ddl(
+        schema: &str,
+        name: &str,
+        data_type: &str,
+        start: i64,
+        increment: i64,
+        min: i64,
+        max: i64,
+        cache: i64,
+        cycle: bool,
+    ) -> String {
+        format!(
+            "CREATE SEQUENCE \"{}\".\"{}\"
+    AS {}
+    START WITH {}
+    INCREMENT BY {}
+    MINVALUE {}
+    MAXVALUE {}
+    CACHE {}{};",
+            schema, name, data_type, start, increment, min, max, cache,
+            if cycle { "\n    CYCLE" } else { "\n    NO CYCLE" }
+        )
+    }
+
+    #[test]
+    fn test_sequence_ddl_no_cycle() {
+        let ddl = build_sequence_ddl("public", "users_id_seq", "bigint", 1, 1, 1, 9223372036854775807, 1, false);
+        assert!(ddl.contains("CREATE SEQUENCE \"public\".\"users_id_seq\""));
+        assert!(ddl.contains("AS bigint"));
+        assert!(ddl.contains("NO CYCLE"));
+        assert!(!ddl.contains("\n    CYCLE;"));
+    }
+
+    #[test]
+    fn test_sequence_ddl_with_cycle() {
+        let ddl = build_sequence_ddl("myschema", "order_seq", "integer", 100, 10, 1, 1000, 5, true);
+        assert!(ddl.contains("CREATE SEQUENCE \"myschema\".\"order_seq\""));
+        assert!(ddl.contains("START WITH 100"));
+        assert!(ddl.contains("INCREMENT BY 10"));
+        assert!(ddl.contains("CACHE 5"));
+        assert!(ddl.contains("\n    CYCLE"));
+    }
 }

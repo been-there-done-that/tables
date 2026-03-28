@@ -67,7 +67,9 @@
             const matviews = schema.tables.filter((t: any) => t.table_type === "materialized_view" || t.table_type === "MATERIALIZED VIEW");
 
             const cacheKey = `${db.name}:${schema.name}`;
-            const functions = functionsCache.get(cacheKey) || [];
+            const allFunctions = functionsCache.get(cacheKey) || [];
+            const functions = allFunctions.filter((f: any) => f.kind !== "Procedure");
+            const procedures = allFunctions.filter((f: any) => f.kind === "Procedure");
             const sequences = sequencesCache.get(cacheKey) || [];
 
             const children: TreeNode[] = [];
@@ -123,9 +125,24 @@
                 children: functions.map((f: any) => ({
                     id: `function:${db.name}:${schema.name}.${f.name}`,
                     name: f.name,
-                    type: (f.kind === "Procedure" ? "procedure" : "function") as NodeType,
+                    type: "function" as NodeType,
                     detail: f.return_type || undefined,
                     metadata: { dbName: db.name, schemaName: schema.name, objectName: f.name, objectType: "function", language: f.language },
+                })),
+            });
+
+            // Procedures folder — lazy loaded when expanded (shares functions cache)
+            children.push({
+                id: `folder:procedures:${db.name}:${schema.name}`,
+                name: "procedures",
+                type: "folder" as NodeType,
+                count: procedures.length > 0 ? procedures.length : undefined,
+                children: procedures.map((f: any) => ({
+                    id: `procedure:${db.name}:${schema.name}.${f.name}`,
+                    name: f.name,
+                    type: "procedure" as NodeType,
+                    detail: undefined,
+                    metadata: { dbName: db.name, schemaName: schema.name, objectName: f.name, objectType: "procedure", language: f.language },
                 })),
             });
 
@@ -221,6 +238,19 @@
                         metadata: { dbName, schemaName, tableName: table.table_name, constraintName: c.name, definition: c.definition },
                     })),
                 },
+                {
+                    id: `trgs:${tableId}`,
+                    name: "Triggers",
+                    type: "group" as NodeType,
+                    count: cachedDetails.triggers?.length || 0,
+                    children: (cachedDetails.triggers || []).map((t: any) => ({
+                        id: `trigger:${tableId}.${t.trigger_name}`,
+                        name: t.trigger_name,
+                        type: "trigger" as NodeType,
+                        detail: `${t.timing} ${t.event}`,
+                        metadata: { dbName, schemaName, tableName: table.table_name },
+                    })),
+                },
             ];
         } else {
             // Show placeholder - will be replaced when expanded
@@ -285,17 +315,25 @@
 
         try {
             console.time(`[LazyLoad] ${tableName}`);
-            const details = await invoke<any>("get_schema_table_details", {
-                connectionId: schemaStore.activeConnection?.id,
-                database: dbName,
-                schema: schemaName,
-                tableName: tableName,
-            });
+            const [details, constraints] = await Promise.all([
+                invoke<any>("get_schema_table_details", {
+                    connectionId: schemaStore.activeConnection?.id,
+                    database: dbName,
+                    schema: schemaName,
+                    tableName: tableName,
+                }),
+                invoke<any[]>("get_constraints", {
+                    connectionId: schemaStore.activeConnection?.id,
+                    database: dbName,
+                    schema: schemaName,
+                    tableName: tableName,
+                }).catch(() => []),
+            ]);
             console.timeEnd(`[LazyLoad] ${tableName}`);
 
             tableDetailsCache = new Map(tableDetailsCache).set(
                 cacheKey,
-                details,
+                { ...details, constraints },
             );
         } catch (e) {
             console.error(`Failed to load details for ${tableName}:`, e);
@@ -457,7 +495,7 @@
                             sequenceName: node.name,
                         });
                     }
-                    session.openDdlTab(`DDL: ${node.name}`, ddl);
+                    session.openDdlTab(`DDL: ${schema}.${node.name}`, ddl);
                 } catch (e) {
                     console.error("DDL fetch failed:", e);
                     toast.error(`Failed to load ${node.name}`, { description: String(e) });
@@ -506,7 +544,7 @@
                             triggerName: node.name,
                         });
                     }
-                    session.openDdlTab(`${node.name}`, ddl);
+                    session.openDdlTab(`DDL: ${schema}.${node.name}`, ddl);
                 } catch (e) {
                     console.error("Definition fetch failed:", e);
                     toast.error(`Failed to load ${node.name}`, { description: String(e) });
@@ -565,6 +603,12 @@
                 break;
             }
 
+            case "open_schema_ddl": {
+                const schemaName = meta?.schemaName || node.name;
+                session.openDdlTab(`DDL: ${schemaName}`, `CREATE SCHEMA "${schemaName}";`);
+                break;
+            }
+
             case "refresh_schema": {
                 await schemaStore.refresh();
                 tableDetailsCache = new Map();
@@ -595,9 +639,9 @@
 
         // NEW: lazy load schema-level objects when folder expanded
         if (isOpen && node.type === "folder" && node.id) {
-            if (node.id.startsWith("folder:functions:")) {
+            if (node.id.startsWith("folder:functions:") || node.id.startsWith("folder:procedures:")) {
                 const parts = node.id.split(":");
-                // id format: folder:functions:dbName:schemaName
+                // id format: folder:functions:dbName:schemaName  or  folder:procedures:dbName:schemaName
                 const dbName = parts[2];
                 const schemaName = parts.slice(3).join(":"); // handle schema names with colons
                 loadFunctions(dbName, schemaName);

@@ -62,6 +62,7 @@
             hideFilters={true}
             hideExecute={true}
             hidePagination={true}
+            fetchedAt={results.fetchedAt}
         >
             {#snippet extraActions()}
                 <Popover.Root>
@@ -103,6 +104,7 @@
                 onEditChange={controller.editChange}
                 onApplyEdits={controller.applyEdits}
                 {primaryKeyColumns}
+                viewState={{ rows: results.rows, totalRows: results.total, tableColumns: results.columns }}
             />
         </div>
     </div>
