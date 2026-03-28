@@ -44,6 +44,21 @@ async function executeTool(toolName: string, input: unknown, ctx: ToolContext): 
     const inp = input as Record<string, unknown>;
     const schema = (inp.schema as string | undefined) ?? ctx.schema;
 
+    // Validate a numeric limit — clamp to [1, 1000], reject NaN
+    function safeLimit(val: unknown, defaultVal: number): number {
+        const n = Math.floor(Number(val));
+        if (!isFinite(n) || n < 1) return defaultVal;
+        return Math.min(n, 1000);
+    }
+
+    // Reject strings that contain SQL injection patterns
+    function assertNoInjection(label: string, val: unknown): void {
+        if (typeof val !== "string") return;
+        if (/[;'"\\]|--|\*\/|\/\*/.test(val)) {
+            throw new Error(`${label} contains invalid characters`);
+        }
+    }
+
     switch (toolName) {
         case "list_tables": {
             const result = await invoke<any>("get_schema", { connectionId: ctx.connectionId });
@@ -95,6 +110,10 @@ async function executeTool(toolName: string, input: unknown, ctx: ToolContext): 
 
         case "run_query": {
             const sql = inp.sql as string;
+            const isDestructive = /^(DROP|TRUNCATE|DELETE\s+FROM|DELETE\s+\w)/i.test(sql.trimStart());
+            if (isDestructive) {
+                ctx.openInEditor(sql, "⚠️ Destructive Query");
+            }
             ctx.openInEditor(sql, "Query");
             try {
                 const { columns, rows, totalRows } = await ctx.executeQuery(sql);
@@ -113,7 +132,7 @@ async function executeTool(toolName: string, input: unknown, ctx: ToolContext): 
         }
 
         case "sample_table": {
-            const n = (inp.n as number | undefined) ?? 20;
+            const n = safeLimit(inp.n, 20);
             const sql = `SELECT * FROM "${schema}"."${inp.table}" LIMIT ${n}`;
             const result = await invoke<any>("execute_query", {
                 connectionId: ctx.connectionId,
@@ -133,8 +152,15 @@ async function executeTool(toolName: string, input: unknown, ctx: ToolContext): 
         }
 
         case "count_rows": {
-            const where = inp.where ? ` WHERE ${inp.where}` : "";
-            const sql = `SELECT COUNT(*) AS count FROM "${schema}"."${inp.table}"${where}`;
+            // NOTE: Raw WHERE clause from AI is a SQL injection risk.
+            // We intentionally do not support arbitrary WHERE predicates here.
+            // The agent should use run_query with explicit SQL if filtering is needed.
+            if (inp.where) {
+                return {
+                    error: "count_rows does not support WHERE filters to prevent SQL injection. Use run_query with explicit SQL instead.",
+                };
+            }
+            const sql = `SELECT COUNT(*) AS count FROM "${schema}"."${inp.table}"`;
             const result = await invoke<any>("execute_query", {
                 connectionId: ctx.connectionId,
                 sessionId: "agent",
@@ -166,6 +192,7 @@ async function executeTool(toolName: string, input: unknown, ctx: ToolContext): 
         }
 
         case "column_stats": {
+            assertNoInjection("column", inp.column);
             const col = `"${inp.column}"`;
             const sql = `SELECT COUNT(*) AS total_count, COUNT(${col}) AS non_null_count, COUNT(DISTINCT ${col}) AS distinct_count, MIN(${col}::text) AS min_val, MAX(${col}::text) AS max_val FROM "${schema}"."${inp.table}"`;
             const result = await invoke<any>("execute_query", {
@@ -229,7 +256,7 @@ async function executeTool(toolName: string, input: unknown, ctx: ToolContext): 
         }
 
         case "get_distinct_values": {
-            const limit = (inp.limit as number | undefined) ?? 20;
+            const limit = safeLimit(inp.limit, 20);
             const sql = `SELECT "${inp.column}" AS value, COUNT(*) AS count FROM "${schema}"."${inp.table}" GROUP BY "${inp.column}" ORDER BY count DESC LIMIT ${limit}`;
             const result = await invoke<any>("execute_query", {
                 connectionId: ctx.connectionId,
