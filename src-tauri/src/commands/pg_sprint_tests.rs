@@ -45,6 +45,7 @@ mod tests {
             .await
             .expect("create schema");
 
+        // 1. Table + index + views + sequence
         client.batch_execute(&format!(
             r#"
             -- Table with identity, generated, unique, and check constraints
@@ -79,7 +80,13 @@ mod tests {
                 MINVALUE 1
                 MAXVALUE 9999999
                 NO CYCLE;
+            "#,
+            s = TEST_SCHEMA,
+        )).await.expect("create tables, indexes, views, sequence");
 
+        // 2. Functions + procedure
+        client.batch_execute(&format!(
+            r#"
             -- Function (kind = 'f')
             CREATE OR REPLACE FUNCTION {s}.get_user_email(user_id bigint)
             RETURNS text
@@ -96,7 +103,13 @@ mod tests {
                 UPDATE {s}.users SET age = age WHERE id = user_id;
             END;
             $$;
+            "#,
+            s = TEST_SCHEMA,
+        )).await.expect("create functions and procedures");
 
+        // 3. Trigger function + trigger
+        client.batch_execute(&format!(
+            r#"
             -- Trigger support function + trigger
             CREATE OR REPLACE FUNCTION {s}.log_user_change()
             RETURNS trigger LANGUAGE plpgsql AS $$
@@ -110,7 +123,7 @@ mod tests {
                 FOR EACH ROW EXECUTE FUNCTION {s}.log_user_change();
             "#,
             s = TEST_SCHEMA,
-        )).await.expect("setup schema objects");
+        )).await.expect("create trigger function and trigger");
     }
 
     /// Drop the test schema when done.
@@ -128,6 +141,8 @@ mod tests {
             None => return, // Postgres not available — skip
         };
 
+        // NOTE: teardown() is not called on panic. The next run cleans up via DROP SCHEMA IF EXISTS.
+        // Run with -- --test-threads=1 if running multiple tests against the same schema concurrently.
         setup(&client).await;
 
         // ── 1. get_functions ──────────────────────────────────────────────────
@@ -157,6 +172,10 @@ mod tests {
 
         println!("✓ get_functions: found {} functions/procedures", rows.len());
 
+        // Note: log_user_change() is also returned (kind='f', RETURNS trigger).
+        // get_functions intentionally includes trigger functions — filter by prorettype if needed in production.
+        assert!(names.contains(&"log_user_change".to_string()), "log_user_change trigger fn should be in results");
+
         // ── 2. get_sequences ─────────────────────────────────────────────────
         let rows = client.query(
             "SELECT sequencename, data_type::text, start_value, increment_by, cycle
@@ -184,13 +203,14 @@ mod tests {
 
         // ── 3. get_constraints ───────────────────────────────────────────────
         let qualified = format!("{}.users", TEST_SCHEMA);
+        let params: &[&(dyn tokio_postgres::types::ToSql + Sync)] = &[&qualified];
         let rows = client.query(
-            &format!("SELECT c.conname, c.contype, pg_get_constraintdef(c.oid)
+            "SELECT c.conname, c.contype, pg_get_constraintdef(c.oid)
             FROM pg_constraint c
-            WHERE c.conrelid = '{}'::regclass
+            WHERE c.conrelid = $1::text::regclass
               AND c.contype IN ('c', 'u', 'x')
-            ORDER BY c.conname", qualified),
-            &[],
+            ORDER BY c.conname",
+            params,
         ).await.expect("get_constraints query");
 
         assert_eq!(rows.len(), 2, "expected 2 constraints (UNIQUE + CHECK), got {}", rows.len());
@@ -208,8 +228,9 @@ mod tests {
         println!("✓ get_constraints: {:?}", con_names);
 
         // ── 4. get_index_details ─────────────────────────────────────────────
+        let params: &[&(dyn tokio_postgres::types::ToSql + Sync)] = &[&qualified];
         let rows = client.query(
-            &format!("SELECT
+            "SELECT
                 i.relname AS index_name,
                 am.amname AS index_type,
                 ix.indisunique,
@@ -218,9 +239,9 @@ mod tests {
             JOIN pg_class t ON t.oid = ix.indrelid
             JOIN pg_class i ON i.oid = ix.indexrelid
             JOIN pg_am am ON am.oid = i.relam
-            WHERE t.oid = '{}'::regclass
-            ORDER BY i.relname", qualified),
-            &[],
+            WHERE t.oid = $1::text::regclass
+            ORDER BY i.relname",
+            params,
         ).await.expect("get_index_details query");
 
         let index_names: Vec<String> = rows.iter().map(|r| r.get::<_, String>(0)).collect();
@@ -238,8 +259,9 @@ mod tests {
         println!("✓ get_index_details: found indexes {:?}", index_names);
 
         // ── 5. get_table_ddl ─────────────────────────────────────────────────
+        let params: &[&(dyn tokio_postgres::types::ToSql + Sync)] = &[&qualified];
         let col_rows = client.query(
-            &format!("SELECT
+            "SELECT
                 a.attname,
                 pg_catalog.format_type(a.atttypid, a.atttypmod),
                 a.attnotnull,
@@ -248,19 +270,20 @@ mod tests {
                 a.attgenerated::text
             FROM pg_attribute a
             LEFT JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
-            WHERE a.attrelid = '{}'::regclass
+            WHERE a.attrelid = $1::text::regclass
               AND a.attnum > 0
               AND NOT a.attisdropped
-            ORDER BY a.attnum", qualified),
-            &[],
+            ORDER BY a.attnum",
+            params,
         ).await.expect("get_table_ddl col query");
 
+        let params: &[&(dyn tokio_postgres::types::ToSql + Sync)] = &[&qualified];
         let con_rows = client.query(
-            &format!("SELECT conname, pg_get_constraintdef(oid)
+            "SELECT conname, pg_get_constraintdef(oid)
             FROM pg_constraint
-            WHERE conrelid = '{}'::regclass
-            ORDER BY contype, conname", qualified),
-            &[],
+            WHERE conrelid = $1::text::regclass
+            ORDER BY contype, conname",
+            params,
         ).await.expect("get_table_ddl constraint query");
 
         let mut parts: Vec<String> = col_rows.iter().map(|row| {
@@ -314,6 +337,13 @@ mod tests {
         ).await.expect("get_view_definition query");
 
         let definition: &str = row.get(0);
+
+        // The definition comes FROM the database — assert it references the source table
+        assert!(
+            definition.contains("users") || definition.contains("age"),
+            "view definition from pg_views should reference source table: {}", definition
+        );
+
         let view_ddl = format!(
             "CREATE OR REPLACE VIEW \"{}\".\"active_adults\" AS\n{}",
             TEST_SCHEMA,
