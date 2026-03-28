@@ -11,6 +11,8 @@
     import IconCheck from "@tabler/icons-svelte/icons/check";
     import IconChevronDown from "@tabler/icons-svelte/icons/chevron-down";
     import IconMap from "@tabler/icons-svelte/icons/map";
+    import IconShieldCheck from "@tabler/icons-svelte/icons/shield-check";
+    import IconShield from "@tabler/icons-svelte/icons/shield";
     import ComposerDropdown from "./ComposerDropdown.svelte";
     import type { DropdownItem } from "./ComposerDropdown.svelte";
     import * as Menu from "$lib/components/ui/dropdown-menu";
@@ -24,12 +26,14 @@
         onSend: (displayText: string, fullText: string, rawDoc: unknown) => void;
         onStop: () => void;
         onPlanModeToggle: () => void;
+        onQueryApprovalToggle: () => void;
         running: boolean;
         disabled: boolean;
         planMode: boolean;
+        queryApproval: "auto" | "ask";
     }
 
-    let { onSend, onStop, onPlanModeToggle, running, disabled, planMode }: Props = $props();
+    let { onSend, onStop, onPlanModeToggle, onQueryApprovalToggle, running, disabled, planMode, queryApproval }: Props = $props();
 
     let editorEl: HTMLDivElement;
     let editor: Editor | null = $state(null);
@@ -368,6 +372,19 @@
                 >
                     <IconMap size={11} />
                     {#if planMode}<span class="font-mono">Plan</span>{/if}
+                </button>
+
+                <!-- Query approval toggle -->
+                <button
+                    onclick={onQueryApprovalToggle}
+                    title={queryApproval === "ask" ? "Queries need your approval before running" : "Queries run automatically"}
+                    class="flex items-center gap-1 rounded px-1.5 py-1 text-[10.5px] transition-colors {queryApproval === 'ask' ? 'text-amber-400 hover:bg-amber-400/10' : 'text-muted-foreground/50 hover:bg-foreground/5 hover:text-muted-foreground'}"
+                >
+                    {#if queryApproval === "ask"}
+                        <IconShieldCheck size={11} />
+                    {:else}
+                        <IconShield size={11} />
+                    {/if}
                 </button>
 
                 <!-- Model picker -->

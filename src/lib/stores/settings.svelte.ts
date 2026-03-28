@@ -22,6 +22,8 @@ export interface Settings {
     // AI settings
     aiModel: string;
     aiEffort: "auto" | "low" | "medium" | "high" | "max";
+    queryApproval: "auto" | "ask";
+    lastActiveThreadId: string | null;
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -41,6 +43,8 @@ const DEFAULT_SETTINGS: Settings = {
     editorShowAllRunButtons: false,
     aiModel: "claude-sonnet-4-6",
     aiEffort: "auto",
+    queryApproval: "ask",
+    lastActiveThreadId: null,
 };
 
 function createSettingsStore() {
@@ -90,6 +94,20 @@ function createSettingsStore() {
         set aiEffort(v: "auto" | "low" | "medium" | "high" | "max") {
             settings.aiEffort = v;
             commandClient.updateAppSetting("ai_effort", v);
+        },
+        get queryApproval(): "auto" | "ask" {
+            return settings.queryApproval;
+        },
+        set queryApproval(v: "auto" | "ask") {
+            settings.queryApproval = v;
+            commandClient.updateAppSetting("query_approval", v);
+        },
+        get lastActiveThreadId(): string | null {
+            return settings.lastActiveThreadId;
+        },
+        set lastActiveThreadId(v: string | null) {
+            settings.lastActiveThreadId = v;
+            commandClient.updateAppSetting("last_active_thread_id", v ?? "");
         },
 
         // Run button visibility
@@ -331,6 +349,12 @@ function createSettingsStore() {
                         return;
                     case "editor_show_all_run_buttons":
                         settings.editorShowAllRunButtons = value === "true";
+                        return;
+                    case "query_approval":
+                        settings.queryApproval = (value === "auto" ? "auto" : "ask") as "auto" | "ask";
+                        return;
+                    case "last_active_thread_id":
+                        settings.lastActiveThreadId = value || null;
                         return;
                 }
 

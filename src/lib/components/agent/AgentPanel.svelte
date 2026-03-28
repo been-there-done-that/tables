@@ -204,7 +204,7 @@
                     streamingMsgId = null;
                 }
                 const ctx = getToolContext();
-                const needsApproval = planMode && APPROVAL_REQUIRED.has(event.toolName) && !!ctx;
+                const needsApproval = settingsStore.queryApproval === "ask" && APPROVAL_REQUIRED.has(event.toolName) && !!ctx;
                 agentStore.addToolCall(event.toolId, event.toolName, event.input, needsApproval ? "awaiting" : "running");
                 // Advance matching plan step to "running"
                 const activePlanStarted = plansStore.plans[plansStore.plans.length - 1] ?? null;
@@ -542,6 +542,10 @@
             disabled={!sessionReady || !!sessionError}
             {planMode}
             onPlanModeToggle={() => { planMode = !planMode; }}
+            onQueryApprovalToggle={() => {
+                settingsStore.queryApproval = settingsStore.queryApproval === "ask" ? "auto" : "ask";
+            }}
+            queryApproval={settingsStore.queryApproval}
         />
     {/if}
 </div>
