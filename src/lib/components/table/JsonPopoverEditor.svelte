@@ -28,7 +28,9 @@
     const isMac =
         typeof navigator !== "undefined" && navigator.userAgent.includes("Mac");
 
+    // svelte-ignore state_referenced_locally
     const originalText = buildInitialText(value);
+    // svelte-ignore state_referenced_locally
     const originalParsed = parseJsonSafe(originalText, value);
 
     const modelUri = `json://popover/${crypto.randomUUID()}`;
@@ -190,13 +192,16 @@
     minHeight={200}
     maxHeight={640}
 >
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
     <div
         class="flex-1 overflow-hidden min-h-[180px] relative"
+        role="group"
         onkeydown={handleKeydown}
     >
         <div
             bind:this={editorContainer}
             class="absolute inset-0"
+            role="presentation"
             oncontextmenu={handleEditorContextMenu}
         ></div>
         {#if errorMessage}

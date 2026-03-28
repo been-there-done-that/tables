@@ -305,14 +305,11 @@
 
                     // Check for semantic hints (SQLite)
                     let semanticHint: string | undefined;
-                    if (
-                        richCol?.engine_type?.engine === "sqlite" &&
-                        richCol.engine_type.metadata?.meta?.semantic_hint
-                            ?.kind !== "none"
-                    ) {
-                        semanticHint =
-                            richCol.engine_type.metadata.meta.semantic_hint
-                                .kind;
+                    if (richCol?.engine_type?.engine === "sqlite") {
+                        const meta = richCol.engine_type.metadata;
+                        if (meta.engine === "sqlite" && meta.meta?.semantic_hint?.kind !== "none") {
+                            semanticHint = meta.meta.semantic_hint.kind;
+                        }
                     }
 
                     return {

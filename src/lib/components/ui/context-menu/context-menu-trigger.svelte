@@ -24,6 +24,6 @@
 	}
 </script>
 
-<div class="contents" oncontextmenu={handleContextMenu}>
+<div class="contents" role="presentation" oncontextmenu={handleContextMenu}>
 	{@render children?.()}
 </div>

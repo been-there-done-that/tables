@@ -23,6 +23,7 @@
 
 <div
     class="w-fit h-fit"
+    role="presentation"
     onclick={handleClick}
     onkeydown={(e) => e.key === "Enter" && handleClick(e as any)}
 >

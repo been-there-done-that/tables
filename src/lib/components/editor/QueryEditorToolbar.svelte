@@ -23,6 +23,8 @@
         executionTime?: number;
         activeSchema?: string;
         viewData?: any; // View data containing databaseContext
+        showAll?: boolean;
+        onToggleShowAll?: () => void;
         onExecute: () => void;
         onStop: () => void;
         onFormat: () => void;
@@ -38,6 +40,8 @@
         executionTime = 0,
         activeSchema = "public",
         viewData,
+        showAll,
+        onToggleShowAll,
         onExecute,
         onStop,
         onFormat,

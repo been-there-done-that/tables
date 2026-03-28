@@ -149,6 +149,7 @@
     }
 
     // Derived for 1-based month input
+    // svelte-ignore state_referenced_locally
     let displayMonth = $state(month + 1);
     $effect(() => {
         // When internal month changes, update display
@@ -256,7 +257,8 @@
 </script>
 
 <PopoverShell {anchorEl} {onCancel} minWidth={280} maxWidth={380}>
-    <div class="flex flex-col gap-3 p-3" onkeydown={handleKeydown}>
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+    <div class="flex flex-col gap-3 p-3" role="group" onkeydown={handleKeydown}>
         <!-- Single Line Segmented Input -->
         <div class="flex flex-col gap-1.5">
             <span

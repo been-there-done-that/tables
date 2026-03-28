@@ -242,6 +242,7 @@
     }
 
     // Monaco Editor Integration
+    // svelte-ignore non_reactive_update
     let editorContainer: HTMLElement;
     let editorHandle = $state<EditorHandle | null>(null);
 

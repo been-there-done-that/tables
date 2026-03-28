@@ -79,6 +79,7 @@
 
     let measuredItemHeight = $state(36);
     let container: HTMLDivElement;
+    // svelte-ignore non_reactive_update
     let virtualScroller: VirtualScroller;
 
     // Measure first row to keep virtual scroll math aligned with DOM

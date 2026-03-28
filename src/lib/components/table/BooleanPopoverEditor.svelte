@@ -66,7 +66,8 @@
 </script>
 
 <PopoverShell {anchorEl} {onCancel} minWidth={160} maxWidth={200}>
-    <div class="flex flex-col gap-1 p-1" onkeydown={handleKeydown}>
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+    <div class="flex flex-col gap-1 p-1" role="group" onkeydown={handleKeydown}>
         {#each options as option, i}
             <button
                 type="button"

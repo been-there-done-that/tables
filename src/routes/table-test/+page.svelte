@@ -195,12 +195,14 @@
             columns={[]}
             dataFetcher={fetchData}
             tableName="test_users"
-            onApplyEdits={(newRow) => {
-                console.log("Edit completed", newRow);
+            onApplyEdits={(edits) => {
+                console.log("Edit completed", edits);
                 // Update local state
-                const idx = rows.findIndex((r) => r._rowId === newRow._rowId);
-                if (idx !== -1) {
-                    rows[idx] = newRow;
+                for (const edit of edits) {
+                    const idx = rows.findIndex((r) => r._rowId === edit.rowId);
+                    if (idx !== -1) {
+                        rows[idx] = { ...rows[idx], ...edit.changes };
+                    }
                 }
                 return Promise.resolve({ success: true });
             }}

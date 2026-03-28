@@ -667,12 +667,12 @@
 
 <style>
     /* Auto-hide scrollbar: transparent by default, visible on hover */
-    .explorer-scroll::-webkit-scrollbar-thumb {
+    :global(.explorer-scroll::-webkit-scrollbar-thumb) {
         background-color: transparent;
         border-color: transparent;
     }
 
-    .explorer-scroll:hover::-webkit-scrollbar-thumb {
+    :global(.explorer-scroll:hover::-webkit-scrollbar-thumb) {
         background-color: var(--theme-border-default);
     }
 </style>
