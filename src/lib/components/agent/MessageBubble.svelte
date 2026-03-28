@@ -5,7 +5,7 @@
     import IconPlayerPlay from "@tabler/icons-svelte/icons/player-play-filled";
     import { renderDocAsHtml } from "$lib/agent/doc-renderer";
     import PlanCard from "./PlanCard.svelte";
-    import { plansStore } from "$lib/stores/plans.svelte";
+    import { plansStore, type AgentPlan } from "$lib/stores/plans.svelte";
 
     interface Props {
         message: AgentMessage;
@@ -29,16 +29,53 @@
         message.role === "assistant" ? extractPlan(message.content) : { text: message.content, planXml: null },
     );
 
+    // Parse <step phase="...">description</step> elements from plan XML
+    function parsePlanSteps(xml: string): Array<{ phase: string; description: string }> {
+        const steps: Array<{ phase: string; description: string }> = [];
+        const re = /<step\s+phase="([^"]+)"[^>]*>([\s\S]*?)<\/step>/gi;
+        let m: RegExpExecArray | null;
+        while ((m = re.exec(xml)) !== null) {
+            steps.push({ phase: m[1].trim(), description: m[2].trim() });
+        }
+        return steps;
+    }
+
+    // Immediate display: construct a local AgentPlan from parsed XML (no DB needed)
+    const localPlan = $derived((): AgentPlan | null => {
+        if (planExtract.planXml == null) return null;
+        const parsedSteps = parsePlanSteps(planExtract.planXml);
+        if (parsedSteps.length === 0) return null;
+        return {
+            id: message.planId ?? "",
+            threadId: "",
+            title: "Plan",
+            status: "pending",
+            createdAt: 0,
+            steps: parsedSteps.map((s, i) => ({
+                id: String(i),
+                planId: message.planId ?? "",
+                phase: s.phase as "gather" | "draft" | "execute",
+                description: s.description,
+                status: "pending" as const,
+                toolCallId: null,
+                position: i,
+            })),
+        };
+    });
+
+    // DB-backed plan (has live step status once plan is created)
     const matchedPlan = $derived(
-        planExtract.planXml != null && message.planId != null
+        message.planId != null
             ? (plansStore.plans.find((p) => p.id === message.planId) ?? null)
             : null,
     );
 
-    // Parse markdown and inject "Run" buttons into SQL code blocks
-    const html = $derived.by(() => {
-        const renderer = new marked.Renderer();
+    // Prefer DB plan (live status); fall back to localPlan (immediate display)
+    const displayPlan = $derived(matchedPlan ?? localPlan());
 
+    // Parse markdown and inject "Run" buttons into SQL code blocks
+    function buildRenderer() {
+        const renderer = new marked.Renderer();
         renderer.code = ({ text, lang }) => {
             const escaped = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
             const isSql = lang?.toLowerCase() === "sql";
@@ -50,9 +87,19 @@
 ${runBtn}
 </div>`;
         };
+        return renderer;
+    }
 
-        marked.use({ renderer });
+    const html = $derived.by(() => {
+        marked.use({ renderer: buildRenderer() });
         return marked.parse(message.content) as string;
+    });
+
+    // Rendered markdown for just the text portion above a plan card
+    const textHtml = $derived.by(() => {
+        if (!planExtract.text) return "";
+        marked.use({ renderer: buildRenderer() });
+        return marked.parse(planExtract.text) as string;
     });
 
     function handleClick(e: MouseEvent) {
@@ -115,13 +162,14 @@ ${runBtn}
             onclick={handleClick}
             role="presentation"
         >
-            {#if planExtract.planXml != null && matchedPlan}
+            {#if displayPlan}
                 {#if planExtract.text}
+                    <!-- eslint-disable-next-line svelte/no-at-html-tags -->
                     <div class="prose prose-sm prose-invert max-w-none text-[12px]">
-                        {planExtract.text}
+                        {@html textHtml}
                     </div>
                 {/if}
-                <PlanCard plan={matchedPlan} />
+                <PlanCard plan={displayPlan} />
             {:else}
                 {@html html}
                 {#if message.streaming}
