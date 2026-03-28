@@ -18,4 +18,7 @@ pub mod engines;
 #[cfg(test)]
 pub mod tests;
 
+#[cfg(test)]
+pub mod pg_test_helpers;
+
 // Re-exports
