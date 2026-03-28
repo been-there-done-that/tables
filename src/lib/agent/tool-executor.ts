@@ -7,7 +7,7 @@ export interface ToolContext {
     connectionId: string;
     database: string;
     schema: string;
-    openInEditor: (sql: string, title: string) => void;
+    openInEditor: (sql: string, title: string, autoRun?: boolean) => void;
 }
 
 /**
@@ -93,23 +93,9 @@ async function executeTool(toolName: string, input: unknown, ctx: ToolContext): 
         }
 
         case "run_query": {
-            const limit = (inp.limit as number | undefined) ?? 100;
-            const result = await invoke<any>("execute_query", {
-                connectionId: ctx.connectionId,
-                sessionId: "agent",
-                database: ctx.database,
-                schema,
-                query: inp.sql,
-                component: "agent",
-                limit,
-                offset: 0,
-            });
-            return {
-                columns: (result?.columns ?? []).map((c: any) => c.name ?? c),
-                rows: result?.rows ?? [],
-                row_count: result?.rows?.length ?? 0,
-                truncated: (result?.rows?.length ?? 0) >= limit,
-            };
+            const sql = inp.sql as string;
+            ctx.openInEditor(sql, "Query", true);
+            return { opened: true, message: "Query opened in editor and running" };
         }
 
         case "sample_table": {

@@ -142,8 +142,8 @@
             connectionId: conn.id,
             database: schemaStore.selectedDatabase ?? "",
             schema: schemaStore.activeSchema ?? "public",
-            openInEditor: (sql: string, _title: string) => {
-                handleRunQuery(sql);
+            openInEditor: (sql: string, _title: string, autoRun = false) => {
+                handleRunQuery(sql, autoRun);
             },
         };
     }
@@ -256,10 +256,10 @@
         agentStore.setStatus("idle");
     }
 
-    function handleRunQuery(sql: string) {
+    function handleRunQuery(sql: string, autoRun = false) {
         const activeSess = windowState.activeSession;
         if (!activeSess) return;
-        activeSess.openView("editor", "AI Query", { content: sql });
+        activeSess.openView("editor", "AI Query", { content: sql, pendingRun: autoRun });
         windowState.layout.showSqlEditor = false;
     }
 

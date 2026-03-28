@@ -103,6 +103,14 @@
 
     let tableRef: any = $state(null); // Still need a ref for potential actions
 
+    // Auto-run when pendingRun flag is set (e.g. from agent run_query)
+    $effect(() => {
+        if (context.pendingRun && !isLoadingSession) {
+            context.pendingRun = false;
+            tick().then(() => handleExecute());
+        }
+    });
+
     // Update controller handlers
     $effect(() => {
         controller.execute = handleExecute;
