@@ -121,46 +121,41 @@ impl SchemaGraph {
     /// Handles both simple names (tasks) and schema-qualified names (production.tasks)
     pub fn get_columns(&self, table_name: &str) -> Vec<&ColumnInfo> {
         let name_lower = table_name.to_lowercase();
-        
-        log::debug!("[GetColumns] Looking up table '{}' (normalized: '{}')", table_name, name_lower);
-        log::debug!("[GetColumns] Available tables: {:?}", self.tables.keys().collect::<Vec<_>>());
-        
+        let all_keys: Vec<_> = self.tables.keys().cloned().collect();
+
+        log::info!("[GetColumns] lookup={:?} schema_tables={:?}", name_lower, all_keys);
+
         // Strategy 1: Try exact match (for simple table names)
         if let Some(table) = self.tables.get(&name_lower) {
-            log::debug!("[GetColumns] Strategy 1: Exact match found for '{}'", name_lower);
+            log::info!("[GetColumns] S1 exact match → {} columns", table.columns.len());
             return table.columns.iter().collect();
         }
-        
+
         // Strategy 2: Handle schema-qualified name (production.tasks)
-        // Extract just the table name part and try again
         if let Some(dot_pos) = name_lower.rfind('.') {
             let table_only = &name_lower[dot_pos + 1..];
-            log::debug!("[GetColumns] Strategy 2: Trying unqualified name '{}'", table_only);
             if let Some(table) = self.tables.get(table_only) {
-                log::debug!("[GetColumns] Strategy 2: Found table '{}' with {} columns", table_only, table.columns.len());
+                log::info!("[GetColumns] S2 unqualified {:?} → {} columns", table_only, table.columns.len());
                 return table.columns.iter().collect();
             }
         }
-        
-        // Strategy 3: Check if any table matches the given name
-        // (handles case where schema.table is passed but table is stored as just "table")
-        log::debug!("[GetColumns] Strategy 3: Scanning all tables...");
+
+        // Strategy 3: Scan all keys
         for (key, table) in &self.tables {
             if key == &name_lower || table.name.to_lowercase() == name_lower {
-                log::debug!("[GetColumns] Strategy 3: Match on key '{}' or name '{}'", key, table.name);
+                log::info!("[GetColumns] S3 key/name match {:?} → {} columns", key, table.columns.len());
                 return table.columns.iter().collect();
             }
-            // Also check if the table name matches the unqualified part
             if let Some(dot_pos) = name_lower.rfind('.') {
                 let table_only = &name_lower[dot_pos + 1..];
                 if key == table_only || table.name.to_lowercase() == table_only {
-                    log::debug!("[GetColumns] Strategy 3: Match on unqualified '{}' -> key '{}'", table_only, key);
+                    log::info!("[GetColumns] S3 unqualified scan {:?} → {} columns", key, table.columns.len());
                     return table.columns.iter().collect();
                 }
             }
         }
-        
-        log::debug!("[GetColumns] No table found for '{}'", table_name);
+
+        log::info!("[GetColumns] NO MATCH for {:?} (schema_tables={:?})", table_name, all_keys);
         Vec::new()
     }
 

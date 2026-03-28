@@ -40,14 +40,22 @@ fn build_scope_tree(
     schema: &SchemaGraph,
 ) -> sql_scope::ScopeTree {
     let clamped = cursor_offset.min(text.len());
+    let snippet = &text[..clamped.min(120)]; // first 120 chars for logging
 
-    // ── Pass 1: original text (already-complete SQL, e.g. cursor inside a string) ──
-    if let Ok(tree) = sql_scope::resolve(text, dialect, schema) {
-        return tree;
+    // ── Pass 1: original text ────────────────────────────────────────────────────
+    match sql_scope::resolve(text, dialect, schema) {
+        Ok(tree) => {
+            let sources: Vec<_> = tree.visible_at(cursor_offset).sources.iter().map(|(k, _)| k.clone()).collect();
+            log::info!("[scope/pass1] OK  cursor={} sources={:?} sql={:?}", cursor_offset, sources, snippet);
+            return tree;
+        }
+        Err(e) => {
+            log::info!("[scope/pass1] FAIL err={:?} sql={:?}", e, snippet);
+        }
     }
 
     // ── Pass 2: strip the partial token at cursor ────────────────────────────────
-    // "WHERE t."  →  "WHERE   "    (replaces "t." with spaces)
+    // "WHERE t."  →  "WHERE   "
     let s2 = {
         let before = &text[..clamped];
         let token_start = before
@@ -60,16 +68,21 @@ fn build_scope_tree(
         }
         s
     };
-    if let Ok(tree) = sql_scope::resolve(&s2, dialect, schema) {
-        return tree;
+    match sql_scope::resolve(&s2, dialect, schema) {
+        Ok(tree) => {
+            let sources: Vec<_> = tree.visible_at(cursor_offset).sources.iter().map(|(k, _)| k.clone()).collect();
+            log::info!("[scope/pass2] OK  cursor={} sources={:?} sql={:?}", cursor_offset, sources, &s2[..s2.len().min(120)]);
+            return tree;
+        }
+        Err(e) => {
+            log::info!("[scope/pass2] FAIL err={:?} sql={:?}", e, &s2[..s2.len().min(120)]);
+        }
     }
 
-    // ── Pass 3: strip back to the last complete clause keyword ───────────────────
-    // "WHERE   "  →  "        "    (removes the hanging WHERE too)
-    // Handles: WHERE / HAVING / ON (in JOIN) / AND / OR
+    // ── Pass 3: strip back to the last incomplete clause keyword ─────────────────
+    // "WHERE   "  →  "        "   (removes the dangling WHERE)
     let s3 = {
         let before_upper = s2[..clamped].to_uppercase();
-        // Keywords that open a clause which might be left empty after pass 2
         let clause_kws = [" WHERE", " HAVING", " ON ", " AND ", " OR "];
         let mut strip_from = clamped;
         for kw in &clause_kws {
@@ -83,8 +96,15 @@ fn build_scope_tree(
         }
         s
     };
-    if let Ok(tree) = sql_scope::resolve(&s3, dialect, schema) {
-        return tree;
+    match sql_scope::resolve(&s3, dialect, schema) {
+        Ok(tree) => {
+            let sources: Vec<_> = tree.visible_at(cursor_offset).sources.iter().map(|(k, _)| k.clone()).collect();
+            log::info!("[scope/pass3] OK  cursor={} sources={:?} sql={:?}", cursor_offset, sources, &s3[..s3.len().min(120)]);
+            return tree;
+        }
+        Err(e) => {
+            log::info!("[scope/pass3] FAIL err={:?} — giving up, returning empty tree. sql={:?}", e, &s3[..s3.len().min(120)]);
+        }
     }
 
     sql_scope::ScopeTree::new()
@@ -407,7 +427,7 @@ pub async fn request_completions(
         // Analyze cursor context
         let context = Context::analyze(&text, tree.as_ref(), cursor_offset);
 
-        log::debug!("[request_completions] context_type={:?}, prefix='{}', cursor_offset={}",
+        log::info!("[completion] context={:?} prefix={:?} cursor={}",
             context.context_type, context.prefix, context.cursor_offset);
 
         // Check cancellation before completion
@@ -418,8 +438,9 @@ pub async fn request_completions(
         // Create dialect-specific engine and run completion
         let engine = create_engine(dialect);
         let items = engine.complete(&scope_tree, &context, &schema, default_schema.as_deref(), None);
-        
-        log::debug!("[request_completions] completion returned {} items", items.len());
+
+        log::info!("[completion] returned {} items: {:?}", items.len(),
+            items.iter().take(5).map(|i| &i.label).collect::<Vec<_>>());
         
         // Convert to DTOs
         items.into_iter().map(CompletionItemDto::from).collect()
