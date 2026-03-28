@@ -15,7 +15,9 @@
 
     // Interleave messages and tool calls by timestamp
     const timeline = $derived.by(() => {
-        const msgs = agentStore.messages.map((m) => ({ kind: "message" as const, item: m, ts: m.timestamp }));
+        const msgs = agentStore.messages
+            .filter((m) => m.content.length > 0 || m.thinking)
+            .map((m) => ({ kind: "message" as const, item: m, ts: m.timestamp }));
         const tools = agentStore.toolCalls.map((t) => ({ kind: "tool" as const, item: t, ts: t.timestamp }));
         return [...msgs, ...tools].sort((a, b) => a.ts - b.ts);
     });
