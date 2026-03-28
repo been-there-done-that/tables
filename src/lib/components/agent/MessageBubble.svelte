@@ -81,6 +81,11 @@ ${runBtn}
                 {message.content}
             {/if}
         </div>
+    {:else if message.isError}
+        <div class="mx-3 my-0.5 flex items-start gap-1.5 rounded-md border border-red-500/20 bg-red-500/8 px-2.5 py-1.5 text-[11.5px] text-red-400/80">
+            <span class="mt-0.5 shrink-0">⚠</span>
+            <span class="leading-relaxed">{message.content}</span>
+        </div>
     {:else}
         <!-- eslint-disable-next-line svelte/no-at-html-tags -->
         <div

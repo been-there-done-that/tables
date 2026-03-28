@@ -49,7 +49,11 @@
                 clearInterval(intervalId);
                 intervalId = null;
             }
-            elapsed = Date.now() - toolCall.startedAt;
+            // Use actual duration: completedAt - startedAt if available.
+            // Fall back to startedAt only if completedAt is missing (very old records).
+            elapsed = toolCall.completedAt != null
+                ? toolCall.completedAt - toolCall.startedAt
+                : toolCall.startedAt > 0 ? 0 : 0;
         }
         return () => {
             if (intervalId !== null) {
