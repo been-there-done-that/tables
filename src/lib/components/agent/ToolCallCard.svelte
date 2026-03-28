@@ -45,7 +45,6 @@
         write_file: "Wrote",
         read_file: "Read",
         check_fk_integrity: "Checked FK",
-        spawn_subagent: "Spawned subagent",
         count_rows: "Counted rows",
     };
 
