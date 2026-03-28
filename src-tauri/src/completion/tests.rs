@@ -641,15 +641,15 @@ SELECT * FROM employee_hierarchy
     ";
 
     let items = complete(query);
-
-    // Note: sql_scope uses a UNION-ALL body parser that only captures the outer SELECT node,
-    // not the individual UNION members. Therefore the `FROM employees` inside the anchor
-    // member is not visible at the cursor, and employee column suggestions are unavailable.
-    // This is a known sql_scope limitation with recursive CTE parsing.
-    // The deduplication check is preserved for when this is fixed:
-    let count_firstname = items.iter().filter(|s| s.as_str() == "FirstName" || s.as_str() == "firstname").count();
-    assert!(count_firstname <= 1, "If 'FirstName' appears, it should be exactly once. Got {} times.", count_firstname);
-    println!("T25 actual completions (UNION-ALL CTE limitation): {} items", items.len());
+    // Anchor SELECT projects: EmployeeId, FirstName, LastName, ReportsTo, Level
+    // After the parser fix these must now be visible at the cursor.
+    let lower: Vec<String> = items.iter().map(|s| s.to_lowercase()).collect();
+    assert!(lower.contains(&"employeeid".to_string()), "Expected EmployeeId in suggestions, got {:?}", items);
+    assert!(lower.contains(&"firstname".to_string()),  "Expected FirstName in suggestions, got {:?}", items);
+    assert!(lower.contains(&"level".to_string()),      "Expected Level in suggestions, got {:?}", items);
+    // No duplicates
+    let count_firstname = lower.iter().filter(|s| s.as_str() == "firstname").count();
+    assert_eq!(count_firstname, 1, "FirstName should appear exactly once, got {:?}", items);
 }
 
 /// T26. Arithmetic and Built-in Function Suggestions

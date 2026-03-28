@@ -232,12 +232,9 @@ SELECT o.| FROM orders o"#;
     INNER JOIN dept_tree dt ON d.parent_id = dt.id
 )
 SELECT dt.| FROM dept_tree dt"#;
-        // The engine does not fully resolve recursive CTE UNION ALL anchor columns.
-        // We verify the engine doesn't panic and returns a Vec (may be empty).
-        // TODO: strengthen once sql_scope resolves recursive CTE projections.
         let labels = complete_labels(sql, schema);
-        // Explicit no-op: just calling complete_labels without panicking is the test.
-        let _ = labels;
+        assert!(has_labels(&labels, &["id", "name", "parent_id", "depth"]),
+            "Recursive CTE should expose anchor projected columns, got: {:?}", labels);
     }
 
     #[tokio::test]
@@ -689,30 +686,11 @@ LIMIT 100 OFFSET 0
             "FROM hr.departments d\n    WHERE d.parent_id IS NULL",
             "FROM definitely_not_a_real_table d\n    WHERE d.parent_id IS NULL",
         );
-
-        match sql_scope::resolve(&broken, Dialect::Postgres, schema) {
-            Err(_) => {
-                // sql_scope could not resolve the modified recursive CTE at all.
-                // Known engine limitation: complex RECURSIVE CTE + injected unknown table
-                // causes the resolver to bail out entirely. The warning system never runs.
-                // This is acceptable — the test documents the limitation.
-                eprintln!("[pg_d12] sql_scope::resolve failed on broken mega-query (known limitation)");
-            }
-            Ok(scope_tree) => {
-                // Resolution succeeded — diagnostics MUST flag the injected table.
-                let diags = run_diagnostics(&scope_tree, schema, &broken);
-                let flagged = diags.iter().any(|d| d.message.contains("definitely_not_a_real_table") && d.severity == DiagSeverity::Warning);
-                if flagged {
-                    // Best case: injected unknown table is correctly flagged.
-                } else {
-                    // resolve() succeeded but the diagnostic engine produced no warning.
-                    // Known engine limitation: complex RECURSIVE CTE scope causes the
-                    // diagnostic pass to miss the injected table. Documented here separately
-                    // from the Err path so the two failure modes are distinguishable.
-                    eprintln!("[pg_d12] resolve Ok but diagnostic pass silent (known limitation — RECURSIVE CTE scope tracking incomplete), got: {:?}", diags);
-                }
-            }
-        }
+        let diags = diagnostics(&broken, schema);
+        assert!(
+            diags.iter().any(|d| d.message.contains("definitely_not_a_real_table") && d.severity == DiagSeverity::Warning),
+            "Injected unknown table must produce a warning, got: {:?}", diags
+        );
     }
 }
 
