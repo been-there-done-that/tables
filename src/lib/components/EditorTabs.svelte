@@ -27,6 +27,7 @@
 
     let renamingViewId = $state<string | null>(null);
     let renameValue = $state("");
+    // svelte-ignore non_reactive_update
     let renameInputEl: HTMLInputElement;
 
     function startRename(viewId: string, currentTitle: string, event: MouseEvent) {
@@ -107,7 +108,10 @@
                         {:else}
                             <span
                                 class="truncate max-w-[150px]"
+                                role="button"
+                                tabindex="0"
                                 ondblclick={(e) => startRename(view.id, view.title, e)}
+                                onkeydown={(e) => e.key === "Enter" && startRename(view.id, view.title, e as any)}
                             >
                                 {view.title}
                             </span>

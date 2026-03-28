@@ -50,6 +50,7 @@ LIMIT 10;`;
                 lineNumbers: "on",
                 scrollBeyondLastLine: false,
                 automaticLayout: true,
+                // svelte-ignore state_referenced_locally
                 fontFamily: fontFamily,
                 fontSize: settingsStore.editorFontSize,
                 readOnly: false,

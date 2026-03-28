@@ -696,10 +696,10 @@
     }
 
     function applyEditsLocally(
-        edits: Record<number, Record<string, any>>,
+        edits: Record<string, Record<string, any>>,
         label = "edit",
         pushToUndo = true,
-        originalValues?: Record<number, Record<string, any>>,
+        originalValues?: Record<string, Record<string, any>>,
     ) {
         if (!edits || Object.keys(edits).length === 0) return;
         editManager.applyEditsLocally(
@@ -1318,8 +1318,8 @@
         const targetRowEnd = Math.min(bounds.bottom, filteredRows.length - 1);
         const targetColEnd = Math.min(bounds.right, visibleColumns.length - 1);
 
-        const edits: Record<number, Record<string, any>> = {};
-        const originalValues: Record<number, Record<string, any>> = {};
+        const edits: Record<string, Record<string, any>> = {};
+        const originalValues: Record<string, Record<string, any>> = {};
 
         for (let r = bounds.top; r <= targetRowEnd; r++) {
             const row = filteredRows[r];
@@ -1431,8 +1431,8 @@
                 visibleColumns.length - 1,
             );
 
-            const edits: Record<number, Record<string, any>> = {};
-            const originalValues: Record<number, Record<string, any>> = {};
+            const edits: Record<string, Record<string, any>> = {};
+            const originalValues: Record<string, Record<string, any>> = {};
 
             for (let r = targetBounds.top; r <= targetRowEnd; r++) {
                 const row = filteredRows[r];

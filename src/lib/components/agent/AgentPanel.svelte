@@ -435,6 +435,7 @@
     // Restart the harness session when planMode is toggled mid-conversation so
     // the system prompt reflects the new mode. Guard: only restart if the thread
     // already has messages (avoid restarting a fresh empty thread).
+    // svelte-ignore state_referenced_locally
     let prevPlanMode = planMode;
     $effect(() => {
         const current = planMode;

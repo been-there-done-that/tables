@@ -57,7 +57,8 @@
 </script>
 
 <PopoverShell {anchorEl} {onCancel} minWidth={220} maxWidth={280}>
-    <div class="flex flex-col gap-1" onkeydown={handleKeydown}>
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+    <div class="flex flex-col gap-1" role="group" onkeydown={handleKeydown}>
         <input
             type="number"
             inputmode="decimal"

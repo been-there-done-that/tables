@@ -29,6 +29,7 @@
     }: Props = $props();
 
     let overlayEl = $state<HTMLElement | null>(null);
+    // svelte-ignore state_referenced_locally
     let position = $state({ top: 0, left: 0, width: width ?? minWidth });
     let isVisible = $state(false);
     let placement = $state<"left" | "right">("right");

@@ -42,7 +42,8 @@
 </script>
 
 <PopoverShell {anchorEl} {onCancel} minWidth={260} maxWidth={400}>
-    <div class="relative flex flex-col group" onkeydown={handleKeydown}>
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+    <div class="relative flex flex-col group" role="group" onkeydown={handleKeydown}>
         <textarea
             class="w-full rounded-md border border-accent/5 text-[13px] bg-background text-foreground min-h-[110px] resize-y p-1.5 pb-6 focus:ring-1 focus:ring-accent/10 focus:border-accent/10 focus:outline-none transition-all placeholder:text-foreground-muted/20"
             bind:value={inputValue}

@@ -18,6 +18,7 @@
     }: Props = $props();
 
     let inputEl: HTMLInputElement;
+    // svelte-ignore state_referenced_locally
     let localValue = $state<any>(value);
 
     $effect(() => {

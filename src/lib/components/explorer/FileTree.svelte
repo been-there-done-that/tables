@@ -1,4 +1,4 @@
-<script lang="ts" context="module">
+<script lang="ts" module>
     import ChevronRight from "@tabler/icons-svelte/icons/chevron-right";
     import Folder from "@tabler/icons-svelte/icons/folder";
     import FolderOpen from "@tabler/icons-svelte/icons/folder-open";

@@ -138,9 +138,11 @@ ${runBtn}
 
 <div class="group flex flex-col {isUser ? 'items-end' : 'items-start'} gap-1 px-3 py-1">
     {#if isUser}
-        <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+        <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions a11y_no_noninteractive_element_interactions a11y_interactive_supports_focus -->
         <div
             class="max-w-[85%] rounded-2xl rounded-tr-sm bg-accent/15 px-3 py-1.5 text-[12px] text-foreground leading-relaxed"
+            role="button"
+            tabindex="0"
             onclick={handleClick}
         >
             {#if message.docJson}

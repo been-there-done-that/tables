@@ -998,12 +998,17 @@
         selectionButton = { visible: false, x: 0, y: 0 };
     }
 
+    // svelte-ignore state_referenced_locally
+    const _contextId = stableContextId;
+    // svelte-ignore state_referenced_locally
+    const _modelUri = stableModelUri;
+
     useMonacoEditor(
         {
-            contextId: stableContextId,
+            contextId: _contextId,
             windowId: windowState.label,
             kind: "sql",
-            modelUri: stableModelUri,
+            modelUri: _modelUri,
             container: () => editorContainer,
             options: {
                 theme: MONACO_THEME_NAME,
