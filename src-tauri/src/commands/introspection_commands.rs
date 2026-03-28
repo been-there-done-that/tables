@@ -335,7 +335,8 @@ pub async fn get_functions(
                 WHEN 's' THEN 'stable'
                 WHEN 'i' THEN 'immutable'
                 ELSE 'volatile'
-            END AS volatility
+            END AS volatility,
+            p.oid::bigint AS oid
         FROM pg_proc p
         JOIN pg_namespace n ON p.pronamespace = n.oid
         JOIN pg_language l ON p.prolang = l.oid
@@ -358,7 +359,7 @@ pub async fn get_functions(
             database: database.clone(),
             name: row.get(0),
             schema: schema.clone(),
-            oid: 0,
+            oid: row.get(7),
             language: row.get(1),
             kind,
             return_type: row.get(3),
