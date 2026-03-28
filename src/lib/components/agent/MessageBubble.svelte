@@ -4,6 +4,8 @@
     import { windowState } from "$lib/stores/window.svelte";
     import IconPlayerPlay from "@tabler/icons-svelte/icons/player-play-filled";
     import { renderDocAsHtml } from "$lib/agent/doc-renderer";
+    import PlanCard from "./PlanCard.svelte";
+    import { plansStore } from "$lib/stores/plans.svelte";
 
     interface Props {
         message: AgentMessage;
@@ -12,6 +14,24 @@
     let { message }: Props = $props();
 
     const isUser = $derived(message.role === "user");
+
+    // Extract <plan>...</plan> from content
+    function extractPlan(content: string): { text: string; planXml: string | null } {
+        const match = content.match(/<plan>([\s\S]*?)<\/plan>/i);
+        if (!match) return { text: content, planXml: null };
+        return {
+            text: content.replace(match[0], "").trim(),
+            planXml: match[1],
+        };
+    }
+
+    const planExtract = $derived(
+        message.role === "assistant" ? extractPlan(message.content) : { text: message.content, planXml: null },
+    );
+
+    const matchedPlan = $derived(
+        planExtract.planXml != null ? (plansStore.plans[plansStore.plans.length - 1] ?? null) : null,
+    );
 
     // Parse markdown and inject "Run" buttons into SQL code blocks
     const html = $derived.by(() => {
@@ -93,9 +113,18 @@ ${runBtn}
             onclick={handleClick}
             role="presentation"
         >
-            {@html html}
-            {#if message.streaming}
-                <span class="streaming-cursor"></span>
+            {#if planExtract.planXml != null && matchedPlan}
+                {#if planExtract.text}
+                    <div class="prose prose-sm prose-invert max-w-none text-[12px]">
+                        {planExtract.text}
+                    </div>
+                {/if}
+                <PlanCard plan={matchedPlan} />
+            {:else}
+                {@html html}
+                {#if message.streaming}
+                    <span class="streaming-cursor"></span>
+                {/if}
             {/if}
         </div>
     {/if}
