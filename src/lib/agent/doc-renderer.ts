@@ -19,22 +19,20 @@ const ICONS = {
     result: `<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M15 15m-4 0a4 4 0 1 0 8 0a4 4 0 1 0 -8 0"/><path d="M18.5 18.5l2.5 2.5"/><path d="M4 6h16"/><path d="M4 12h4"/><path d="M4 18h4"/>`,
 };
 
-function icon(type: keyof typeof ICONS, color: string): string {
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" stroke="${esc(color)}" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0">${ICONS[type]}</svg>`;
+function icon(type: keyof typeof ICONS): string {
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0">${ICONS[type]}</svg>`;
 }
 
 function chip(
     type: keyof typeof ICONS,
     label: string,
     suffix: string,
-    bg: string,
-    border: string,
-    color: string,
+    dataAttrs: string,
 ): string {
     const suffixHtml = suffix
         ? `<span style="opacity:0.55;font-size:10px">${esc(suffix)}</span>`
         : "";
-    return `<span style="display:inline-flex;align-items:center;gap:2px;border-radius:3px;padding:1px 4px;font-size:10.5px;font-weight:500;line-height:1.4;vertical-align:middle;margin:0 1px;background:${bg};border:1px solid ${border};color:${color}">${icon(type, color)}<span style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(label)}</span>${suffixHtml}</span>`;
+    return `<span class="agent-chip agent-chip-${type}" ${dataAttrs}>${icon(type)}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(label)}</span>${suffixHtml}</span>`;
 }
 
 function walkNodes(nodes: unknown[]): string {
@@ -47,13 +45,13 @@ function walkNodes(nodes: unknown[]): string {
             const a = n.attrs as Record<string, unknown>;
             const label = String(a.path ?? "");
             const suffix = a.lineStart != null ? `(${a.lineStart}–${a.lineEnd})` : "";
-            html += chip("file", label, suffix, "rgba(59,130,246,0.22)", "rgba(59,130,246,0.45)", "#93c5fd");
+            html += chip("file", label, suffix, `data-chip-type="file" data-chip-value="${esc(label)}"`);
         } else if (n.type === "tableChip") {
             const a = n.attrs as Record<string, unknown>;
-            html += chip("table", String(a.tableName ?? ""), "", "rgba(168,85,247,0.22)", "rgba(168,85,247,0.45)", "#d8b4fe");
+            html += chip("table", String(a.tableName ?? ""), "", `data-chip-type="table" data-chip-value="${esc(String(a.tableName ?? ""))}"`);
         } else if (n.type === "resultChip") {
             const a = n.attrs as Record<string, unknown>;
-            html += chip("result", String(a.label ?? ""), "", "rgba(34,197,94,0.18)", "rgba(34,197,94,0.4)", "#86efac");
+            html += chip("result", String(a.label ?? ""), "", `data-chip-type="result" data-chip-value="${esc(String(a.label ?? ""))}"`);
         } else if (n.content) {
             html += walkNodes(n.content as unknown[]);
             if (["paragraph", "heading"].includes(n.type as string)) {

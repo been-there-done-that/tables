@@ -16,14 +16,15 @@ function buildChipDom(
     iconType: keyof typeof ICON_SVG,
     label: string,
     suffix: string,
-    bgClass: string,
+    chipClass: string,
     iconColor: string,
+    onRemove?: () => void,
 ): HTMLElement {
     const dom = document.createElement("span");
     dom.setAttribute("contenteditable", "false");
     dom.setAttribute("data-chip", iconType);
-    dom.style.cssText =
-        `display:inline-flex;align-items:center;gap:2px;border-radius:3px;padding:1px 4px;font-size:10.5px;font-weight:500;line-height:1.4;vertical-align:middle;user-select:none;cursor:default;margin:0 1px;position:relative;top:-0.5px;${bgClass}`;
+    dom.className = `agent-chip agent-chip-${chipClass}`;
+
     // SVG icon — safe, static string from constants
     const iconWrapper = document.createElement("span");
     iconWrapper.innerHTML = svg(iconType, iconColor);
@@ -31,7 +32,7 @@ function buildChipDom(
 
     // Label — set via textContent (safe, no XSS)
     const labelSpan = document.createElement("span");
-    labelSpan.style.cssText = "max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
+    labelSpan.style.cssText = "overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
     labelSpan.textContent = label;
     dom.appendChild(labelSpan);
 
@@ -41,6 +42,19 @@ function buildChipDom(
         suffixSpan.style.cssText = "opacity:0.55;font-size:10px";
         suffixSpan.textContent = suffix;
         dom.appendChild(suffixSpan);
+    }
+
+    // Remove (×) button
+    if (onRemove) {
+        const removeBtn = document.createElement("span");
+        removeBtn.className = "chip-remove";
+        removeBtn.textContent = "×";
+        removeBtn.addEventListener("mousedown", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onRemove();
+        });
+        dom.appendChild(removeBtn);
     }
 
     return dom;
@@ -78,7 +92,7 @@ export const FileChipNode = Node.create({
     },
 
     addNodeView() {
-        return ({ node }) => {
+        return ({ node, editor, getPos }) => {
             const suffix = node.attrs.lineStart
                 ? `(${node.attrs.lineStart}–${node.attrs.lineEnd})`
                 : "";
@@ -86,8 +100,12 @@ export const FileChipNode = Node.create({
                 "file",
                 node.attrs.path,
                 suffix,
-                "background:rgba(59,130,246,0.22);border:1px solid rgba(59,130,246,0.45);color:#93c5fd",
-                "#93c5fd",
+                "file",
+                "currentColor",
+                () => {
+                    const pos = typeof getPos === "function" ? getPos() : null;
+                    if (pos != null) editor.chain().focus().deleteRange({ from: pos, to: pos + node.nodeSize }).run();
+                },
             );
             return { dom };
         };
@@ -115,13 +133,17 @@ export const TableChipNode = Node.create({
     },
 
     addNodeView() {
-        return ({ node }) => {
+        return ({ node, editor, getPos }) => {
             const dom = buildChipDom(
                 "table",
                 node.attrs.tableName,
                 "",
-                "background:rgba(168,85,247,0.22);border:1px solid rgba(168,85,247,0.45);color:#d8b4fe",
-                "#d8b4fe",
+                "table",
+                "currentColor",
+                () => {
+                    const pos = typeof getPos === "function" ? getPos() : null;
+                    if (pos != null) editor.chain().focus().deleteRange({ from: pos, to: pos + node.nodeSize }).run();
+                },
             );
             return { dom };
         };
@@ -152,13 +174,17 @@ export const ResultChipNode = Node.create({
     },
 
     addNodeView() {
-        return ({ node }) => {
+        return ({ node, editor, getPos }) => {
             const dom = buildChipDom(
                 "result",
                 node.attrs.label,
                 "",
-                "background:rgba(34,197,94,0.18);border:1px solid rgba(34,197,94,0.4);color:#86efac",
-                "#86efac",
+                "result",
+                "currentColor",
+                () => {
+                    const pos = typeof getPos === "function" ? getPos() : null;
+                    if (pos != null) editor.chain().focus().deleteRange({ from: pos, to: pos + node.nodeSize }).run();
+                },
             );
             return { dom };
         };

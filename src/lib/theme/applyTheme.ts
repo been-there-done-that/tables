@@ -35,6 +35,19 @@ export function applyThemeStyles(themeJson: string): void {
   root.style.setProperty("--theme-border-subtle", border.subtle);
   root.style.setProperty("--theme-border-focus", border.focus);
 
+  // Auto-detect light vs dark from bg-primary lightness to set chip text colors
+  const bgLightness = parseFloat(bg.primary.match(/(\d+(?:\.\d+)?)%/)?.[1] ?? "15");
+  const isDark = bgLightness < 50;
+  root.style.setProperty("--chip-file-color",   isDark ? "#93c5fd" : "#1d4ed8");
+  root.style.setProperty("--chip-table-color",  isDark ? "#d8b4fe" : "#7c3aed");
+  root.style.setProperty("--chip-result-color", isDark ? "#86efac" : "#15803d");
+  root.style.setProperty("--chip-file-bg",      isDark ? "rgba(59,130,246,0.22)"  : "rgba(59,130,246,0.12)");
+  root.style.setProperty("--chip-table-bg",     isDark ? "rgba(168,85,247,0.22)"  : "rgba(147,51,234,0.10)");
+  root.style.setProperty("--chip-result-bg",    isDark ? "rgba(34,197,94,0.18)"   : "rgba(22,163,74,0.10)");
+  root.style.setProperty("--chip-file-border",  isDark ? "rgba(59,130,246,0.45)"  : "rgba(59,130,246,0.35)");
+  root.style.setProperty("--chip-table-border", isDark ? "rgba(168,85,247,0.45)"  : "rgba(147,51,234,0.35)");
+  root.style.setProperty("--chip-result-border",isDark ? "rgba(34,197,94,0.4)"    : "rgba(22,163,74,0.35)");
+
   // Sync Monaco theme
   preloadMonaco().then((m) => updateMonacoTheme(m, data));
 }

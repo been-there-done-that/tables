@@ -34,11 +34,28 @@ ${runBtn}
     });
 
     function handleClick(e: MouseEvent) {
+        // SQL run button in assistant messages
         const btn = (e.target as HTMLElement).closest(".sql-run-btn") as HTMLElement | null;
-        if (!btn) return;
-        const sql = decodeURIComponent(btn.dataset.sql ?? "");
-        if (!sql) return;
-        openSqlInEditor(sql);
+        if (btn) {
+            const sql = decodeURIComponent(btn.dataset.sql ?? "");
+            if (sql) openSqlInEditor(sql);
+            return;
+        }
+        // @mention chip click in user messages
+        const chip = (e.target as HTMLElement).closest(".agent-chip") as HTMLElement | null;
+        if (chip) {
+            const type = chip.dataset.chipType;
+            const value = chip.dataset.chipValue ?? "";
+            if (type === "file" && value) {
+                const session = windowState.activeSession;
+                const view = session?.views.find((v: { title: string }) => v.title === value);
+                if (view) {
+                    session!.activeViewId = view.id;
+                } else {
+                    session?.openView("editor", value, { content: "" });
+                }
+            }
+        }
     }
 
     function openSqlInEditor(sql: string) {
@@ -52,7 +69,11 @@ ${runBtn}
 
 <div class="group flex flex-col {isUser ? 'items-end' : 'items-start'} gap-1 px-3 py-1">
     {#if isUser}
-        <div class="max-w-[85%] rounded-2xl rounded-tr-sm bg-accent/15 px-3 py-1.5 text-[12px] text-foreground leading-relaxed">
+        <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+        <div
+            class="max-w-[85%] rounded-2xl rounded-tr-sm bg-accent/15 px-3 py-1.5 text-[12px] text-foreground leading-relaxed"
+            onclick={handleClick}
+        >
             {#if message.docJson}
                 <!-- eslint-disable-next-line svelte/no-at-html-tags -->
                 {@html renderDocAsHtml(message.docJson)}
