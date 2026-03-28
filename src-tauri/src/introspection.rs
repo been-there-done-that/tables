@@ -584,6 +584,53 @@ impl Introspector {
             }));
         }
 
+        // === LEVEL 4 (extended): Constraints per table + Functions + Sequences per schema ===
+        // Fetch constraints per table (async, outside lock), then save in a single transaction
+        {
+            let mut table_constraints: Vec<(String, String, Vec<MetaConstraint>)> = Vec::new();
+            for t in &all_tables {
+                match self.fetch_postgres_constraints(&client, connection_id, database_name, &t.schema, &t.table_name).await {
+                    Ok(constraints) => table_constraints.push((t.schema.clone(), t.table_name.clone(), constraints)),
+                    Err(e) => debug!("Failed to fetch constraints for {}.{}: {}", t.schema, t.table_name, e),
+                }
+            }
+            let app_db = self.app_db.lock().unwrap();
+            let tx = app_db.unchecked_transaction().map_err(|e| e.to_string())?;
+            for (schema, table_name, constraints) in &table_constraints {
+                if let Ok(table_id) = tx.query_row(
+                    "SELECT table_id FROM meta_tables WHERE connection_id = ?1 AND database = ?2 AND schema = ?3 AND table_name = ?4",
+                    params![connection_id, database_name, schema, table_name],
+                    |row| row.get::<_, i64>(0),
+                ) {
+                    let _ = self.save_constraints_internal(&tx, table_id, constraints);
+                }
+            }
+            tx.commit().map_err(|e| e.to_string())?;
+        }
+
+        // Fetch functions and sequences per schema (async outside lock), then save
+        {
+            let mut schema_fns: Vec<(String, Vec<MetaFunction>, Vec<MetaSequence>)> = Vec::new();
+            for s_name in &all_schemas {
+                let fns = self.fetch_postgres_functions(&client, connection_id, database_name, s_name).await.unwrap_or_default();
+                let seqs = self.fetch_postgres_sequences(&client, connection_id, database_name, s_name).await.unwrap_or_default();
+                schema_fns.push((s_name.clone(), fns, seqs));
+            }
+            let app_db = self.app_db.lock().unwrap();
+            let tx = app_db.unchecked_transaction().map_err(|e| e.to_string())?;
+            for (s_name, fns, seqs) in &schema_fns {
+                if let Ok(schema_id) = tx.query_row(
+                    "SELECT schema_id FROM meta_schemas WHERE connection_id = ?1 AND database = ?2 AND name = ?3",
+                    params![connection_id, database_name, s_name],
+                    |row| row.get::<_, i64>(0),
+                ) {
+                    let _ = self.save_functions_internal(&tx, schema_id, connection_id, database_name, s_name, fns);
+                    let _ = self.save_sequences_internal(&tx, schema_id, connection_id, database_name, s_name, seqs);
+                }
+            }
+            tx.commit().map_err(|e| e.to_string())?;
+        }
+
         // Construct return value
         let mut schema_vec = Vec::new();
         let mut grouped_tables: std::collections::HashMap<String, Vec<MetaTable>> = std::collections::HashMap::new();
@@ -1714,6 +1761,45 @@ impl Introspector {
             tx.commit().map_err(|e| e.to_string())?;
         }
 
+        // 3b. Fetch and save constraints per table + functions/sequences per schema
+        {
+            let mut table_constraints: Vec<(String, String, Vec<MetaConstraint>)> = Vec::new();
+            for t in &tables {
+                match self.fetch_postgres_constraints(&client, connection_id, current_database, &t.schema, &t.table_name).await {
+                    Ok(constraints) => table_constraints.push((t.schema.clone(), t.table_name.clone(), constraints)),
+                    Err(e) => debug!("Failed to fetch constraints for {}.{}: {}", t.schema, t.table_name, e),
+                }
+            }
+            let mut schema_fns: Vec<(String, Vec<MetaFunction>, Vec<MetaSequence>)> = Vec::new();
+            for s_name in &schemas_vec {
+                let fns = self.fetch_postgres_functions(&client, connection_id, current_database, s_name).await.unwrap_or_default();
+                let seqs = self.fetch_postgres_sequences(&client, connection_id, current_database, s_name).await.unwrap_or_default();
+                schema_fns.push((s_name.clone(), fns, seqs));
+            }
+            let app_db = self.app_db.lock().unwrap();
+            let tx = app_db.unchecked_transaction().map_err(|e| e.to_string())?;
+            for (schema, table_name, constraints) in &table_constraints {
+                if let Ok(table_id) = tx.query_row(
+                    "SELECT table_id FROM meta_tables WHERE connection_id = ?1 AND database = ?2 AND schema = ?3 AND table_name = ?4",
+                    params![connection_id, current_database, schema, table_name],
+                    |row| row.get::<_, i64>(0),
+                ) {
+                    let _ = self.save_constraints_internal(&tx, table_id, constraints);
+                }
+            }
+            for (s_name, fns, seqs) in &schema_fns {
+                if let Ok(schema_id) = tx.query_row(
+                    "SELECT schema_id FROM meta_schemas WHERE connection_id = ?1 AND database = ?2 AND name = ?3",
+                    params![connection_id, current_database, s_name],
+                    |row| row.get::<_, i64>(0),
+                ) {
+                    let _ = self.save_functions_internal(&tx, schema_id, connection_id, current_database, s_name, fns);
+                    let _ = self.save_sequences_internal(&tx, schema_id, connection_id, current_database, s_name, seqs);
+                }
+            }
+            tx.commit().map_err(|e| e.to_string())?;
+        }
+
         // 4. Construct Hierarchy Result
         let mut db_list = Vec::new();
         for db_name in all_databases {
@@ -2113,6 +2199,171 @@ impl Introspector {
         Ok(trg_map)
     }
 
+    /// Fetch functions for a schema directly from a postgres client.
+    async fn fetch_postgres_functions(&self, client: &tokio_postgres::Client, connection_id: &str, database: &str, schema: &str) -> Result<Vec<MetaFunction>, String> {
+        let rows = client.query(
+            "SELECT
+                 p.oid::bigint,
+                 p.proname,
+                 l.lanname,
+                 CASE p.prokind
+                     WHEN 'f' THEN 'Function'
+                     WHEN 'p' THEN 'Procedure'
+                     WHEN 'a' THEN 'Aggregate'
+                     WHEN 'w' THEN 'Window'
+                     ELSE 'Function'
+                 END,
+                 COALESCE(pg_catalog.pg_get_function_result(p.oid), ''),
+                 CASE WHEN p.prokind IN ('f', 'p') THEN COALESCE(pg_catalog.pg_get_functiondef(p.oid), '') ELSE '' END,
+                 p.prosecdef,
+                 CASE p.provolatile
+                     WHEN 'i' THEN 'immutable'
+                     WHEN 's' THEN 'stable'
+                     ELSE 'volatile'
+                 END
+             FROM pg_proc p
+             JOIN pg_namespace n ON p.pronamespace = n.oid
+             JOIN pg_language l ON p.prolang = l.oid
+             WHERE n.nspname = $1
+             ORDER BY p.proname, p.oid",
+            &[&schema],
+        ).await.map_err(|e| format!("Failed to list functions in {}: {}", schema, e))?;
+
+        let mut functions = Vec::new();
+        for row in rows {
+            let oid: i64 = row.get(0);
+            let name: String = row.get(1);
+            let language: String = row.get(2);
+            let kind_str: String = row.get(3);
+            let return_type: String = row.get(4);
+            let definition: String = row.get(5);
+            let security_definer: bool = row.get(6);
+            let volatility: String = row.get(7);
+
+            let kind = match kind_str.as_str() {
+                "Procedure" => FunctionKind::Procedure,
+                "Aggregate" => FunctionKind::Aggregate,
+                "Window" => FunctionKind::Window,
+                _ => FunctionKind::Function,
+            };
+
+            functions.push(MetaFunction {
+                connection_id: connection_id.to_string(),
+                database: database.to_string(),
+                schema: schema.to_string(),
+                name,
+                oid,
+                language,
+                kind,
+                return_type,
+                arguments: vec![],
+                definition,
+                security_definer,
+                volatility,
+            });
+        }
+        Ok(functions)
+    }
+
+    /// Fetch sequences for a schema directly from a postgres client.
+    async fn fetch_postgres_sequences(&self, client: &tokio_postgres::Client, connection_id: &str, database: &str, schema: &str) -> Result<Vec<MetaSequence>, String> {
+        let rows = client.query(
+            "SELECT
+                 sequencename,
+                 data_type::text,
+                 start_value,
+                 min_value,
+                 max_value,
+                 increment_by,
+                 cycle,
+                 cache_size,
+                 last_value
+             FROM pg_sequences
+             WHERE schemaname = $1
+             ORDER BY sequencename",
+            &[&schema],
+        ).await.map_err(|e| format!("Failed to list sequences in {}: {}", schema, e))?;
+
+        let mut sequences = Vec::new();
+        for row in rows {
+            sequences.push(MetaSequence {
+                connection_id: connection_id.to_string(),
+                database: database.to_string(),
+                schema: schema.to_string(),
+                name: row.get(0),
+                data_type: row.get(1),
+                start_value: row.get(2),
+                min_value: row.get(3),
+                max_value: row.get(4),
+                increment_by: row.get(5),
+                cycle: row.get(6),
+                cache_size: row.get(7),
+                last_value: row.get(8),
+            });
+        }
+        Ok(sequences)
+    }
+
+    /// Fetch constraints for a table directly from a postgres client.
+    async fn fetch_postgres_constraints(&self, client: &tokio_postgres::Client, connection_id: &str, database: &str, schema: &str, table_name: &str) -> Result<Vec<MetaConstraint>, String> {
+        let rows = client.query(
+            "SELECT
+                 c.conname,
+                 CASE c.contype
+                     WHEN 'p' THEN 'PrimaryKey'
+                     WHEN 'f' THEN 'ForeignKey'
+                     WHEN 'u' THEN 'Unique'
+                     WHEN 'c' THEN 'Check'
+                     WHEN 'x' THEN 'Exclusion'
+                     ELSE 'Check'
+                 END,
+                 COALESCE(pg_get_constraintdef(c.oid), ''),
+                 COALESCE(
+                     (SELECT json_agg(a.attname ORDER BY array_position(c.conkey, a.attnum))
+                      FROM pg_attribute a
+                      WHERE a.attrelid = c.conrelid AND a.attnum = ANY(c.conkey)),
+                     '[]'::json
+                 )::text
+             FROM pg_constraint c
+             JOIN pg_class t ON t.oid = c.conrelid
+             JOIN pg_namespace n ON n.oid = t.relnamespace
+             WHERE n.nspname = $1 AND t.relname = $2
+               AND c.contype IN ('p','f','u','c','x')
+             ORDER BY c.contype, c.conname",
+            &[&schema, &table_name],
+        ).await.map_err(|e| format!("Failed to list constraints for {}.{}: {}", schema, table_name, e))?;
+
+        let mut constraints = Vec::new();
+        for row in rows {
+            let name: String = row.get(0);
+            let kind_str: String = row.get(1);
+            let definition: String = row.get(2);
+            let columns_json: String = row.get(3);
+
+            let kind = match kind_str.as_str() {
+                "PrimaryKey" => ConstraintKind::PrimaryKey,
+                "ForeignKey" => ConstraintKind::ForeignKey,
+                "Unique" => ConstraintKind::Unique,
+                "Exclusion" => ConstraintKind::Exclusion,
+                _ => ConstraintKind::Check,
+            };
+
+            let columns: Vec<String> = serde_json::from_str(&columns_json).unwrap_or_default();
+
+            constraints.push(MetaConstraint {
+                connection_id: connection_id.to_string(),
+                database: database.to_string(),
+                schema: schema.to_string(),
+                table_name: table_name.to_string(),
+                name,
+                kind,
+                definition,
+                columns,
+            });
+        }
+        Ok(constraints)
+    }
+
     /// Progressive introspection with event emission at each level
     pub async fn introspect_postgres_progressive(&self, connection_id: &str, config: serde_json::Value, priority_database: Option<String>, priority_schema: Option<String>, app: &tauri::AppHandle) -> Result<(), String> {
         use tauri::Emitter;
@@ -2408,7 +2659,46 @@ impl Introspector {
             error!("[Introspector] Level 4 introspection failed: {}", e);
             return Err(format!("Level 4 introspection failed: {}", e));
         }
-        
+
+        // === LEVEL 4 (extended): Constraints per table + Functions + Sequences per schema ===
+        {
+            let mut table_constraints: Vec<(String, String, Vec<MetaConstraint>)> = Vec::new();
+            for t in &all_tables {
+                match self.fetch_postgres_constraints(&current_client, connection_id, &effective_database, &t.schema, &t.table_name).await {
+                    Ok(constraints) => table_constraints.push((t.schema.clone(), t.table_name.clone(), constraints)),
+                    Err(e) => debug!("Failed to fetch constraints for {}.{}: {}", t.schema, t.table_name, e),
+                }
+            }
+            let mut schema_fns: Vec<(String, Vec<MetaFunction>, Vec<MetaSequence>)> = Vec::new();
+            for s_name in &all_schemas {
+                let fns = self.fetch_postgres_functions(&current_client, connection_id, &effective_database, s_name).await.unwrap_or_default();
+                let seqs = self.fetch_postgres_sequences(&current_client, connection_id, &effective_database, s_name).await.unwrap_or_default();
+                schema_fns.push((s_name.clone(), fns, seqs));
+            }
+            let app_db = self.app_db.lock().unwrap();
+            let tx = app_db.unchecked_transaction().map_err(|e| format!("[TX_START_L4_EXT] {}", e))?;
+            for (schema, table_name, constraints) in &table_constraints {
+                if let Ok(table_id) = tx.query_row(
+                    "SELECT table_id FROM meta_tables WHERE connection_id = ?1 AND database = ?2 AND schema = ?3 AND table_name = ?4",
+                    params![connection_id, &effective_database, schema, table_name],
+                    |row| row.get::<_, i64>(0),
+                ) {
+                    let _ = self.save_constraints_internal(&tx, table_id, constraints);
+                }
+            }
+            for (s_name, fns, seqs) in &schema_fns {
+                if let Ok(schema_id) = tx.query_row(
+                    "SELECT schema_id FROM meta_schemas WHERE connection_id = ?1 AND database = ?2 AND name = ?3",
+                    params![connection_id, &effective_database, s_name],
+                    |row| row.get::<_, i64>(0),
+                ) {
+                    let _ = self.save_functions_internal(&tx, schema_id, connection_id, &effective_database, s_name, fns);
+                    let _ = self.save_sequences_internal(&tx, schema_id, connection_id, &effective_database, s_name, seqs);
+                }
+            }
+            tx.commit().map_err(|e| format!("[TX_COMMIT_L4_EXT] {}", e))?;
+        }
+
         let fk_count: usize = all_tables.iter().map(|t| t.foreign_keys.len()).sum();
         let idx_count: usize = all_tables.iter().map(|t| t.indexes.len()).sum();
         let trigger_count: usize = all_tables.iter().map(|t| t.triggers.len()).sum();
