@@ -43,10 +43,15 @@ export class SchemaStore {
         }
 
         // Listen for active connection changes from backend
-        import("@tauri-apps/api/event").then(({ listen }) => {
-            listen<Record<string, string>>("active-connections-changed", (event) => {
-                this.activeConnectionsMap = event.payload;
-            }).then(un => this.unlistenActive = un);
+        // Await the listen() promise so unlistenActive is guaranteed to be set
+        // before any teardown can happen
+        import("@tauri-apps/api/event").then(async ({ listen }) => {
+            this.unlistenActive = await listen<Record<string, string>>(
+                "active-connections-changed",
+                (event) => {
+                    this.activeConnectionsMap = event.payload;
+                }
+            );
         });
 
         // Initial fetch
