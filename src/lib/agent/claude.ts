@@ -43,6 +43,7 @@ export async function startAgentSession(opts: {
     resumeSdkSessionId?: string;
     model?: string;
     effort?: "auto" | "low" | "medium" | "high" | "max";
+    provider?: string;
     onEvent: (event: AgentEventType) => void;
     abortController: AbortController;
 }): Promise<AgentSession> {
@@ -58,6 +59,7 @@ export async function startAgentSession(opts: {
         systemPrompt: opts.systemPrompt,
         model: opts.model,
         effort: opts.effort,
+        provider: opts.provider,
     };
     if (opts.resumeSdkSessionId) {
         body.sdkSessionId = opts.resumeSdkSessionId;
