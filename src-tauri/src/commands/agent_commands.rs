@@ -319,3 +319,98 @@ pub fn list_turn_summaries(
         .map_err(|e| e.to_string())?;
     rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
 }
+
+// ── Plan commands ──────────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub fn create_agent_plan(
+    state: State<'_, DatabaseState>,
+    id: String,
+    thread_id: String,
+    title: String,
+    now: i64,
+) -> Result<(), String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    conn.execute(
+        "INSERT INTO agent_plans (id, thread_id, title, status, created_at, updated_at)
+         VALUES (?1, ?2, ?3, 'pending', ?4, ?4)",
+        params![id, thread_id, title, now],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentPlanRow {
+    pub id: String,
+    pub thread_id: String,
+    pub title: String,
+    pub status: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[tauri::command]
+pub fn list_agent_plans(
+    state: State<'_, DatabaseState>,
+    thread_id: String,
+) -> Result<Vec<AgentPlanRow>, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, thread_id, title, status, created_at, updated_at
+             FROM agent_plans WHERE thread_id = ?1 ORDER BY created_at ASC",
+        )
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map(params![thread_id], |row| {
+            Ok(AgentPlanRow {
+                id: row.get(0)?,
+                thread_id: row.get(1)?,
+                title: row.get(2)?,
+                status: row.get(3)?,
+                created_at: row.get(4)?,
+                updated_at: row.get(5)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn add_plan_step(
+    state: State<'_, DatabaseState>,
+    id: String,
+    plan_id: String,
+    phase: String,
+    description: String,
+    position: i64,
+    now: i64,
+) -> Result<(), String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    conn.execute(
+        "INSERT INTO agent_plan_steps (id, plan_id, phase, description, status, position, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, 'pending', ?5, ?6, ?6)",
+        params![id, plan_id, phase, description, position, now],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn update_plan_step(
+    state: State<'_, DatabaseState>,
+    id: String,
+    status: String,
+    tool_call_id: Option<String>,
+    now: i64,
+) -> Result<(), String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    conn.execute(
+        "UPDATE agent_plan_steps SET status = ?2, tool_call_id = ?3, updated_at = ?4 WHERE id = ?1",
+        params![id, status, tool_call_id, now],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}

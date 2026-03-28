@@ -304,6 +304,12 @@ macro_rules! aggregate_plugin_commands {
             save_turn_summary,
             list_turn_summaries,
 
+            // Agent plan commands
+            create_agent_plan,
+            list_agent_plans,
+            add_plan_step,
+            update_plan_step,
+
             // DDL generation commands
             get_table_ddl,
             get_view_definition,
