@@ -7,8 +7,7 @@
     import IconChevronDown from "@tabler/icons-svelte/icons/chevron-down";
     import IconChevronRight from "@tabler/icons-svelte/icons/chevron-right";
     import IconPlayerPlay from "@tabler/icons-svelte/icons/player-play";
-    import IconListSearch from "@tabler/icons-svelte/icons/list-search";
-    import { composerStore } from "$lib/stores/composer.svelte";
+    import IconTool from "@tabler/icons-svelte/icons/tool";
 
     interface Props {
         toolCall: AgentToolCall;
@@ -85,122 +84,124 @@
         return null;
     }
 
+    function getOutputSummary(): string | null {
+        if (!toolCall.output) return null;
+        // SQL data tools — parse JSON and summarise row count
+        if (SQL_TOOLS.has(toolCall.toolName)) {
+            try {
+                const out = JSON.parse(toolCall.output);
+                const rows = Array.isArray(out?.rows) ? out.rows.length : null;
+                const total = out?.total ?? rows;
+                const cols = Array.isArray(out?.columns) ? out.columns.length : null;
+                if (total != null && cols != null) return `${total} rows · ${cols} columns`;
+                if (total != null) return `${total} rows`;
+            } catch { /* fall through */ }
+        }
+        // count_rows returns a plain number or {count: N}
+        if (toolCall.toolName === "count_rows") {
+            try {
+                const out = JSON.parse(toolCall.output);
+                const n = out?.count ?? out?.rows?.[0]?.count ?? null;
+                if (n != null) return `${n} rows`;
+            } catch { /* fall through */ }
+        }
+        return null;
+    }
+
     onDestroy(() => {
         if (intervalId !== null) clearInterval(intervalId);
     });
 </script>
 
-<div class="my-1 rounded-lg border border-border bg-muted/10 text-[12px]">
+<div class="my-0.5 rounded border border-border/50 bg-muted/5 text-[11px] {expanded ? 'w-full' : 'w-fit max-w-[340px]'}">
     <!-- Header -->
-    <button
-        class="flex w-full items-center gap-2 px-3 py-2 text-left"
-        onclick={() => (expanded = !expanded)}
-    >
-        {#if toolCall.status === "running"}
-            <IconLoader2 size={12} class="shrink-0 animate-spin text-accent" />
-        {:else if toolCall.status === "done"}
-            <IconCheck size={12} class="shrink-0 text-green-500" />
-        {:else}
-            <IconX size={12} class="shrink-0 text-destructive" />
-        {/if}
+    <div class="flex min-w-[160px] items-center gap-1.5 px-2 py-1 w-full">
+        <button
+            class="flex flex-1 min-w-0 items-center gap-1.5 text-left"
+            onclick={() => (expanded = !expanded)}
+        >
+            <IconTool size={10} class="shrink-0 text-muted-foreground/40" />
 
-        <span class="flex-1 truncate font-mono text-muted-foreground">
-            {toolCall.toolName}
-            {#if toolCall.toolName === "write_file"}
-                {@const inp = toolCall.input as Record<string, unknown>}
-                {#if inp?.fileName}
-                    <span class="text-foreground/50"> — {inp.fileName}</span>
-                {/if}
+            {#if toolCall.status === "running"}
+                <IconLoader2 size={10} class="shrink-0 animate-spin text-accent" />
+            {:else if toolCall.status === "done"}
+                <IconCheck size={10} class="shrink-0 text-green-500/80" />
+            {:else}
+                <IconX size={10} class="shrink-0 text-destructive/80" />
             {/if}
-        </span>
+
+            <span class="flex-1 truncate font-mono text-[10.5px] text-muted-foreground/70">
+                {toolCall.toolName}
+                {#if toolCall.toolName === "write_file"}
+                    {@const inp = toolCall.input as Record<string, unknown>}
+                    {#if inp?.fileName}
+                        <span class="text-foreground/50"> — {inp.fileName}</span>
+                    {/if}
+                {/if}
+            </span>
+        </button>
+
+        {#if SQL_TOOLS.has(toolCall.toolName) && onRun}
+            {@const sql = getSql()}
+            {#if sql}
+                <button
+                    onclick={() => onRun?.(sql)}
+                    title="Open in editor"
+                    class="shrink-0 flex items-center gap-0.5 rounded px-1 py-0.5 text-[9px] text-accent/50 hover:text-accent hover:bg-accent/10 transition-colors"
+                >
+                    <IconPlayerPlay size={8} />
+                </button>
+            {/if}
+        {/if}
 
         <!-- Elapsed time -->
         <span
-            class="font-mono text-[10px] {toolCall.status === 'running'
+            class="shrink-0 font-mono text-[9px] {toolCall.status === 'running'
                 ? 'text-accent'
-                : 'text-muted-foreground/60'}"
+                : 'text-muted-foreground/40'}"
         >
             {formatElapsed(elapsed)}
         </span>
 
-        {#if expanded}
-            <IconChevronDown size={12} class="shrink-0 text-muted-foreground" />
-        {:else}
-            <IconChevronRight size={12} class="shrink-0 text-muted-foreground" />
-        {/if}
-    </button>
+        <button onclick={() => (expanded = !expanded)} class="shrink-0">
+            {#if expanded}
+                <IconChevronDown size={10} class="text-muted-foreground/50" />
+            {:else}
+                <IconChevronRight size={10} class="text-muted-foreground/50" />
+            {/if}
+        </button>
+    </div>
 
     <!-- Expandable output -->
     {#if expanded}
-        <div class="border-t border-border px-3 py-2 space-y-2">
+        <div class="border-t border-border/40 px-2 py-1.5">
             {#if toolCall.toolName === "write_file"}
-                <!-- Compact write_file summary — skip raw INPUT entirely -->
                 {@const wf = getWriteFileSummary()}
                 {#if wf}
-                    <div class="flex items-center justify-between">
-                        <span class="text-[11px] text-foreground/70">
-                            {wf.action === "created" ? "Created" : "Updated"}
-                            <code class="rounded bg-muted px-1 text-foreground">{wf.fileName}</code>
-                            {#if wf.lines}— {wf.lines} lines{/if}
-                        </span>
-                        <div class="flex items-center gap-2">
-                            {#if toolCall.status === "done" && toolCall.output}
-                                {#if composerStore.isTagged(toolCall.id)}
-                                    <span class="flex items-center gap-1 text-[10px] text-green-400">
-                                        <IconListSearch size={11} />tagged
-                                    </span>
-                                {:else}
-                                    <button
-                                        onclick={(e) => { e.stopPropagation(); composerStore.tagResult(toolCall.id, toolCall.toolName, toolCall.output!); }}
-                                        class="flex items-center gap-1 rounded border border-border/50 px-1.5 py-0.5 text-[10px] text-muted-foreground hover:border-blue-500/40 hover:text-blue-400"
-                                    >
-                                        <IconListSearch size={11} />@ use as context
-                                    </button>
-                                {/if}
-                            {/if}
-                        </div>
-                    </div>
+                    <span class="text-[10.5px] text-foreground/60">
+                        {wf.action === "created" ? "Created" : "Updated"}
+                        <code class="rounded bg-muted px-1 text-foreground/80">{wf.fileName}</code>
+                        {#if wf.lines}· {wf.lines} lines{/if}
+                    </span>
                 {/if}
-            {:else}
-                <!-- Normal tools: show input (truncated) + output -->
-                {#if toolCall.input}
-                    {@const inputStr = JSON.stringify(toolCall.input, null, 2)}
-                    <div>
-                        <div class="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">Input</div>
-                        <pre class="overflow-x-auto whitespace-pre-wrap break-all text-[11px] text-foreground/80 max-h-32 overflow-y-auto">{inputStr.length > 400 ? inputStr.slice(0, 400) + "\n…" : inputStr}</pre>
+            {:else if toolCall.output}
+                {@const summary = getOutputSummary()}
+                {#if toolCall.status === "error"}
+                    <pre class="whitespace-pre-wrap break-all text-[10.5px] text-destructive/80 max-h-24 overflow-y-auto">{toolCall.output}</pre>
+                {:else if summary}
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="text-[10.5px] text-foreground/60">{summary}</span>
+                        {#if getSql() && onRun && toolCall.status === "done"}
+                            <button
+                                onclick={(e) => { e.stopPropagation(); onRun?.(getSql()!); }}
+                                class="flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-accent hover:bg-accent/10"
+                            >
+                                <IconPlayerPlay size={9} />Run
+                            </button>
+                        {/if}
                     </div>
-                {/if}
-                {#if toolCall.output}
-                    <div>
-                        <div class="mb-1 flex items-center justify-between">
-                            <span class="text-[10px] uppercase tracking-wide text-muted-foreground">Output</span>
-                            <div class="flex items-center gap-2">
-                                {#if getSql() && onRun && toolCall.status === "done"}
-                                    <button
-                                        onclick={(e) => { e.stopPropagation(); onRun?.(getSql()!); }}
-                                        class="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-accent hover:bg-accent/10"
-                                    >
-                                        <IconPlayerPlay size={9} />Run
-                                    </button>
-                                {/if}
-                                {#if toolCall.status === "done" && toolCall.output}
-                                    {#if composerStore.isTagged(toolCall.id)}
-                                        <span class="flex items-center gap-1 text-[10px] text-green-400">
-                                            <IconListSearch size={11} />tagged
-                                        </span>
-                                    {:else}
-                                        <button
-                                            onclick={(e) => { e.stopPropagation(); composerStore.tagResult(toolCall.id, toolCall.toolName, toolCall.output!); }}
-                                            class="flex items-center gap-1 rounded border border-border/50 px-1.5 py-0.5 text-[10px] text-muted-foreground hover:border-blue-500/40 hover:text-blue-400"
-                                        >
-                                            <IconListSearch size={11} />@ use as context
-                                        </button>
-                                    {/if}
-                                {/if}
-                            </div>
-                        </div>
-                        <pre class="max-h-40 overflow-y-auto whitespace-pre-wrap break-all text-[11px] {toolCall.status === 'error' ? 'text-destructive' : 'text-foreground/80'}">{toolCall.output}</pre>
-                    </div>
+                {:else}
+                    <pre class="whitespace-pre-wrap break-all text-[10.5px] text-foreground/60 max-h-24 overflow-y-auto">{toolCall.output.slice(0, 300)}{toolCall.output.length > 300 ? "…" : ""}</pre>
                 {/if}
             {/if}
         </div>

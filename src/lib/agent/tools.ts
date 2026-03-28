@@ -37,7 +37,7 @@ Base URL: ${base}
 
 | Tool | Body fields | Description |
 |------|-------------|-------------|
-| \`run_query\` | \`sql\`, \`limit?\` (default 100) | Execute any SELECT — you see the results |
+| \`run_query\` | \`sql\` | Open query in editor tab and run it — results appear in the main results panel |
 | \`sample_table\` | \`table\`, \`schema?\` (default "${schema}"), \`n?\` (default 20) | Sample N rows |
 | \`count_rows\` | \`table\`, \`schema?\`, \`where?\` | COUNT with optional WHERE |
 | \`explain_query\` | \`sql\`, \`analyze?\` (default false) | EXPLAIN plan |
@@ -53,11 +53,18 @@ Base URL: ${base}
 | \`get_query_history\` | \`limit?\` (default 20) | Recent queries from editor |
 | \`write_file\` | \`fileName\`, \`content\` | Write/update an editor tab with SQL content |
 
-Example:
+Example (open query in editor):
 \`\`\`bash
 curl -s -X POST ${base}/run_query \\
   -H 'Content-Type: application/json' \\
-  -d '{"sql":"SELECT COUNT(*) FROM users"}'
+  -d '{"sql":"SELECT * FROM users LIMIT 50"}'
+\`\`\`
+
+Example (sample rows for analysis — use this when you need to see the data yourself):
+\`\`\`bash
+curl -s -X POST ${base}/sample_table \\
+  -H 'Content-Type: application/json' \\
+  -d '{"table":"users","n":20}'
 \`\`\`
 
 **Use tools proactively.** Before writing queries, call \`describe_table\` to know exact column names and types. Call \`sample_table\` to understand data shape. Chain tools freely.
