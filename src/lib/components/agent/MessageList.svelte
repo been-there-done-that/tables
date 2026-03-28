@@ -42,7 +42,7 @@
 
     type RawEntry =
         | { kind: "message"; item: (typeof agentStore.messages)[number]; ts: number }
-        | { kind: "tool"; item: (typeof agentStore.toolCalls)[number]; ts: number }
+        | { kind: "tool-group"; items: (typeof agentStore.toolCalls); ts: number }
         | { kind: "turn-summary"; item: TurnSummary; ts: number };
 
     type TimelineEntry =
@@ -51,8 +51,14 @@
 
     // Interleave messages, tool calls, and turn summaries sorted by timestamp,
     // then inject date separators at day boundaries.
+    // Consecutive tool calls are grouped into a single tool-group entry.
     const timeline = $derived.by((): TimelineEntry[] => {
-        const raw: RawEntry[] = [
+        type SortableEntry =
+            | { kind: "message"; item: (typeof agentStore.messages)[number]; ts: number }
+            | { kind: "tool"; item: (typeof agentStore.toolCalls)[number]; ts: number }
+            | { kind: "turn-summary"; item: TurnSummary; ts: number };
+
+        const raw: SortableEntry[] = [
             ...agentStore.messages
                 .filter((m) => m.content.length > 0 || m.thinking)
                 .map((m) => ({ kind: "message" as const, item: m, ts: m.timestamp })),
@@ -60,9 +66,30 @@
             ...agentStore.turnSummaries.map((s) => ({ kind: "turn-summary" as const, item: s, ts: s.timestamp })),
         ].sort((a, b) => a.ts - b.ts);
 
+        // Group consecutive tool entries
+        const grouped: RawEntry[] = [];
+        let toolBuffer: (typeof agentStore.toolCalls)[number][] = [];
+
+        function flushTools() {
+            if (toolBuffer.length > 0) {
+                grouped.push({ kind: "tool-group", items: [...toolBuffer], ts: toolBuffer[0].timestamp });
+                toolBuffer = [];
+            }
+        }
+
+        for (const entry of raw) {
+            if (entry.kind === "tool") {
+                toolBuffer.push(entry.item);
+            } else {
+                flushTools();
+                grouped.push(entry as RawEntry);
+            }
+        }
+        flushTools();
+
         const result: TimelineEntry[] = [];
         let lastDateStr = "";
-        for (const entry of raw) {
+        for (const entry of grouped) {
             const dateStr = new Date(entry.ts).toDateString();
             if (dateStr !== lastDateStr) {
                 result.push({ kind: "date", label: formatDateLabel(entry.ts), ts: entry.ts });
@@ -108,7 +135,7 @@
         </div>
     {:else}
         <div class="flex flex-col gap-0.5 py-2">
-            {#each timeline as entry (entry.kind + (entry.kind === "date" ? entry.ts : entry.item.id))}
+            {#each timeline as entry (entry.kind + (entry.kind === "date" ? entry.ts : entry.kind === "tool-group" ? entry.items[0].id : entry.item.id))}
                 {#if entry.kind === "date"}
                     <!-- Date separator -->
                     <div class="flex items-center gap-2 px-3 py-1.5">
@@ -124,15 +151,19 @@
                         </div>
                     {/if}
                     <MessageBubble message={msg} />
-                {:else if entry.kind === "tool"}
+                {:else if entry.kind === "tool-group"}
                     <div class="px-3">
-                        <ToolCallCard
-                            toolCall={entry.item}
-                            onRun={onRunQuery}
-                            onFocusFile={onFocusFile}
-                            onApprove={onApprove}
-                            onReject={onReject}
-                        />
+                        {#each entry.items as tc, i (tc.id)}
+                            <ToolCallCard
+                                toolCall={tc}
+                                isFirst={i === 0}
+                                isLast={i === entry.items.length - 1}
+                                onRun={onRunQuery}
+                                onFocusFile={onFocusFile}
+                                onApprove={onApprove}
+                                onReject={onReject}
+                            />
+                        {/each}
                     </div>
                 {:else if entry.kind === "turn-summary"}
                     {@const s = entry.item}
