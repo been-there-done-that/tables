@@ -37,6 +37,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilte
 
 use log::{info, debug, warn, error, trace};
 use crate::commands::*;
+use crate::commands::update_commands::UpdaterState;
 use plugins::{PluginDiscovery, get_available_plugins, enable_plugin, disable_plugin, get_plugin_info, initialize_all_plugins};
 use credential_manager::CredentialManager;
 use metrics::{MetricsRegistry, SystemMonitor, start_metrics_emitter};
@@ -164,6 +165,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             debug!("Setting up Tauri application");
             let app_data_dir = app
@@ -205,6 +207,7 @@ pub fn run() {
             // Initialize query execution state for cancellation support
             app.manage(QueryExecutionState::default());
             app.manage(QuerySessionManager::default());
+            app.manage(UpdaterState::default());
 
             debug!("Initializing plugin system");
             // Initialize plugin system and discover all plugins
