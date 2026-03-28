@@ -27,6 +27,7 @@ pub struct PostgresConfig {
     pub password: String,
     pub database: Option<String>,
     pub use_tls: bool,
+    pub allow_invalid_certs: bool,
 }
 
 impl PostgresConfig {
@@ -38,6 +39,7 @@ impl PostgresConfig {
             password: password.into(),
             database: None,
             use_tls: false,
+            allow_invalid_certs: false,
         }
     }
 
@@ -111,8 +113,13 @@ impl PostgresAdapter {
         let password = db.get("password").and_then(|v| v.as_str()).unwrap_or("");
         let database = db.get("database").and_then(|v| v.as_str());
         let use_tls = config.get("tls").and_then(|t| t.get("enabled")).and_then(|v| v.as_bool()).unwrap_or(false);
+        let allow_invalid_certs = config.get("tls")
+            .and_then(|t| t.get("allow_invalid_certs"))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
 
         let mut pg_config = PostgresConfig::new(host, username, password).with_port(port).with_tls(use_tls);
+        pg_config.allow_invalid_certs = allow_invalid_certs;
         if let Some(db_name) = database {
             pg_config = pg_config.with_database(db_name);
         }
@@ -141,7 +148,7 @@ impl PostgresAdapter {
 
         let new_client = if self.config.use_tls {
             let tls_connector = native_tls::TlsConnector::builder()
-                .danger_accept_invalid_certs(true)
+                .danger_accept_invalid_certs(self.config.allow_invalid_certs)
                 .build()
                 .map_err(|e| AdapterError::Connection(format!("TLS error: {}", e)))?;
             let connector = postgres_native_tls::MakeTlsConnector::new(tls_connector);
