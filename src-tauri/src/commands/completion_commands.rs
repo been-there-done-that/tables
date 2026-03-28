@@ -17,12 +17,20 @@ use crate::introspection::MetaDatabase;
 use crate::completion::schema::graph::{SchemaGraph, TableInfo, ColumnInfo, ForeignKey};
 use crate::completion::parsing::parse_sql;
 use crate::completion::context::Context;
-use crate::completion::analysis::build_semantic_model;
-use crate::completion::engine::{CompletionItem, CompletionKind};
+use crate::completion::items::{CompletionItem, CompletionKind};
 use crate::completion::document::Dialect;
 use crate::completion::engines::create_engine;
 use crate::completion::ranges::{find_current_statement_range, find_all_statement_ranges, StatementRange, StatementRangeWithBytes};
 use crate::completion::diagnostics::{Diagnostic, DiagnosticEngine};
+
+/// Convert our Dialect to sql_scope::Dialect.
+fn dialect_to_sql_scope(dialect: Dialect) -> sql_scope::Dialect {
+    match dialect {
+        Dialect::Postgres => sql_scope::Dialect::Postgres,
+        Dialect::SQLite => sql_scope::Dialect::Sqlite,
+        Dialect::MySQL => sql_scope::Dialect::Mysql,
+    }
+}
 
 /// Shared state for completion.
 pub struct CompletionState {
@@ -325,25 +333,24 @@ pub async fn request_completions(
             return vec![];
         }
         
-        // Build semantic model
-        let semantic = tree.as_ref()
-            .map(|t| build_semantic_model(&text, t))
-            .unwrap_or_default();
-        
+        // Build scope tree via sql_scope::resolve
+        let scope_tree = sql_scope::resolve(&text, dialect_to_sql_scope(dialect), schema.as_ref())
+            .unwrap_or_else(|_| sql_scope::ScopeTree::new());
+
         // Analyze cursor context
         let context = Context::analyze(&text, tree.as_ref(), cursor_offset);
-        
-        log::debug!("[request_completions] context_type={:?}, prefix='{}', cursor_offset={}", 
+
+        log::debug!("[request_completions] context_type={:?}, prefix='{}', cursor_offset={}",
             context.context_type, context.prefix, context.cursor_offset);
-        
+
         // Check cancellation before completion
         if cancel_token.is_cancelled() {
             return vec![];
         }
-        
+
         // Create dialect-specific engine and run completion
         let engine = create_engine(dialect);
-        let items = engine.complete(&semantic, &context, &schema, default_schema.as_deref(), None);
+        let items = engine.complete(&scope_tree, &context, &schema, default_schema.as_deref(), None);
         
         log::debug!("[request_completions] completion returned {} items", items.len());
         
@@ -415,4 +422,17 @@ pub async fn get_all_statements(
     }).await.map_err(|e| e.to_string())?;
 
     Ok(result)
+}
+
+#[cfg(test)]
+mod wire_tests {
+    use super::*;
+    use crate::completion::document::Dialect;
+
+    #[test]
+    fn dialect_conversion_covers_all_variants() {
+        assert!(matches!(dialect_to_sql_scope(Dialect::Postgres), sql_scope::Dialect::Postgres));
+        assert!(matches!(dialect_to_sql_scope(Dialect::SQLite), sql_scope::Dialect::Sqlite));
+        assert!(matches!(dialect_to_sql_scope(Dialect::MySQL), sql_scope::Dialect::Mysql));
+    }
 }

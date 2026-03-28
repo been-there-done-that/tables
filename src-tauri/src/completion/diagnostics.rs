@@ -23,6 +23,24 @@ impl DiagnosticEngine {
         // Pass 4: Dangerous statement detection (text-based — grammar lacks DML node types)
         Self::check_dangerous_stmts(tree.root_node(), source, &mut diagnostics);
 
+        // Pass 5: sql-scope scope-aware unknown table warnings
+        // Use Postgres dialect for now (extend when dialect is passed through)
+        if let Ok(scope_tree) = sql_scope::resolve(source, sql_scope::Dialect::Postgres, schema) {
+            let scope_diags = sql_scope::run_diagnostics(&scope_tree, schema, source);
+            for sd in scope_diags {
+                diagnostics.push(Diagnostic {
+                    message: sd.message,
+                    start: sd.byte_range.start,
+                    end: sd.byte_range.end,
+                    severity: match sd.severity {
+                        sql_scope::DiagSeverity::Error => 1,
+                        sql_scope::DiagSeverity::Warning => 2,
+                        sql_scope::DiagSeverity::Info => 3,
+                    },
+                });
+            }
+        }
+
         diagnostics
     }
 

@@ -356,6 +356,56 @@ impl TableInfo {
     }
 }
 
+impl sql_scope::schema::SchemaSnapshot for SchemaGraph {
+    fn table_exists(&self, _schema: Option<&str>, table: &str) -> bool {
+        self.has_table(table)
+    }
+
+    fn table_columns(&self, _schema: Option<&str>, table: &str) -> Option<Vec<String>> {
+        let info = self.get_table(table)?;
+        Some(info.columns.iter().map(|c| c.name.clone()).collect())
+    }
+
+    fn column_type(
+        &self,
+        _schema: Option<&str>,
+        table: &str,
+        column: &str,
+    ) -> Option<sql_scope::schema::SqlType> {
+        let info = self.get_table(table)?;
+        let col = info.columns.iter().find(|c| c.name.eq_ignore_ascii_case(column))?;
+        Some(sql_scope::schema::SqlType::from_db_type(&col.data_type))
+    }
+
+    fn foreign_keys(
+        &self,
+        _schema: Option<&str>,
+        table: &str,
+    ) -> Vec<sql_scope::schema::ForeignKey> {
+        let table_lower = table.to_lowercase();
+        let node_idx = match self.node_indices.get(&table_lower) {
+            Some(idx) => *idx,
+            None => return vec![],
+        };
+
+        self.fk_graph
+            .edges(node_idx)
+            .map(|edge| {
+                let fk = edge.weight();
+                sql_scope::schema::ForeignKey {
+                    from_column: fk.from_column.clone(),
+                    to_table: fk.to_table.clone(),
+                    to_column: fk.to_column.clone(),
+                }
+            })
+            .collect()
+    }
+
+    fn default_schema(&self) -> Option<&str> {
+        Some("public")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
