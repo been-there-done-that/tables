@@ -18,7 +18,8 @@ use serde::Serialize;
 
 use crate::adapter::{AdapterError, DatabaseAdapter, DatabaseCapabilities, TableRef};
 use crate::introspection::{
-    MetaColumn, MetaDatabase, MetaForeignKey, MetaIndex, MetaSchema, MetaTable, MetaTrigger,
+    MetaColumn, MetaConstraint, MetaDatabase, MetaForeignKey, MetaFunction, MetaIndex, MetaSchema,
+    MetaSequence, MetaTable, MetaTrigger,
 };
 use crate::schema_types::NamespaceKind;
 
@@ -395,26 +396,39 @@ impl<A: DatabaseAdapter> ProgressiveIntrospector<A> {
         let connection_id = &self.config.connection_id;
         let caps = self.adapter.capabilities();
 
-        // === LEVEL 4: Metadata (FKs, Indexes, Triggers) ===
-        if caps.supports_foreign_keys || caps.supports_indexes || caps.supports_triggers {
+        // === LEVEL 4: Metadata (FKs, Indexes, Triggers, Constraints, Functions, Sequences) ===
+        if caps.supports_foreign_keys || caps.supports_indexes || caps.supports_triggers || caps.supports_functions {
             for schema in &mut db.schemas {
                 for table in &mut schema.tables {
                     let table_ref = TableRef::new(database_name, &table.schema, &table.table_name);
-                    
+
                     if caps.supports_foreign_keys {
                         let fks = self.adapter.list_foreign_keys(&table_ref).await?;
                         table.foreign_keys = fks.into_iter().map(|mut fk| { fk.connection_id = connection_id.clone(); fk }).collect();
                     }
-                    
+
                     if caps.supports_indexes {
                         let indexes = self.adapter.list_indexes(&table_ref).await?;
                         table.indexes = indexes.into_iter().map(|mut idx| { idx.connection_id = connection_id.clone(); idx }).collect();
                     }
-                    
+
                     if caps.supports_triggers {
                         let triggers = self.adapter.list_triggers(&table_ref).await?;
                         table.triggers = triggers.into_iter().map(|mut trg| { trg.connection_id = connection_id.clone(); trg }).collect();
                     }
+
+                    if caps.supports_functions {
+                        let constraints = self.adapter.list_constraints(&table_ref).await.unwrap_or_default();
+                        table.constraints = constraints.into_iter().map(|mut c| { c.connection_id = connection_id.clone(); c }).collect();
+                    }
+                }
+
+                if caps.supports_functions {
+                    let functions = self.adapter.list_functions(database_name, &schema.name).await.unwrap_or_default();
+                    schema.functions = functions.into_iter().map(|mut f| { f.connection_id = connection_id.clone(); f }).collect();
+
+                    let sequences = self.adapter.list_sequences(database_name, &schema.name).await.unwrap_or_default();
+                    schema.sequences = sequences.into_iter().map(|mut s| { s.connection_id = connection_id.clone(); s }).collect();
                 }
             }
 
@@ -597,6 +611,33 @@ impl<A: DatabaseAdapter> ProgressiveIntrospector<A> {
         };
         metadata_count += all_triggers.len();
 
+        // F. Constraints (per table)
+        let mut constraints_map: HashMap<String, Vec<MetaConstraint>> = HashMap::new();
+        if caps.supports_functions {
+            for table in &tables {
+                let table_ref = TableRef::new(database_name, schema_name, &table.table_name);
+                let consts = self.adapter.list_constraints(&table_ref).await.unwrap_or_default();
+                if !consts.is_empty() {
+                    constraints_map.insert(
+                        table.table_name.clone(),
+                        consts.into_iter().map(|mut c| { c.connection_id = connection_id.clone(); c }).collect(),
+                    );
+                }
+            }
+        }
+
+        // G. Functions + Sequences (schema-level)
+        let (schema_functions, schema_sequences): (Vec<MetaFunction>, Vec<MetaSequence>) = if caps.supports_functions {
+            let fns = self.adapter.list_functions(database_name, schema_name).await.unwrap_or_default();
+            let seqs = self.adapter.list_sequences(database_name, schema_name).await.unwrap_or_default();
+            (
+                fns.into_iter().map(|mut f| { f.connection_id = connection_id.clone(); f }).collect::<Vec<_>>(),
+                seqs.into_iter().map(|mut s| { s.connection_id = connection_id.clone(); s }).collect::<Vec<_>>(),
+            )
+        } else {
+            (vec![], vec![])
+        };
+
         // Assemble Metadata
         let mut indexes_map: HashMap<String, Vec<MetaIndex>> = HashMap::new();
         for mut idx in all_indexes {
@@ -626,12 +667,15 @@ impl<A: DatabaseAdapter> ProgressiveIntrospector<A> {
             table.indexes = indexes_map.remove(&table.table_name).unwrap_or_default();
             table.foreign_keys = fks_map.remove(&table.table_name).unwrap_or_default();
             table.triggers = triggers_map.remove(&table.table_name).unwrap_or_default();
+            table.constraints = constraints_map.remove(&table.table_name).unwrap_or_default();
         }
 
         // 4. Final Save & Result
         let mut result_schema = target_schema.clone();
         result_schema.tables = tables;
         result_schema.is_introspected = true;
+        result_schema.functions = schema_functions;
+        result_schema.sequences = schema_sequences;
 
         let db = MetaDatabase {
             name: database_name.to_string(),
