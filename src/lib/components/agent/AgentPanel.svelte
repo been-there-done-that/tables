@@ -172,6 +172,13 @@
                 break;
             }
             case "tool.started": {
+                // Finalize any in-progress text bubble so it appears before the
+                // tool card in the timeline. New text after the tool will open
+                // a fresh message bubble with a later timestamp.
+                if (streamingMsgId) {
+                    agentStore.finalizeMessage(streamingMsgId);
+                    streamingMsgId = null;
+                }
                 agentStore.addToolCall(event.toolId, event.toolName, event.input);
                 const ctx = getToolContext();
                 if (ctx) {
