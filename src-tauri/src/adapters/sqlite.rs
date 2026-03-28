@@ -479,7 +479,10 @@ impl DatabaseAdapter for SqliteAdapter {
             .ok_or_else(|| AdapterError::Connection("Not connected".to_string()))?;
 
         let mut stmt = conn
-            .prepare(&format!("SELECT name, \"unique\" FROM pragma_index_list('{}')", table.name))
+            .prepare(&format!(
+                "SELECT name, \"unique\" FROM pragma_index_list('{}')",
+                table.name.replace('\'', "''")
+            ))
             .map_err(|e| AdapterError::Query(crate::sqlite_utils::format_sqlite_error(&e)))?;
 
         let rows = stmt
@@ -511,7 +514,10 @@ impl DatabaseAdapter for SqliteAdapter {
             .ok_or_else(|| AdapterError::Connection("Not connected".to_string()))?;
 
         let mut stmt = conn
-            .prepare(&format!("PRAGMA foreign_key_list('{}')", table.name))
+            .prepare(&format!(
+                "PRAGMA foreign_key_list('{}')",
+                table.name.replace('\'', "''")
+            ))
             .map_err(|e| AdapterError::Query(crate::sqlite_utils::format_sqlite_error(&e)))?;
 
         let rows = stmt
