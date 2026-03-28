@@ -9,6 +9,7 @@
     import { buildSystemPrompt } from "$lib/agent/tools";
     import { dispatchTool, type ToolContext } from "$lib/agent/tool-executor";
     import { harnessStore } from "$lib/stores/harness.svelte";
+    import { plansStore } from "$lib/stores/plans.svelte";
     import MessageList from "./MessageList.svelte";
     import AgentComposer from "./AgentComposer.svelte";
     import ThreadPicker from "./ThreadPicker.svelte";
@@ -90,6 +91,7 @@
 
         threadsStore.setActive(thread.id);
         await agentStore.loadThread(thread.id);
+        await plansStore.loadForThread(thread.id);
 
         sessionConnectionId = conn.id;
         sessionDatabase = schemaStore.selectedDatabase;
@@ -144,6 +146,59 @@
         }
     }
 
+    async function runChildAgent(goal: string, model?: string): Promise<string> {
+        const conn = schemaStore.activeConnection;
+        if (!conn) throw new Error("No active connection");
+        const parentThreadId = threadsStore.activeThreadId ?? undefined;
+
+        // Create a child thread in SQLite
+        const childThread = await threadsStore.createThread({
+            connectionId: conn.id,
+            databaseName: schemaStore.selectedDatabase,
+            model: model ?? settingsStore.aiModel,
+            effort: settingsStore.aiEffort,
+            parentThreadId,
+        });
+
+        // Start a child harness session
+        const childSessionId = crypto.randomUUID();
+        const childAc = new AbortController();
+        const childMessages: string[] = [];
+
+        await new Promise<void>((resolve, reject) => {
+            startAgentSession({
+                sessionId: childSessionId,
+                threadId: childThread.id,
+                systemPrompt: buildPrompt(childSessionId),
+                model: model ?? settingsStore.aiModel,
+                effort: settingsStore.aiEffort,
+                onEvent: (event) => {
+                    if (event.type === "text.delta") {
+                        childMessages.push(event.content);
+                    } else if (event.type === "turn.done") {
+                        resolve();
+                    } else if (event.type === "error") {
+                        reject(new Error(event.message));
+                    } else if (event.type === "tool.started") {
+                        // Auto-dispatch all tools for child (no approval gate)
+                        const childCtx = getToolContext();
+                        if (childCtx) {
+                            dispatchTool(event.toolName, event.toolId, event.input, {
+                                ...childCtx,
+                                sessionId: childSessionId,
+                            }).catch(console.error);
+                        }
+                    }
+                },
+                abortController: childAc,
+            })
+            .then((sess) => sess.send(goal))
+            .catch(reject);
+        });
+
+        return childMessages.join("");
+    }
+
     function getToolContext(): ToolContext | null {
         const sess = agentStore.session;
         const conn = schemaStore.activeConnection;
@@ -157,6 +212,7 @@
             openInEditor: (sql: string, _title: string, autoRun = false) => {
                 handleRunQuery(sql, autoRun);
             },
+            spawnSubagent: (goal: string, model?: string) => runChildAgent(goal, model),
         };
     }
 
