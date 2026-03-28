@@ -23,6 +23,7 @@ export interface Settings {
     aiModel: string;
     aiEffort: "auto" | "low" | "medium" | "high" | "max";
     queryApproval: "auto" | "ask";
+    aiProvider: string;
     lastActiveThreadId: string | null;
 }
 
@@ -44,6 +45,7 @@ const DEFAULT_SETTINGS: Settings = {
     aiModel: "claude-sonnet-4-6",
     aiEffort: "auto",
     queryApproval: "ask",
+    aiProvider: "claude",
     lastActiveThreadId: null,
 };
 
@@ -101,6 +103,13 @@ function createSettingsStore() {
         set queryApproval(v: "auto" | "ask") {
             settings.queryApproval = v;
             commandClient.updateAppSetting("query_approval", v);
+        },
+        get aiProvider(): string {
+            return settings.aiProvider;
+        },
+        set aiProvider(v: string) {
+            settings.aiProvider = v;
+            commandClient.updateAppSetting("ai_provider", v);
         },
         get lastActiveThreadId(): string | null {
             return settings.lastActiveThreadId;
@@ -352,6 +361,9 @@ function createSettingsStore() {
                         return;
                     case "query_approval":
                         settings.queryApproval = (value === "auto" ? "auto" : "ask") as "auto" | "ask";
+                        return;
+                    case "ai_provider":
+                        settings.aiProvider = value || "claude";
                         return;
                     case "last_active_thread_id":
                         settings.lastActiveThreadId = value || null;
