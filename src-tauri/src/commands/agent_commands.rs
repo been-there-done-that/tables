@@ -16,6 +16,7 @@ pub struct AgentThread {
     pub effort: String,
     pub sdk_session_id: Option<String>,
     pub summary: Option<String>,
+    pub parent_thread_id: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
 }
@@ -65,13 +66,14 @@ pub fn create_agent_thread(
     database_name: Option<String>,
     model: String,
     effort: String,
+    parent_thread_id: Option<String>,
     now: i64,
 ) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     conn.execute(
-        "INSERT INTO agent_threads (id, title, connection_id, database_name, model, effort, created_at, updated_at)
-         VALUES (?1, 'New chat', ?2, ?3, ?4, ?5, ?6, ?6)",
-        params![id, connection_id, database_name, model, effort, now],
+        "INSERT INTO agent_threads (id, title, connection_id, database_name, model, effort, parent_thread_id, created_at, updated_at)
+         VALUES (?1, 'New chat', ?2, ?3, ?4, ?5, ?6, ?7, ?7)",
+        params![id, connection_id, database_name, model, effort, parent_thread_id, now],
     )
     .map_err(|e| e.to_string())?;
     Ok(())
@@ -88,7 +90,7 @@ pub fn list_agent_threads(
         .prepare(
             // When database_name is None, returns all threads for the connection
             // regardless of which database they belong to. This is a "show all" fallback.
-            "SELECT id, title, connection_id, database_name, model, effort, sdk_session_id, summary, created_at, updated_at
+            "SELECT id, title, connection_id, database_name, model, effort, sdk_session_id, summary, parent_thread_id, created_at, updated_at
              FROM agent_threads
              WHERE connection_id = ?1
                AND (database_name IS ?2 OR ?2 IS NULL)
@@ -106,8 +108,9 @@ pub fn list_agent_threads(
                 effort: row.get(5)?,
                 sdk_session_id: row.get(6)?,
                 summary: row.get(7)?,
-                created_at: row.get(8)?,
-                updated_at: row.get(9)?,
+                parent_thread_id: row.get(8)?,
+                created_at: row.get(9)?,
+                updated_at: row.get(10)?,
             })
         })
         .map_err(|e| e.to_string())?;
