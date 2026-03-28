@@ -121,9 +121,20 @@ impl ScopeTree {
 
     /// Walk up the scope chain from the innermost scope at `cursor_byte`,
     /// collecting all sources and CTE names visible at that position.
+    ///
+    /// All IR byte ranges are `0..sql.len()` (exclusive upper bound), so a cursor
+    /// sitting exactly at the end of the text (`cursor_byte == sql.len()`) would
+    /// fall outside every scope.  We step back one byte in that case so the root
+    /// scope still covers the position.
     pub fn visible_at(&self, cursor_byte: usize) -> VisibleSymbols {
+        // Try the given position first; if not inside any scope, try one byte back.
+        let effective = if self.scope_at(cursor_byte).is_none() && cursor_byte > 0 {
+            cursor_byte - 1
+        } else {
+            cursor_byte
+        };
         let mut vis = VisibleSymbols::default();
-        let Some(start_scope) = self.scope_at(cursor_byte) else {
+        let Some(start_scope) = self.scope_at(effective) else {
             return vis;
         };
 
