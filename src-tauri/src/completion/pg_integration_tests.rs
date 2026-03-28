@@ -302,16 +302,8 @@ SELECT * FROM l4"#;
     (SELECT COUNT(o.id) FROM sales.orders o WHERE o.user_id = u.|)
 FROM users u"#;
         let labels = complete_labels(sql, schema);
-        // Correlated subquery outer alias visibility depends on sql_scope support.
-        // Assert non-crash + document expected vs actual behavior.
-        assert!(
-            labels.len() >= 0,
-            "Engine should not crash on correlated subquery, got: {:?}",
-            labels
-        );
-        println!("pg_c2 correlated subquery labels (outer alias u -> users): {:?}", labels);
-        // Ideally: has_labels(&labels, &["id", "email", "name", "metadata"])
-        // Weakened due to potential correlated subquery scoping limitations in sql_scope.
+        assert!(has_labels(&labels, &["id", "email", "name", "metadata"]),
+            "Correlated subquery should see outer alias u (users), got: {:?}", labels);
     }
 
     #[tokio::test]
@@ -326,16 +318,8 @@ CROSS JOIN LATERAL (
     LIMIT 1
 ) latest_order"#;
         let labels = complete_labels(sql, schema);
-        // LATERAL inner should see sales.orders columns at o. cursor.
-        // sql_scope may or may not support LATERAL fully; assert non-crash.
-        assert!(
-            labels.len() >= 0,
-            "Engine should not crash on LATERAL subquery, got: {:?}",
-            labels
-        );
-        println!("pg_c3 LATERAL subquery labels (o -> sales.orders): {:?}", labels);
-        // Ideally: has_labels(&labels, &["id", "user_id", "status", "total_amount", "created_at"])
-        // Weakened due to potential LATERAL scoping limitations.
+        assert!(has_labels(&labels, &["id", "user_id", "status", "total_amount", "created_at"]),
+            "LATERAL inner should see sales.orders columns at o. cursor, got: {:?}", labels);
     }
 
     #[tokio::test]
