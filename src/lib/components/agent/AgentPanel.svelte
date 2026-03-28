@@ -264,15 +264,6 @@
         }
         agentStore.addTurnSummary(turnElapsed, sessionModel ?? "", true);
         agentStore.setStatus("idle");
-
-        // The abort killed the harness session (session/stop was called).
-        // Restart it immediately so the next user message has a live session
-        // with full JSONL context — otherwise send() silently 404s.
-        const activeThread = threadsStore.activeThread;
-        if (activeThread) {
-            sessionReady = false;
-            startThread(activeThread).catch((e) => { sessionError = String(e); });
-        }
     }
 
     function handleRunQuery(sql: string, autoRun = false) {

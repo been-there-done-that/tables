@@ -9,7 +9,7 @@ console.error(`[harness] claude path: ${claudePath} (exists: ${await Bun.file(cl
 console.error(`[harness] PATH: ${Bun.env.PATH}`);
 
 const sessions = new Map<string, ClaudeSession>();
-const pendingToolResults = new Map<string, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
+const pendingToolResults = new Map<string, { sessionId: string; resolve: (v: unknown) => void; reject: (e: Error) => void }>();
 
 function threadCwd(threadId: string): string {
     return `${Bun.env.HOME ?? ""}/.config/tables/sessions/${threadId}`;
@@ -65,6 +65,17 @@ const server = Bun.serve({
                 start(c) { controller = c; },
                 cancel() {
                     console.error(`[harness] SSE stream cancelled for ${sessionId}`);
+                    // Silence the current turn — its remaining events should not
+                    // bleed into the next /session/send SSE stream.
+                    session.setEmit(() => {});
+                    // Immediately reject any tool calls waiting for frontend results
+                    // so the SDK turn unblocks quickly instead of hitting the 30s timeout.
+                    for (const [reqId, pending] of pendingToolResults) {
+                        if (pending.sessionId === sessionId) {
+                            pendingToolResults.delete(reqId);
+                            pending.reject(new Error("Turn stopped by user"));
+                        }
+                    }
                 },
             });
 
@@ -142,7 +153,7 @@ const server = Bun.serve({
 
             // Hold the request open until frontend POSTs the result
             const result = await new Promise<unknown>((resolve, reject) => {
-                pendingToolResults.set(requestId, { resolve, reject });
+                pendingToolResults.set(requestId, { sessionId: pathSessionId, resolve, reject });
                 setTimeout(() => {
                     if (pendingToolResults.has(requestId)) {
                         pendingToolResults.delete(requestId);

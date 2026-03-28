@@ -76,13 +76,11 @@ export async function startAgentSession(opts: {
     let currentReader: ReadableStreamDefaultReader<Uint8Array> | null = null;
 
     const stop = () => {
+        // Cancel the SSE reader so we stop receiving events.
+        // Do NOT call /session/stop — the harness session stays alive so the
+        // next send() can continue in the same conversation context.
         currentReader?.cancel();
         currentReader = null;
-        fetch(`${base}/session/stop`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ sessionId }),
-        }).catch(() => {});
     };
 
     opts.abortController.signal.addEventListener("abort", stop);
