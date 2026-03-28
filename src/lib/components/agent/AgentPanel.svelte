@@ -262,6 +262,7 @@
             agentStore.finalizeMessage(streamingMsgId);
             streamingMsgId = null;
         }
+        agentStore.addTurnSummary(turnElapsed, sessionModel ?? "", true);
         agentStore.setStatus("idle");
     }
 

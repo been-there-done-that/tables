@@ -29,6 +29,7 @@ export interface TurnSummary {
     totalMs: number;
     model: string;
     timestamp: number;
+    cancelled?: boolean;
 }
 
 function nowSecs(): number {
@@ -150,12 +151,13 @@ class AgentStore {
         }
     }
 
-    addTurnSummary(totalMs: number, model: string) {
+    addTurnSummary(totalMs: number, model: string, cancelled = false) {
         this.turnSummaries.push({
             id: crypto.randomUUID(),
             totalMs,
             model,
             timestamp: Date.now(),
+            cancelled,
         });
     }
 

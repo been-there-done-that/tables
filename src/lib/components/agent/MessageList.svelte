@@ -128,9 +128,13 @@
                 {:else if entry.kind === "turn-summary"}
                     {@const s = entry.item}
                     <!-- Turn summary footer -->
-                    <div class="flex items-center gap-1.5 px-3 pb-1 pt-0.5 text-[9.5px] text-muted-foreground/35 select-none">
+                    <div class="flex items-center gap-1.5 px-3 pb-1 pt-0.5 text-[9.5px] select-none {s.cancelled ? 'text-orange-400/50' : 'text-muted-foreground/35'}">
                         <IconClock size={9} />
                         {formatDuration(s.totalMs)}
+                        {#if s.cancelled}
+                            <span>·</span>
+                            <span>Stopped</span>
+                        {/if}
                         {#if s.model}
                             <span>·</span>
                             {shortModel(s.model)}
