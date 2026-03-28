@@ -108,7 +108,6 @@ impl CoreCompletionEngine {
         }
 
         Self::filter_by_prefix(&mut items, &context.prefix);
-        items.sort_by(|a, b| b.score.cmp(&a.score));
         items
     }
 
@@ -198,7 +197,6 @@ impl CoreCompletionEngine {
         }
 
         Self::filter_by_prefix(&mut items, &context.prefix);
-        items.sort_by(|a, b| b.score.cmp(&a.score));
         items
     }
 
@@ -276,7 +274,18 @@ impl CoreCompletionEngine {
 
         if show_columns {
             for (alias, source) in &scope_tree.visible_at(context.cursor_offset).sources {
-                if let Some(table_name) = resolve_table_name(source) {
+                if let Source::Cte { name: cte_name } = source {
+                    for col_name in get_cte_columns(scope_tree, context.cursor_offset, cte_name) {
+                        let qualified_name = format!("{}.{}", alias, col_name);
+                        items.push(CompletionItem {
+                            label: qualified_name.clone(),
+                            kind: CompletionKind::Column,
+                            detail: Some(format!("CTE Column ({})", cte_name)),
+                            insert_text: qualified_name,
+                            score: 50,
+                        });
+                    }
+                } else if let Some(table_name) = resolve_table_name(source) {
                     for col in schema.get_columns(table_name) {
                         let qualified_name = format!("{}.{}", alias, col.name);
                         items.push(CompletionItem {
@@ -310,7 +319,6 @@ impl CoreCompletionEngine {
         }
 
         Self::filter_by_prefix(&mut items, &context.prefix);
-        items.sort_by(|a, b| b.score.cmp(&a.score));
         items
     }
 
@@ -401,7 +409,6 @@ impl CoreCompletionEngine {
         }
 
         Self::filter_by_prefix(&mut items, &context.prefix);
-        items.sort_by(|a, b| b.score.cmp(&a.score));
         items
     }
 
@@ -420,7 +427,19 @@ impl CoreCompletionEngine {
         );
 
         for (alias, source) in &scope_tree.visible_at(context.cursor_offset).sources {
-            if let Some(table_name) = resolve_table_name(source) {
+            if let Source::Cte { name: cte_name } = source {
+                // CTE columns have no type info — always include them (skip numeric filter)
+                for col_name in get_cte_columns(scope_tree, context.cursor_offset, cte_name) {
+                    let qualified_name = format!("{}.{}", alias, col_name);
+                    items.push(CompletionItem {
+                        label: qualified_name.clone(),
+                        kind: CompletionKind::Column,
+                        detail: Some(format!("CTE Column ({})", cte_name)),
+                        insert_text: qualified_name,
+                        score: 50,
+                    });
+                }
+            } else if let Some(table_name) = resolve_table_name(source) {
                 for col in schema.get_columns(table_name) {
                     if numeric_only {
                         let type_lower = col.data_type.to_lowercase();
@@ -446,7 +465,6 @@ impl CoreCompletionEngine {
         }
 
         Self::filter_by_prefix(&mut items, &context.prefix);
-        items.sort_by(|a, b| b.score.cmp(&a.score));
         items
     }
 
@@ -476,7 +494,6 @@ impl CoreCompletionEngine {
         }
 
         Self::filter_by_prefix(&mut items, &context.prefix);
-        items.sort_by(|a, b| b.score.cmp(&a.score));
         items
     }
 
@@ -515,7 +532,6 @@ impl CoreCompletionEngine {
         }
 
         Self::filter_by_prefix(&mut items, &context.prefix);
-        items.sort_by(|a, b| b.score.cmp(&a.score));
         items
     }
 
@@ -561,6 +577,8 @@ impl CoreCompletionEngine {
     /// Filter items by prefix using sql_scope::match_score for fuzzy matching.
     pub fn filter_by_prefix(items: &mut Vec<CompletionItem>, prefix: &str) {
         if prefix.is_empty() {
+            // No prefix — just sort by base score
+            items.sort_by(|a, b| b.score.cmp(&a.score));
             return;
         }
         items.retain(|item| sql_scope::match_score(prefix, &item.label) > 0);
