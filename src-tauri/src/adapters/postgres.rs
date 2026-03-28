@@ -1021,7 +1021,7 @@ impl DatabaseAdapter for PostgresAdapter {
                      ELSE 'Function'
                  END,
                  COALESCE(pg_catalog.pg_get_function_result(p.oid), ''),
-                 COALESCE(pg_catalog.pg_get_functiondef(p.oid), ''),
+                 CASE WHEN p.prokind IN ('f', 'p') THEN COALESCE(pg_catalog.pg_get_functiondef(p.oid), '') ELSE '' END,
                  p.prosecdef,
                  CASE p.provolatile
                      WHEN 'i' THEN 'immutable'
