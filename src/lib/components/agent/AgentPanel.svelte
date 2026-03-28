@@ -169,7 +169,7 @@
             openInEditor: (sql: string, _title: string) => {
                 handleRunQuery(sql);
             },
-            executeQuery: async (_sql: string) => ({ columns: [] as string[], rows: [] as unknown[], totalRows: 0 }),
+            executeQuery: async (_sql: string) => ({ columns: [] as string[], rows: [] as unknown[], totalRows: 0 }), // stub — replaced in Task 4
         };
     }
 
