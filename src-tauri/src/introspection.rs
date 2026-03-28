@@ -982,7 +982,6 @@ impl Introspector {
     }
 
     fn save_functions_internal(&self, conn: &SqliteConnection, schema_id: i64, connection_id: &str, database: &str, schema: &str, functions: &[MetaFunction]) -> Result<(), String> {
-        if functions.is_empty() { return Ok(()); }
         conn.execute("DELETE FROM meta_functions WHERE schema_id = ?1", params![schema_id])
             .map_err(|e| format!("Failed to prune functions for schema_id {}: {}", schema_id, e))?;
         for f in functions {
@@ -1014,7 +1013,6 @@ impl Introspector {
     }
 
     fn save_sequences_internal(&self, conn: &SqliteConnection, schema_id: i64, connection_id: &str, database: &str, schema: &str, sequences: &[MetaSequence]) -> Result<(), String> {
-        if sequences.is_empty() { return Ok(()); }
         conn.execute("DELETE FROM meta_sequences WHERE schema_id = ?1", params![schema_id])
             .map_err(|e| format!("Failed to prune sequences for schema_id {}: {}", schema_id, e))?;
         for s in sequences {
@@ -1038,7 +1036,6 @@ impl Introspector {
     }
 
     fn save_constraints_internal(&self, conn: &SqliteConnection, table_id: i64, constraints: &[MetaConstraint]) -> Result<(), String> {
-        if constraints.is_empty() { return Ok(()); }
         conn.execute("DELETE FROM meta_constraints WHERE table_id = ?1", params![table_id])
             .map_err(|e| format!("Failed to prune constraints for table_id {}: {}", table_id, e))?;
         for c in constraints {
