@@ -17,16 +17,21 @@ use crate::completion::items::{CompletionItem, CompletionKind};
 /// Cursor context relevance (highest priority)
 pub const SCORE_CURSOR_RELEVANCE: u32 = 1000;
 /// Table/alias already in query scope
+#[allow(dead_code)]
 pub const SCORE_QUERY_SCOPE_MATCH: u32 = 800;
 /// Alias matches exactly
+#[allow(dead_code)]
 pub const SCORE_ALIAS_MATCH: u32 = 700;
 /// Exact prefix match
+#[allow(dead_code)]
 pub const SCORE_EXACT_MATCH: u32 = 600;
 /// Prefix starts with typed text
+#[allow(dead_code)]
 pub const SCORE_PREFIX_MATCH: u32 = 400;
 /// Matches UI schema hint (dropdown selection)
 pub const SCORE_UI_SCHEMA_HINT: u32 = 300;
 /// Matches default schema
+#[allow(dead_code)]
 pub const SCORE_DEFAULT_SCHEMA: u32 = 200;
 /// Matches public schema
 pub const SCORE_PUBLIC_SCHEMA: u32 = 150;
@@ -40,6 +45,7 @@ pub const SCORE_INDEXED: u32 = 20;
 /// Penalty for cross-schema (not in selected schema)
 pub const PENALTY_CROSS_SCHEMA: i32 = -250;
 /// Penalty for ambiguous column (exists in multiple tables)
+#[allow(dead_code)]
 pub const PENALTY_AMBIGUITY: i32 = -400;
 
 /// Core completion engine with shared logic.

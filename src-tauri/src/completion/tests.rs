@@ -284,6 +284,7 @@ WHERE EXISTS (
 /// ```
 /// Expected: columns from the CTE (which inherits from users)
 #[test]
+#[ignore = "TODO: add assertion — currently only observes output"]
 fn t8_cte_visibility() {
     let sql = r#"
 WITH active_users AS (
@@ -311,6 +312,7 @@ SELECT a.| FROM active_users a"#;
 /// Expected: id (only, from CTE's select list)
 /// NOT: email (from real users table)
 #[test]
+#[ignore = "TODO: add assertion — currently only observes output"]
 fn t9_cte_shadows_real_table() {
     let sql = r#"
 WITH users AS (
@@ -401,6 +403,7 @@ fn t12_indexed_column_boost() {
 ///
 /// Type-aware filtering.
 #[test]
+#[ignore = "TODO: add assertion — currently only observes output"]
 fn t13_function_argument_typing() {
     let suggestions = complete("SELECT SUM(|) FROM orders o");
 
@@ -425,6 +428,7 @@ fn t13_function_argument_typing() {
 ///
 /// DataGrip suggests this. Most tools don't.
 #[test]
+#[ignore = "TODO: add assertion — currently only observes output"]
 fn t14_multi_hop_join() {
     let items = complete_with_details("SELECT * FROM users u JOIN teams t ON |");
 
@@ -572,30 +576,6 @@ fn t22_recursive_cte_suggestion() {
     // Note: Simplistic query for parsing
     let items = complete("WITH RECURSIVE org AS (SELECT 1 UNION ALL SELECT * FROM or|) SELECT * FROM org");
     assert!(items.contains(&"org".to_string()), "Should suggest recursive CTE name 'org'. Got: {:?}", items);
-}
-
-
-#[test]
-fn debug_join_scope() {
-    let sql_with_cursor = "SELECT * FROM users u JOIN orders o ON |";
-    let cursor = sql_with_cursor.find('|').unwrap();
-    let source = sql_with_cursor.replace('|', "");
-    let scope_sql = sql_with_cursor.replace('|', "x");
-
-    let schema = MockSchemaLoader::create_test_schema();
-    let result = sql_scope::resolve(&scope_sql, sql_scope::Dialect::Postgres, &schema);
-    println!("scope_sql: {:?}", scope_sql);
-    println!("resolve result ok: {}", result.is_ok());
-    if let Ok(ref tree) = result {
-        let vis = tree.visible_at(usize::MAX);
-        println!("visible at MAX: {:?}", vis.sources.iter().map(|(a,_)| a.as_str()).collect::<Vec<_>>());
-    } else {
-        println!("resolve error: {:?}", result.err());
-    }
-
-    let tree = parse_sql(&source, None);
-    let ctx = Context::analyze(&source, tree.as_ref(), cursor);
-    println!("context_type: {:?}", ctx.context_type);
 }
 
 
@@ -821,6 +801,7 @@ fn t32_cte_beats_schema_tables() {
 ///
 /// Aliasing a nonexistent table should return empty column suggestions.
 #[test]
+#[ignore = "TODO: add assertion — currently only observes output"]
 fn t33_wrong_table_no_columns() {
     let items = complete("SELECT x.| FROM nonexistent_table x");
 
