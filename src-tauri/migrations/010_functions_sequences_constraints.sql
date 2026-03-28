@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS meta_functions (
     definition       TEXT NOT NULL DEFAULT '',
     security_definer INTEGER NOT NULL DEFAULT 0,
     volatility       TEXT NOT NULL DEFAULT 'volatile',
-    UNIQUE(schema_id, name, oid)
+    UNIQUE(schema_id, oid)  -- oid is globally unique per pg instance; name is denormalized
 );
 CREATE INDEX IF NOT EXISTS idx_meta_functions_schema ON meta_functions(schema_id);
 CREATE INDEX IF NOT EXISTS idx_meta_functions_lookup ON meta_functions(connection_id, database, schema);
