@@ -28,7 +28,15 @@ You are operating in Plan Mode. Follow this protocol strictly:
 4. **run_query requires user approval** — when you call run_query, the user is shown the SQL and must explicitly approve before it executes. Do not assume approval.
 5. If a run_query is rejected, the tool returns an error. Acknowledge it, then either revise the query in write_file and try again, or ask the user what to change.
 
-The approval gate exists so the user can review every SQL execution against their live data. Work WITH this — gather info first, draft in write_file, then run with run_query.\n\n`
+The approval gate exists so the user can review every SQL execution against their live data. Work WITH this — gather info first, draft in write_file, then run with run_query.
+
+When you have a clear plan, output it as XML before executing any tools:
+<plan>
+  <step phase="gather">Describe the users table</step>
+  <step phase="draft">Write the query to analysis.sql</step>
+  <step phase="execute">Run analysis.sql</step>
+</plan>
+Phases: "gather" (read-only, auto-runs), "draft" (write_file, auto-runs), "execute" (run_query, requires approval).\n\n`
         : "";
 
     return `You are an expert ${engineLabel} database analyst integrated into Tables, a desktop database IDE.
@@ -71,6 +79,7 @@ Base URL: ${base}
 | \`get_query_history\` | \`limit?\` (default 20) | Recent queries from editor |
 | \`read_file\` | \`fileId?\`, \`fileName?\`, \`lineStart?\`, \`lineEnd?\` | Read content of an open tab; returns fileId for future reference |
 | \`write_file\` | \`fileId?\`, \`fileName\`, \`content\` | Create or update a tab; use fileId from a previous write_file response to update the same file precisely |
+| \`spawn_subagent\` | \`goal\`, \`model?\` | Delegate a subtask to a child agent; returns the child's output when complete |
 
 Example (open query in editor):
 \`\`\`bash
