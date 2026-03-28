@@ -23,26 +23,71 @@ use crate::completion::engines::create_engine;
 use crate::completion::ranges::{find_current_statement_range, find_all_statement_ranges, StatementRange, StatementRangeWithBytes};
 use crate::completion::diagnostics::{Diagnostic, DiagnosticEngine};
 
-/// Replace the incomplete token at the cursor with spaces so pg_query can parse the statement.
+/// Build a scope tree using progressively more aggressive SQL sanitization so that
+/// incomplete SQL at the cursor doesn't block alias resolution.
 ///
-/// When the user types "WHERE ail." the trailing "ail." is an incomplete qualified identifier
-/// that makes pg_query fail entirely, giving us an empty scope tree.  Replacing the partial
-/// token with an equal number of spaces preserves all byte offsets so `visible_at(cursor)`
-/// still resolves correctly after parsing.
-fn sanitize_sql_for_scope(text: &str, cursor_offset: usize) -> String {
+/// pg_query fails to parse common in-progress patterns like:
+///   "WHERE t."          (incomplete qualified identifier)
+///   "WHERE t.id > 5 AND t."   (same, deeper in expression)
+///   "WHERE"             (clause keyword with nothing following)
+///
+/// We try three increasingly aggressive parses, all using space-substitution to
+/// preserve byte offsets so that `visible_at(cursor_offset)` still works.
+fn build_scope_tree(
+    text: &str,
+    cursor_offset: usize,
+    dialect: sql_scope::Dialect,
+    schema: &SchemaGraph,
+) -> sql_scope::ScopeTree {
     let clamped = cursor_offset.min(text.len());
-    let before = &text[..clamped];
-    // Walk backwards past alphanumeric / _ / . to find the start of the current token.
-    let token_start = before
-        .rfind(|c: char| !c.is_alphanumeric() && c != '_' && c != '.')
-        .map(|i| i + 1)
-        .unwrap_or(0);
-    if token_start >= clamped {
-        return text.to_string();
+
+    // ── Pass 1: original text (already-complete SQL, e.g. cursor inside a string) ──
+    if let Ok(tree) = sql_scope::resolve(text, dialect, schema) {
+        return tree;
     }
-    let mut result = text.to_string();
-    result.replace_range(token_start..clamped, &" ".repeat(clamped - token_start));
-    result
+
+    // ── Pass 2: strip the partial token at cursor ────────────────────────────────
+    // "WHERE t."  →  "WHERE   "    (replaces "t." with spaces)
+    let s2 = {
+        let before = &text[..clamped];
+        let token_start = before
+            .rfind(|c: char| !c.is_alphanumeric() && c != '_' && c != '.')
+            .map(|i| i + 1)
+            .unwrap_or(0);
+        let mut s = text.to_string();
+        if token_start < clamped {
+            s.replace_range(token_start..clamped, &" ".repeat(clamped - token_start));
+        }
+        s
+    };
+    if let Ok(tree) = sql_scope::resolve(&s2, dialect, schema) {
+        return tree;
+    }
+
+    // ── Pass 3: strip back to the last complete clause keyword ───────────────────
+    // "WHERE   "  →  "        "    (removes the hanging WHERE too)
+    // Handles: WHERE / HAVING / ON (in JOIN) / AND / OR
+    let s3 = {
+        let before_upper = s2[..clamped].to_uppercase();
+        // Keywords that open a clause which might be left empty after pass 2
+        let clause_kws = [" WHERE", " HAVING", " ON ", " AND ", " OR "];
+        let mut strip_from = clamped;
+        for kw in &clause_kws {
+            if let Some(pos) = before_upper.rfind(kw) {
+                strip_from = strip_from.min(pos);
+            }
+        }
+        let mut s = s2.clone();
+        if strip_from < clamped {
+            s.replace_range(strip_from..clamped, &" ".repeat(clamped - strip_from));
+        }
+        s
+    };
+    if let Ok(tree) = sql_scope::resolve(&s3, dialect, schema) {
+        return tree;
+    }
+
+    sql_scope::ScopeTree::new()
 }
 
 /// Convert our Dialect to sql_scope::Dialect.
@@ -355,13 +400,9 @@ pub async fn request_completions(
             return vec![];
         }
         
-        // Build scope tree via sql_scope::resolve.
-        // Strip the incomplete token at the cursor (e.g. "ail.") before parsing so
-        // pg_query doesn't fail on dangling dots/partial identifiers.
-        // Spaces preserve byte offsets so visible_at(cursor_offset) still works.
-        let scope_sql = sanitize_sql_for_scope(&text, cursor_offset);
-        let scope_tree = sql_scope::resolve(&scope_sql, dialect_to_sql_scope(dialect), schema.as_ref())
-            .unwrap_or_else(|_| sql_scope::ScopeTree::new());
+        // Build scope tree. Uses progressive sanitization so that incomplete SQL
+        // at the cursor (e.g. "WHERE t." or bare "WHERE") doesn't produce an empty tree.
+        let scope_tree = build_scope_tree(&text, cursor_offset, dialect_to_sql_scope(dialect), schema.as_ref());
 
         // Analyze cursor context
         let context = Context::analyze(&text, tree.as_ref(), cursor_offset);
