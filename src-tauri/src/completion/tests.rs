@@ -540,15 +540,18 @@ fn t18_join_condition_rhs() {
 /// T19. Qualified name matching (Bug reproduction)
 ///
 /// `SELECT * FROM users u WHERE u.em|`
-/// Suggestion: `u.email`
-/// Current behavior suspect: Prefix is `em`, suggestion is `u.email`. mismatch?
+/// After the fix: context is AfterDot{alias:"u"}, prefix becomes "em".
+/// complete_after_dot returns column names; "email" matches prefix "em".
+/// Monaco replaces only "em" → result in editor is "u.email" ✓
 #[test]
 fn t19_qualified_prefix_filtering() {
     let items = complete("SELECT * FROM users u WHERE u.em|");
 
-    // We expect `u.email` to be suggested and MATCH the prefix `em` (or `u.em`)
-    let has_email = items.iter().any(|s| s == "u.email");
-    assert!(has_email, "Should suggest 'u.email' when typing 'u.em'. Got: {:?}", items);
+    let has_email = items.iter().any(|s| s == "email");
+    assert!(has_email, "Should suggest 'email' (short form) when typing 'u.em'. Got: {:?}", items);
+    // Should NOT include irrelevant items like table names or keywords
+    assert!(!items.iter().any(|s| s.to_uppercase() == "WHERE"),
+        "Should not include keywords in AfterDot suggestions. Got: {:?}", items);
 }
 
 /// T20. Join condition completion on LHS

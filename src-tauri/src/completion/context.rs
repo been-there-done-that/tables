@@ -96,10 +96,15 @@ impl Context {
         // Determine context type
         let context_type = determine_context(source, &node, cursor_offset);
         
-        // Special case: If we are strictly after a dot, the prefix for member completion
-        // should be empty (or whatever is after the dot, but typically empty if triggered immediately).
+        // For AfterDot context, the filter prefix is whatever comes after the dot.
+        // "ail." → prefix = ""  (show all columns)
+        // "ail.id" → prefix = "id"  (filter to columns starting with "id")
         if let CursorContext::AfterDot { .. } = context_type {
-            prefix = String::new();
+            prefix = if let Some(dot_pos) = prefix.rfind('.') {
+                prefix[dot_pos + 1..].to_string()
+            } else {
+                String::new()
+            };
         }
         
         // Calculate scope depth
@@ -201,7 +206,20 @@ fn determine_context(source: &str, node: &Node, cursor_offset: usize) -> CursorC
     let before_cursor = &source[statement_start..cursor_offset];
     let trimmed = before_cursor.trim_end();
     
-    // Check for dot context: `alias.|`
+    // Check for dot context: `alias.|` or `alias.partial|`
+    // Skip this check inside JOIN ON — there we want FK-aware join condition suggestions
+    // even when the user has typed something like "u.i".
+    let upper_before = before_cursor.to_uppercase();
+    let in_join_on = upper_before.contains(" ON ") && !upper_before.ends_with(" JOIN ");
+    let current_prefix = extract_prefix(before_cursor, cursor_offset - statement_start);
+    if !in_join_on && current_prefix.contains('.') && !current_prefix.starts_with('.') {
+        if let Some(alias) = current_prefix.split('.').next() {
+            if !alias.is_empty() {
+                return CursorContext::AfterDot { alias: alias.to_string() };
+            }
+        }
+    }
+    // Plain trailing-dot fallback (e.g. text ends with "ail." and prefix was empty)
     if trimmed.ends_with('.') {
         let alias = extract_alias_before_dot(trimmed);
         return CursorContext::AfterDot { alias };
