@@ -139,7 +139,7 @@
             ],
             editorProps: {
                 attributes: {
-                    class: "focus:outline-none min-h-[32px] max-h-[130px] overflow-y-auto text-[11.5px] text-foreground/90 leading-relaxed",
+                    class: "focus:outline-none min-h-[52px] max-h-[160px] overflow-y-auto text-[11.5px] text-foreground/90 leading-relaxed",
                     autocorrect: "off",
                     autocapitalize: "off",
                     autocomplete: "off",
@@ -348,7 +348,7 @@
 
 <div class="px-2.5 py-2">
     <!-- Unified composer container -->
-    <div class="rounded-lg border border-border/60 bg-background/80 transition-colors focus-within:border-border">
+    <div class="rounded-lg border border-border bg-background transition-colors focus-within:border-accent/60 focus-within:ring-2 focus-within:ring-accent/15">
         <!-- Editor area -->
         <div
             bind:this={editorEl}
@@ -425,7 +425,7 @@
                     <button
                         onclick={onStop}
                         title="Stop"
-                        class="flex h-6 w-6 items-center justify-center rounded-full bg-destructive/80 text-white transition-opacity hover:bg-destructive"
+                        class="flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-white transition-colors hover:bg-red-600"
                     >
                         <IconSquare size={10} fill="currentColor" />
                     </button>
