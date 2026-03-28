@@ -397,7 +397,7 @@ impl<A: DatabaseAdapter> ProgressiveIntrospector<A> {
         let caps = self.adapter.capabilities();
 
         // === LEVEL 4: Metadata (FKs, Indexes, Triggers, Constraints, Functions, Sequences) ===
-        if caps.supports_foreign_keys || caps.supports_indexes || caps.supports_triggers || caps.supports_functions {
+        if caps.supports_foreign_keys || caps.supports_indexes || caps.supports_triggers || caps.supports_functions || caps.supports_constraints {
             for schema in &mut db.schemas {
                 for table in &mut schema.tables {
                     let table_ref = TableRef::new(database_name, &table.schema, &table.table_name);
@@ -417,8 +417,8 @@ impl<A: DatabaseAdapter> ProgressiveIntrospector<A> {
                         table.triggers = triggers.into_iter().map(|mut trg| { trg.connection_id = connection_id.clone(); trg }).collect();
                     }
 
-                    if caps.supports_functions {
-                        let constraints = self.adapter.list_constraints(&table_ref).await.unwrap_or_default();
+                    if caps.supports_constraints {
+                        let constraints = self.adapter.list_constraints(&table_ref).await?;
                         table.constraints = constraints.into_iter().map(|mut c| { c.connection_id = connection_id.clone(); c }).collect();
                     }
                 }
@@ -613,7 +613,7 @@ impl<A: DatabaseAdapter> ProgressiveIntrospector<A> {
 
         // F. Constraints (per table)
         let mut constraints_map: HashMap<String, Vec<MetaConstraint>> = HashMap::new();
-        if caps.supports_functions {
+        if caps.supports_constraints {
             for table in &tables {
                 let table_ref = TableRef::new(database_name, schema_name, &table.table_name);
                 let consts = self.adapter.list_constraints(&table_ref).await.unwrap_or_default();

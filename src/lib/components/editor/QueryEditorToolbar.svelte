@@ -22,6 +22,7 @@
         isRunning?: boolean;
         executionTime?: number;
         activeSchema?: string;
+        viewData?: any; // View data containing databaseContext
         onExecute: () => void;
         onStop: () => void;
         onFormat: () => void;
@@ -36,6 +37,7 @@
         isRunning = false,
         executionTime = 0,
         activeSchema = "public",
+        viewData,
         onExecute,
         onStop,
         onFormat,
@@ -46,8 +48,13 @@
         onSchemaChange,
     }: Props = $props();
 
+    // Use view-specific database context if available, otherwise fall back to global
+    const effectiveDatabase = $derived.by(() => {
+        return viewData?.databaseContext || schemaStore.selectedDatabase;
+    });
+
     const currentSchemas = $derived.by(() => {
-        const dbName = schemaStore.selectedDatabase;
+        const dbName = effectiveDatabase;
         if (!dbName) return [];
         const db = schemaStore.databases.find((d) => d.name === dbName);
         return db?.schemas || [];
