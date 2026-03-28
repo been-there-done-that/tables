@@ -125,7 +125,7 @@ static ADAPTER_REGISTRY: Lazy<Arc<RwLock<AdapterRegistry>>> =
 /// * `info` - Adapter metadata
 /// * `factory` - Function that creates adapter instances from config
 pub fn register(info: AdapterInfo, factory: AdapterFactory) {
-    let mut registry = ADAPTER_REGISTRY.write().unwrap();
+    let mut registry = ADAPTER_REGISTRY.write().expect("adapter registry lock poisoned");
     registry.register_entry(info, factory);
 }
 
@@ -143,7 +143,7 @@ where
 
 /// Create an adapter instance for the given engine.
 pub fn create(engine: &str, config: serde_json::Value) -> Result<Box<dyn DatabaseAdapter>, AdapterError> {
-    let registry = ADAPTER_REGISTRY.read().unwrap();
+    let registry = ADAPTER_REGISTRY.read().expect("adapter registry lock poisoned");
     
     match registry.get(engine) {
         Some(entry) => (entry.factory)(config),
@@ -153,25 +153,25 @@ pub fn create(engine: &str, config: serde_json::Value) -> Result<Box<dyn Databas
 
 /// Get capabilities for an engine without creating an adapter.
 pub fn capabilities(engine: &str) -> Option<DatabaseCapabilities> {
-    let registry = ADAPTER_REGISTRY.read().unwrap();
+    let registry = ADAPTER_REGISTRY.read().expect("adapter registry lock poisoned");
     registry.get(engine).map(|e| e.info.capabilities.clone())
 }
 
 /// List all registered adapters.
 pub fn list() -> Vec<AdapterInfo> {
-    let registry = ADAPTER_REGISTRY.read().unwrap();
+    let registry = ADAPTER_REGISTRY.read().expect("adapter registry lock poisoned");
     registry.list()
 }
 
 /// Check if an adapter is registered for an engine.
 pub fn is_registered(engine: &str) -> bool {
-    let registry = ADAPTER_REGISTRY.read().unwrap();
+    let registry = ADAPTER_REGISTRY.read().expect("adapter registry lock poisoned");
     registry.get(engine).is_some()
 }
 
 /// Unregister an adapter (for plugin unload).
 pub fn unregister(engine: &str) -> bool {
-    let mut registry = ADAPTER_REGISTRY.write().unwrap();
+    let mut registry = ADAPTER_REGISTRY.write().expect("adapter registry lock poisoned");
     registry.unregister(engine)
 }
 

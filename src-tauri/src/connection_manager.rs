@@ -767,7 +767,7 @@ impl ConnectionManager {
     /// - IDs: map.keys()
     /// - Window for connection: map.get(connection_id)
     pub fn get_active_connections_map(&self) -> std::collections::HashMap<String, String> {
-        let active = self.active_connections.lock().unwrap();
+        let active = self.active_connections.lock().expect("active connections lock poisoned");
         // Invert the map: window_label -> conn_id becomes conn_id -> window_label
         let mut result = std::collections::HashMap::new();
         for (label, conn_id) in active.iter() {
@@ -777,7 +777,7 @@ impl ConnectionManager {
     }
 
     pub fn set_window_connection_active(&self, window_label: &str, connection_id: &str, active: bool) {
-        let mut map = self.active_connections.lock().unwrap();
+        let mut map = self.active_connections.lock().expect("active connections lock poisoned");
         if active {
             map.insert(window_label.to_string(), connection_id.to_string());
         } else {
@@ -790,7 +790,7 @@ impl ConnectionManager {
     }
 
     pub fn remove_window_from_active(&self, window_label: &str) {
-        let mut map = self.active_connections.lock().unwrap();
+        let mut map = self.active_connections.lock().expect("active connections lock poisoned");
         map.remove(window_label);
     }
 
