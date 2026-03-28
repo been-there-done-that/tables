@@ -156,59 +156,6 @@
         }
     }
 
-    async function runChildAgent(goal: string, model?: string): Promise<string> {
-        const conn = schemaStore.activeConnection;
-        if (!conn) throw new Error("No active connection");
-        const parentThreadId = threadsStore.activeThreadId ?? undefined;
-
-        // Create a child thread in SQLite
-        const childThread = await threadsStore.createThread({
-            connectionId: conn.id,
-            databaseName: schemaStore.selectedDatabase,
-            model: model ?? settingsStore.aiModel,
-            effort: settingsStore.aiEffort,
-            parentThreadId,
-        });
-
-        // Start a child harness session
-        const childSessionId = crypto.randomUUID();
-        const childAc = new AbortController();
-        const childMessages: string[] = [];
-
-        await new Promise<void>((resolve, reject) => {
-            startAgentSession({
-                sessionId: childSessionId,
-                threadId: childThread.id,
-                systemPrompt: buildPrompt(childSessionId),
-                model: model ?? settingsStore.aiModel,
-                effort: settingsStore.aiEffort,
-                onEvent: (event) => {
-                    if (event.type === "text.delta") {
-                        childMessages.push(event.content);
-                    } else if (event.type === "turn.done") {
-                        resolve();
-                    } else if (event.type === "error") {
-                        reject(new Error(event.message));
-                    } else if (event.type === "tool.started") {
-                        // Auto-dispatch all tools for child (no approval gate)
-                        const childCtx = getToolContext();
-                        if (childCtx) {
-                            dispatchTool(event.toolName, event.toolId, event.input, {
-                                ...childCtx,
-                                sessionId: childSessionId,
-                            }).catch(console.error);
-                        }
-                    }
-                },
-                abortController: childAc,
-            })
-            .then((sess) => sess.send(goal))
-            .catch(reject);
-        });
-
-        return childMessages.join("");
-    }
-
     function getToolContext(): ToolContext | null {
         const sess = agentStore.session;
         const conn = schemaStore.activeConnection;
@@ -219,10 +166,10 @@
             connectionId: conn.id,
             database: schemaStore.selectedDatabase ?? "",
             schema: schemaStore.activeSchema ?? "public",
-            openInEditor: (sql: string, _title: string, autoRun = false) => {
-                handleRunQuery(sql, autoRun);
+            openInEditor: (sql: string, _title: string) => {
+                handleRunQuery(sql);
             },
-            spawnSubagent: (goal: string, model?: string) => runChildAgent(goal, model),
+            executeQuery: async (_sql: string) => ({ columns: [] as string[], rows: [] as unknown[], totalRows: 0 }),
         };
     }
 
@@ -448,10 +395,10 @@
         }).catch((e) => console.error("[AgentPanel] reject POST failed:", e));
     }
 
-    function handleRunQuery(sql: string, autoRun = false) {
+    function handleRunQuery(sql: string) {
         const activeSess = windowState.activeSession;
         if (!activeSess) return;
-        activeSess.openView("editor", "AI Query", { content: sql, pendingRun: autoRun });
+        activeSess.openView("editor", "AI Query", { content: sql });
         windowState.layout.showSqlEditor = false;
     }
 

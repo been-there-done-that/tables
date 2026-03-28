@@ -71,7 +71,7 @@ Base URL: ${base}
 
 | Tool | Body fields | Description |
 |------|-------------|-------------|
-| \`run_query\` | \`sql\` | Open query in editor tab and run it — results appear in the main results panel |
+| \`run_query\` | \`sql\` | Execute SQL against the live database; returns columns, rows (up to 50), and totalRows. May require user approval. |
 | \`sample_table\` | \`table\`, \`schema?\` (default "${schema}"), \`n?\` (default 20) | Sample N rows |
 | \`count_rows\` | \`table\`, \`schema?\`, \`where?\` | COUNT with optional WHERE |
 | \`explain_query\` | \`sql\`, \`analyze?\` (default false) | EXPLAIN plan |
@@ -86,7 +86,6 @@ Base URL: ${base}
 | \`get_query_history\` | \`limit?\` (default 20) | Recent queries from editor |
 | \`read_file\` | \`fileId?\`, \`fileName?\`, \`lineStart?\`, \`lineEnd?\` | Read content of an open tab; returns fileId for future reference |
 | \`write_file\` | \`fileId?\`, \`fileName\`, \`content\` | Create or update a tab; use fileId from a previous write_file response to update the same file precisely |
-| \`spawn_subagent\` | \`goal\`, \`model?\` | Delegate a subtask to a child agent; returns the child's output when complete |
 
 Example (open query in editor):
 \`\`\`bash

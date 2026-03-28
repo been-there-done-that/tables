@@ -145,8 +145,7 @@ const server = Bun.serve({
             // Hold the request open until frontend POSTs the result
             const result = await new Promise<unknown>((resolve, reject) => {
                 pendingToolResults.set(requestId, { sessionId: pathSessionId, resolve, reject });
-                // spawn_subagent runs a full child session — give it 5 minutes
-                const timeoutMs = toolName === "spawn_subagent" ? 300_000 : 30_000;
+                const timeoutMs = 30_000;
                 setTimeout(() => {
                     if (pendingToolResults.has(requestId)) {
                         pendingToolResults.delete(requestId);
