@@ -23,6 +23,28 @@ use crate::completion::engines::create_engine;
 use crate::completion::ranges::{find_current_statement_range, find_all_statement_ranges, StatementRange, StatementRangeWithBytes};
 use crate::completion::diagnostics::{Diagnostic, DiagnosticEngine};
 
+/// Replace the incomplete token at the cursor with spaces so pg_query can parse the statement.
+///
+/// When the user types "WHERE ail." the trailing "ail." is an incomplete qualified identifier
+/// that makes pg_query fail entirely, giving us an empty scope tree.  Replacing the partial
+/// token with an equal number of spaces preserves all byte offsets so `visible_at(cursor)`
+/// still resolves correctly after parsing.
+fn sanitize_sql_for_scope(text: &str, cursor_offset: usize) -> String {
+    let clamped = cursor_offset.min(text.len());
+    let before = &text[..clamped];
+    // Walk backwards past alphanumeric / _ / . to find the start of the current token.
+    let token_start = before
+        .rfind(|c: char| !c.is_alphanumeric() && c != '_' && c != '.')
+        .map(|i| i + 1)
+        .unwrap_or(0);
+    if token_start >= clamped {
+        return text.to_string();
+    }
+    let mut result = text.to_string();
+    result.replace_range(token_start..clamped, &" ".repeat(clamped - token_start));
+    result
+}
+
 /// Convert our Dialect to sql_scope::Dialect.
 fn dialect_to_sql_scope(dialect: Dialect) -> sql_scope::Dialect {
     match dialect {
@@ -333,8 +355,12 @@ pub async fn request_completions(
             return vec![];
         }
         
-        // Build scope tree via sql_scope::resolve
-        let scope_tree = sql_scope::resolve(&text, dialect_to_sql_scope(dialect), schema.as_ref())
+        // Build scope tree via sql_scope::resolve.
+        // Strip the incomplete token at the cursor (e.g. "ail.") before parsing so
+        // pg_query doesn't fail on dangling dots/partial identifiers.
+        // Spaces preserve byte offsets so visible_at(cursor_offset) still works.
+        let scope_sql = sanitize_sql_for_scope(&text, cursor_offset);
+        let scope_tree = sql_scope::resolve(&scope_sql, dialect_to_sql_scope(dialect), schema.as_ref())
             .unwrap_or_else(|_| sql_scope::ScopeTree::new());
 
         // Analyze cursor context
