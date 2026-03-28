@@ -14,6 +14,7 @@ export interface Session {
     setEmit(fn: (e: HarnessEvent) => void): void;
     emitToolEvent(e: HarnessEvent): void;
     send(text: string): void | Promise<void>;
+    isAvailable(): Promise<boolean>;
     stop(): void;
 }
 

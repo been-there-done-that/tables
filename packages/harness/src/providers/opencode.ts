@@ -11,15 +11,23 @@ import type { SessionConfig } from "../types";
 export class OpenCodeProvider extends HttpAdapter {
     private client: ReturnType<typeof createOpencodeClient>;
     private ocSessionId: string | null = null;
-    private config: SessionConfig;
     private abortController = new AbortController();
+    private serverUrl: string;
 
     constructor(config: SessionConfig) {
         super();
-        this.config = config;
-        const serverUrl =
+        this.serverUrl =
             (config.providerConfig?.serverUrl as string) ?? "http://localhost:4096";
-        this.client = createOpencodeClient({ baseUrl: serverUrl });
+        this.client = createOpencodeClient({ baseUrl: this.serverUrl });
+    }
+
+    async isAvailable(): Promise<boolean> {
+        try {
+            const res = await fetch(this.serverUrl, { method: "HEAD", signal: AbortSignal.timeout(500) });
+            return res.ok || res.status < 500;
+        } catch {
+            return false;
+        }
     }
 
     protected onStop() {

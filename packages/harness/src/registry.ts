@@ -20,3 +20,30 @@ export function createSession(config: SessionConfig): Session {
     if (!factory) throw new Error(`Unknown provider: "${config.provider}"`);
     return factory(config);
 }
+
+export interface AvailableProvider {
+    id: string;
+    label: string;
+    available: boolean;
+}
+
+export const PROVIDER_LABELS: Record<string, string> = {
+    claude:   "Claude",
+    gemini:   "Gemini",
+    codex:    "Codex",
+    opencode: "OpenCode",
+    cursor:   "Cursor",
+};
+
+export async function checkAvailability(): Promise<AvailableProvider[]> {
+    return Promise.all(
+        Object.entries(PROVIDERS).map(async ([id, factory]) => {
+            const instance = factory({ sessionId: "", threadId: "", systemPrompt: "", provider: id });
+            const available = typeof (instance as any).isAvailable === "function"
+                ? await (instance as any).isAvailable().catch(() => false)
+                : false;
+            instance.stop();
+            return { id, label: PROVIDER_LABELS[id] ?? id, available };
+        })
+    );
+}

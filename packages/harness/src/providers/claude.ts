@@ -69,4 +69,20 @@ export class ClaudeProvider extends SdkAdapter {
         super.stop();
         this.queue.close();
     }
+
+    async isAvailable(): Promise<boolean> {
+        // Check ~/.claude/local/claude first (preferred install location)
+        const homePath = `${process.env.HOME ?? "~"}/.claude/local/claude`;
+        try {
+            const f = Bun.file(homePath);
+            if (await f.exists()) return true;
+        } catch { /* ignore */ }
+        // Fall back to which claude
+        try {
+            const result = await Bun.$`which claude`.quiet();
+            return result.exitCode === 0;
+        } catch {
+            return false;
+        }
+    }
 }
