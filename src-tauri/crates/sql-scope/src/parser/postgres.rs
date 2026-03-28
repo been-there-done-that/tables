@@ -916,9 +916,10 @@ SELECT * FROM dept_tree"#;
         let aliases: Vec<Option<&str>> = cte.body.select_list.iter().map(|item| {
             if let SelectItemIr::Expr { alias, .. } = item { alias.as_deref() } else { None }
         }).collect();
-        assert!(aliases.contains(&Some("id")),     "anchor should project 'id', got {:?}", aliases);
-        assert!(aliases.contains(&Some("name")),   "anchor should project 'name', got {:?}", aliases);
-        assert!(aliases.contains(&Some("depth")),  "anchor should project 'depth', got {:?}", aliases);
+        assert!(aliases.contains(&Some("id")),        "anchor should project 'id', got {:?}", aliases);
+        assert!(aliases.contains(&Some("name")),      "anchor should project 'name', got {:?}", aliases);
+        assert!(aliases.contains(&Some("depth")),     "anchor should project 'depth', got {:?}", aliases);
+        assert!(aliases.contains(&Some("parent_id")), "anchor should project 'parent_id', got {:?}", aliases);
         // FROM clause should see departments
         assert!(!cte.body.from.is_empty(), "anchor FROM should not be empty");
     }

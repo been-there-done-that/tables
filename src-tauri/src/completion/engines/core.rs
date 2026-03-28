@@ -403,7 +403,7 @@ impl CoreCompletionEngine {
         });
 
         for func in select_functions {
-            if seen_labels.insert(func.to_string()) {
+            if seen_labels.insert(func.to_lowercase()) {
                 items.push(CompletionItem {
                     label: func.to_string(),
                     kind: CompletionKind::Function,
@@ -415,7 +415,7 @@ impl CoreCompletionEngine {
         }
 
         for kw in select_keywords {
-            if seen_labels.insert(kw.to_string()) {
+            if seen_labels.insert(kw.to_lowercase()) {
                 let mut score = 50;
                 if matches!(context.context_type, CursorContext::AfterSelectList) {
                     if *kw == "FROM" { score = 200; }
