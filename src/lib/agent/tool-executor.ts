@@ -8,6 +8,7 @@ export interface ToolContext {
     database: string;
     schema: string;
     openInEditor: (sql: string, title: string, autoRun?: boolean) => void;
+    spawnSubagent?: (goal: string, model?: string) => Promise<string>;
 }
 
 /**
@@ -311,6 +312,19 @@ async function executeTool(toolName: string, input: unknown, ctx: ToolContext): 
                 executed_at: l.timestamp,
                 duration_ms: l.duration_ms,
             }));
+        }
+
+        case "spawn_subagent": {
+            const goal = inp.goal as string | undefined;
+            const model = inp.model as string | undefined;
+            if (!goal) return { error: "spawn_subagent requires a 'goal' field" };
+            if (!ctx.spawnSubagent) return { error: "spawn_subagent not available in this context" };
+            try {
+                const result = await ctx.spawnSubagent(goal, model);
+                return { result };
+            } catch (e) {
+                return { error: String(e) };
+            }
         }
 
         default:
