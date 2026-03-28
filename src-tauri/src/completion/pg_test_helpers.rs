@@ -197,7 +197,7 @@ CREATE TABLE inventory.stock (
     UNIQUE (product_id, warehouse_id)
 );
 CREATE INDEX idx_stock_product_id   ON inventory.stock(product_id);
-CREATE INDEX idx_stock_warehouse_id ON inventory.stock(warehouse_id)
+CREATE INDEX idx_stock_warehouse_id ON inventory.stock(warehouse_id);
 "#;
 
 /// Connect to the test Postgres instance, run the full setup DDL,
@@ -249,7 +249,8 @@ pub async fn build_schema_graph_from_pg(
             c.table_name,
             c.column_name,
             c.data_type,
-            CASE WHEN pk.column_name IS NOT NULL THEN TRUE ELSE FALSE END AS is_pk
+            CASE WHEN pk.column_name IS NOT NULL THEN TRUE ELSE FALSE END AS is_pk,
+            c.is_nullable
         FROM information_schema.columns c
         LEFT JOIN (
             SELECT kcu.table_schema, kcu.table_name, kcu.column_name
@@ -288,7 +289,7 @@ pub async fn build_schema_graph_from_pg(
             .push(ColumnInfo {
                 name: col_name.to_string(),
                 data_type: data_type.to_string(),
-                is_nullable: true,   // simplified
+                is_nullable: row.get::<_, &str>(5) == "YES",
                 is_primary_key: is_pk,
                 is_indexed: false,   // patched below
             });
@@ -350,14 +351,17 @@ pub async fn build_schema_graph_from_pg(
             tgt_cl.relname  AS to_table,
             tgt_at.attname  AS to_column
         FROM pg_constraint con
-        JOIN pg_class     src_cl ON src_cl.oid = con.conrelid
+        JOIN pg_class  src_cl ON src_cl.oid = con.conrelid
+        JOIN pg_class  tgt_cl ON tgt_cl.oid = con.confrelid
         JOIN pg_namespace src_ns ON src_ns.oid = src_cl.relnamespace
-        JOIN pg_class     tgt_cl ON tgt_cl.oid = con.confrelid
         JOIN pg_namespace tgt_ns ON tgt_ns.oid = tgt_cl.relnamespace
+        JOIN LATERAL UNNEST(con.conkey, con.confkey)
+             AS fk_cols(src_attnum, tgt_attnum)
+             ON TRUE
         JOIN pg_attribute src_at ON src_at.attrelid = src_cl.oid
-                                 AND src_at.attnum = ANY(con.conkey)
+                                 AND src_at.attnum   = fk_cols.src_attnum
         JOIN pg_attribute tgt_at ON tgt_at.attrelid = tgt_cl.oid
-                                 AND tgt_at.attnum = ANY(con.confkey)
+                                 AND tgt_at.attnum   = fk_cols.tgt_attnum
         WHERE con.contype = 'f'
           AND src_ns.nspname = ANY($1)
         "#,
