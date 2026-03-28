@@ -354,6 +354,8 @@ impl DatabaseAdapter for SqliteAdapter {
             kind: crate::schema_types::NamespaceKind::LogicalGroup,
             is_introspected: false,
             tables: vec![],
+            functions: vec![],
+            sequences: vec![],
         }])
     }
 
@@ -385,6 +387,7 @@ impl DatabaseAdapter for SqliteAdapter {
                     foreign_keys: vec![],
                     indexes: vec![],
                     triggers: vec![],
+                    constraints: vec![],
                 })
             })
             .map_err(|e| AdapterError::Query(crate::sqlite_utils::format_sqlite_error(&e)))?;

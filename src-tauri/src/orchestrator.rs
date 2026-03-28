@@ -302,6 +302,8 @@ impl<A: DatabaseAdapter> ProgressiveIntrospector<A> {
                 kind: NamespaceKind::LogicalGroup,
                 is_introspected: false,
                 tables: vec![],
+                functions: vec![],
+                sequences: vec![],
             }]
         };
 
@@ -456,6 +458,8 @@ impl<A: DatabaseAdapter> ProgressiveIntrospector<A> {
                 kind: NamespaceKind::LogicalGroup,
                 is_introspected: false,
                 tables: vec![],
+                functions: vec![],
+                sequences: vec![],
             }]
         };
         
