@@ -12,6 +12,9 @@ use tokio_util::sync::CancellationToken;
 use crate::completion::parsing::parse_sql;
 use crate::completion::ranges::find_all_statement_ranges;
 
+/// Hard cap on returned rows to prevent OOM on unbounded SELECTs.
+const MAX_RESULT_ROWS: usize = 10_000;
+
 /// Active query tracking with cancellation tokens
 pub struct ActiveQuery {
     pub token: CancellationToken,
@@ -121,6 +124,8 @@ pub struct QueryResult {
     pub duration_ms: u64,
     pub affected_rows: Option<u64>,
     pub total: Option<u64>,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub truncated: bool,
 }
 
 /// Result of a table preview query
@@ -612,9 +617,13 @@ pub async fn execute_query(
 
     log_query_end(&app, &correlation_id, &connection_id, &database, &query, duration, status, error, row_count, Some(component_name));
 
-    // Update the duration in the result before returning
+    // Update the duration in the result and enforce row cap before returning
     result.map(|mut r| {
         r.duration_ms = duration;
+        if r.rows.len() > MAX_RESULT_ROWS {
+            r.rows.truncate(MAX_RESULT_ROWS);
+            r.truncated = true;
+        }
         r
     })
 }
@@ -1033,6 +1042,7 @@ async fn execute_postgres_query(
                                              affected_rows: None,
                                              duration_ms: 0,
                                              total: None,
+                                             truncated: false,
                                          });
                                      }
                                  }
@@ -1065,6 +1075,7 @@ async fn execute_postgres_query(
                                      affected_rows: Some(affected),
                                      duration_ms: 0,
                                      total: None,
+                                     truncated: false,
                                  });
                              }
                          }
@@ -1085,6 +1096,7 @@ async fn execute_postgres_query(
                      affected_rows: None,
                      duration_ms: 0,
                      total: None,
+                     truncated: false,
                  }))
              }
         };
@@ -1152,6 +1164,7 @@ async fn execute_single_postgres_query(client: &tokio_postgres::Client, query: &
         affected_rows: None,
         duration_ms: 0,
         total: None,
+        truncated: false,
     })
 }
 
@@ -1273,6 +1286,7 @@ async fn execute_sqlite_query(
                     affected_rows: None,
                     duration_ms: 0,
                     total: None,
+                    truncated: false,
                 });
             }
         }
@@ -1330,6 +1344,7 @@ fn execute_single_sqlite_query(conn: &rusqlite::Connection, query: &str) -> Resu
         affected_rows: None,
         duration_ms: 0,
         total: None,
+        truncated: false,
     })
 }
 
