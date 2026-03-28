@@ -17,6 +17,13 @@
     import IconCopy from "@tabler/icons-svelte/icons/copy";
     import IconCheck from "@tabler/icons-svelte/icons/check";
 
+    // Plan mode: tools that execute SQL against live data require user approval before running.
+    // Read-only tools and write_file auto-execute. Only run_query is gated.
+    let planMode = $state(false);
+    const APPROVAL_REQUIRED = new Set(["run_query"]);
+    type PendingApproval = { toolName: string; input: unknown; ctx: ToolContext };
+    const pendingApprovals = new Map<string, PendingApproval>();
+
     let abortController = $state<AbortController | null>(null);
     let sessionReady = $state(false);
     let sessionError = $state<string | null>(null);
@@ -66,6 +73,7 @@
             conn.engine,
             port > 0 ? { port, sessionId, schema } : undefined,
             openTabs,
+            planMode,
         );
     }
 
@@ -177,18 +185,23 @@
             }
             case "tool.started": {
                 // Finalize any in-progress text bubble so it appears before the
-                // tool card in the timeline. New text after the tool will open
-                // a fresh message bubble with a later timestamp.
+                // tool card in the timeline.
                 if (streamingMsgId) {
                     agentStore.finalizeMessage(streamingMsgId);
                     streamingMsgId = null;
                 }
-                agentStore.addToolCall(event.toolId, event.toolName, event.input);
                 const ctx = getToolContext();
+                const needsApproval = planMode && APPROVAL_REQUIRED.has(event.toolName) && !!ctx;
+                agentStore.addToolCall(event.toolId, event.toolName, event.input, needsApproval ? "awaiting" : "running");
                 if (ctx) {
-                    dispatchTool(event.toolName, event.toolId, event.input, ctx).catch((e) => {
-                        console.error("[AgentPanel] tool dispatch error:", e);
-                    });
+                    if (needsApproval) {
+                        // Hold execution — user must approve before the POST goes to harness.
+                        pendingApprovals.set(event.toolId, { toolName: event.toolName, input: event.input, ctx });
+                    } else {
+                        dispatchTool(event.toolName, event.toolId, event.input, ctx).catch((e) => {
+                            console.error("[AgentPanel] tool dispatch error:", e);
+                        });
+                    }
                 }
                 break;
             }
@@ -285,6 +298,29 @@
                 : 0;
             (view.data as Record<string, unknown>).revealAt = { start: lineStart, end: lineEnd ?? lineStart, seq: prevSeq + 1 };
         }
+    }
+
+    function approveToolCall(toolId: string) {
+        const pending = pendingApprovals.get(toolId);
+        if (!pending) return;
+        pendingApprovals.delete(toolId);
+        agentStore.setToolCallRunning(toolId);
+        dispatchTool(pending.toolName, toolId, pending.input, pending.ctx).catch((e) => {
+            console.error("[AgentPanel] approved tool dispatch error:", e);
+        });
+    }
+
+    function rejectToolCall(toolId: string) {
+        const pending = pendingApprovals.get(toolId);
+        if (!pending) return;
+        pendingApprovals.delete(toolId);
+        agentStore.failToolCall(toolId, "Rejected by user");
+        // POST rejection to harness so the agent's curl call unblocks with an error
+        fetch(`http://127.0.0.1:${pending.ctx.port}/tool-result/${toolId}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ error: "User rejected SQL execution in plan mode" }),
+        }).catch((e) => console.error("[AgentPanel] reject POST failed:", e));
     }
 
     function handleRunQuery(sql: string, autoRun = false) {
@@ -402,12 +438,19 @@
             <span class="text-[12px]">Starting session…</span>
         </div>
     {:else}
-        <MessageList onRunQuery={handleRunQuery} onFocusFile={handleFocusFile} />
+        <MessageList
+            onRunQuery={handleRunQuery}
+            onFocusFile={handleFocusFile}
+            onApprove={approveToolCall}
+            onReject={rejectToolCall}
+        />
         <AgentComposer
             onSend={(displayText, fullText, doc) => send(displayText, fullText, doc)}
             onStop={stop}
             running={agentStore.status === "running"}
             disabled={!sessionReady || !!sessionError}
+            {planMode}
+            onPlanModeToggle={() => { planMode = !planMode; }}
         />
     {/if}
 </div>

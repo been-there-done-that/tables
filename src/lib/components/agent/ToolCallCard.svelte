@@ -8,14 +8,19 @@
     import IconChevronRight from "@tabler/icons-svelte/icons/chevron-right";
     import IconPlayerPlay from "@tabler/icons-svelte/icons/player-play";
     import IconTool from "@tabler/icons-svelte/icons/tool";
+    import IconShieldCheck from "@tabler/icons-svelte/icons/shield-check";
+    import IconShieldX from "@tabler/icons-svelte/icons/shield-x";
+    import IconHourglassHigh from "@tabler/icons-svelte/icons/hourglass-high";
 
     interface Props {
         toolCall: AgentToolCall;
         onRun?: (sql: string) => void;
         onFocusFile?: (fileId: string, lineStart?: number, lineEnd?: number) => void;
+        onApprove?: (toolId: string) => void;
+        onReject?: (toolId: string) => void;
     }
 
-    let { toolCall, onRun, onFocusFile }: Props = $props();
+    let { toolCall, onRun, onFocusFile, onApprove, onReject }: Props = $props();
     let expanded = $state(false);
     let elapsed = $state(0);
     let intervalId: ReturnType<typeof setInterval> | null = null;
@@ -50,11 +55,13 @@
                 clearInterval(intervalId);
                 intervalId = null;
             }
-            // Use actual duration: completedAt - startedAt if available.
-            // Fall back to startedAt only if completedAt is missing (very old records).
-            elapsed = toolCall.completedAt != null
-                ? toolCall.completedAt - toolCall.startedAt
-                : toolCall.startedAt > 0 ? 0 : 0;
+            // "awaiting" shows no elapsed time — the wait is on the user, not the tool.
+            // For completed/failed: use actual wall-clock duration.
+            elapsed = toolCall.status === "awaiting"
+                ? 0
+                : toolCall.completedAt != null
+                    ? toolCall.completedAt - toolCall.startedAt
+                    : 0;
         }
         return () => {
             if (intervalId !== null) {
@@ -127,7 +134,9 @@
         >
             <IconTool size={10} class="shrink-0 text-muted-foreground/40" />
 
-            {#if toolCall.status === "running"}
+            {#if toolCall.status === "awaiting"}
+                <IconHourglassHigh size={10} class="shrink-0 text-amber-400" />
+            {:else if toolCall.status === "running"}
                 <IconLoader2 size={10} class="shrink-0 animate-spin text-accent" />
             {:else if toolCall.status === "done"}
                 <IconCheck size={10} class="shrink-0 text-green-500/80" />
@@ -172,14 +181,16 @@
             {/if}
         {/if}
 
-        <!-- Elapsed time -->
-        <span
-            class="shrink-0 font-mono text-[9px] {toolCall.status === 'running'
-                ? 'text-accent'
-                : 'text-muted-foreground/40'}"
-        >
-            {formatElapsed(elapsed)}
-        </span>
+        <!-- Elapsed time — hidden while awaiting approval -->
+        {#if toolCall.status !== "awaiting"}
+            <span
+                class="shrink-0 font-mono text-[9px] {toolCall.status === 'running'
+                    ? 'text-accent'
+                    : 'text-muted-foreground/40'}"
+            >
+                {formatElapsed(elapsed)}
+            </span>
+        {/if}
 
         <button onclick={() => (expanded = !expanded)} class="shrink-0">
             {#if expanded}
@@ -189,6 +200,35 @@
             {/if}
         </button>
     </div>
+
+    <!-- Approval panel — shown inline (not in expand) when awaiting -->
+    {#if toolCall.status === "awaiting"}
+        <div class="border-t border-amber-400/20 bg-amber-400/5 px-2 py-2">
+            {#if toolCall.toolName === "run_query"}
+                {@const sql = (toolCall.input as Record<string, unknown>)?.sql as string | undefined}
+                {#if sql}
+                    <pre class="mb-2 max-h-32 overflow-y-auto whitespace-pre-wrap break-all rounded bg-background/60 px-2 py-1.5 text-[10.5px] font-mono text-foreground/80 border border-border/30">{sql}</pre>
+                {/if}
+            {/if}
+            <div class="flex items-center gap-2">
+                <span class="flex-1 text-[10px] text-amber-400/80">Awaiting approval to execute</span>
+                <button
+                    onclick={() => onReject?.(toolCall.id)}
+                    class="flex items-center gap-1 rounded px-2 py-1 text-[10px] text-destructive/70 hover:bg-destructive/10 hover:text-destructive transition-colors"
+                >
+                    <IconShieldX size={11} />
+                    Reject
+                </button>
+                <button
+                    onclick={() => onApprove?.(toolCall.id)}
+                    class="flex items-center gap-1 rounded bg-green-500/15 px-2 py-1 text-[10px] text-green-500 hover:bg-green-500/25 transition-colors"
+                >
+                    <IconShieldCheck size={11} />
+                    Approve
+                </button>
+            </div>
+        </div>
+    {/if}
 
     <!-- Expandable output -->
     {#if expanded}

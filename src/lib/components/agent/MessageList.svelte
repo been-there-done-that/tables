@@ -9,9 +9,11 @@
     interface Props {
         onRunQuery?: (sql: string) => void;
         onFocusFile?: (fileId: string, lineStart?: number, lineEnd?: number) => void;
+        onApprove?: (toolId: string) => void;
+        onReject?: (toolId: string) => void;
     }
 
-    let { onRunQuery, onFocusFile }: Props = $props();
+    let { onRunQuery, onFocusFile, onApprove, onReject }: Props = $props();
     let container: HTMLDivElement;
     let stickToBottom = $state(true);
 
@@ -124,7 +126,13 @@
                     <MessageBubble message={msg} />
                 {:else if entry.kind === "tool"}
                     <div class="px-3">
-                        <ToolCallCard toolCall={entry.item} onRun={onRunQuery} onFocusFile={onFocusFile} />
+                        <ToolCallCard
+                            toolCall={entry.item}
+                            onRun={onRunQuery}
+                            onFocusFile={onFocusFile}
+                            onApprove={onApprove}
+                            onReject={onReject}
+                        />
                     </div>
                 {:else if entry.kind === "turn-summary"}
                     {@const s = entry.item}
