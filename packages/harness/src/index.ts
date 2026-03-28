@@ -1,4 +1,4 @@
-import { createSession } from "./registry";
+import { createSession, checkAvailability } from "./registry";
 import type { Session } from "./types";
 
 const sessions = new Map<string, Session>();
@@ -6,7 +6,7 @@ const pendingToolResults = new Map<string, { sessionId: string; resolve: (v: unk
 
 const CORS = {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
 };
 
@@ -175,6 +175,11 @@ const server = Bun.serve({
             const body = await req.json().catch(() => ({}));
             pending.resolve(body);
             return Response.json({ ok: true }, { headers: CORS });
+        }
+
+        if (req.method === "GET" && url.pathname === "/providers") {
+            const providers = await checkAvailability();
+            return Response.json(providers, { headers: CORS });
         }
 
         return new Response("harness ok", { headers: CORS });

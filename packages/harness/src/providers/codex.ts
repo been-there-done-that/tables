@@ -97,6 +97,15 @@ export class CodexProvider extends JsonRpcAdapter {
         this.respondToRequest(id, { approved: true });
     }
 
+    async isAvailable(): Promise<boolean> {
+        try {
+            const result = await Bun.$`which codex`.quiet();
+            return result.exitCode === 0;
+        } catch {
+            return false;
+        }
+    }
+
     send(text: string) {
         if (!this.ready || !this.threadId) {
             this.emitFn({ type: "error", message: "Codex session not ready" });

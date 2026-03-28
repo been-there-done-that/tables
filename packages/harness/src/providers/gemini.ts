@@ -85,6 +85,15 @@ export class GeminiProvider implements Session {
         }
     }
 
+    async isAvailable(): Promise<boolean> {
+        try {
+            const result = await Bun.$`which gemini`.quiet();
+            return result.exitCode === 0;
+        } catch {
+            return false;
+        }
+    }
+
     private buildPrompt(newText: string): string {
         const parts: string[] = [];
 

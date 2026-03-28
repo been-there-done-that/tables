@@ -19,6 +19,15 @@ export class CursorProvider extends AcpAdapter {
         super(config);
     }
 
+    async isAvailable(): Promise<boolean> {
+        try {
+            const result = await Bun.$`which cursor`.quiet();
+            return result.exitCode === 0;
+        } catch {
+            return false;
+        }
+    }
+
     protected getEndpoint(): string {
         const ep = this.config.providerConfig?.acpEndpoint;
         return typeof ep === "string" ? ep : "ws://localhost:4747";
