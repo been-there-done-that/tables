@@ -11,6 +11,9 @@
     import { dispatchTool, type ToolContext } from "$lib/agent/tool-executor";
     import { harnessStore } from "$lib/stores/harness.svelte";
     import { plansStore } from "$lib/stores/plans.svelte";
+    import ProviderPicker from "./ProviderPicker.svelte";
+    import type { AvailableProvider } from "./ProviderPicker.svelte";
+    import { PROVIDER_CONFIGS, defaultModel } from "$lib/agent/providers";
     import MessageList from "./MessageList.svelte";
     import AgentComposer from "./AgentComposer.svelte";
     import ThreadPicker from "./ThreadPicker.svelte";
@@ -18,6 +21,7 @@
     import IconAlertCircle from "@tabler/icons-svelte/icons/alert-circle";
     import IconCopy from "@tabler/icons-svelte/icons/copy";
     import IconCheck from "@tabler/icons-svelte/icons/check";
+    import IconLock from "@tabler/icons-svelte/icons/lock";
 
     // Plan mode: tools that execute SQL against live data require user approval before running.
     // Read-only tools and write_file auto-execute. Only run_query is gated.
@@ -35,6 +39,8 @@
     }
     type PendingApproval = { toolName: string; input: unknown; ctx: ToolContext };
     const pendingApprovals = new Map<string, PendingApproval>();
+
+    let availableProviders = $state<AvailableProvider[]>([]);
 
     let abortController = $state<AbortController | null>(null);
     let sessionReady = $state(false);
@@ -121,6 +127,7 @@
                 systemPrompt: buildPrompt(sessionId),
                 model: settingsStore.aiModel,
                 effort: settingsStore.aiEffort,
+                provider: thread.provider,
                 resumeSdkSessionId: thread.sdkSessionId ?? undefined,
                 onEvent: handleEvent,
                 abortController: ac,
@@ -138,7 +145,7 @@
         const thread = await threadsStore.createThread({
             connectionId: conn.id,
             databaseName: schemaStore.selectedDatabase,
-            model: settingsStore.aiModel,
+            model: settingsStore.aiModel || "claude-sonnet-4-6",
             effort: settingsStore.aiEffort,
             provider: settingsStore.aiProvider,
         });
@@ -433,6 +440,22 @@
         }
     });
 
+    // Fetch available providers from harness when port is known
+    $effect(() => {
+        const port = harnessStore.port;
+        if (port === null) return;
+        fetch(`http://127.0.0.1:${port}/providers`)
+            .then((r) => r.json())
+            .then((data) => { availableProviders = data as AvailableProvider[]; })
+            .catch(() => { /* harness not running in dev — leave empty */ });
+    });
+
+    const currentProvider = $derived(
+        threadsStore.activeThread?.provider ?? settingsStore.aiProvider
+    );
+
+    const sessionHasMessages = $derived(agentStore.messages.length > 0);
+
     // Restart the harness session when planMode is toggled mid-conversation so
     // the system prompt reflects the new mode. Guard: only restart if the thread
     // already has messages (avoid restarting a fresh empty thread).
@@ -446,6 +469,13 @@
             startThread(threadsStore.activeThread).catch(console.error);
         }
     });
+
+    function handleProviderChange(newProvider: string) {
+        settingsStore.aiProvider = newProvider;
+        const firstModel = defaultModel(newProvider);
+        settingsStore.aiModel = firstModel;
+        void createAndStartThread();
+    }
 
     onDestroy(() => {
         abortController?.abort();
@@ -502,6 +532,16 @@
             />
         </div>
         <div class="flex items-center gap-2 shrink-0">
+            <!-- Provider badge — locked when session has messages -->
+            {#if sessionHasMessages}
+                <span
+                    class="flex items-center gap-1 rounded-full border border-border/30 px-2 py-0.5 text-[9.5px] text-muted-foreground/60"
+                    title="Provider locked for this session"
+                >
+                    {PROVIDER_CONFIGS[currentProvider]?.label ?? currentProvider}
+                    <IconLock size={9} class="opacity-50" />
+                </span>
+            {/if}
             {#if planMode}
                 {@const pendingCount = pendingApprovals.size}
                 <span class="flex items-center gap-1 rounded-full bg-amber-400/15 px-2 py-0.5 text-[9.5px] font-medium text-amber-400 select-none">
@@ -551,12 +591,22 @@
             <span class="text-[12px]">Starting session…</span>
         </div>
     {:else}
-        <MessageList
-            onRunQuery={handleRunQuery}
-            onFocusFile={handleFocusFile}
-            onApprove={approveToolCall}
-            onReject={rejectToolCall}
-        />
+        {#if agentStore.messages.length === 0 && agentStore.status !== "running"}
+            <div class="flex flex-1 flex-col items-center justify-center">
+                <ProviderPicker
+                    providers={availableProviders}
+                    selected={currentProvider}
+                    onProviderChange={handleProviderChange}
+                />
+            </div>
+        {:else}
+            <MessageList
+                onRunQuery={handleRunQuery}
+                onFocusFile={handleFocusFile}
+                onApprove={approveToolCall}
+                onReject={rejectToolCall}
+            />
+        {/if}
         <AgentComposer
             onSend={(displayText, fullText, doc) => send(displayText, fullText, doc)}
             onStop={stop}
@@ -568,7 +618,7 @@
                 settingsStore.queryApproval = settingsStore.queryApproval === "ask" ? "auto" : "ask";
             }}
             queryApproval={settingsStore.queryApproval}
-            provider={settingsStore.aiProvider}
+            provider={currentProvider}
         />
     {/if}
 </div>
