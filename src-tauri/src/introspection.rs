@@ -312,15 +312,30 @@ impl Introspector {
         info!("[INTERNAL] saving database {} with {} schemas", database.name, database.schemas.len());
 
         for schema in &database.schemas {
-            self.save_schema(&conn, connection_id, &database.name, &schema.name, &schema.schema_type, schema.kind)?;
-            
+            let schema_id = self.save_schema(&conn, connection_id, &database.name, &schema.name, &schema.schema_type, schema.kind)?;
+
+            // Fix connection_id in functions and sequences (they come in with empty connection_id)
+            let fns_with_id: Vec<MetaFunction> = schema.functions.iter().map(|f| {
+                let mut f = f.clone();
+                f.connection_id = connection_id.to_string();
+                f
+            }).collect();
+            self.save_functions_internal(&conn, schema_id, connection_id, &database.name, &schema.name, &fns_with_id)?;
+
+            let seqs_with_id: Vec<MetaSequence> = schema.sequences.iter().map(|s| {
+                let mut s = s.clone();
+                s.connection_id = connection_id.to_string();
+                s
+            }).collect();
+            self.save_sequences_internal(&conn, schema_id, connection_id, &database.name, &schema.name, &seqs_with_id)?;
+
             for table in &schema.tables {
                 // Clone and set connection_id since adapters return empty connection_id
                 let mut table_with_id = table.clone();
                 table_with_id.connection_id = connection_id.to_string();
                 table_with_id.database = database.name.clone();
                 table_with_id.schema = schema.name.clone();
-                
+
                 // Also fix connection_id on nested items
                 for col in &mut table_with_id.columns {
                     col.connection_id = connection_id.to_string();
@@ -334,7 +349,10 @@ impl Introspector {
                 for trg in &mut table_with_id.triggers {
                     trg.connection_id = connection_id.to_string();
                 }
-                
+                for c in &mut table_with_id.constraints {
+                    c.connection_id = connection_id.to_string();
+                }
+
                 self.save_table_full(&conn, &table_with_id)?;
             }
         }
@@ -791,6 +809,7 @@ impl Introspector {
         for trigger in &table.triggers {
             self.save_trigger(tx, trigger.clone())?;
         }
+        self.save_constraints_internal(tx, table_id, &table.constraints)?;
         Ok(())
     }
 
@@ -962,6 +981,88 @@ impl Introspector {
         Ok(())
     }
 
+    fn save_functions_internal(&self, conn: &SqliteConnection, schema_id: i64, connection_id: &str, database: &str, schema: &str, functions: &[MetaFunction]) -> Result<(), String> {
+        if functions.is_empty() { return Ok(()); }
+        conn.execute("DELETE FROM meta_functions WHERE schema_id = ?1", params![schema_id])
+            .map_err(|e| format!("Failed to prune functions for schema_id {}: {}", schema_id, e))?;
+        for f in functions {
+            let kind_str = match f.kind {
+                FunctionKind::Function => "Function",
+                FunctionKind::Procedure => "Procedure",
+                FunctionKind::Aggregate => "Aggregate",
+                FunctionKind::Window => "Window",
+            };
+            let arguments_json = serde_json::to_string(&f.arguments).unwrap_or_else(|_| "[]".to_string());
+            conn.execute(
+                "INSERT INTO meta_functions
+                     (schema_id, connection_id, database, schema, name, oid, language, kind, return_type, arguments, definition, security_definer, volatility)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
+                 ON CONFLICT(schema_id, oid) DO UPDATE SET
+                     name=excluded.name, language=excluded.language, kind=excluded.kind,
+                     return_type=excluded.return_type, arguments=excluded.arguments,
+                     definition=excluded.definition, security_definer=excluded.security_definer,
+                     volatility=excluded.volatility",
+                params![
+                    schema_id, connection_id, database, schema,
+                    f.name, f.oid, f.language, kind_str,
+                    f.return_type, arguments_json, f.definition,
+                    f.security_definer as i32, f.volatility
+                ],
+            ).map_err(|e| format!("Failed to save function '{}': {}", f.name, e))?;
+        }
+        Ok(())
+    }
+
+    fn save_sequences_internal(&self, conn: &SqliteConnection, schema_id: i64, connection_id: &str, database: &str, schema: &str, sequences: &[MetaSequence]) -> Result<(), String> {
+        if sequences.is_empty() { return Ok(()); }
+        conn.execute("DELETE FROM meta_sequences WHERE schema_id = ?1", params![schema_id])
+            .map_err(|e| format!("Failed to prune sequences for schema_id {}: {}", schema_id, e))?;
+        for s in sequences {
+            conn.execute(
+                "INSERT INTO meta_sequences
+                     (schema_id, connection_id, database, schema, name, data_type, start_value, min_value, max_value, increment_by, cycle, cache_size, last_value)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
+                 ON CONFLICT(schema_id, name) DO UPDATE SET
+                     data_type=excluded.data_type, start_value=excluded.start_value,
+                     min_value=excluded.min_value, max_value=excluded.max_value,
+                     increment_by=excluded.increment_by, cycle=excluded.cycle,
+                     cache_size=excluded.cache_size, last_value=excluded.last_value",
+                params![
+                    schema_id, connection_id, database, schema, s.name,
+                    s.data_type, s.start_value, s.min_value, s.max_value,
+                    s.increment_by, s.cycle as i32, s.cache_size, s.last_value
+                ],
+            ).map_err(|e| format!("Failed to save sequence '{}': {}", s.name, e))?;
+        }
+        Ok(())
+    }
+
+    fn save_constraints_internal(&self, conn: &SqliteConnection, table_id: i64, constraints: &[MetaConstraint]) -> Result<(), String> {
+        if constraints.is_empty() { return Ok(()); }
+        for c in constraints {
+            let kind_str = match c.kind {
+                ConstraintKind::PrimaryKey => "PrimaryKey",
+                ConstraintKind::ForeignKey => "ForeignKey",
+                ConstraintKind::Check => "Check",
+                ConstraintKind::Unique => "Unique",
+                ConstraintKind::Exclusion => "Exclusion",
+            };
+            let columns_json = serde_json::to_string(&c.columns).unwrap_or_else(|_| "[]".to_string());
+            conn.execute(
+                "INSERT INTO meta_constraints
+                     (table_id, connection_id, database, schema, table_name, name, kind, definition, columns)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+                 ON CONFLICT(table_id, name) DO UPDATE SET
+                     kind=excluded.kind, definition=excluded.definition, columns=excluded.columns",
+                params![
+                    table_id, c.connection_id, c.database, c.schema, c.table_name,
+                    c.name, kind_str, c.definition, columns_json
+                ],
+            ).map_err(|e| format!("Failed to save constraint '{}': {}", c.name, e))?;
+        }
+        Ok(())
+    }
+
     fn save_trigger(&self, conn: &SqliteConnection, trigger: MetaTrigger) -> Result<(), String> {
         // Get table_id
         let table_id: i64 = conn.query_row(
@@ -977,6 +1078,112 @@ impl Introspector {
             params![table_id, trigger.connection_id, trigger.database, trigger.schema, trigger.table_name, trigger.trigger_name, trigger.event, trigger.timing]
         ).map_err(|e| format!("[SQLITE_TRG_SAVE] Failed to save trigger '{}' to local cache: {}", trigger.trigger_name, e))?;
         Ok(())
+    }
+
+    fn get_functions_for_schema(&self, conn: &SqliteConnection, connection_id: &str, database: &str, schema: &str) -> Result<Vec<MetaFunction>, String> {
+        let mut stmt = conn.prepare(
+            "SELECT name, oid, language, kind, return_type, arguments, definition, security_definer, volatility
+             FROM meta_functions
+             WHERE connection_id = ?1 AND database = ?2 AND schema = ?3
+             ORDER BY name, oid"
+        ).map_err(|e| e.to_string())?;
+
+        let rows = stmt.query_map(params![connection_id, database, schema], |row| {
+            Ok((
+                row.get::<_, String>(0)?,  // name
+                row.get::<_, i64>(1)?,     // oid
+                row.get::<_, String>(2)?,  // language
+                row.get::<_, String>(3)?,  // kind
+                row.get::<_, String>(4)?,  // return_type
+                row.get::<_, String>(5)?,  // arguments json
+                row.get::<_, String>(6)?,  // definition
+                row.get::<_, i32>(7)?,     // security_definer
+                row.get::<_, String>(8)?,  // volatility
+            ))
+        }).map_err(|e| e.to_string())?;
+
+        let mut functions = Vec::new();
+        for r in rows {
+            let (name, oid, language, kind_str, return_type, arguments_json, definition, sec_def, volatility) = r.map_err(|e| e.to_string())?;
+            let kind = match kind_str.as_str() {
+                "Procedure" => FunctionKind::Procedure,
+                "Aggregate" => FunctionKind::Aggregate,
+                "Window" => FunctionKind::Window,
+                _ => FunctionKind::Function,
+            };
+            let arguments: Vec<MetaFunctionArg> = serde_json::from_str(&arguments_json).unwrap_or_default();
+            functions.push(MetaFunction {
+                connection_id: connection_id.to_string(),
+                database: database.to_string(),
+                schema: schema.to_string(),
+                name, oid, language, kind, return_type, arguments, definition,
+                security_definer: sec_def != 0,
+                volatility,
+            });
+        }
+        Ok(functions)
+    }
+
+    fn get_sequences_for_schema(&self, conn: &SqliteConnection, connection_id: &str, database: &str, schema: &str) -> Result<Vec<MetaSequence>, String> {
+        let mut stmt = conn.prepare(
+            "SELECT name, data_type, start_value, min_value, max_value, increment_by, cycle, cache_size, last_value
+             FROM meta_sequences
+             WHERE connection_id = ?1 AND database = ?2 AND schema = ?3
+             ORDER BY name"
+        ).map_err(|e| e.to_string())?;
+
+        let rows = stmt.query_map(params![connection_id, database, schema], |row| {
+            Ok(MetaSequence {
+                connection_id: connection_id.to_string(),
+                database: database.to_string(),
+                schema: schema.to_string(),
+                name: row.get(0)?,
+                data_type: row.get(1)?,
+                start_value: row.get(2)?,
+                min_value: row.get(3)?,
+                max_value: row.get(4)?,
+                increment_by: row.get(5)?,
+                cycle: row.get::<_, i32>(6)? != 0,
+                cache_size: row.get(7)?,
+                last_value: row.get(8)?,
+            })
+        }).map_err(|e| e.to_string())?;
+
+        rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+    }
+
+    fn get_constraints_for_table(&self, conn: &SqliteConnection, connection_id: &str, database: &str, schema: &str, table_name: &str) -> Result<Vec<MetaConstraint>, String> {
+        let mut stmt = conn.prepare(
+            "SELECT name, kind, definition, columns
+             FROM meta_constraints
+             WHERE connection_id = ?1 AND database = ?2 AND schema = ?3 AND table_name = ?4
+             ORDER BY kind, name"
+        ).map_err(|e| e.to_string())?;
+
+        let rows = stmt.query_map(params![connection_id, database, schema, table_name], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, String>(3)?))
+        }).map_err(|e| e.to_string())?;
+
+        let mut constraints = Vec::new();
+        for r in rows {
+            let (name, kind_str, definition, columns_json) = r.map_err(|e| e.to_string())?;
+            let kind = match kind_str.as_str() {
+                "PrimaryKey" => ConstraintKind::PrimaryKey,
+                "ForeignKey" => ConstraintKind::ForeignKey,
+                "Unique" => ConstraintKind::Unique,
+                "Exclusion" => ConstraintKind::Exclusion,
+                _ => ConstraintKind::Check,
+            };
+            let columns: Vec<String> = serde_json::from_str(&columns_json).unwrap_or_default();
+            constraints.push(MetaConstraint {
+                connection_id: connection_id.to_string(),
+                database: database.to_string(),
+                schema: schema.to_string(),
+                table_name: table_name.to_string(),
+                name, kind, definition, columns,
+            });
+        }
+        Ok(constraints)
     }
 
     // API Helpers
@@ -1239,6 +1446,14 @@ impl Introspector {
             db.schemas = self.get_schemas(connection_id, &db.name)?;
             for schema in &mut db.schemas {
                 schema.tables = self.get_tables_in_schema(connection_id, &db.name, &schema.name)?;
+                {
+                    let conn = self.app_db.lock().unwrap();
+                    schema.functions = self.get_functions_for_schema(&conn, connection_id, &db.name, &schema.name)?;
+                    schema.sequences = self.get_sequences_for_schema(&conn, connection_id, &db.name, &schema.name)?;
+                    for table in &mut schema.tables {
+                        table.constraints = self.get_constraints_for_table(&conn, connection_id, &db.name, &schema.name, &table.table_name)?;
+                    }
+                }
             }
             if !db.schemas.is_empty() {
                 db.is_introspected = true;
@@ -2371,5 +2586,113 @@ impl Introspector {
 
         info!("Specific schema introspection completed in {:.2?}", start_time.elapsed());
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rusqlite::Connection as RawConn;
+    use std::sync::{Arc, Mutex};
+
+    fn setup_test_db() -> Arc<Mutex<RawConn>> {
+        let raw = RawConn::open_in_memory().unwrap();
+        // Disable FK enforcement for tests so we don't need to seed connections table
+        raw.execute_batch("PRAGMA foreign_keys = OFF;").unwrap();
+        raw.execute_batch(include_str!("../migrations/001_initial.sql")).unwrap();
+        raw.execute_batch(include_str!("../migrations/002_add_type_system.sql")).unwrap();
+        raw.execute_batch(include_str!("../migrations/003_add_namespace_kind.sql")).unwrap();
+        raw.execute_batch(include_str!("../migrations/010_functions_sequences_constraints.sql")).unwrap();
+        Arc::new(Mutex::new(raw))
+    }
+
+    #[test]
+    fn test_save_and_load_functions_sequences_constraints() {
+        let app_db = setup_test_db();
+        let introspector = Introspector::new(Arc::clone(&app_db));
+
+        // Seed: database + schema + table with known IDs
+        {
+            let conn = app_db.lock().unwrap();
+            conn.execute("INSERT INTO meta_databases (connection_id, name) VALUES ('c1', 'db1')", []).unwrap();
+            conn.execute("INSERT INTO meta_schemas (database_id, connection_id, database, name, schema_type) VALUES (1, 'c1', 'db1', 'public', 'user')", []).unwrap();
+            conn.execute("INSERT INTO meta_tables (schema_id, connection_id, database, schema, table_name, type, classification, last_introspected_at) VALUES (1, 'c1', 'db1', 'public', 'users', 'table', 'user', 0)", []).unwrap();
+        }
+
+        let conn = app_db.lock().unwrap();
+
+        // Test functions — two overloads with same name but different OIDs
+        let funcs = vec![
+            MetaFunction {
+                connection_id: "c1".to_string(),
+                database: "db1".to_string(),
+                schema: "public".to_string(),
+                name: "get_user".to_string(),
+                oid: 12345,
+                language: "plpgsql".to_string(),
+                kind: FunctionKind::Function,
+                return_type: "text".to_string(),
+                arguments: vec![],
+                definition: "CREATE OR REPLACE FUNCTION get_user() RETURNS text AS $$ BEGIN RETURN 'hi'; END; $$ LANGUAGE plpgsql".to_string(),
+                security_definer: false,
+                volatility: "volatile".to_string(),
+            },
+            MetaFunction {
+                connection_id: "c1".to_string(),
+                database: "db1".to_string(),
+                schema: "public".to_string(),
+                name: "get_user".to_string(),
+                oid: 12346, // overload — same name, different OID
+                language: "plpgsql".to_string(),
+                kind: FunctionKind::Function,
+                return_type: "integer".to_string(),
+                arguments: vec![],
+                definition: "CREATE OR REPLACE FUNCTION get_user() RETURNS integer AS $$ BEGIN RETURN 1; END; $$ LANGUAGE plpgsql".to_string(),
+                security_definer: false,
+                volatility: "immutable".to_string(),
+            },
+        ];
+        introspector.save_functions_internal(&conn, 1, "c1", "db1", "public", &funcs).unwrap();
+        let loaded_fns = introspector.get_functions_for_schema(&conn, "c1", "db1", "public").unwrap();
+        assert_eq!(loaded_fns.len(), 2, "both overloads stored");
+        assert_eq!(loaded_fns[0].name, "get_user");
+
+        // Test sequences
+        let seqs = vec![MetaSequence {
+            connection_id: "c1".to_string(),
+            database: "db1".to_string(),
+            schema: "public".to_string(),
+            name: "users_id_seq".to_string(),
+            data_type: "bigint".to_string(),
+            start_value: 1,
+            min_value: 1,
+            max_value: 9223372036854775807,
+            increment_by: 1,
+            cycle: false,
+            cache_size: 1,
+            last_value: None,
+        }];
+        introspector.save_sequences_internal(&conn, 1, "c1", "db1", "public", &seqs).unwrap();
+        let loaded_seqs = introspector.get_sequences_for_schema(&conn, "c1", "db1", "public").unwrap();
+        assert_eq!(loaded_seqs.len(), 1);
+        assert_eq!(loaded_seqs[0].name, "users_id_seq");
+        assert_eq!(loaded_seqs[0].last_value, None);
+
+        // Test constraints
+        let consts = vec![MetaConstraint {
+            connection_id: "c1".to_string(),
+            database: "db1".to_string(),
+            schema: "public".to_string(),
+            table_name: "users".to_string(),
+            name: "users_pkey".to_string(),
+            kind: ConstraintKind::PrimaryKey,
+            definition: "PRIMARY KEY (id)".to_string(),
+            columns: vec!["id".to_string()],
+        }];
+        introspector.save_constraints_internal(&conn, 1, &consts).unwrap();
+        let loaded_consts = introspector.get_constraints_for_table(&conn, "c1", "db1", "public", "users").unwrap();
+        assert_eq!(loaded_consts.len(), 1);
+        assert_eq!(loaded_consts[0].name, "users_pkey");
+        assert!(matches!(loaded_consts[0].kind, ConstraintKind::PrimaryKey));
     }
 }
