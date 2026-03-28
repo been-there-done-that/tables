@@ -715,3 +715,266 @@ LIMIT 100 OFFSET 0
         }
     }
 }
+
+#[cfg(test)]
+mod pg_extension_tests {
+    use super::*;
+    use sql_scope::{ScopeDiagnostic, DiagSeverity, run_diagnostics, Dialect};
+
+    fn diagnostics(sql: &str, schema: &SchemaGraph) -> Vec<ScopeDiagnostic> {
+        let scope_tree = sql_scope::resolve(sql, Dialect::Postgres, schema)
+            .unwrap_or_default();
+        run_diagnostics(&scope_tree, schema, sql)
+    }
+
+    fn no_warnings(diags: &[ScopeDiagnostic]) -> bool {
+        diags.iter().all(|d| d.severity != DiagSeverity::Warning)
+    }
+
+    // ------------------------------------------------------------------
+    // JSONB operators: ->, ->>, @>, ?, ?|, ?&
+    // ------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn pg_ext1_jsonb_arrow_operator_no_crash() {
+        let schema = pg_schema().await;
+        let sql = r#"SELECT u.id, u.metadata->>'subscription_tier' AS tier
+FROM users u
+WHERE u.metadata->>'locale' = 'en'
+  AND u.metadata @> '{"active": true}'::jsonb"#;
+        let diags = diagnostics(sql, schema);
+        assert!(no_warnings(&diags),
+            "JSONB operators should not produce warnings, got: {:?}", diags);
+    }
+
+    #[tokio::test]
+    async fn pg_ext2_jsonb_in_cte_no_false_positive() {
+        let schema = pg_schema().await;
+        let sql = r#"WITH json_summary AS (
+    SELECT u.id, u.email,
+           jsonb_build_object('name', u.name, 'locale', u.metadata->>'locale') AS summary
+    FROM users u
+    WHERE u.metadata ? 'subscription_tier'
+)
+SELECT js.id, js.email, js.summary FROM json_summary js"#;
+        let diags = diagnostics(sql, schema);
+        assert!(no_warnings(&diags),
+            "jsonb_build_object CTE should produce no warnings, got: {:?}", diags);
+    }
+
+    #[tokio::test]
+    async fn pg_ext3_jsonb_dot_completion_in_cte_body() {
+        let schema = pg_schema().await;
+        let sql = r#"WITH enriched AS (
+    SELECT u.|
+    FROM users u
+    WHERE u.metadata @> '{"premium": true}'::jsonb
+)
+SELECT * FROM enriched"#;
+        let labels = complete_labels(sql, schema);
+        assert!(has_labels(&labels, &["id", "email", "name", "metadata", "tags"]),
+            "JSONB WHERE clause should not break column completion, got: {:?}", labels);
+    }
+
+    // ------------------------------------------------------------------
+    // Array operators: @>, &&, = ANY(...)
+    // ------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn pg_ext4_array_operators_no_crash() {
+        let schema = pg_schema().await;
+        let sql = r#"SELECT u.id, u.email, u.tags
+FROM users u
+WHERE u.tags @> ARRAY['premium']
+  AND u.tags && ARRAY['active', 'verified']
+  AND 'admin' = ANY(u.tags)"#;
+        let diags = diagnostics(sql, schema);
+        assert!(no_warnings(&diags),
+            "Array operators should produce no warnings, got: {:?}", diags);
+    }
+
+    #[tokio::test]
+    async fn pg_ext5_array_in_cte_body_completion_works() {
+        let schema = pg_schema().await;
+        let sql = r#"WITH tagged_users AS (
+    SELECT u.id, u.email, array_length(u.tags, 1) AS tag_count
+    FROM users u
+    WHERE u.tags && ARRAY['premium']
+)
+SELECT tu.| FROM tagged_users tu"#;
+        let labels = complete_labels(sql, schema);
+        assert!(has_labels(&labels, &["id", "email", "tag_count"]),
+            "CTE with array ops should project columns correctly, got: {:?}", labels);
+    }
+
+    // ------------------------------------------------------------------
+    // pg_trgm: % operator, similarity()
+    // ------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn pg_ext6_trgm_similarity_in_where_no_crash() {
+        let schema = pg_schema().await;
+        let sql = r#"SELECT p.id, p.name, similarity(p.name, 'laptop') AS score
+FROM sales.products p
+WHERE p.name % 'laptop'
+ORDER BY score DESC"#;
+        let diags = diagnostics(sql, schema);
+        assert!(no_warnings(&diags),
+            "pg_trgm % operator should not crash or warn, got: {:?}", diags);
+    }
+
+    #[tokio::test]
+    async fn pg_ext7_trgm_inside_cte_completion_works() {
+        let schema = pg_schema().await;
+        let sql = r#"WITH fuzzy_products AS (
+    SELECT p.id, p.name, p.price, similarity(p.name, 'phone') AS match_score
+    FROM sales.products p
+    WHERE p.name % 'phone'
+)
+SELECT fp.| FROM fuzzy_products fp"#;
+        let labels = complete_labels(sql, schema);
+        assert!(has_labels(&labels, &["id", "name", "price", "match_score"]),
+            "CTE with trgm should project columns correctly, got: {:?}", labels);
+    }
+
+    // ------------------------------------------------------------------
+    // LTREE: @>, <@, ~ (lquery)
+    // ------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn pg_ext8_ltree_operators_no_crash() {
+        let schema = pg_schema().await;
+        let sql = r#"SELECT c.id, c.name, c.path
+FROM sales.categories c
+WHERE c.path <@ 'Electronics'::ltree
+  AND c.path ~ '*.Phones.*'"#;
+        let diags = diagnostics(sql, schema);
+        assert!(no_warnings(&diags),
+            "LTREE operators should not crash or warn, got: {:?}", diags);
+    }
+
+    #[tokio::test]
+    async fn pg_ext9_ltree_inside_cte_completion_works() {
+        let schema = pg_schema().await;
+        let sql = r#"WITH phone_categories AS (
+    SELECT c.id, c.name, c.path, c.parent_id
+    FROM sales.categories c
+    WHERE c.path ~ '*.Phones.*'
+)
+SELECT pc.| FROM phone_categories pc"#;
+        let labels = complete_labels(sql, schema);
+        assert!(has_labels(&labels, &["id", "name", "path", "parent_id"]),
+            "LTREE CTE should project columns, got: {:?}", labels);
+    }
+
+    // ------------------------------------------------------------------
+    // PostgreSQL-specific syntax: DISTINCT ON, FILTER, WITHIN GROUP
+    // ------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn pg_ext10_distinct_on_no_crash() {
+        let schema = pg_schema().await;
+        let sql = r#"SELECT DISTINCT ON (o.user_id)
+    o.user_id, o.id AS order_id, o.total_amount, o.created_at
+FROM sales.orders o
+ORDER BY o.user_id, o.created_at DESC"#;
+        let diags = diagnostics(sql, schema);
+        assert!(no_warnings(&diags),
+            "DISTINCT ON should not produce warnings, got: {:?}", diags);
+    }
+
+    #[tokio::test]
+    async fn pg_ext11_filter_aggregate_no_crash() {
+        let schema = pg_schema().await;
+        let sql = r#"SELECT
+    o.user_id,
+    COUNT(o.id) AS total,
+    COUNT(o.id) FILTER (WHERE o.status = 'completed') AS completed,
+    SUM(o.total_amount) FILTER (WHERE o.status != 'cancelled') AS revenue
+FROM sales.orders o
+GROUP BY o.user_id"#;
+        let diags = diagnostics(sql, schema);
+        assert!(no_warnings(&diags),
+            "FILTER aggregate should not produce warnings, got: {:?}", diags);
+    }
+
+    #[tokio::test]
+    async fn pg_ext12_percentile_within_group_no_crash() {
+        let schema = pg_schema().await;
+        let sql = r#"SELECT
+    o.user_id,
+    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY o.total_amount) AS median_order,
+    PERCENTILE_DISC(0.9) WITHIN GROUP (ORDER BY o.total_amount) AS p90_order
+FROM sales.orders o
+GROUP BY o.user_id"#;
+        let diags = diagnostics(sql, schema);
+        assert!(no_warnings(&diags),
+            "WITHIN GROUP aggregate should not produce warnings, got: {:?}", diags);
+    }
+
+    #[tokio::test]
+    async fn pg_ext13_all_window_functions_in_cte_no_crash() {
+        let schema = pg_schema().await;
+        let sql = r#"WITH ranked_orders AS (
+    SELECT
+        o.id, o.user_id, o.total_amount, o.created_at,
+        ROW_NUMBER()   OVER (PARTITION BY o.user_id ORDER BY o.created_at DESC) AS rn,
+        RANK()         OVER (PARTITION BY o.user_id ORDER BY o.total_amount DESC) AS amt_rank,
+        DENSE_RANK()   OVER (ORDER BY o.total_amount DESC) AS global_rank,
+        PERCENT_RANK() OVER (ORDER BY o.total_amount)      AS pct_rank,
+        NTILE(4)       OVER (ORDER BY o.total_amount)      AS quartile,
+        LAG(o.total_amount, 1, 0)  OVER (PARTITION BY o.user_id ORDER BY o.created_at) AS prev_order,
+        LEAD(o.total_amount, 1, 0) OVER (PARTITION BY o.user_id ORDER BY o.created_at) AS next_order,
+        FIRST_VALUE(o.total_amount) OVER (PARTITION BY o.user_id ORDER BY o.created_at
+            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS first_order,
+        SUM(o.total_amount) OVER (PARTITION BY o.user_id
+            ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS rolling_3
+    FROM sales.orders o
+)
+SELECT ro.| FROM ranked_orders ro WHERE ro.rn = 1"#;
+        let diags = diagnostics(sql, schema);
+        assert!(no_warnings(&diags),
+            "Window functions in CTE should not produce warnings, got: {:?}", diags);
+        let labels = complete_labels(sql, schema);
+        assert!(has_labels(&labels,
+            &["id", "user_id", "total_amount", "rn", "amt_rank", "global_rank",
+              "prev_order", "next_order", "rolling_3"]),
+            "Window function CTE should project all named columns, got: {:?}", labels);
+    }
+
+    #[tokio::test]
+    async fn pg_ext14_union_all_cte_no_false_positive() {
+        let schema = pg_schema().await;
+        let sql = r#"WITH all_activity AS (
+    SELECT user_id, created_at, 'order' AS activity_type
+    FROM sales.orders
+    UNION ALL
+    SELECT user_id, created_at, event_type AS activity_type
+    FROM events
+    UNION ALL
+    SELECT user_id, created_at, operation AS activity_type
+    FROM audit_log
+)
+SELECT aa.user_id, aa.created_at, aa.activity_type
+FROM all_activity aa
+ORDER BY aa.created_at DESC"#;
+        let diags = diagnostics(sql, schema);
+        assert!(no_warnings(&diags),
+            "UNION ALL CTE should not produce warnings, got: {:?}", diags);
+    }
+
+    #[tokio::test]
+    async fn pg_ext15_cross_schema_multi_join_completion() {
+        let schema = pg_schema().await;
+        let sql = r#"SELECT s.|
+FROM hr.employees e
+JOIN users u ON e.user_id = u.id
+JOIN sales.orders o ON o.user_id = u.id
+JOIN sales.order_items oi ON oi.order_id = o.id
+JOIN sales.products p ON oi.product_id = p.id
+JOIN inventory.stock s ON s.product_id = p.id"#;
+        let labels = complete_labels(sql, schema);
+        assert!(has_labels(&labels, &["id", "product_id", "warehouse_id", "quantity", "reserved_quantity"]),
+            "Cross-schema 6-table join: should see inventory.stock columns, got: {:?}", labels);
+    }
+}
