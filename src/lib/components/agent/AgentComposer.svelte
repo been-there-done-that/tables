@@ -21,7 +21,7 @@
     import { windowState } from "$lib/stores/window.svelte";
     import { settingsStore } from "$lib/stores/settings.svelte";
     import { invoke } from "@tauri-apps/api/core";
-    import { PROVIDER_CONFIGS, defaultModel } from "$lib/agent/providers";
+    import { PROVIDER_CONFIGS } from "$lib/agent/providers";
 
     interface Props {
         onSend: (displayText: string, fullText: string, rawDoc: unknown) => void;

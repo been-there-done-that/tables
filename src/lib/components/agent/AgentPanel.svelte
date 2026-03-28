@@ -567,6 +567,7 @@
                 settingsStore.queryApproval = settingsStore.queryApproval === "ask" ? "auto" : "ask";
             }}
             queryApproval={settingsStore.queryApproval}
+            provider={settingsStore.aiProvider}
         />
     {/if}
 </div>
