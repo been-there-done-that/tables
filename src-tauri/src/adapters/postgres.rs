@@ -13,7 +13,8 @@ use crate::adapter::{
     AdapterError, DatabaseAdapter, DatabaseCapabilities, TableRef,
 };
 use crate::introspection::{
-    MetaColumn, MetaDatabase, MetaForeignKey, MetaIndex, MetaSchema, MetaTable, MetaTrigger,
+    MetaColumn, MetaDatabase, MetaForeignKey, MetaFunction, MetaIndex, MetaSchema, MetaSequence,
+    MetaConstraint, MetaTable, MetaTrigger, FunctionKind, ConstraintKind,
     compute_fk_hash,
 };
 
@@ -1000,6 +1001,180 @@ impl DatabaseAdapter for PostgresAdapter {
             }
         }
         Ok(triggers)
+    }
+
+    async fn list_functions(&self, database: &str, schema: &str) -> Result<Vec<MetaFunction>, AdapterError> {
+        self.ensure_connected(database).await?;
+        let state_guard = self.state.lock().await;
+        let client = &state_guard.as_ref().unwrap().client;
+
+        let rows = client.query(
+            "SELECT
+                 p.oid::bigint,
+                 p.proname,
+                 l.lanname,
+                 CASE p.prokind
+                     WHEN 'f' THEN 'Function'
+                     WHEN 'p' THEN 'Procedure'
+                     WHEN 'a' THEN 'Aggregate'
+                     WHEN 'w' THEN 'Window'
+                     ELSE 'Function'
+                 END,
+                 COALESCE(pg_catalog.pg_get_function_result(p.oid), ''),
+                 COALESCE(pg_catalog.pg_get_functiondef(p.oid), ''),
+                 p.prosecdef,
+                 CASE p.provolatile
+                     WHEN 'i' THEN 'immutable'
+                     WHEN 's' THEN 'stable'
+                     ELSE 'volatile'
+                 END
+             FROM pg_proc p
+             JOIN pg_namespace n ON p.pronamespace = n.oid
+             JOIN pg_language l ON p.prolang = l.oid
+             WHERE n.nspname = $1
+             ORDER BY p.proname, p.oid",
+            &[&schema],
+        ).await.map_err(|e| AdapterError::Query(format!("Failed to list functions in {}: {}", schema, e)))?;
+
+        let mut functions = Vec::new();
+        for row in rows {
+            let oid: i64 = row.get(0);
+            let name: String = row.get(1);
+            let language: String = row.get(2);
+            let kind_str: String = row.get(3);
+            let return_type: String = row.get(4);
+            let definition: String = row.get(5);
+            let security_definer: bool = row.get(6);
+            let volatility: String = row.get(7);
+
+            let kind = match kind_str.as_str() {
+                "Procedure" => FunctionKind::Procedure,
+                "Aggregate" => FunctionKind::Aggregate,
+                "Window" => FunctionKind::Window,
+                _ => FunctionKind::Function,
+            };
+
+            functions.push(MetaFunction {
+                connection_id: String::new(),
+                database: database.to_string(),
+                schema: schema.to_string(),
+                name,
+                oid,
+                language,
+                kind,
+                return_type,
+                arguments: vec![],
+                definition,
+                security_definer,
+                volatility,
+            });
+        }
+        Ok(functions)
+    }
+
+    async fn list_sequences(&self, database: &str, schema: &str) -> Result<Vec<MetaSequence>, AdapterError> {
+        self.ensure_connected(database).await?;
+        let state_guard = self.state.lock().await;
+        let client = &state_guard.as_ref().unwrap().client;
+
+        let rows = client.query(
+            "SELECT
+                 sequencename,
+                 data_type::text,
+                 start_value,
+                 min_value,
+                 max_value,
+                 increment_by,
+                 cycle,
+                 cache_size,
+                 last_value
+             FROM pg_sequences
+             WHERE schemaname = $1
+             ORDER BY sequencename",
+            &[&schema],
+        ).await.map_err(|e| AdapterError::Query(format!("Failed to list sequences in {}: {}", schema, e)))?;
+
+        let mut sequences = Vec::new();
+        for row in rows {
+            sequences.push(MetaSequence {
+                connection_id: String::new(),
+                database: database.to_string(),
+                schema: schema.to_string(),
+                name: row.get(0),
+                data_type: row.get(1),
+                start_value: row.get(2),
+                min_value: row.get(3),
+                max_value: row.get(4),
+                increment_by: row.get(5),
+                cycle: row.get(6),
+                cache_size: row.get(7),
+                last_value: row.get(8),
+            });
+        }
+        Ok(sequences)
+    }
+
+    async fn list_constraints(&self, table: &TableRef) -> Result<Vec<MetaConstraint>, AdapterError> {
+        self.ensure_connected(&table.database).await?;
+        let state_guard = self.state.lock().await;
+        let client = &state_guard.as_ref().unwrap().client;
+
+        let rows = client.query(
+            "SELECT
+                 c.conname,
+                 CASE c.contype
+                     WHEN 'p' THEN 'PrimaryKey'
+                     WHEN 'f' THEN 'ForeignKey'
+                     WHEN 'u' THEN 'Unique'
+                     WHEN 'c' THEN 'Check'
+                     WHEN 'x' THEN 'Exclusion'
+                     ELSE 'Check'
+                 END,
+                 COALESCE(pg_get_constraintdef(c.oid), ''),
+                 COALESCE(
+                     (SELECT json_agg(a.attname ORDER BY array_position(c.conkey, a.attnum))
+                      FROM pg_attribute a
+                      WHERE a.attrelid = c.conrelid AND a.attnum = ANY(c.conkey)),
+                     '[]'::json
+                 )::text
+             FROM pg_constraint c
+             JOIN pg_class t ON t.oid = c.conrelid
+             JOIN pg_namespace n ON n.oid = t.relnamespace
+             WHERE n.nspname = $1 AND t.relname = $2
+               AND c.contype IN ('p','f','u','c','x')
+             ORDER BY c.contype, c.conname",
+            &[&table.schema, &table.name],
+        ).await.map_err(|e| AdapterError::Query(format!("Failed to list constraints for {}.{}: {}", table.schema, table.name, e)))?;
+
+        let mut constraints = Vec::new();
+        for row in rows {
+            let name: String = row.get(0);
+            let kind_str: String = row.get(1);
+            let definition: String = row.get(2);
+            let columns_json: String = row.get(3);
+
+            let kind = match kind_str.as_str() {
+                "PrimaryKey" => ConstraintKind::PrimaryKey,
+                "ForeignKey" => ConstraintKind::ForeignKey,
+                "Unique" => ConstraintKind::Unique,
+                "Exclusion" => ConstraintKind::Exclusion,
+                _ => ConstraintKind::Check,
+            };
+
+            let columns: Vec<String> = serde_json::from_str(&columns_json).unwrap_or_default();
+
+            constraints.push(MetaConstraint {
+                connection_id: String::new(),
+                database: table.database.clone(),
+                schema: table.schema.clone(),
+                table_name: table.name.clone(),
+                name,
+                kind,
+                definition,
+                columns,
+            });
+        }
+        Ok(constraints)
     }
 }
 
