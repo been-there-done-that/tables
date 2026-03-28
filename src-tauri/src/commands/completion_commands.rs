@@ -83,7 +83,9 @@ fn build_scope_tree(
     // "WHERE   "  →  "        "   (removes the dangling WHERE)
     let s3 = {
         let before_upper = s2[..clamped].to_uppercase();
-        let clause_kws = [" WHERE", " HAVING", " ON ", " AND ", " OR "];
+        // NOTE: " ON " requires trailing space — but " ON" (mid-word, e.g. "r ON p")
+        // won't be in an incomplete position. " JOIN" handles the "r O" / "r ON" case.
+        let clause_kws = [" WHERE", " HAVING", " ON ", " AND ", " OR ", " JOIN"];
         let mut strip_from = clamped;
         for kw in &clause_kws {
             if let Some(pos) = before_upper.rfind(kw) {
