@@ -7,8 +7,8 @@ export interface ToolContext {
     connectionId: string;
     database: string;
     schema: string;
-    openInEditor: (sql: string, title: string, autoRun?: boolean) => void;
-    spawnSubagent?: (goal: string, model?: string) => Promise<string>;
+    openInEditor: (sql: string, title: string) => void;
+    executeQuery: (sql: string) => Promise<{ columns: string[]; rows: unknown[]; totalRows: number }>;
 }
 
 /**
@@ -95,8 +95,21 @@ async function executeTool(toolName: string, input: unknown, ctx: ToolContext): 
 
         case "run_query": {
             const sql = inp.sql as string;
-            ctx.openInEditor(sql, "Query", true);
-            return { opened: true, message: "Query opened in editor and running" };
+            ctx.openInEditor(sql, "Query");
+            try {
+                const { columns, rows, totalRows } = await ctx.executeQuery(sql);
+                const truncated = totalRows > 50;
+                return {
+                    columns,
+                    rows,
+                    rowCount: rows.length,
+                    totalRows,
+                    truncated,
+                    note: truncated ? `Showing first 50 of ${totalRows} rows. Use read_file on a write_file result or narrow the query for more.` : undefined,
+                };
+            } catch (e) {
+                return { error: String(e) };
+            }
         }
 
         case "sample_table": {
@@ -312,19 +325,6 @@ async function executeTool(toolName: string, input: unknown, ctx: ToolContext): 
                 executed_at: l.timestamp,
                 duration_ms: l.duration_ms,
             }));
-        }
-
-        case "spawn_subagent": {
-            const goal = inp.goal as string | undefined;
-            const model = inp.model as string | undefined;
-            if (!goal) return { error: "spawn_subagent requires a 'goal' field" };
-            if (!ctx.spawnSubagent) return { error: "spawn_subagent not available in this context" };
-            try {
-                const result = await ctx.spawnSubagent(goal, model);
-                return { result };
-            } catch (e) {
-                return { error: String(e) };
-            }
         }
 
         default:
