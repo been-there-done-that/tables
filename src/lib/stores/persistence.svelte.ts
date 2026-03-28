@@ -82,6 +82,7 @@ export const persistenceStore = {
                         data.results.loading = false;
                         data.results.pendingDeltas = [];
                         data.results.isCountLoading = false;
+                        data.results.fetchedAt = null;
                     }
                     return {
                         id: v.id,

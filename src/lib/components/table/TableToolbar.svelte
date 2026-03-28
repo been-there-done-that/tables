@@ -25,6 +25,24 @@
     import AutocompleteInput from "./AutocompleteInput.svelte";
     import type { Column } from "./types";
 
+    let now = $state(Date.now());
+    const clockId = setInterval(() => { now = Date.now(); }, 10_000);
+    onDestroy(() => clearInterval(clockId));
+
+    function formatFetchedAgo(fetchedAt: Date | null): string {
+        if (!fetchedAt) return "";
+        const secs = Math.floor((now - fetchedAt.getTime()) / 1000);
+        if (secs < 5) return "just now";
+        if (secs < 60) return `${secs}s ago`;
+        const mins = Math.floor(secs / 60);
+        if (mins < 60) return `${mins}m ago`;
+        const hrs = Math.floor(mins / 60);
+        const remMins = mins % 60;
+        return remMins > 0 ? `${hrs}h ${remMins}m ago` : `${hrs}h ago`;
+    }
+
+
+
     type ExportFormat = "csv" | "tsv" | "json" | "sql";
 
     interface Props {
@@ -47,6 +65,7 @@
         onOrderByChange?: (value: string) => void;
         isLoading?: boolean;
         executionTime?: number;
+        fetchedAt?: Date | null;
         onCancel?: () => void;
         onCountUpdate?: () => void;
         isCountLoading?: boolean;
@@ -85,6 +104,7 @@
         onOrderByChange,
         isLoading = false,
         executionTime = 0,
+        fetchedAt = null,
         onCancel,
         onCountUpdate,
         isCountLoading = false,
@@ -607,16 +627,18 @@
 
         <div class="w-px h-5 bg-border/50"></div>
 
-        <!-- Execution Time -->
+        <!-- Execution Time + Fetched At -->
         <span
-            class="text-[10px] text-muted-foreground mr-2 font-mono tabular-nums flex justify-between items-center gap-1"
+            class="text-[10px] text-muted-foreground mr-2 font-mono tabular-nums flex items-center gap-1.5"
         >
             <IconStopwatch class="size-4 opacity-70" />
-            <span>
-                {executionTime < 1000
+            <span>{executionTime < 1000
                     ? `${executionTime.toFixed(0)}ms`
-                    : `${(executionTime / 1000).toFixed(2)}s`}
-            </span>
+                    : `${(executionTime / 1000).toFixed(2)}s`}</span>
+            {#if fetchedAt}
+                <span class="text-muted-foreground/40">·</span>
+                <span class="text-muted-foreground/60">{formatFetchedAgo(fetchedAt)}</span>
+            {/if}
         </span>
     </div>
 
