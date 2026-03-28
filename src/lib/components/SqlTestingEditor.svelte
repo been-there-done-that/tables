@@ -278,6 +278,18 @@
         }
     });
 
+    // Jump to line range when agent clicks a read_file/write_file chip
+    $effect(() => {
+        const revealAt = view?.data?.revealAt as { start: number; end: number; seq: number } | undefined;
+        if (!revealAt || !editorHandle?.editor) return;
+        const ed = editorHandle.editor;
+        // seq dependency ensures re-execution even when revealing same line again
+        void revealAt.seq;
+        ed.revealLineInCenter(revealAt.start);
+        ed.setSelection(new monaco.Range(revealAt.start, 1, revealAt.end, ed.getModel()?.getLineMaxColumn(revealAt.end) ?? 9999));
+        ed.focus();
+    });
+
     const currentSchemas = $derived.by(() => {
         const dbName = schemaStore.selectedDatabase;
         if (!dbName) return [];

@@ -59,7 +59,7 @@
         const schema = schemaStore.activeSchema ?? "public";
         const openTabs = windowState.activeSession?.views
             .filter((v) => v.type === "editor")
-            .map((v) => v.title) ?? [];
+            .map((v) => ({ id: v.id, title: v.title })) ?? [];
         return buildSystemPrompt(
             schemaStore.databases,
             schemaStore.selectedDatabase,
@@ -270,13 +270,20 @@
         agentStore.setStatus("idle");
     }
 
-    function handleFocusFile(fileName: string) {
+    function handleFocusFile(fileId: string, lineStart?: number, lineEnd?: number) {
         const activeSess = windowState.activeSession;
         if (!activeSess) return;
-        const view = activeSess.views.find((v) => v.title === fileName);
-        if (view) {
-            activeSess.activeViewId = view.id;
-            windowState.layout.showSqlEditor = false;
+        // Try by UUID first, then fall back to title match
+        const view = activeSess.views.find((v) => v.id === fileId)
+            ?? activeSess.views.find((v) => v.title === fileId);
+        if (!view) return;
+        activeSess.activeViewId = view.id;
+        if (lineStart != null) {
+            view.data ??= {};
+            const prevSeq: number = (view.data as Record<string, unknown>).revealAt
+                ? ((view.data as Record<string, unknown>).revealAt as Record<string, unknown>).seq as number ?? 0
+                : 0;
+            (view.data as Record<string, unknown>).revealAt = { start: lineStart, end: lineEnd ?? lineStart, seq: prevSeq + 1 };
         }
     }
 

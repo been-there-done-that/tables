@@ -5,7 +5,7 @@ export function buildSystemPrompt(
     activeDb: string | null,
     engine: string | null,
     toolCtx?: { port: number; sessionId: string; schema: string },
-    openTabs?: string[],
+    openTabs?: Array<{ id: string; title: string }>,
 ): string {
     const engineLabel = engine ?? "SQL";
     const dbLabel = activeDb ?? "unknown";
@@ -14,7 +14,7 @@ export function buildSystemPrompt(
         ? buildToolInstructions(toolCtx.port, toolCtx.sessionId, toolCtx.schema)
         : "";
     const tabsSection = openTabs && openTabs.length > 0
-        ? `## Open Editor Tabs\n\nThe user currently has these files open:\n${openTabs.map((t) => `- ${t}`).join("\n")}\n\nUse read_file to read a tab's current content, or write_file to update it.\n\n`
+        ? `## Open Editor Tabs\n\nThe user currently has these files open:\n${openTabs.map((t) => `- ${t.title} (id: ${t.id})`).join("\n")}\n\nUse read_file or write_file with the id for precise targeting (avoids ambiguity when multiple tabs share a name).\n\n`
         : "";
 
     return `You are an expert ${engineLabel} database analyst integrated into Tables, a desktop database IDE.
@@ -54,10 +54,9 @@ Base URL: ${base}
 | \`find_nulls\` | \`table\`, \`schema?\` | Columns with unexpected NULLs |
 | \`get_distinct_values\` | \`table\`, \`column\`, \`schema?\`, \`limit?\` (default 20) | Top N distinct values |
 | \`check_fk_integrity\` | \`table\`, \`schema?\` | Orphaned FK rows |
-| \`open_in_editor\` | \`sql\`, \`title?\` | Open SQL in editor tab |
 | \`get_query_history\` | \`limit?\` (default 20) | Recent queries from editor |
-| \`read_file\` | \`fileName\` | Read current content of an open editor tab |
-| \`write_file\` | \`fileName\`, \`content\` | Write/update an editor tab with SQL content |
+| \`read_file\` | \`fileId?\`, \`fileName?\`, \`lineStart?\`, \`lineEnd?\` | Read content of an open tab; returns fileId for future reference |
+| \`write_file\` | \`fileId?\`, \`fileName\`, \`content\` | Create or update a tab; use fileId from a previous write_file response to update the same file precisely |
 
 Example (open query in editor):
 \`\`\`bash
@@ -78,16 +77,24 @@ curl -s -X POST ${base}/sample_table \\
 ## File Writing
 
 IMPORTANT: Never output SQL or code in your chat response text. Always use write_file to write or update files.
-If the user tagged a specific file with @ in their message, use that exact filename to update it in place.
+If the user tagged a specific file with @ in their message, use that file's id (visible in the Open Editor Tabs section) to update it precisely.
 Choose descriptive, lowercase filenames (e.g. "find-null-users.sql", "orders-30d-analysis.sql").
 
+First write (creates file):
 \`\`\`bash
 curl -s -X POST ${base}/write_file \\
   -H 'Content-Type: application/json' \\
   -d '{"fileName": "descriptive-name.sql", "content": "SELECT ..."}'
 \`\`\`
 
-Response: {"ok": true, "action": "created"|"updated", "fileName": "...", "lines": N}
+Subsequent update (use returned fileId to target the exact file):
+\`\`\`bash
+curl -s -X POST ${base}/write_file \\
+  -H 'Content-Type: application/json' \\
+  -d '{"fileId": "uuid-from-response", "fileName": "descriptive-name.sql", "content": "SELECT ..."}'
+\`\`\`
+
+Response: {"ok": true, "action": "created"|"updated", "fileId": "...", "fileName": "...", "lines": N}
 
 `;
 }

@@ -248,36 +248,55 @@ async function executeTool(toolName: string, input: unknown, ctx: ToolContext): 
         }
 
         case "open_in_editor": {
+            // Legacy alias — treat as write_file without running
             const sql = inp.sql as string;
             const title = (inp.title as string | undefined) ?? "Agent Query";
-            ctx.openInEditor(sql, title);
-            return { success: true };
+            const session = windowState.activeSession;
+            if (!session) return { success: true };
+            const newId = session.openView("editor", title, { content: sql });
+            return { success: true, fileId: newId, fileName: title };
         }
 
         case "read_file": {
-            const { fileName } = inp as { fileName: string };
+            const { fileId, fileName, lineStart, lineEnd } = inp as { fileId?: string; fileName?: string; lineStart?: number; lineEnd?: number };
             const session = windowState.activeSession;
             if (!session) return { error: "no active session" };
-            const view = session.views.find((v) => v.title === fileName);
-            if (!view) return { error: `File "${fileName}" is not open. Open tabs: ${session.views.filter(v => v.type === "editor").map(v => v.title).join(", ") || "none"}` };
-            const content: string = (view.data as Record<string, unknown>)?.content as string ?? "";
-            return { fileName, content, lines: content.split("\n").length };
+            const view = fileId
+                ? session.views.find((v) => v.id === fileId)
+                : session.views.find((v) => v.type === "editor" && v.title === fileName);
+            if (!view) {
+                const openFiles = session.views.filter(v => v.type === "editor").map(v => `${v.title} (id: ${v.id})`).join(", ") || "none";
+                return { error: `File not found. Open files: ${openFiles}` };
+            }
+            let content: string = (view.data as Record<string, unknown>)?.content as string ?? "";
+            const totalLines = content.split("\n").length;
+            if (lineStart != null) {
+                const end = lineEnd ?? lineStart;
+                const lines = content.split("\n");
+                content = lines.slice(lineStart - 1, end).join("\n");
+                return { fileId: view.id, fileName: view.title, content, lineStart, lineEnd: end, totalLines };
+            }
+            return { fileId: view.id, fileName: view.title, content, lines: totalLines };
         }
 
         case "write_file": {
-            const { fileName, content } = inp as { fileName: string; content: string };
+            const { fileId: targetId, fileName, content } = inp as { fileId?: string; fileName: string; content: string };
             const session = windowState.activeSession;
             if (!session) return { error: "no active session" };
 
-            const existing = session.views.find((v) => v.title === fileName);
+            const existing = targetId
+                ? session.views.find((v) => v.id === targetId)
+                : session.views.find((v) => v.title === fileName);
+
             if (existing) {
                 existing.data = existing.data ?? {};
                 (existing.data as Record<string, unknown>).content = content;
                 existing.streamingContent = undefined;
-                return { ok: true, action: "updated", fileName, lines: content.split("\n").length };
+                if (fileName && existing.title !== fileName) existing.title = fileName;
+                return { ok: true, action: "updated", fileId: existing.id, fileName: existing.title, lines: content.split("\n").length };
             } else {
-                session.openView("editor", fileName, { content });
-                return { ok: true, action: "created", fileName, lines: content.split("\n").length };
+                const newId = session.openView("editor", fileName, { content });
+                return { ok: true, action: "created", fileId: newId, fileName, lines: content.split("\n").length };
             }
         }
 
