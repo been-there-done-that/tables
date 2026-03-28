@@ -29,6 +29,8 @@
   import IconLoader from "@tabler/icons-svelte/icons/loader";
 
   import WindowControls from "$lib/components/WindowControls.svelte";
+  import UpdateChip from '$lib/components/UpdateChip.svelte';
+  import { updaterStore } from '$lib/stores/updater.svelte';
 
   let { isFullScreen } = $props();
   // let icons = $state(false);
@@ -177,6 +179,7 @@
 
       <!-- Right side actions -->
       <div class="flex items-center gap-3 pointer-events-auto">
+        <UpdateChip />
         {#if !["datasource-window", "appearance-window"].includes(windowState.label)}
           <button
             class="h-6 w-6 flex items-center justify-center rounded-md border transition-all hover:bg-(--theme-bg-hover) border-transparent"
@@ -336,6 +339,14 @@
         {/if}
       </div>
     </div>
+    {#if updaterStore.status === 'downloading'}
+      <div class="absolute bottom-0 left-0 right-0 h-[2px]" style="background: var(--theme-border-subtle);">
+        <div
+          class="h-full transition-[width] duration-200"
+          style="width: {updaterStore.downloadPercent}%; background: var(--theme-accent-primary);"
+        ></div>
+      </div>
+    {/if}
   </div>
 {/if}
 
