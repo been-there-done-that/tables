@@ -17,7 +17,7 @@ use crate::completion::document::Dialect;
 use crate::completion::context::Context;
 use crate::completion::schema::SchemaGraph;
 use crate::adapter::DatabaseCapabilities;
-use super::engine::CompletionItem;
+use crate::completion::items::CompletionItem;
 
 /// Trait for database-specific completion behavior.
 pub trait CompletionEngineVariant: Send + Sync {

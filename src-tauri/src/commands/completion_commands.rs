@@ -17,7 +17,7 @@ use crate::introspection::MetaDatabase;
 use crate::completion::schema::graph::{SchemaGraph, TableInfo, ColumnInfo, ForeignKey};
 use crate::completion::parsing::parse_sql;
 use crate::completion::context::Context;
-use crate::completion::engine::{CompletionItem, CompletionKind};
+use crate::completion::items::{CompletionItem, CompletionKind};
 use crate::completion::document::Dialect;
 use crate::completion::engines::create_engine;
 use crate::completion::ranges::{find_current_statement_range, find_all_statement_ranges, StatementRange, StatementRangeWithBytes};
