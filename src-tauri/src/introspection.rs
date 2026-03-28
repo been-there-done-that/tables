@@ -1039,6 +1039,8 @@ impl Introspector {
 
     fn save_constraints_internal(&self, conn: &SqliteConnection, table_id: i64, constraints: &[MetaConstraint]) -> Result<(), String> {
         if constraints.is_empty() { return Ok(()); }
+        conn.execute("DELETE FROM meta_constraints WHERE table_id = ?1", params![table_id])
+            .map_err(|e| format!("Failed to prune constraints for table_id {}: {}", table_id, e))?;
         for c in constraints {
             let kind_str = match c.kind {
                 ConstraintKind::PrimaryKey => "PrimaryKey",
