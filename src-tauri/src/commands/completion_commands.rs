@@ -23,6 +23,15 @@ use crate::completion::engines::create_engine;
 use crate::completion::ranges::{find_current_statement_range, find_all_statement_ranges, StatementRange, StatementRangeWithBytes};
 use crate::completion::diagnostics::{Diagnostic, DiagnosticEngine};
 
+/// Convert our Dialect to sql_scope::Dialect.
+fn dialect_to_sql_scope(dialect: Dialect) -> sql_scope::Dialect {
+    match dialect {
+        Dialect::Postgres => sql_scope::Dialect::Postgres,
+        Dialect::SQLite => sql_scope::Dialect::Sqlite,
+        Dialect::MySQL => sql_scope::Dialect::Mysql,
+    }
+}
+
 /// Shared state for completion.
 pub struct CompletionState {
     /// Cached SchemaGraph per connection (connection_id → SchemaGraph)
@@ -325,12 +334,7 @@ pub async fn request_completions(
         }
         
         // Build scope tree via sql_scope::resolve
-        let scope_dialect = match dialect {
-            Dialect::Postgres => sql_scope::Dialect::Postgres,
-            Dialect::SQLite => sql_scope::Dialect::Sqlite,
-            Dialect::MySQL => sql_scope::Dialect::Mysql,
-        };
-        let scope_tree = sql_scope::resolve(&text, scope_dialect, schema.as_ref())
+        let scope_tree = sql_scope::resolve(&text, dialect_to_sql_scope(dialect), schema.as_ref())
             .unwrap_or_else(|_| sql_scope::ScopeTree::new());
 
         // Analyze cursor context
@@ -418,4 +422,17 @@ pub async fn get_all_statements(
     }).await.map_err(|e| e.to_string())?;
 
     Ok(result)
+}
+
+#[cfg(test)]
+mod wire_tests {
+    use super::*;
+    use crate::completion::document::Dialect;
+
+    #[test]
+    fn dialect_conversion_covers_all_variants() {
+        assert!(matches!(dialect_to_sql_scope(Dialect::Postgres), sql_scope::Dialect::Postgres));
+        assert!(matches!(dialect_to_sql_scope(Dialect::SQLite), sql_scope::Dialect::Sqlite));
+        assert!(matches!(dialect_to_sql_scope(Dialect::MySQL), sql_scope::Dialect::Mysql));
+    }
 }
