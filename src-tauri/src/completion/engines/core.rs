@@ -357,7 +357,7 @@ impl CoreCompletionEngine {
         let mut seen_labels = HashSet::new();
 
         for (alias, source) in &scope_tree.visible_at(context.cursor_offset).sources {
-            if seen_labels.insert(alias.clone()) {
+            if seen_labels.insert(alias.to_lowercase()) {
                 items.push(CompletionItem {
                     label: alias.clone(),
                     kind: CompletionKind::Alias,
@@ -369,7 +369,7 @@ impl CoreCompletionEngine {
 
             if let Source::Cte { name: cte_name } = source {
                 for col_name in get_cte_columns(scope_tree, context.cursor_offset, cte_name) {
-                    if seen_labels.insert(col_name.clone()) {
+                    if seen_labels.insert(col_name.to_lowercase()) {
                         items.push(CompletionItem {
                             label: col_name.clone(),
                             kind: CompletionKind::Column,
@@ -381,7 +381,7 @@ impl CoreCompletionEngine {
                 }
             } else if let Some(table_name) = resolve_table_name(source) {
                 for col in schema.get_columns(table_name) {
-                    if seen_labels.insert(col.name.clone()) {
+                    if seen_labels.insert(col.name.to_lowercase()) {
                         items.push(CompletionItem {
                             label: col.name.clone(),
                             kind: CompletionKind::Column,

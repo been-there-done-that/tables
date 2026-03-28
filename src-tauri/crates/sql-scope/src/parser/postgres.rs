@@ -91,14 +91,26 @@ fn convert_cte(cte: &pg_query::protobuf::CommonTableExpr, sql: &str) -> CteIr {
     // for the whole WITH clause is on WithClause.recursive.
     let recursive = cte.cterecursive;
 
-    // Extract the inner SelectStmt body
+    // Extract the inner SelectStmt body.
+    // For UNION ALL recursive CTEs, pg_query represents the body as a SelectStmt
+    // with op != 0 (SetOperation::Union/Intersect/Except) — the anchor SELECT
+    // is in `larg`. We use the anchor branch so CTE column projection works.
     let body = cte
         .ctequery
         .as_ref()
         .and_then(|q| q.node.as_ref())
         .and_then(|n| {
             if let NodeEnum::SelectStmt(inner_sel) = n {
-                Some(Box::new(convert_select_body(inner_sel, sql)))
+                // op == 0 means plain SELECT; op != 0 means set operation — use larg (anchor)
+                let body_sel: &pg_query::protobuf::SelectStmt = if inner_sel.op != 0 {
+                    inner_sel
+                        .larg
+                        .as_deref()
+                        .unwrap_or(inner_sel)
+                } else {
+                    inner_sel
+                };
+                Some(Box::new(convert_select_body(body_sel, sql)))
             } else {
                 None
             }
@@ -875,5 +887,39 @@ mod tests {
         } else {
             panic!("Expected Select");
         }
+    }
+
+    // =========================================================================
+    // 24. Recursive CTE with UNION ALL — anchor branch column projection
+    // =========================================================================
+
+    #[test]
+    fn test_recursive_cte_union_all_anchor_columns() {
+        use crate::ir::{ParsedStatement, SelectItemIr};
+        let sql = r#"WITH RECURSIVE dept_tree AS (
+    SELECT id, name, parent_id, 0 AS depth
+    FROM departments
+    WHERE parent_id IS NULL
+    UNION ALL
+    SELECT d.id, d.name, d.parent_id, dt.depth + 1
+    FROM departments d
+    INNER JOIN dept_tree dt ON d.parent_id = dt.id
+)
+SELECT * FROM dept_tree"#;
+        let parsed = super::parse_postgres(sql).expect("parse failed");
+        let ParsedStatement::Select(sel) = parsed else { panic!("expected Select") };
+        let with = sel.with.expect("expected WITH clause");
+        assert_eq!(with.ctes.len(), 1);
+        let cte = &with.ctes[0];
+        assert_eq!(cte.name, "dept_tree");
+        // The anchor SELECT projects: id, name, parent_id, depth (alias on 0)
+        let aliases: Vec<Option<&str>> = cte.body.select_list.iter().map(|item| {
+            if let SelectItemIr::Expr { alias, .. } = item { alias.as_deref() } else { None }
+        }).collect();
+        assert!(aliases.contains(&Some("id")),     "anchor should project 'id', got {:?}", aliases);
+        assert!(aliases.contains(&Some("name")),   "anchor should project 'name', got {:?}", aliases);
+        assert!(aliases.contains(&Some("depth")),  "anchor should project 'depth', got {:?}", aliases);
+        // FROM clause should see departments
+        assert!(!cte.body.from.is_empty(), "anchor FROM should not be empty");
     }
 }
