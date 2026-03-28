@@ -233,9 +233,9 @@
         }
     }
 
-    async function send(displayText: string, fullText: string) {
+    async function send(displayText: string, fullText: string, docJson?: unknown) {
         if (!agentStore.session || agentStore.status === "running") return;
-        agentStore.addUserMessage(displayText);
+        agentStore.addUserMessage(displayText, docJson);
         agentStore.setStatus("running");
         streamingMsgId = null;
         startTurnTimer();
@@ -380,7 +380,7 @@
     {:else}
         <MessageList onRunQuery={handleRunQuery} />
         <AgentComposer
-            onSend={(displayText, fullText, _doc) => send(displayText, fullText)}
+            onSend={(displayText, fullText, doc) => send(displayText, fullText, doc)}
             onStop={stop}
             running={agentStore.status === "running"}
             disabled={!sessionReady || !!sessionError}

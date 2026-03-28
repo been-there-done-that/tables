@@ -9,6 +9,7 @@ export interface AgentMessage {
     thinking?: string;
     thinkingStreaming?: boolean;
     timestamp: number;
+    docJson?: unknown; // TipTap doc JSON for user messages with @chips
 }
 
 export interface AgentToolCall {
@@ -60,13 +61,14 @@ class AgentStore {
         }).catch((e) => console.error("[agentStore] persist tool call failed:", e));
     }
 
-    addUserMessage(text: string) {
+    addUserMessage(text: string, docJson?: unknown) {
         const msg: AgentMessage = {
             id: crypto.randomUUID(),
             role: "user",
             content: text,
             streaming: false,
             timestamp: Date.now(),
+            docJson,
         };
         this.messages.push(msg);
         this.persistMessage(msg);

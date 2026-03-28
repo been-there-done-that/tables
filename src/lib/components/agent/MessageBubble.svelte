@@ -3,6 +3,7 @@
     import type { AgentMessage } from "$lib/stores/agent.svelte";
     import { windowState } from "$lib/stores/window.svelte";
     import IconPlayerPlay from "@tabler/icons-svelte/icons/player-play-filled";
+    import { renderDocAsHtml } from "$lib/agent/doc-renderer";
 
     interface Props {
         message: AgentMessage;
@@ -51,10 +52,13 @@ ${runBtn}
 
 <div class="group flex flex-col {isUser ? 'items-end' : 'items-start'} gap-1 px-3 py-1">
     {#if isUser}
-        <div
-            class="max-w-[85%] rounded-2xl rounded-tr-sm bg-accent/15 px-3 py-1.5 text-[12px] text-foreground"
-        >
-            {message.content}
+        <div class="max-w-[85%] rounded-2xl rounded-tr-sm bg-accent/15 px-3 py-1.5 text-[12px] text-foreground leading-relaxed">
+            {#if message.docJson}
+                <!-- eslint-disable-next-line svelte/no-at-html-tags -->
+                {@html renderDocAsHtml(message.docJson)}
+            {:else}
+                {message.content}
+            {/if}
         </div>
     {:else}
         <!-- eslint-disable-next-line svelte/no-at-html-tags -->
