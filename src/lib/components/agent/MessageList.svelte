@@ -5,7 +5,6 @@
     import ThinkingBlock from "./ThinkingBlock.svelte";
     import IconLoader from "@tabler/icons-svelte/icons/loader-2";
     import IconClock from "@tabler/icons-svelte/icons/clock";
-    import IconRobot from "@tabler/icons-svelte/icons/robot";
 
     interface Props {
         onRunQuery?: (sql: string) => void;
@@ -129,18 +128,13 @@
                 {:else if entry.kind === "turn-summary"}
                     {@const s = entry.item}
                     <!-- Turn summary footer -->
-                    <div class="flex items-center gap-2 px-3 py-0.5 mt-0.5">
-                        <div class="h-px flex-1 bg-border/20"></div>
-                        <span class="flex items-center gap-1.5 text-[9.5px] text-muted-foreground/35 select-none">
-                            <IconClock size={9} />
-                            {formatDuration(s.totalMs)}
-                            {#if s.model}
-                                <span class="text-muted-foreground/20">·</span>
-                                <IconRobot size={9} />
-                                {shortModel(s.model)}
-                            {/if}
-                        </span>
-                        <div class="h-px flex-1 bg-border/20"></div>
+                    <div class="flex items-center gap-1.5 px-3 pb-1 pt-0.5 text-[9.5px] text-muted-foreground/35 select-none">
+                        <IconClock size={9} />
+                        {formatDuration(s.totalMs)}
+                        {#if s.model}
+                            <span>·</span>
+                            {shortModel(s.model)}
+                        {/if}
                     </div>
                 {/if}
             {/each}
