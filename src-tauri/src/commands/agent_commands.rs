@@ -381,6 +381,48 @@ pub fn list_agent_plans(
     rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
 }
 
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentPlanStepRow {
+    pub id: String,
+    pub plan_id: String,
+    pub phase: String,
+    pub description: String,
+    pub status: String,
+    pub tool_call_id: Option<String>,
+    pub position: i64,
+}
+
+#[tauri::command]
+pub fn list_plan_steps(
+    state: State<'_, DatabaseState>,
+    plan_id: String,
+) -> Result<Vec<AgentPlanStepRow>, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, plan_id, phase, description, status, tool_call_id, position
+             FROM agent_plan_steps WHERE plan_id = ?1 ORDER BY position ASC",
+        )
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map(params![plan_id], |row| {
+            Ok(AgentPlanStepRow {
+                id: row.get(0)?,
+                plan_id: row.get(1)?,
+                phase: row.get(2)?,
+                description: row.get(3)?,
+                status: row.get(4)?,
+                tool_call_id: row.get(5)?,
+                position: row.get(6)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+    Ok(rows)
+}
+
 #[tauri::command]
 pub fn add_plan_step(
     state: State<'_, DatabaseState>,

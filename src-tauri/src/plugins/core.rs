@@ -307,6 +307,7 @@ macro_rules! aggregate_plugin_commands {
             // Agent plan commands
             create_agent_plan,
             list_agent_plans,
+            list_plan_steps,
             add_plan_step,
             update_plan_step,
 

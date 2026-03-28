@@ -32,7 +32,8 @@ class PlansStore {
                 id: string; thread_id: string; title: string; status: string;
                 created_at: number; updated_at: number;
             }>>("list_agent_plans", { threadId });
-            this.plans = rows.map((r) => ({
+
+            const plans: AgentPlan[] = rows.map((r) => ({
                 id: r.id,
                 threadId: r.thread_id,
                 title: r.title,
@@ -40,6 +41,31 @@ class PlansStore {
                 steps: [],
                 createdAt: r.created_at,
             }));
+
+            // Rehydrate steps for each plan
+            await Promise.all(
+                plans.map(async (plan) => {
+                    try {
+                        const stepRows = await invoke<Array<{
+                            id: string; plan_id: string; phase: string; description: string;
+                            status: string; tool_call_id: string | null; position: number;
+                        }>>("list_plan_steps", { planId: plan.id });
+                        plan.steps = stepRows.map((s) => ({
+                            id: s.id,
+                            planId: s.plan_id,
+                            phase: s.phase as AgentPlanStep["phase"],
+                            description: s.description,
+                            status: s.status as AgentPlanStep["status"],
+                            toolCallId: s.tool_call_id,
+                            position: s.position,
+                        }));
+                    } catch (e) {
+                        console.error(`[plansStore] load steps for ${plan.id} failed:`, e);
+                    }
+                })
+            );
+
+            this.plans = plans;
         } catch (e) {
             console.error("[plansStore] load failed:", e);
             this.plans = [];

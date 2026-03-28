@@ -30,7 +30,9 @@
     );
 
     const matchedPlan = $derived(
-        planExtract.planXml != null ? (plansStore.plans[plansStore.plans.length - 1] ?? null) : null,
+        planExtract.planXml != null && message.planId != null
+            ? (plansStore.plans.find((p) => p.id === message.planId) ?? null)
+            : null,
     );
 
     // Parse markdown and inject "Run" buttons into SQL code blocks
