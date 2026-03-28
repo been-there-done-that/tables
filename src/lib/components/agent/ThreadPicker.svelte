@@ -77,7 +77,7 @@
             onclick={onNewThread}
         >
             <IconPlus size={11} />
-            <span>+ New session</span>
+            <span>New session</span>
         </Menu.Item>
     </Menu.Content>
 </Menu.Root>
