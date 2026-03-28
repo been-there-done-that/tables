@@ -26,11 +26,6 @@
     let tableDetailsCache = $state<Map<string, any>>(new Map());
     let loadingTables = $state<Set<string>>(new Set());
 
-    // Cache for schema-level objects (functions, sequences)
-    let functionsCache = $state<Map<string, any[]>>(new Map()); // key: "dbName:schemaName"
-    let sequencesCache = $state<Map<string, any[]>>(new Map());
-    let loadingSchemaObjects = $state<Set<string>>(new Set()); // key: "dbName:schemaName:type"
-
     // Ensure a session exists when schemaStore has an active connection
     $effect(() => {
         const conn = schemaStore.activeConnection;
@@ -66,11 +61,10 @@
             const views = schema.tables.filter((t: any) => t.table_type === "view");
             const matviews = schema.tables.filter((t: any) => t.table_type === "materialized_view" || t.table_type === "MATERIALIZED VIEW");
 
-            const cacheKey = `${db.name}:${schema.name}`;
-            const allFunctions = functionsCache.get(cacheKey) || [];
-            const functions = allFunctions.filter((f: any) => f.kind !== "Procedure");
-            const procedures = allFunctions.filter((f: any) => f.kind === "Procedure");
-            const sequences = sequencesCache.get(cacheKey) || [];
+            const allFunctions = schema.functions ?? [];
+            const functions = allFunctions.filter((f) => f.kind !== "Procedure");
+            const procedures = allFunctions.filter((f) => f.kind === "Procedure");
+            const sequences = schema.sequences ?? [];
 
             const children: TreeNode[] = [];
 
@@ -229,8 +223,8 @@
                     id: `constraints:${tableId}`,
                     name: "Constraints",
                     type: "group" as NodeType,
-                    count: cachedDetails.constraints?.length || 0,
-                    children: (cachedDetails.constraints || []).map((c: any) => ({
+                    count: table.constraints?.length || 0,
+                    children: (table.constraints ?? []).map((c: any) => ({
                         id: `constraint:${tableId}.${c.name}`,
                         name: c.name,
                         type: "constraint" as NodeType,
@@ -315,25 +309,17 @@
 
         try {
             console.time(`[LazyLoad] ${tableName}`);
-            const [details, constraints] = await Promise.all([
-                invoke<any>("get_schema_table_details", {
-                    connectionId: schemaStore.activeConnection?.id,
-                    database: dbName,
-                    schema: schemaName,
-                    tableName: tableName,
-                }),
-                invoke<any[]>("get_constraints", {
-                    connectionId: schemaStore.activeConnection?.id,
-                    database: dbName,
-                    schema: schemaName,
-                    tableName: tableName,
-                }).catch(() => []),
-            ]);
+            const details = await invoke<any>("get_schema_table_details", {
+                connectionId: schemaStore.activeConnection?.id,
+                database: dbName,
+                schema: schemaName,
+                tableName: tableName,
+            });
             console.timeEnd(`[LazyLoad] ${tableName}`);
 
             tableDetailsCache = new Map(tableDetailsCache).set(
                 cacheKey,
-                { ...details, constraints },
+                details,
             );
         } catch (e) {
             console.error(`Failed to load details for ${tableName}:`, e);
@@ -341,46 +327,6 @@
             loadingTables = new Set(
                 [...loadingTables].filter((k) => k !== cacheKey),
             );
-        }
-    }
-
-    async function loadFunctions(dbName: string, schemaName: string) {
-        const cacheKey = `${dbName}:${schemaName}`;
-        const loadKey = `${cacheKey}:functions`;
-        if (functionsCache.has(cacheKey) || loadingSchemaObjects.has(loadKey)) return;
-
-        loadingSchemaObjects = new Set([...loadingSchemaObjects, loadKey]);
-        try {
-            const fns = await invoke<any[]>("get_functions", {
-                connectionId: schemaStore.activeConnection?.id,
-                database: dbName,
-                schema: schemaName,
-            });
-            functionsCache = new Map(functionsCache).set(cacheKey, fns);
-        } catch (e) {
-            console.error(`Failed to load functions for ${schemaName}:`, e);
-        } finally {
-            loadingSchemaObjects = new Set([...loadingSchemaObjects].filter(k => k !== loadKey));
-        }
-    }
-
-    async function loadSequences(dbName: string, schemaName: string) {
-        const cacheKey = `${dbName}:${schemaName}`;
-        const loadKey = `${cacheKey}:sequences`;
-        if (sequencesCache.has(cacheKey) || loadingSchemaObjects.has(loadKey)) return;
-
-        loadingSchemaObjects = new Set([...loadingSchemaObjects, loadKey]);
-        try {
-            const seqs = await invoke<any[]>("get_sequences", {
-                connectionId: schemaStore.activeConnection?.id,
-                database: dbName,
-                schema: schemaName,
-            });
-            sequencesCache = new Map(sequencesCache).set(cacheKey, seqs);
-        } catch (e) {
-            console.error(`Failed to load sequences for ${schemaName}:`, e);
-        } finally {
-            loadingSchemaObjects = new Set([...loadingSchemaObjects].filter(k => k !== loadKey));
         }
     }
 
@@ -612,8 +558,6 @@
             case "refresh_schema": {
                 await schemaStore.refresh();
                 tableDetailsCache = new Map();
-                functionsCache = new Map();
-                sequencesCache = new Map();
                 break;
             }
 
@@ -635,22 +579,6 @@
                 tableName: string;
             };
             loadTableDetails(dbName, schemaName, tableName);
-        }
-
-        // NEW: lazy load schema-level objects when folder expanded
-        if (isOpen && node.type === "folder" && node.id) {
-            if (node.id.startsWith("folder:functions:") || node.id.startsWith("folder:procedures:")) {
-                const parts = node.id.split(":");
-                // id format: folder:functions:dbName:schemaName  or  folder:procedures:dbName:schemaName
-                const dbName = parts[2];
-                const schemaName = parts.slice(3).join(":"); // handle schema names with colons
-                loadFunctions(dbName, schemaName);
-            } else if (node.id.startsWith("folder:sequences:")) {
-                const parts = node.id.split(":");
-                const dbName = parts[2];
-                const schemaName = parts.slice(3).join(":");
-                loadSequences(dbName, schemaName);
-            }
         }
 
         if (activeSession) {

@@ -268,6 +268,8 @@ export interface MetaSchema {
   name: string;
   schema_type: "user" | "system";
   tables: MetaTable[];
+  functions: MetaFunction[];
+  sequences: MetaSequence[];
 }
 
 export interface MetaTable {
@@ -281,6 +283,8 @@ export interface MetaTable {
   columns: MetaColumn[];
   foreign_keys: MetaForeignKey[];
   indexes: MetaIndex[];
+  triggers?: MetaTrigger[];
+  constraints: MetaConstraint[];
 }
 
 // =========================================================================
@@ -399,5 +403,63 @@ export interface MetaIndex {
   table_name: string;
   index_name: string;
   is_unique: boolean;
+}
+
+export interface MetaFunctionArg {
+  name?: string;
+  data_type: string;
+  mode: 'In' | 'Out' | 'InOut' | 'Variadic' | 'Table';
+  default_value?: string;
+}
+
+export interface MetaFunction {
+  connection_id: string;
+  database: string;
+  schema: string;
+  name: string;
+  oid: number;
+  language: string;
+  kind: 'Function' | 'Procedure' | 'Aggregate' | 'Window';
+  return_type: string;
+  arguments: MetaFunctionArg[];
+  definition: string;
+  security_definer: boolean;
+  volatility: string;
+}
+
+export interface MetaSequence {
+  connection_id: string;
+  database: string;
+  schema: string;
+  name: string;
+  data_type: string;
+  start_value: number;
+  min_value: number;
+  max_value: number;
+  increment_by: number;
+  cycle: boolean;
+  cache_size: number;
+  last_value?: number;
+}
+
+export interface MetaConstraint {
+  connection_id: string;
+  database: string;
+  schema: string;
+  table_name: string;
+  name: string;
+  kind: 'PrimaryKey' | 'ForeignKey' | 'Unique' | 'Check' | 'Exclusion';
+  definition: string;
+  columns: string[];
+}
+
+export interface MetaTrigger {
+  connection_id: string;
+  database: string;
+  schema: string;
+  table_name: string;
+  trigger_name: string;
+  event: string;
+  timing: string;
 }
 
