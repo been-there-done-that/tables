@@ -139,6 +139,7 @@ mod invariant_tests {
             foreign_keys: vec![],
             indexes: vec![],
             triggers: vec![],
+            constraints: vec![],
         };
 
         // Invariant: All three parts of the qualified name must be present
