@@ -6,15 +6,21 @@
     import { FileChipNode, TableChipNode, ResultChipNode } from "$lib/agent/composer-nodes";
     import IconArrowUp from "@tabler/icons-svelte/icons/arrow-up";
     import IconSquare from "@tabler/icons-svelte/icons/square";
+    import IconCpu from "@tabler/icons-svelte/icons/cpu";
+    import IconBrain from "@tabler/icons-svelte/icons/brain";
+    import IconCheck from "@tabler/icons-svelte/icons/check";
+    import IconChevronDown from "@tabler/icons-svelte/icons/chevron-down";
     import ComposerDropdown from "./ComposerDropdown.svelte";
     import type { DropdownItem } from "./ComposerDropdown.svelte";
+    import * as Menu from "$lib/components/ui/dropdown-menu";
     import { composerStore } from "$lib/stores/composer.svelte";
     import { schemaStore } from "$lib/stores/schema.svelte";
     import { windowState } from "$lib/stores/window.svelte";
+    import { settingsStore } from "$lib/stores/settings.svelte";
     import { invoke } from "@tauri-apps/api/core";
 
     interface Props {
-        onSend: (text: string, rawDoc: unknown) => void;
+        onSend: (displayText: string, fullText: string, rawDoc: unknown) => void;
         onStop: () => void;
         running: boolean;
         disabled: boolean;
@@ -30,6 +36,27 @@
     let dropdownPos = $state({ x: 0, y: 0 });
     let triggerRange = $state<{ from: number; to: number } | null>(null);
     let dropdownRef: ComposerDropdown | null = $state(null);
+
+    const MODELS = [
+        { id: "claude-haiku-4-5-20251001", label: "Haiku 4.5" },
+        { id: "claude-sonnet-4-6",         label: "Sonnet 4.6" },
+        { id: "claude-opus-4-6",           label: "Opus 4.6" },
+    ] as const;
+
+    const EFFORTS = [
+        { id: "auto",   label: "Auto" },
+        { id: "low",    label: "Low" },
+        { id: "medium", label: "Medium" },
+        { id: "high",   label: "High" },
+        { id: "max",    label: "Max" },
+    ] as const;
+
+    const currentModelLabel = $derived(
+        MODELS.find((m) => m.id === settingsStore.aiModel)?.label ?? "Sonnet 4.6"
+    );
+    const currentEffortLabel = $derived(
+        EFFORTS.find((e) => e.id === settingsStore.aiEffort)?.label ?? "Auto"
+    );
 
     function buildDropdownItems(query: string): DropdownItem[] {
         const q = query.toLowerCase();
@@ -105,14 +132,14 @@
             element: editorEl,
             extensions: [
                 StarterKit.configure({}),
-                Placeholder.configure({ placeholder: "Ask Claude about your database..." }),
+                Placeholder.configure({ placeholder: "Ask anything… @mention a table, file, or query result" }),
                 FileChipNode,
                 TableChipNode,
                 ResultChipNode,
             ],
             editorProps: {
                 attributes: {
-                    class: "focus:outline-none min-h-[48px] max-h-[160px] overflow-y-auto text-sm text-foreground/90 leading-relaxed",
+                    class: "focus:outline-none min-h-[32px] max-h-[130px] overflow-y-auto text-[11.5px] text-foreground/90 leading-relaxed",
                     autocorrect: "off",
                     autocapitalize: "off",
                     autocomplete: "off",
@@ -144,23 +171,23 @@
                     const start = from - match[0].length;
                     triggerRange = { from: start, to: from };
                     dropdownItems = buildDropdownItems(query);
-                    dropdownVisible = true;
+                    dropdownVisible = dropdownItems.length > 0;
                     const coords = e.view.coordsAtPos(from);
-                    const DROPDOWN_WIDTH = 280; // max-w from ComposerDropdown
-                    const DROPDOWN_HEIGHT = 200; // approximate max height
+                    const DROPDOWN_WIDTH = 300;
+                    const DROPDOWN_HEIGHT = 220;
                     const vw = window.innerWidth;
-                    const vh = window.innerHeight;
 
                     let x = coords.left;
-                    let y = coords.bottom + 4;
-
+                    // Always anchor above the cursor — composer is at the bottom so
+                    // showing below would cover whatever the user is typing.
+                    let y = coords.top - DROPDOWN_HEIGHT - 4;
+                    // Clamp: if no room above, fall back to below
+                    if (y < 4) {
+                        y = coords.bottom + 4;
+                    }
                     // Clamp horizontally
                     if (x + DROPDOWN_WIDTH > vw) {
                         x = Math.max(0, vw - DROPDOWN_WIDTH - 8);
-                    }
-                    // If near bottom, show above cursor instead
-                    if (y + DROPDOWN_HEIGHT > vh) {
-                        y = coords.top - DROPDOWN_HEIGHT - 4;
                     }
 
                     dropdownPos = { x, y };
@@ -284,7 +311,7 @@
         // Re-check state after async resolution
         if (!editor || running) return;
         const fullText = contextXml ? `${contextXml}\n\n${prose}` : prose;
-        onSend(fullText, doc);
+        onSend(prose, fullText, doc);
     }
 
     export function insertContent(content: unknown) {
@@ -293,19 +320,80 @@
     }
 </script>
 
-<div class="border-t border-border/40 px-3 py-2.5">
+<div class="px-2.5 py-2">
     <!-- Unified composer container -->
-    <div class="rounded-xl border border-border/60 bg-background/80 transition-colors focus-within:border-border">
+    <div class="rounded-lg border border-border/60 bg-background/80 transition-colors focus-within:border-border">
         <!-- Editor area -->
         <div
             bind:this={editorEl}
-            class="px-3 pt-3 pb-1"
+            class="px-2.5 pt-2 pb-0.5"
         ></div>
         <!-- Bottom bar -->
-        <div class="flex items-center justify-between px-3 pb-2.5 pt-1">
-            <span class="select-none font-mono text-[10px] text-muted-foreground/35">
-                @ attach · ⌘L from editor
-            </span>
+        <div class="flex items-center justify-between px-2 pb-2 pt-1">
+            <div class="flex items-center gap-0.5">
+                <!-- Model picker -->
+                <Menu.Root>
+                    <Menu.Trigger>
+                        <button
+                            class="flex items-center gap-1 rounded px-1.5 py-1 text-[10.5px] text-muted-foreground/50 transition-colors hover:bg-foreground/5 hover:text-muted-foreground"
+                            title="Switch model"
+                        >
+                            <IconCpu size={11} />
+                            <span class="font-mono">{currentModelLabel}</span>
+                            <IconChevronDown size={9} class="opacity-50" />
+                        </button>
+                    </Menu.Trigger>
+                    <Menu.Content
+                        class="w-40 border border-border bg-background shadow-md p-1"
+                        align="start"
+                        side="top"
+                    >
+                        {#each MODELS as m}
+                            <Menu.Item
+                                class="flex items-center justify-between gap-2 px-2 py-1.5 text-[11px] font-mono rounded cursor-pointer"
+                                onclick={() => { settingsStore.aiModel = m.id; }}
+                            >
+                                {m.label}
+                                {#if settingsStore.aiModel === m.id}
+                                    <IconCheck size={11} class="shrink-0 text-accent" />
+                                {/if}
+                            </Menu.Item>
+                        {/each}
+                    </Menu.Content>
+                </Menu.Root>
+
+                <!-- Effort picker -->
+                <Menu.Root>
+                    <Menu.Trigger>
+                        <button
+                            class="flex items-center gap-1 rounded px-1.5 py-1 text-[10.5px] transition-colors hover:bg-foreground/5 {settingsStore.aiEffort !== 'auto' && settingsStore.aiEffort !== 'low' ? 'text-accent/70 hover:text-accent' : 'text-muted-foreground/50 hover:text-muted-foreground'}"
+                            title="Thinking effort"
+                        >
+                            <IconBrain size={11} />
+                            <span class="font-mono">{currentEffortLabel}</span>
+                            <IconChevronDown size={9} class="opacity-50" />
+                        </button>
+                    </Menu.Trigger>
+                    <Menu.Content
+                        class="w-36 border border-border bg-background shadow-md p-1"
+                        align="start"
+                        side="top"
+                    >
+                        {#each EFFORTS as ef}
+                            <Menu.Item
+                                class="flex items-center justify-between gap-2 px-2 py-1.5 text-[11px] font-mono rounded cursor-pointer"
+                                onclick={() => { settingsStore.aiEffort = ef.id; }}
+                            >
+                                {ef.label}
+                                {#if settingsStore.aiEffort === ef.id}
+                                    <IconCheck size={11} class="shrink-0 text-accent" />
+                                {/if}
+                            </Menu.Item>
+                        {/each}
+                    </Menu.Content>
+                </Menu.Root>
+            </div>
+
             <div class="flex items-center gap-1.5">
                 {#if running}
                     <button

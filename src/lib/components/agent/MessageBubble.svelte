@@ -52,14 +52,14 @@ ${runBtn}
 <div class="group flex flex-col {isUser ? 'items-end' : 'items-start'} gap-1 px-3 py-1">
     {#if isUser}
         <div
-            class="max-w-[85%] rounded-2xl rounded-tr-sm bg-accent/15 px-3.5 py-2 text-[13px] text-foreground"
+            class="max-w-[85%] rounded-2xl rounded-tr-sm bg-accent/15 px-3 py-1.5 text-[12px] text-foreground"
         >
             {message.content}
         </div>
     {:else}
         <!-- eslint-disable-next-line svelte/no-at-html-tags -->
         <div
-            class="agent-message w-full max-w-full text-[13px] text-foreground"
+            class="agent-message w-full max-w-full text-[12px] text-foreground"
             onclick={handleClick}
             role="presentation"
         >
