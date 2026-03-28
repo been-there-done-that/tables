@@ -8,7 +8,7 @@
 
     interface Props {
         onRunQuery?: (sql: string) => void;
-        onFocusFile?: (fileName: string) => void;
+        onFocusFile?: (fileId: string, lineStart?: number, lineEnd?: number) => void;
     }
 
     let { onRunQuery, onFocusFile }: Props = $props();

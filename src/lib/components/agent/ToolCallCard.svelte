@@ -12,7 +12,7 @@
     interface Props {
         toolCall: AgentToolCall;
         onRun?: (sql: string) => void;
-        onFocusFile?: (fileName: string) => void;
+        onFocusFile?: (fileId: string, lineStart?: number, lineEnd?: number) => void;
     }
 
     let { toolCall, onRun, onFocusFile }: Props = $props();
@@ -138,16 +138,22 @@
             <span class="font-mono text-[10.5px] text-muted-foreground/70">{toolCall.toolName}</span>
         </button>
 
-        {#if (toolCall.toolName === "write_file" || toolCall.toolName === "read_file") && (toolCall.input as Record<string, unknown>)?.fileName}
-            {@const fileName = (toolCall.input as Record<string, unknown>).fileName as string}
-            {#if onFocusFile}
+        {#if toolCall.toolName === "write_file" || toolCall.toolName === "read_file"}
+            {@const inp = toolCall.input as Record<string, unknown>}
+            {@const out = (() => { try { return JSON.parse(toolCall.output ?? "{}"); } catch { return {}; } })()}
+            {@const fileId = (out.fileId ?? inp.fileId ?? inp.fileName) as string | undefined}
+            {@const displayName = (inp.fileName ?? out.fileName ?? fileId ?? "") as string}
+            {@const lineStart = inp.lineStart as number | undefined}
+            {@const lineEnd = inp.lineEnd as number | undefined}
+            {@const lineLabel = lineStart != null ? `:${lineStart}${lineEnd != null && lineEnd !== lineStart ? `-${lineEnd}` : ""}` : ""}
+            {#if fileId && onFocusFile}
                 <button
-                    onclick={() => onFocusFile?.(fileName)}
+                    onclick={() => onFocusFile?.(fileId, lineStart, lineEnd)}
                     class="truncate font-mono text-[10.5px] text-accent/60 hover:text-accent hover:underline transition-colors"
-                    title="Open {fileName}"
-                > — {fileName}</button>
-            {:else}
-                <span class="truncate font-mono text-[10.5px] text-foreground/50"> — {fileName}</span>
+                    title="Jump to {displayName}{lineLabel}"
+                > — {displayName}{lineLabel}</button>
+            {:else if displayName}
+                <span class="truncate font-mono text-[10.5px] text-foreground/50"> — {displayName}{lineLabel}</span>
             {/if}
         {:else}
             <span class="flex-1"></span>
