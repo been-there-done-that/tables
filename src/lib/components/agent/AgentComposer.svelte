@@ -299,19 +299,45 @@
         return `<context>\n${xmlParts.join("\n")}\n</context>`;
     }
 
+    /** Build display text from the doc, preserving chip labels as @name inline. */
+    function docToDisplayText(doc: ReturnType<Editor["getJSON"]>): string {
+        const parts: string[] = [];
+        function walk(nodes: unknown[]): void {
+            for (const node of nodes ?? []) {
+                const n = node as Record<string, unknown>;
+                if (n.type === "text") {
+                    parts.push(n.text as string);
+                } else if (n.type === "fileChip") {
+                    parts.push(`@${(n.attrs as Record<string, unknown>).path}`);
+                } else if (n.type === "tableChip") {
+                    parts.push(`@${(n.attrs as Record<string, unknown>).tableName}`);
+                } else if (n.type === "resultChip") {
+                    parts.push(`@${(n.attrs as Record<string, unknown>).label}`);
+                } else if (n.content) {
+                    walk(n.content as unknown[]);
+                    if (["paragraph", "heading"].includes(n.type as string)) parts.push("\n");
+                }
+            }
+        }
+        walk(doc.content ?? []);
+        return parts.join("").trim();
+    }
+
     async function handleSend() {
         if (!editor || running || disabled) return;
-        const prose = editor.getText({ blockSeparator: "\n" }).trim();
-        if (!prose) return;
         const doc = editor.getJSON();
+        const displayText = docToDisplayText(doc);  // includes @chip labels
+        const prose = editor.getText({ blockSeparator: "\n" }).trim(); // plain text for agent body
+        if (!displayText) return;
 
         const contextXml = await resolveChips(doc);
         editor.commands.clearContent();
 
         // Re-check state after async resolution
         if (!editor || running) return;
-        const fullText = contextXml ? `${contextXml}\n\n${prose}` : prose;
-        onSend(prose, fullText, doc);
+        const agentBody = prose || displayText;
+        const fullText = contextXml ? `${contextXml}\n\n${agentBody}` : agentBody;
+        onSend(displayText, fullText, doc);
     }
 
     export function insertContent(content: unknown) {
