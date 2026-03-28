@@ -21,6 +21,7 @@
     import { windowState } from "$lib/stores/window.svelte";
     import { settingsStore } from "$lib/stores/settings.svelte";
     import { invoke } from "@tauri-apps/api/core";
+    import { PROVIDER_CONFIGS, defaultModel } from "$lib/agent/providers";
 
     interface Props {
         onSend: (displayText: string, fullText: string, rawDoc: unknown) => void;
@@ -31,9 +32,10 @@
         disabled: boolean;
         planMode: boolean;
         queryApproval: "auto" | "ask";
+        provider: string;
     }
 
-    let { onSend, onStop, onPlanModeToggle, onQueryApprovalToggle, running, disabled, planMode, queryApproval }: Props = $props();
+    let { onSend, onStop, onPlanModeToggle, onQueryApprovalToggle, running, disabled, planMode, queryApproval, provider }: Props = $props();
 
     let editorEl: HTMLDivElement;
     let editor: Editor | null = $state(null);
@@ -44,12 +46,6 @@
     let triggerRange = $state<{ from: number; to: number } | null>(null);
     let dropdownRef: ComposerDropdown | null = $state(null);
 
-    const MODELS = [
-        { id: "claude-haiku-4-5-20251001", label: "Haiku 4.5" },
-        { id: "claude-sonnet-4-6",         label: "Sonnet 4.6" },
-        { id: "claude-opus-4-6",           label: "Opus 4.6" },
-    ] as const;
-
     const EFFORTS = [
         { id: "auto",   label: "Auto" },
         { id: "low",    label: "Low" },
@@ -58,8 +54,11 @@
         { id: "max",    label: "Max" },
     ] as const;
 
+    const providerConfig = $derived(PROVIDER_CONFIGS[provider] ?? PROVIDER_CONFIGS.claude);
     const currentModelLabel = $derived(
-        MODELS.find((m) => m.id === settingsStore.aiModel)?.label ?? "Sonnet 4.6"
+        providerConfig.models.find((m) => m.id === settingsStore.aiModel)?.label
+        ?? providerConfig.models[0]?.label
+        ?? "Model"
     );
     const currentEffortLabel = $derived(
         EFFORTS.find((e) => e.id === settingsStore.aiEffort)?.label ?? "Auto"
@@ -364,14 +363,14 @@
         <!-- Bottom bar -->
         <div class="flex items-center justify-between px-2 pb-2 pt-1">
             <div class="flex items-center gap-0.5">
-                <!-- Plan mode toggle -->
+                <!-- Agent mode toggle -->
                 <button
                     onclick={onPlanModeToggle}
-                    title={planMode ? "Plan mode on — run_query requires your approval before executing" : "Plan mode off — all tools auto-execute"}
+                    title={planMode ? "Agent mode on — run_query requires your approval before executing" : "Agent mode off — all tools auto-execute"}
                     class="flex items-center gap-1 rounded px-1.5 py-1 text-[10.5px] transition-colors {planMode ? 'text-amber-400 hover:bg-amber-400/10' : 'text-muted-foreground/50 hover:bg-foreground/5 hover:text-muted-foreground'}"
                 >
-                    <IconMap size={11} />
-                    {#if planMode}<span class="font-mono">Plan</span>{/if}
+                    <IconMap size={13} />
+                    {#if planMode}<span class="font-mono">Agent</span>{/if}
                 </button>
 
                 <!-- Query approval toggle -->
@@ -381,73 +380,77 @@
                     class="flex items-center gap-1 rounded px-1.5 py-1 text-[10.5px] transition-colors {queryApproval === 'ask' ? 'text-amber-400 hover:bg-amber-400/10' : 'text-muted-foreground/50 hover:bg-foreground/5 hover:text-muted-foreground'}"
                 >
                     {#if queryApproval === "ask"}
-                        <IconShieldCheck size={11} />
+                        <IconShieldCheck size={13} />
                     {:else}
-                        <IconShield size={11} />
+                        <IconShield size={13} />
                     {/if}
                 </button>
 
-                <!-- Model picker -->
-                <Menu.Root>
-                    <Menu.Trigger>
-                        <button
-                            class="flex items-center gap-1 rounded px-1.5 py-1 text-[10.5px] text-muted-foreground/50 transition-colors hover:bg-foreground/5 hover:text-muted-foreground"
-                            title="Switch model"
-                        >
-                            <IconCpu size={11} />
-                            <span class="font-mono">{currentModelLabel}</span>
-                            <IconChevronDown size={9} class="opacity-50" />
-                        </button>
-                    </Menu.Trigger>
-                    <Menu.Content
-                        class="w-40 border border-border bg-background shadow-md p-1"
-                        align="start"
-                        side="top"
-                    >
-                        {#each MODELS as m}
-                            <Menu.Item
-                                class="flex items-center justify-between gap-2 px-2 py-1.5 text-[11px] font-mono rounded cursor-pointer"
-                                onclick={() => { settingsStore.aiModel = m.id; }}
+                <!-- Model picker (hidden for providers without model selection) -->
+                {#if providerConfig.supportsModel}
+                    <Menu.Root>
+                        <Menu.Trigger>
+                            <button
+                                class="flex items-center gap-1 rounded px-1.5 py-1 text-[10.5px] text-muted-foreground/50 transition-colors hover:bg-foreground/5 hover:text-muted-foreground"
+                                title="Switch model"
                             >
-                                {m.label}
-                                {#if settingsStore.aiModel === m.id}
-                                    <IconCheck size={11} class="shrink-0 text-accent" />
-                                {/if}
-                            </Menu.Item>
-                        {/each}
-                    </Menu.Content>
-                </Menu.Root>
+                                <IconCpu size={13} />
+                                <span class="font-mono">{currentModelLabel}</span>
+                                <IconChevronDown size={9} class="opacity-50" />
+                            </button>
+                        </Menu.Trigger>
+                        <Menu.Content
+                            class="w-40 border border-border bg-background shadow-md p-1"
+                            align="start"
+                            side="top"
+                        >
+                            {#each providerConfig.models as m}
+                                <Menu.Item
+                                    class="flex items-center justify-between gap-2 px-2 py-1.5 text-[11px] font-mono rounded cursor-pointer"
+                                    onclick={() => { settingsStore.aiModel = m.id; }}
+                                >
+                                    {m.label}
+                                    {#if settingsStore.aiModel === m.id}
+                                        <IconCheck size={11} class="shrink-0 text-accent" />
+                                    {/if}
+                                </Menu.Item>
+                            {/each}
+                        </Menu.Content>
+                    </Menu.Root>
+                {/if}
 
-                <!-- Effort picker -->
-                <Menu.Root>
-                    <Menu.Trigger>
-                        <button
-                            class="flex items-center gap-1 rounded px-1.5 py-1 text-[10.5px] transition-colors hover:bg-foreground/5 {settingsStore.aiEffort !== 'auto' && settingsStore.aiEffort !== 'low' ? 'text-accent/70 hover:text-accent' : 'text-muted-foreground/50 hover:text-muted-foreground'}"
-                            title="Thinking effort"
-                        >
-                            <IconBrain size={11} />
-                            <span class="font-mono">{currentEffortLabel}</span>
-                            <IconChevronDown size={9} class="opacity-50" />
-                        </button>
-                    </Menu.Trigger>
-                    <Menu.Content
-                        class="w-36 border border-border bg-background shadow-md p-1"
-                        align="start"
-                        side="top"
-                    >
-                        {#each EFFORTS as ef}
-                            <Menu.Item
-                                class="flex items-center justify-between gap-2 px-2 py-1.5 text-[11px] font-mono rounded cursor-pointer"
-                                onclick={() => { settingsStore.aiEffort = ef.id; }}
+                <!-- Effort picker (Claude only) -->
+                {#if providerConfig.supportsEffort}
+                    <Menu.Root>
+                        <Menu.Trigger>
+                            <button
+                                class="flex items-center gap-1 rounded px-1.5 py-1 text-[10.5px] transition-colors hover:bg-foreground/5 {settingsStore.aiEffort !== 'auto' && settingsStore.aiEffort !== 'low' ? 'text-accent/70 hover:text-accent' : 'text-muted-foreground/50 hover:text-muted-foreground'}"
+                                title="Thinking effort"
                             >
-                                {ef.label}
-                                {#if settingsStore.aiEffort === ef.id}
-                                    <IconCheck size={11} class="shrink-0 text-accent" />
-                                {/if}
-                            </Menu.Item>
-                        {/each}
-                    </Menu.Content>
-                </Menu.Root>
+                                <IconBrain size={13} />
+                                <span class="font-mono">{currentEffortLabel}</span>
+                                <IconChevronDown size={9} class="opacity-50" />
+                            </button>
+                        </Menu.Trigger>
+                        <Menu.Content
+                            class="w-36 border border-border bg-background shadow-md p-1"
+                            align="start"
+                            side="top"
+                        >
+                            {#each EFFORTS as ef}
+                                <Menu.Item
+                                    class="flex items-center justify-between gap-2 px-2 py-1.5 text-[11px] font-mono rounded cursor-pointer"
+                                    onclick={() => { settingsStore.aiEffort = ef.id; }}
+                                >
+                                    {ef.label}
+                                    {#if settingsStore.aiEffort === ef.id}
+                                        <IconCheck size={11} class="shrink-0 text-accent" />
+                                    {/if}
+                                </Menu.Item>
+                            {/each}
+                        </Menu.Content>
+                    </Menu.Root>
+                {/if}
             </div>
 
             <div class="flex items-center gap-1.5">
