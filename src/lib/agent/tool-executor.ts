@@ -298,20 +298,40 @@ async function executeTool(toolName: string, input: unknown, ctx: ToolContext): 
             const session = windowState.activeSession;
             if (!session) return { error: "no active session" };
 
-            const existing = targetId
-                ? session.views.find((v) => v.id === targetId)
-                : session.views.find((v) => v.title === fileName);
-
-            if (existing) {
-                existing.data = existing.data ?? {};
-                (existing.data as Record<string, unknown>).content = content;
-                existing.streamingContent = undefined;
-                if (fileName && existing.title !== fileName) existing.title = fileName;
-                return { ok: true, action: "updated", fileId: existing.id, fileName: existing.title, lines: content.split("\n").length };
-            } else {
-                const newId = session.openView("editor", fileName, { content });
-                return { ok: true, action: "created", fileId: newId, fileName, lines: content.split("\n").length };
+            // 1. Exact fileId match — highest priority
+            if (targetId) {
+                const byId = session.views.find((v) => v.id === targetId);
+                if (byId) {
+                    byId.data = byId.data ?? {};
+                    (byId.data as Record<string, unknown>).content = content;
+                    byId.streamingContent = undefined;
+                    if (fileName && byId.title !== fileName) byId.title = fileName;
+                    return { ok: true, action: "updated", fileId: byId.id, fileName: byId.title, lines: content.split("\n").length };
+                }
             }
+
+            // 2. Agent-scoped name match — only update agent-created files by name
+            const agentMatch = session.views.find(
+                (v) => v.type === "editor" && v.title === fileName && (v.data as Record<string, unknown>)?.source === "agent"
+            );
+            if (agentMatch) {
+                agentMatch.data = agentMatch.data ?? {};
+                (agentMatch.data as Record<string, unknown>).content = content;
+                agentMatch.streamingContent = undefined;
+                return { ok: true, action: "updated", fileId: agentMatch.id, fileName: agentMatch.title, lines: content.split("\n").length };
+            }
+
+            // 3. Create new agent-tagged file
+            const newId = session.openView("editor", fileName, { content, source: "agent" });
+            return { ok: true, action: "created", fileId: newId, fileName, lines: content.split("\n").length };
+        }
+
+        case "list_files": {
+            const session = windowState.activeSession;
+            if (!session) return [];
+            return session.views
+                .filter((v) => v.type === "editor" && (v.data as Record<string, unknown>)?.source === "agent")
+                .map((v) => ({ fileId: v.id, fileName: v.title }));
         }
 
         case "get_query_history": {
