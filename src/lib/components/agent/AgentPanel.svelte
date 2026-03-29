@@ -78,6 +78,8 @@
         return `${(ms / 1000).toFixed(1)}s`;
     }
 
+    const AI_SDK_PROVIDERS = new Set(["google", "openrouter"]);
+
     function buildPrompt(sessionId: string) {
         const conn = schemaStore.activeConnection!;
         const port = harnessStore.port ?? 0;
@@ -85,14 +87,22 @@
         const openTabs = windowState.activeSession?.views
             .filter((v) => v.type === "editor")
             .map((v) => ({ id: v.id, title: v.title })) ?? [];
+        // AI SDK providers use native function calling — no curl instructions needed
+        const useNativeFunctionCalling = AI_SDK_PROVIDERS.has(currentProvider);
         return buildSystemPrompt(
             schemaStore.databases,
             schemaStore.selectedDatabase,
             conn.engine,
-            port > 0 ? { port, sessionId, schema } : undefined,
+            (useNativeFunctionCalling || port <= 0) ? undefined : { port, sessionId, schema },
             openTabs,
             planMode,
         );
+    }
+
+    function buildProviderConfig(provider: string): Record<string, unknown> | undefined {
+        if (provider === "google")      return { apiKey: settingsStore.googleApiKey };
+        if (provider === "openrouter")  return { apiKey: settingsStore.openrouterApiKey };
+        return undefined;
     }
 
     async function startThread(thread: AgentThread) {
@@ -128,6 +138,7 @@
                 model: settingsStore.aiModel,
                 effort: settingsStore.aiEffort,
                 provider: thread.provider,
+                providerConfig: buildProviderConfig(thread.provider),
                 resumeSdkSessionId: thread.sdkSessionId ?? undefined,
                 onEvent: handleEvent,
                 abortController: ac,

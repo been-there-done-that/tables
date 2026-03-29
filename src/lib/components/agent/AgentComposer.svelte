@@ -55,6 +55,11 @@
     ] as const;
 
     const providerConfig = $derived(PROVIDER_CONFIGS[provider] ?? PROVIDER_CONFIGS.claude);
+    const apiKeySettingsKey = $derived(providerConfig.apiKeySettingsKey);
+    const hasApiKey = $derived(
+        !providerConfig.requiresApiKey ||
+        (apiKeySettingsKey ? !!settingsStore[apiKeySettingsKey] : true)
+    );
     const currentModelLabel = $derived(
         providerConfig.models.find((m) => m.id === settingsStore.aiModel)?.label
         ?? providerConfig.models[0]?.label
@@ -454,6 +459,21 @@
             </div>
 
             <div class="flex items-center gap-1.5">
+                <!-- API key input (shown when provider requires a key but none is set) -->
+                {#if providerConfig.requiresApiKey && !hasApiKey && apiKeySettingsKey}
+                    <div class="flex items-center gap-1">
+                        <input
+                            type="password"
+                            placeholder={providerConfig.apiKeyLabel ?? "API Key"}
+                            class="h-6 rounded border border-border bg-background px-2 text-[11px] font-mono text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-accent w-40"
+                            oninput={(e) => {
+                                if (apiKeySettingsKey) {
+                                    settingsStore[apiKeySettingsKey] = (e.target as HTMLInputElement).value;
+                                }
+                            }}
+                        />
+                    </div>
+                {/if}
                 {#if running}
                     <button
                         onclick={onStop}
