@@ -254,7 +254,7 @@
 
     <div class="flex items-center gap-2">
       {#if errorMessage}
-        <span class="text-xs text-red-400">{errorMessage}</span>
+        <span class="text-xs text-destructive">{errorMessage}</span>
       {/if}
       <button
         class={cn(
