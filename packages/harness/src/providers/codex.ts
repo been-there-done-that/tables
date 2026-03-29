@@ -2,13 +2,25 @@ import { tmpdir } from "os";
 import { JsonRpcAdapter } from "../adapters/jsonrpc-adapter";
 import type { HarnessEvent, SessionConfig } from "../types";
 
+// Only these item types represent actual tool calls — all others
+// (agentMessage, userMessage, reasoning, plan, etc.) are content, not tools.
+const TOOL_ITEM_TYPES = new Set([
+    "commandExecution",
+    "fileChange",
+    "fileRead",
+    "tool",
+    "mcp_tool",
+]);
+
 // Codex app-server JSON-RPC notification method → HarnessEvent mapping
-// Method names sourced from `codex app-server generate-ts` (v0.117.0)
 const NOTIFICATION_MAP: Record<string, (params: any) => HarnessEvent | null> = {
+    // ── Text content ──────────────────────────────────────────────────────────
     "item/agentMessage/delta": (p) => ({
         type: "text.delta",
         content: p?.delta ?? "",
     }),
+
+    // ── Reasoning / thinking ──────────────────────────────────────────────────
     "item/reasoning/textDelta": (p) => ({
         type: "thinking.delta",
         content: p?.delta ?? "",
@@ -17,29 +29,60 @@ const NOTIFICATION_MAP: Record<string, (params: any) => HarnessEvent | null> = {
         type: "thinking.delta",
         content: p?.delta ?? "",
     }),
+
+    // ── Live command output (stream while the command runs) ───────────────────
+    "item/commandExecution/outputDelta": (p) => {
+        const delta = p?.delta ?? "";
+        const itemId = p?.itemId ?? p?.item?.id ?? "";
+        if (!delta) return null;
+        return {
+            type: "tool.input_delta",
+            toolId: itemId,
+            toolName: "commandExecution",
+            partialContent: delta,
+        };
+    },
+
+    // ── Tool lifecycle ────────────────────────────────────────────────────────
     "item/started": (p) => {
-        // Only emit tool.started for non-message items (file changes, commands)
-        if (p?.item?.type && p.item.type !== "message") {
-            return {
-                type: "tool.started",
-                toolId: p.item.id ?? "",
-                toolName: p.item.type ?? "",
-                input: p.item.params ?? {},
-            };
+        const item = p?.item;
+        const itemType: string = item?.type ?? "";
+        if (!itemType || !TOOL_ITEM_TYPES.has(itemType)) return null;
+
+        // itemId: prefer params.itemId (top-level), fall back to item.id
+        const toolId = p?.itemId ?? item?.id ?? "";
+
+        // Extract meaningful input based on item type
+        let input: unknown = {};
+        if (itemType === "commandExecution") {
+            // command field can be top-level in params or nested in item.params
+            const command = p?.command ?? item?.params?.command ?? item?.command ?? "";
+            if (command) input = { command };
+        } else if (itemType === "fileChange" || itemType === "fileRead") {
+            const path = p?.path ?? item?.params?.path ?? item?.path ?? "";
+            if (path) input = { path };
+        } else {
+            input = item?.params ?? {};
         }
-        return null;
+
+        return { type: "tool.started", toolId, toolName: itemType, input };
     },
+
     "item/completed": (p) => {
-        if (p?.item?.type && p.item.type !== "message") {
-            return {
-                type: "tool.completed",
-                toolId: p.item.id ?? "",
-                output: typeof p.item.output === "string" ? p.item.output : JSON.stringify(p.item.output ?? ""),
-            };
-        }
-        return null;
+        const item = p?.item;
+        const itemType: string = item?.type ?? "";
+        if (!itemType || !TOOL_ITEM_TYPES.has(itemType)) return null;
+
+        const toolId = p?.itemId ?? item?.id ?? "";
+        const rawOutput = item?.output ?? p?.output ?? "";
+        const output = typeof rawOutput === "string" ? rawOutput : JSON.stringify(rawOutput);
+
+        return { type: "tool.completed", toolId, output };
     },
+
+    // ── Turn / session ────────────────────────────────────────────────────────
     "turn/completed": () => ({ type: "turn.done" }),
+
     "thread/started": (p) => ({
         type: "session.init",
         sdkSessionId: p?.thread?.id ?? "",
@@ -61,17 +104,13 @@ export class CodexProvider extends JsonRpcAdapter {
     }
 
     private async init() {
-        // 1. Send initialize with capabilities
         await this.sendRequest("initialize", {
             clientInfo: { name: "tables-harness", title: null, version: "1.0.0" },
             capabilities: { experimentalApi: false },
         });
 
-        // 2. Confirm initialization
         this.sendNotification("initialized");
 
-        // 3. Start a thread — system prompt goes in developerInstructions
-        //    experimentalRawEvents and persistExtendedHistory are required fields
         const response = await this.sendRequest<{ thread: { id: string } }>("thread/start", {
             cwd: tmpdir(),
             developerInstructions: this.config.systemPrompt || undefined,
@@ -112,7 +151,6 @@ export class CodexProvider extends JsonRpcAdapter {
             this.emitFn({ type: "error", message: "Codex session not ready" });
             return;
         }
-        // turn/start sends a user message and starts a new agent turn
         this.sendRequest("turn/start", {
             threadId: this.threadId,
             input: [{ type: "text", text, text_elements: [] }],
