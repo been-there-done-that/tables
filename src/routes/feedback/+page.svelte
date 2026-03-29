@@ -29,6 +29,7 @@
       systemInfo = await invoke<SystemInfo>("get_system_info");
     } catch (e) {
       console.error("[Feedback] Failed to get system info", e);
+      includeSystemInfo = false;
     }
   });
 
@@ -160,11 +161,11 @@
           >
             <div class="flex items-center justify-between px-3 py-2">
               <span class="flex items-center gap-1.5 text-xs font-medium text-(--theme-fg-secondary)">
-                📎 System info will be attached
+                📎 {includeSystemInfo ? "System info will be attached" : "System info removed"}
               </span>
               {#if includeSystemInfo}
                 <button
-                  class="text-xs text-red-400 hover:text-red-300 transition-colors"
+                  class="text-xs text-(--theme-fg-tertiary) hover:text-(--theme-fg-secondary) transition-colors"
                   onclick={() => (includeSystemInfo = false)}
                 >Remove</button>
               {:else}
