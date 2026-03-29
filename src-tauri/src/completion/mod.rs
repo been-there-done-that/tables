@@ -14,6 +14,7 @@ pub mod schema;
 pub mod ranges;
 pub mod diagnostics;
 pub mod engines;
+pub mod scope_builder;
 
 #[cfg(test)]
 pub mod tests;

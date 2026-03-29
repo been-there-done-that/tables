@@ -92,9 +92,14 @@ pub fn find_current_statement_range(tree: &Tree, text_source: &str, cursor_offse
         }
     }
     
-    // If cursor is after all nodes, check if close to last statement
+    // If cursor is after all nodes (past the final semicolon), highlight the last statement
+    // only if the gap between it and the cursor contains no newline.  Once the cursor crosses
+    // onto a new line the query is no longer "active".
     if let Some(ref last) = last_statement {
-        if cursor_offset <= last_statement_end_byte + 2 {
+        let gap_end = cursor_offset.min(text_source.len());
+        let gap_start = last_statement_end_byte.min(gap_end);
+        let gap = &text_source[gap_start..gap_end];
+        if !gap.contains('\n') && cursor_offset <= last_statement_end_byte + 2 {
             return Some(last.clone());
         }
     }

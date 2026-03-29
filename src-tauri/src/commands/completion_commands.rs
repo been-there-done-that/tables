@@ -22,94 +22,81 @@ use crate::completion::document::Dialect;
 use crate::completion::engines::create_engine;
 use crate::completion::ranges::{find_current_statement_range, find_all_statement_ranges, StatementRange, StatementRangeWithBytes};
 use crate::completion::diagnostics::{Diagnostic, DiagnosticEngine};
+use crate::completion::scope_builder::build_scope_tree;
 
-/// Build a scope tree using progressively more aggressive SQL sanitization so that
-/// incomplete SQL at the cursor doesn't block alias resolution.
+/// Extract the text and relative cursor offset of the statement that contains
+/// `cursor_offset` in the full editor text.
 ///
-/// pg_query fails to parse common in-progress patterns like:
-///   "WHERE t."          (incomplete qualified identifier)
-///   "WHERE t.id > 5 AND t."   (same, deeper in expression)
-///   "WHERE"             (clause keyword with nothing following)
+/// Returns `(stmt_text, stmt_cursor)`:
+/// - `stmt_text` — the isolated statement (may be incomplete at cursor).
+/// - `stmt_cursor` — cursor byte offset within `stmt_text`.
 ///
-/// We try three increasingly aggressive parses, all using space-substitution to
-/// preserve byte offsets so that `visible_at(cursor_offset)` still works.
-fn build_scope_tree(
+/// When the cursor falls **between** statements (blank line, between semicolons)
+/// returns `("", 0)` — callers treat this as a fresh/root context.
+fn extract_current_statement(
+    text: &str,
+    tree: Option<&tree_sitter::Tree>,
+    cursor_offset: usize,
+) -> (String, usize) {
+    let tree = match tree {
+        Some(t) => t,
+        None => return (String::new(), 0),
+    };
+
+    // Use find_all_statement_ranges which already filters semicolons and comments.
+    let ranges = find_all_statement_ranges(tree, text);
+
+    // Primary: cursor falls within [start_byte, end_byte] (tree-sitter end_byte is exclusive,
+    // so end_byte == cursor_offset means cursor is just past the last parsed char — still
+    // "inside" for completion purposes).
+    for r in &ranges {
+        if r.start_byte <= cursor_offset && r.end_byte >= cursor_offset {
+            let start = r.start_byte.min(text.len());
+            let end = r.end_byte.min(text.len());
+            return (text[start..end].to_string(), cursor_offset - start);
+        }
+    }
+
+    // Fallback: tree-sitter truncates end_byte on parse errors (e.g. trailing dot
+    // `WHERE o.` → the `.` becomes an error token, shrinking end_byte by 1).
+    // Find the last statement whose start_byte <= cursor.  If the gap between its
+    // end_byte and cursor contains no newline, the cursor is a continuation of that
+    // statement (not a fresh blank line between queries).
+    let fallback = ranges.iter()
+        .filter(|r| r.start_byte <= cursor_offset)
+        .max_by_key(|r| r.start_byte);
+
+    if let Some(r) = fallback {
+        let gap_start = r.end_byte.min(text.len());
+        let gap_end = cursor_offset.min(text.len());
+        let gap = &text[gap_start..gap_end];
+        if !gap.contains('\n') {
+            // Cursor is continuing this statement past what tree-sitter parsed.
+            // Extend to cursor_offset so the incomplete trailing text is included.
+            let start = r.start_byte.min(text.len());
+            let end = cursor_offset.min(text.len());
+            return (text[start..end].to_string(), cursor_offset - start);
+        }
+    }
+
+    // Cursor is on a blank line between statements → return empty so engine gives
+    // RootContext (SELECT / INSERT / WITH … keyword) suggestions.
+    (String::new(), 0)
+}
+
+/// Build a scope tree with logging.  Delegates to `scope_builder::build_scope_tree`
+/// for the actual 3-pass logic, then logs the result for debugging.
+fn build_scope_tree_logged(
     text: &str,
     cursor_offset: usize,
     dialect: sql_scope::Dialect,
     schema: &SchemaGraph,
 ) -> sql_scope::ScopeTree {
-    let clamped = cursor_offset.min(text.len());
-    let snippet = &text[..clamped.min(120)]; // first 120 chars for logging
-
-    // ── Pass 1: original text ────────────────────────────────────────────────────
-    match sql_scope::resolve(text, dialect, schema) {
-        Ok(tree) => {
-            let sources: Vec<_> = tree.visible_at(cursor_offset).sources.iter().map(|(k, _)| k.clone()).collect();
-            log::info!("[scope/pass1] OK  cursor={} sources={:?} sql={:?}", cursor_offset, sources, snippet);
-            return tree;
-        }
-        Err(e) => {
-            log::info!("[scope/pass1] FAIL err={:?} sql={:?}", e, snippet);
-        }
-    }
-
-    // ── Pass 2: strip the partial token at cursor ────────────────────────────────
-    // "WHERE t."  →  "WHERE   "
-    let s2 = {
-        let before = &text[..clamped];
-        let token_start = before
-            .rfind(|c: char| !c.is_alphanumeric() && c != '_' && c != '.')
-            .map(|i| i + 1)
-            .unwrap_or(0);
-        let mut s = text.to_string();
-        if token_start < clamped {
-            s.replace_range(token_start..clamped, &" ".repeat(clamped - token_start));
-        }
-        s
-    };
-    match sql_scope::resolve(&s2, dialect, schema) {
-        Ok(tree) => {
-            let sources: Vec<_> = tree.visible_at(cursor_offset).sources.iter().map(|(k, _)| k.clone()).collect();
-            log::info!("[scope/pass2] OK  cursor={} sources={:?} sql={:?}", cursor_offset, sources, &s2[..s2.len().min(120)]);
-            return tree;
-        }
-        Err(e) => {
-            log::info!("[scope/pass2] FAIL err={:?} sql={:?}", e, &s2[..s2.len().min(120)]);
-        }
-    }
-
-    // ── Pass 3: strip back to the last incomplete clause keyword ─────────────────
-    // "WHERE   "  →  "        "   (removes the dangling WHERE)
-    let s3 = {
-        let before_upper = s2[..clamped].to_uppercase();
-        // NOTE: " ON " requires trailing space — but " ON" (mid-word, e.g. "r ON p")
-        // won't be in an incomplete position. " JOIN" handles the "r O" / "r ON" case.
-        let clause_kws = [" WHERE", " HAVING", " ON ", " AND ", " OR ", " JOIN"];
-        let mut strip_from = clamped;
-        for kw in &clause_kws {
-            if let Some(pos) = before_upper.rfind(kw) {
-                strip_from = strip_from.min(pos);
-            }
-        }
-        let mut s = s2.clone();
-        if strip_from < clamped {
-            s.replace_range(strip_from..clamped, &" ".repeat(clamped - strip_from));
-        }
-        s
-    };
-    match sql_scope::resolve(&s3, dialect, schema) {
-        Ok(tree) => {
-            let sources: Vec<_> = tree.visible_at(cursor_offset).sources.iter().map(|(k, _)| k.clone()).collect();
-            log::info!("[scope/pass3] OK  cursor={} sources={:?} sql={:?}", cursor_offset, sources, &s3[..s3.len().min(120)]);
-            return tree;
-        }
-        Err(e) => {
-            log::info!("[scope/pass3] FAIL err={:?} — giving up, returning empty tree. sql={:?}", e, &s3[..s3.len().min(120)]);
-        }
-    }
-
-    sql_scope::ScopeTree::new()
+    let snippet = &text[..cursor_offset.min(text.len()).min(120)];
+    let tree = build_scope_tree(text, cursor_offset, dialect, schema);
+    let sources: Vec<_> = tree.visible_at(cursor_offset).sources.iter().map(|(k, _)| k.clone()).collect();
+    log::info!("[scope] cursor={} sources={:?} sql={:?}", cursor_offset, sources, snippet);
+    tree
 }
 
 /// Convert our Dialect to sql_scope::Dialect.
@@ -414,20 +401,28 @@ pub async fn request_completions(
         connection_id, dialect, schema_tables_count, default_schema);
     
     let result = tokio::task::spawn_blocking(move || {
-        // Parse SQL
-        let tree = parse_sql(&text, None);
-        
+        // Parse full text for statement boundary detection.
+        let full_tree = parse_sql(&text, None);
+
         // Check cancellation before semantic analysis
         if cancel_token.is_cancelled() {
             return vec![];
         }
-        
-        // Build scope tree. Uses progressive sanitization so that incomplete SQL
-        // at the cursor (e.g. "WHERE t." or bare "WHERE") doesn't produce an empty tree.
-        let scope_tree = build_scope_tree(&text, cursor_offset, dialect_to_sql_scope(dialect), schema.as_ref());
 
-        // Analyze cursor context
-        let context = Context::analyze(&text, tree.as_ref(), cursor_offset);
+        // Isolate the current statement so scope and context analysis never
+        // see aliases/tables from other queries in the editor.
+        // If cursor is between statements, stmt_text = "" → RootContext suggestions.
+        let (stmt_text, stmt_cursor) =
+            extract_current_statement(&text, full_tree.as_ref(), cursor_offset);
+
+        // Re-parse the isolated statement (fast: single statement, sub-ms).
+        let stmt_tree = parse_sql(&stmt_text, None);
+
+        // Build scope tree from the isolated statement only.
+        let scope_tree = build_scope_tree_logged(&stmt_text, stmt_cursor, dialect_to_sql_scope(dialect), schema.as_ref());
+
+        // Analyze cursor context from the isolated statement.
+        let context = Context::analyze(&stmt_text, stmt_tree.as_ref(), stmt_cursor);
 
         log::info!("[completion] context={:?} prefix={:?} cursor={}",
             context.context_type, context.prefix, context.cursor_offset);

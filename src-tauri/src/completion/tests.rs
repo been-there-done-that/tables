@@ -21,6 +21,8 @@ use crate::completion::context::Context;
 use crate::completion::engines::{PostgresEngine, CompletionEngineVariant};
 use crate::completion::items::CompletionItem;
 use crate::completion::schema::loader::MockSchemaLoader;
+use crate::completion::scope_builder::build_scope_tree;
+use crate::completion::ranges::find_all_statement_ranges;
 
 /// Helper: get completions at a cursor position marked by `|`.
 fn complete(sql: &str) -> Vec<String> {
@@ -39,30 +41,78 @@ fn complete_with_schema(sql: &str, default_schema: &str) -> Vec<CompletionItem> 
 
 /// Core implementation: parse cursor position, build scope tree, analyze context.
 ///
-/// The scope tree is built from the SQL with `|` replaced by a placeholder identifier
-/// so that `sql_scope::resolve` can parse even incomplete SQL (e.g., `u.|` becomes `u.x`).
-/// If that still fails to parse, falls back to the `|`-removed source.
-/// The cursor context uses the source with `|` simply removed, which is what the real editor
-/// sends to `Context::analyze`.
+/// Uses the same `build_scope_tree` (3-pass sanitization) that the real Tauri command uses.
+/// This means tests exercise the exact code path the app uses, including the
+/// `cursor == source.len()` case (user typing at end of buffer).
 fn complete_with_schema_impl(sql: &str, default_schema: Option<&str>) -> Vec<CompletionItem> {
     let cursor = sql.find('|').expect("SQL must contain | to mark cursor position");
-    // Source for context analysis (what the editor has, minus the cursor marker)
+    // Source: what the editor has, minus the cursor marker.  cursor may equal source.len().
     let source = sql.replace('|', "");
-    // Source for scope resolution: replace `|` with a placeholder so the parser sees valid SQL
-    let scope_sql_x = sql.replace('|', "x");
 
     let tree = parse_sql(&source, None);
     let schema = MockSchemaLoader::create_test_schema();
 
-    // Try scope resolution with `x` placeholder first, then fall back to source without `|`
-    let scope_tree = sql_scope::resolve(&scope_sql_x, sql_scope::Dialect::Postgres, &schema)
-        .or_else(|_| sql_scope::resolve(&source, sql_scope::Dialect::Postgres, &schema))
-        .unwrap_or_else(|_| sql_scope::ScopeTree::new());
+    // Use the same 3-pass sanitization logic the real command uses.
+    let scope_tree = build_scope_tree(&source, cursor, sql_scope::Dialect::Postgres, &schema);
 
     let context = Context::analyze(&source, tree.as_ref(), cursor);
 
     let engine = PostgresEngine::new();
     engine.complete(&scope_tree, &context, &schema, default_schema, None)
+}
+
+/// Multi-statement helper: mirrors the full `request_completions` isolation flow.
+///
+/// Parses the full SQL, finds the statement containing `|`, extracts it, then
+/// re-parses and runs completions on the isolated statement only.  This matches
+/// exactly what the Tauri command does.  Use this for tests that have multiple
+/// queries separated by semicolons.
+fn complete_multi_stmt(full_sql: &str) -> Vec<String> {
+    let cursor = full_sql.find('|').expect("SQL must contain | to mark cursor position");
+    let source = full_sql.replace('|', "");
+
+    let full_tree = parse_sql(&source, None);
+    let schema = MockSchemaLoader::create_test_schema();
+
+    // Isolate the statement containing the cursor (mirrors extract_current_statement).
+    let (stmt_text, stmt_cursor) = {
+        let mut found: Option<(String, usize)> = None;
+        if let Some(ref t) = full_tree {
+            let ranges = find_all_statement_ranges(t, &source);
+            // Primary: strict containment
+            for r in &ranges {
+                if r.start_byte <= cursor && r.end_byte >= cursor {
+                    let start = r.start_byte.min(source.len());
+                    let end = r.end_byte.min(source.len());
+                    found = Some((source[start..end].to_string(), cursor - start));
+                    break;
+                }
+            }
+            // Fallback: tree-sitter truncates end_byte on parse errors (trailing dot etc.)
+            if found.is_none() {
+                let fallback = ranges.iter()
+                    .filter(|r| r.start_byte <= cursor)
+                    .max_by_key(|r| r.start_byte);
+                if let Some(r) = fallback {
+                    let gap = &source[r.end_byte.min(source.len())..cursor.min(source.len())];
+                    if !gap.contains('\n') {
+                        let start = r.start_byte.min(source.len());
+                        let end = cursor.min(source.len());
+                        found = Some((source[start..end].to_string(), cursor - start));
+                    }
+                }
+            }
+        }
+        found.unwrap_or((String::new(), 0))
+    };
+
+    let stmt_tree = parse_sql(&stmt_text, None);
+    let scope_tree = build_scope_tree(&stmt_text, stmt_cursor, sql_scope::Dialect::Postgres, &schema);
+    let context = Context::analyze(&stmt_text, stmt_tree.as_ref(), stmt_cursor);
+
+    let engine = PostgresEngine::new();
+    engine.complete(&scope_tree, &context, &schema, None, None)
+        .into_iter().map(|c| c.label).collect()
 }
 
 // =============================================================================
@@ -819,6 +869,64 @@ fn t33_wrong_table_no_columns() {
     assert!(items.is_empty(), "should return no columns for unknown table, got: {:?}", items);
 }
 
+// =============================================================================
+// GROUP 9: MULTI-STATEMENT ISOLATION
+// =============================================================================
+
+/// T35. Multi-statement: second query alias not contaminated by first query
+///
+/// When two queries are in the editor, completions for Q2 must only see Q2's aliases.
+/// Regression: before the fix, scope.visible_at(cursor) returned Q1's aliases {"u", "o"}
+/// instead of Q2's {"av"}, causing 0 completions or wrong columns.
+#[test]
+fn t35_multi_stmt_alias_isolation() {
+    let suggestions = complete_multi_stmt(
+        "SELECT * FROM users u WHERE u.id = 1;\nSELECT * FROM orders o WHERE o.|"
+    );
+
+    // Should see orders columns, not users columns
+    assert!(suggestions.contains(&"amount".to_string()),
+        "Q2 should see orders.amount, got: {:?}", suggestions);
+    assert!(!suggestions.contains(&"email".to_string()),
+        "Q2 should NOT see users.email (from Q1), got: {:?}", suggestions);
+}
+
+/// T36. Multi-statement: cursor between statements gives keyword suggestions
+///
+/// Blank line between two queries → fresh/root context → suggest SELECT, INSERT etc.
+#[test]
+fn t36_multi_stmt_cursor_between_queries() {
+    // Cursor on the blank line between the two queries
+    let suggestions = complete_multi_stmt(
+        "SELECT * FROM users;\n|\nSELECT * FROM orders"
+    );
+
+    // Should suggest statement-starter keywords, not table columns
+    assert!(suggestions.contains(&"SELECT".to_string()) ||
+            suggestions.contains(&"INSERT".to_string()) ||
+            suggestions.contains(&"WITH".to_string()),
+        "Between statements should suggest keywords, got: {:?}", suggestions);
+}
+
+/// T37. Multi-statement: first query completions still work when Q2 exists
+///
+/// Q1 is terminated by a semicolon (realistic editor content). Cursor is placed
+/// inside Q1's WHERE clause (between the dot and the semicolon). Q1's completions
+/// must not include Q2's tables/aliases.
+#[test]
+fn t37_multi_stmt_first_query_unaffected() {
+    // Cursor between u. and ; — tree-sitter puts cursor inside Q1's range.
+    let suggestions = complete_multi_stmt(
+        "SELECT * FROM users u WHERE u.|;\n\nSELECT * FROM orders o WHERE o.amount > 100"
+    );
+
+    // Should see users columns (Q1), not orders columns (Q2)
+    assert!(suggestions.contains(&"email".to_string()),
+        "Q1 should see users.email, got: {:?}", suggestions);
+    assert!(!suggestions.contains(&"amount".to_string()),
+        "Q1 should NOT see orders.amount (from Q2), got: {:?}", suggestions);
+}
+
 /// T34. Schema in completion detail
 ///
 /// Table suggestions should show schema in detail field.
@@ -834,3 +942,4 @@ fn t34_schema_in_detail() {
         }
     }
 }
+
