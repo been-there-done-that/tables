@@ -62,7 +62,7 @@ pub async fn submit_feedback(payload: FeedbackPayload) -> Result<String, String>
             if e.is_connect() || e.is_timeout() {
                 "Could not connect. Check your internet connection.".to_string()
             } else {
-                format!("Request failed: {}", e)
+                "Submission failed. Please try again later.".to_string()
             }
         })?;
 
@@ -71,10 +71,10 @@ pub async fn submit_feedback(payload: FeedbackPayload) -> Result<String, String>
             .json()
             .await
             .map_err(|e| format!("Invalid response: {}", e))?;
-        Ok(body["issue_url"]
+        body["issue_url"]
             .as_str()
-            .unwrap_or("")
-            .to_string())
+            .map(|s| s.to_string())
+            .ok_or_else(|| "Submission succeeded but no issue URL was returned.".to_string())
     } else {
         let body: serde_json::Value = response
             .json()
