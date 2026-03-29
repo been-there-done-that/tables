@@ -1,11 +1,32 @@
 import { tmpdir } from "os";
+import { spawn } from "child_process";
+import { createInterface } from "readline";
 import type { Session, HarnessEvent, SessionConfig } from "../types";
+
+// stream-json event shapes we care about
+interface GeminiMessageEvent {
+    type: "message";
+    role: "assistant" | "user";
+    content: string;
+    delta?: boolean;
+}
+interface GeminiThinkingEvent {
+    type: "thinking";
+    content: string;
+    delta?: boolean;
+}
+interface GeminiResultEvent {
+    type: "result";
+    status: "success" | "error";
+    error?: string;
+}
+type GeminiStreamEvent = GeminiMessageEvent | GeminiThinkingEvent | GeminiResultEvent | { type: string };
 
 export class GeminiProvider implements Session {
     private history: Array<{ role: "user" | "model"; text: string }> = [];
     private emitFn: (e: HarnessEvent) => void = () => {};
     private aborted = false;
-    private currentProcess: ReturnType<typeof Bun.spawn> | null = null;
+    private currentChild: ReturnType<typeof spawn> | null = null;
 
     constructor(private config: SessionConfig) {}
 
@@ -19,72 +40,77 @@ export class GeminiProvider implements Session {
 
     stop() {
         this.aborted = true;
-        this.currentProcess?.kill();
+        this.currentChild?.kill();
     }
 
     async send(text: string): Promise<void> {
         if (this.aborted) return;
 
-        // Emit session.init on the first send call
         if (this.history.length === 0) {
             this.emitFn({ type: "session.init", sdkSessionId: crypto.randomUUID() });
         }
 
-        // Build the full prompt: system prompt (first turn only) + conversation history + new message
         const fullPrompt = this.buildPrompt(text);
 
-        const args = ["-p", fullPrompt];
+        const args = ["--yolo", "--output-format", "stream-json", "-p", fullPrompt];
         if (this.config.model) args.unshift("--model", this.config.model);
 
-        const proc = Bun.spawn(["gemini", ...args], {
-            stdout: "pipe",
-            stderr: "pipe",
+        const child = spawn("gemini", args, {
+            stdio: ["ignore", "pipe", "pipe"],
             cwd: tmpdir(),
+            env: process.env,
         });
-        this.currentProcess = proc;
+        this.currentChild = child;
 
         let responseText = "";
 
-        try {
-            // Read stdout line by line, emit as text.delta
-            const reader = proc.stdout.getReader();
-            const decoder = new TextDecoder();
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done || this.aborted) break;
-                const chunk = decoder.decode(value, { stream: true });
-                responseText += chunk;
-                this.emitFn({ type: "text.delta", content: chunk });
-            }
+        child.stderr?.on("data", (chunk: Buffer) => {
+            console.error(`[gemini] stderr: ${chunk.toString().trim()}`);
+        });
 
-            await proc.exited;
+        return new Promise<void>((resolve) => {
+            const rl = createInterface({ input: child.stdout! });
 
-            if (this.aborted) return;
+            rl.on("line", (line) => {
+                if (!line.trim() || this.aborted) return;
+                let event: GeminiStreamEvent;
+                try { event = JSON.parse(line) as GeminiStreamEvent; } catch { return; }
 
-            // Record the exchange in history for multi-turn context
-            this.history.push({ role: "user", text });
-            if (responseText.trim()) {
-                this.history.push({ role: "model", text: responseText.trim() });
-            }
+                if (event.type === "message") {
+                    const msg = event as GeminiMessageEvent;
+                    if (msg.role === "assistant" && msg.content) {
+                        responseText += msg.content;
+                        this.emitFn({ type: "text.delta", content: msg.content });
+                    }
+                } else if (event.type === "thinking") {
+                    const t = event as GeminiThinkingEvent;
+                    if (t.content) {
+                        this.emitFn({ type: "thinking.delta", content: t.content });
+                    }
+                } else if (event.type === "result") {
+                    const result = event as GeminiResultEvent;
+                    if (result.status === "error" && result.error) {
+                        if (!this.aborted) this.emitFn({ type: "error", message: result.error });
+                    }
+                }
+            });
 
-            if (proc.exitCode !== 0) {
-                const errBytes = await new Response(proc.stderr).arrayBuffer();
-                const errText = new TextDecoder().decode(errBytes).trim();
-                this.emitFn({
-                    type: "error",
-                    message: errText || `gemini exited with code ${proc.exitCode}`,
-                });
-                return;
-            }
+            child.on("close", (code) => {
+                this.currentChild = null;
+                if (this.aborted) { resolve(); return; }
 
-            this.emitFn({ type: "turn.done" });
-        } catch (e: unknown) {
-            if (!this.aborted) {
-                this.emitFn({ type: "error", message: String(e) });
-            }
-        } finally {
-            this.currentProcess = null;
-        }
+                if (code !== 0 && responseText === "") {
+                    this.emitFn({ type: "error", message: `gemini exited with code ${code}` });
+                } else {
+                    this.history.push({ role: "user", text });
+                    if (responseText.trim()) {
+                        this.history.push({ role: "model", text: responseText.trim() });
+                    }
+                    this.emitFn({ type: "turn.done" });
+                }
+                resolve();
+            });
+        });
     }
 
     async isAvailable(): Promise<boolean> {
@@ -99,20 +125,16 @@ export class GeminiProvider implements Session {
     private buildPrompt(newText: string): string {
         const parts: string[] = [];
 
-        // Prepend system prompt before the first user message only
         if (this.history.length === 0 && this.config.systemPrompt) {
             parts.push(this.config.systemPrompt);
             parts.push("---");
         }
 
-        // Include conversation history
         for (const turn of this.history) {
             parts.push(turn.role === "user" ? `User: ${turn.text}` : `Assistant: ${turn.text}`);
         }
 
-        // Add the new user message
         parts.push(newText);
-
         return parts.join("\n\n");
     }
 }

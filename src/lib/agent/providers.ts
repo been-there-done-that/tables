@@ -24,8 +24,8 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
     gemini: {
         label: "Gemini",
         models: [
+            { id: "gemini-2.5-flash", label: "2.5 Flash" },
             { id: "gemini-2.5-pro",   label: "2.5 Pro" },
-            { id: "gemini-2.0-flash", label: "2.0 Flash" },
         ],
         supportsModel: true,
         supportsEffort: false,
