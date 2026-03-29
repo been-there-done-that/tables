@@ -11,7 +11,7 @@
 	import { listen } from "@tauri-apps/api/event";
 	import LoadingOverlay from "$lib/LoadingOverlay.svelte";
 	import CloseConfirmDialog from "$lib/components/CloseConfirmDialog.svelte";
-	import { Toaster } from "svelte-sonner";
+	import { Toaster, toast } from "svelte-sonner";
 	import SuccessIcon from "$lib/svg/SuccessMark.svelte";
 	import ErrorIcon from "$lib/svg/ErrorMark.svelte";
 	import InfoIcon from "$lib/svg/InfoMark.svelte";
@@ -30,6 +30,7 @@
 
 	onMount(() => {
 		let unlisten: () => void;
+		let unlistenFeedback: () => void;
 
 		const setup = async () => {
 			// Pre-resolve/warm-up clipboard API globally so async checks don't break paste gestures
@@ -42,6 +43,21 @@
 			await windowState.init();
 			// Initialize schema store with the window label to restore sessions
 			await schemaStore.initialize(windowState.label);
+
+			unlistenFeedback = await listen<{ issue_url: string }>(
+				"feedback://submitted",
+				(event) => {
+					toast.success("Feedback submitted!", {
+						description: "Thank you — your issue has been created.",
+						action: {
+							label: "View",
+							onClick: () => {
+								window.open(event.payload.issue_url, "_blank");
+							},
+						},
+					});
+				}
+			);
 		};
 
 		setup();
@@ -50,6 +66,7 @@
 			if (unlisten) {
 				unlisten();
 			}
+			unlistenFeedback();
 			windowState.cleanup();
 		};
 	});

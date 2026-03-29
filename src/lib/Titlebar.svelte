@@ -12,6 +12,7 @@
   import IconLayoutBottombar from "@tabler/icons-svelte/icons/layout-bottombar";
   import IconLayoutBottombarFilled from "@tabler/icons-svelte/icons/layout-bottombar-filled";
 
+  import IconMessageReport from "@tabler/icons-svelte/icons/message-report";
   import IconRestore from "@tabler/icons-svelte/icons/restore";
   import PlaylistAdd from "@tabler/icons-svelte/icons/playlist-add";
   import IconPlus from "@tabler/icons-svelte/icons/plus";
@@ -100,7 +101,7 @@
           !isWindows && "ml-24",
         )}
       >
-        {#if !["datasource-window", "appearance-window"].includes(windowState.label)}
+        {#if !["datasource-window", "appearance-window", "feedback-window"].includes(windowState.label)}
           <ConnectionPicker />
 
           {#if schemaStore.activeConnection?.engine === "postgres"}
@@ -177,7 +178,7 @@
 
       <!-- Right side actions -->
       <div class="flex items-center gap-3 pointer-events-auto">
-        {#if !["datasource-window", "appearance-window"].includes(windowState.label)}
+        {#if !["datasource-window", "appearance-window", "feedback-window"].includes(windowState.label)}
           <button
             class="h-6 w-6 flex items-center justify-center rounded-md border transition-all hover:bg-(--theme-bg-hover) border-transparent"
             onclick={async () => {
@@ -297,6 +298,24 @@
             {:else}
               <IconSettings class="size-5" />
             {/if}
+          </button>
+
+          <!-- Feedback -->
+          <button
+            class={cn(
+              "h-6 w-6 flex items-center justify-center rounded-md border transition-all",
+              "hover:bg-(--theme-bg-hover) border-transparent",
+            )}
+            onclick={async () => {
+              try {
+                await invoke("open_feedback_window");
+              } catch (e) {
+                console.error("Failed to open feedback window:", e);
+              }
+            }}
+            title="Send Feedback"
+          >
+            <IconMessageReport class="size-5" />
           </button>
 
           <!-- AI Assistant -->
