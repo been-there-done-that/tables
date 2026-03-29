@@ -231,6 +231,9 @@ macro_rules! aggregate_plugin_commands {
             open_datasource_window,
             open_appearance_window,
             create_new_window,
+            open_feedback_window,
+            get_system_info,
+            submit_feedback,
             
             // Introspection commands
             refresh_schema,

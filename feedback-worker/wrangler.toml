@@ -1,0 +1,7 @@
+name = "tables-feedback"
+main = "index.js"
+compatibility_date = "2024-09-23"
+
+[vars]
+# REPLACE with the real GitHub owner/repo before deploying (e.g. "acme/tables-releases")
+GITHUB_REPO = "OWNER/tables-releases"
