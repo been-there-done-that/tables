@@ -11,9 +11,10 @@
 		providerId: string;
 		data: any;
 		onChange: (field: string, value: any) => void;
+		hideFooter?: boolean;
 	}
 
-	let { providerId, data, onChange }: Props = $props();
+	let { providerId, data, onChange, hideFooter = false }: Props = $props();
 
 	const provider = $derived(PROVIDERS[providerId]);
 
@@ -47,12 +48,12 @@
 
 			<!-- Divider -->
 			<div class="flex items-center gap-3 mb-4">
-				<div class="flex-1 h-px bg-[#2a2a2a]"></div>
-				<div class="text-xs text-[#444]">or fill manually</div>
-				<div class="flex-1 h-px bg-[#2a2a2a]"></div>
+				<div class="flex-1 h-px bg-border"></div>
+				<div class="text-xs text-muted-foreground">or fill manually</div>
+				<div class="flex-1 h-px bg-border"></div>
 			</div>
 
-			<PostgresForm {data} {onChange} />
+			<PostgresForm {data} {onChange} {hideFooter} />
 		</div>
 
 		<!-- Right column: guide panel -->

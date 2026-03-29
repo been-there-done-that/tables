@@ -271,6 +271,7 @@
                         providerId={driver.provider}
                         data={formState.fields as any}
                         onChange={handleChange}
+                        hideFooter
                     />
                 {:else if driver.id === "postgres"}
                     <PostgresForm

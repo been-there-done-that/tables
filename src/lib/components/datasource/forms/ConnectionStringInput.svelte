@@ -31,7 +31,7 @@
 </script>
 
 <div class="mb-4">
-	<div class="text-xs text-[#909090] uppercase tracking-wide mb-1.5">
+	<div class="text-xs text-(--theme-fg-secondary) uppercase tracking-wide mb-1.5">
 		Connection string
 	</div>
 	<input
@@ -39,15 +39,14 @@
 		placeholder="postgresql://user:password@host:5432/database"
 		value={raw}
 		oninput={handleInput}
-		class="w-full bg-[#2b2d30] border border-dashed rounded px-3 py-2 text-sm text-[#a9b7c6] placeholder-[#555] outline-none font-mono
-			focus:ring-1 focus:outline-none
-			{status === 'ok' ? 'border-[#22c55e] focus:border-[#22c55e] focus:ring-[#22c55e]' :
-			 status === 'error' ? 'border-[#ef4444] focus:border-[#ef4444] focus:ring-[#ef4444]' :
-			 'border-[#5e6060] focus:border-[#3574f0] focus:ring-[#3574f0]'}"
+		class="h-8 w-full rounded-md border border-dashed bg-(--theme-bg-primary) px-3 py-1.5 text-sm font-mono focus:outline-none focus-visible:ring-0
+			{status === 'ok' ? 'border-green-500' :
+			 status === 'error' ? 'border-red-500' :
+			 'border-(--theme-border-default)'}"
 	/>
 	{#if status === "ok"}
-		<div class="text-xs text-[#22c55e] mt-1">↳ Fields filled from connection string</div>
+		<div class="text-xs text-green-500 mt-1">↳ Fields filled from connection string</div>
 	{:else if status === "error"}
-		<div class="text-xs text-[#ef4444] mt-1">Invalid connection string — use postgresql://user:pass@host:port/db format</div>
+		<div class="text-xs text-red-500 mt-1">Invalid connection string — use postgresql://user:pass@host:port/db format</div>
 	{/if}
 </div>

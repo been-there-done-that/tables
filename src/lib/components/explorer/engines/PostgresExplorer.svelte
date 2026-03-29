@@ -330,11 +330,53 @@
         }
     }
 
+    /** Fetch DDL/definition text for any node type. Returns empty string if not applicable. */
+    async function fetchDdlForNode(node: TreeNode): Promise<string> {
+        const meta = node.metadata as any;
+        const connId = schemaStore.activeConnection?.id;
+        const db = meta?.dbName || schemaStore.selectedDatabase;
+        const schema = meta?.schemaName || "public";
+
+        switch (node.type) {
+            case "table":
+                return invoke<string>("get_table_ddl", { connectionId: connId, database: db, schema, tableName: node.name });
+            case "view":
+                return invoke<string>("get_view_definition", { connectionId: connId, database: db, schema, viewName: node.name });
+            case "materialized_view":
+                return invoke<string>("get_matview_definition", { connectionId: connId, database: db, schema, viewName: node.name });
+            case "function":
+            case "procedure":
+                return invoke<string>("get_function_ddl", { connectionId: connId, database: db, schema, functionName: node.name });
+            case "sequence":
+                return invoke<string>("get_sequence_ddl", { connectionId: connId, database: db, schema, sequenceName: node.name });
+            case "index":
+                return invoke<string>("get_index_ddl", { connectionId: connId, database: db, schema, tableName: meta?.tableName || "", indexName: node.name });
+            case "trigger":
+                return invoke<string>("get_trigger_definition", { connectionId: connId, database: db, schema, tableName: meta?.tableName || "", triggerName: node.name });
+            default:
+                return "";
+        }
+    }
+
+    /** Open DDL for a node in a read-only editor tab. */
+    async function openDdlForNode(node: TreeNode, session: typeof windowState.activeSession) {
+        if (!session) return;
+        const meta = node.metadata as any;
+        const schema = (meta?.schemaName) || "public";
+        try {
+            const ddl = await fetchDdlForNode(node);
+            if (ddl) session.openDdlTab(`DDL: ${schema}.${node.name}`, ddl);
+        } catch (e) {
+            console.error("DDL fetch failed:", e);
+            toast.error(`Failed to load ${node.name}`, { description: String(e) });
+        }
+    }
+
     function handleExplorerAction(node: TreeNode) {
         if (!activeSession) return;
 
         if (node.type === "table" || node.type === "view") {
-            // Open table preview with full metadata
+            // Tables and views → open data preview
             const metadata = node.metadata as
                 | { dbName: string; schemaName: string; tableName: string }
                 | undefined;
@@ -345,15 +387,22 @@
                 connectionId: schemaStore.activeConnection?.id,
             });
         } else if (
+            node.type === "function" ||
+            node.type === "procedure" ||
+            node.type === "trigger" ||
+            node.type === "index" ||
+            node.type === "sequence" ||
+            node.type === "materialized_view"
+        ) {
+            // DDL-only objects → open definition in editor on single click
+            openDdlForNode(node, activeSession);
+        } else if (
             node.type === "column" ||
             node.type === "primary_key" ||
             node.type === "foreign_key"
         ) {
             // For column clicks, open the parent table's data preview
-            // id format: col:table:db:schema.table.column or similar
             const parts = node.id?.split(":") || [];
-            // Try to extract table info from the id - format varies
-            // e.g., "col:table:mydb:public.users.id"
             const tableIdPart = parts.find((p) => p.includes("."));
             if (tableIdPart) {
                 const tableParts = tableIdPart.split(".");
@@ -423,78 +472,9 @@
                 break;
             }
 
-            case "open_ddl": {
-                try {
-                    let ddl = "";
-                    if (node.type === "table") {
-                        ddl = await invoke<string>("get_table_ddl", {
-                            connectionId: connId,
-                            database: db,
-                            schema,
-                            tableName: node.name,
-                        });
-                    } else if (node.type === "sequence") {
-                        ddl = await invoke<string>("get_sequence_ddl", {
-                            connectionId: connId,
-                            database: db,
-                            schema,
-                            sequenceName: node.name,
-                        });
-                    }
-                    session.openDdlTab(`DDL: ${schema}.${node.name}`, ddl);
-                } catch (e) {
-                    console.error("DDL fetch failed:", e);
-                    toast.error(`Failed to load ${node.name}`, { description: String(e) });
-                }
-                break;
-            }
-
+            case "open_ddl":
             case "open_definition": {
-                try {
-                    let ddl = "";
-                    if (node.type === "view") {
-                        ddl = await invoke<string>("get_view_definition", {
-                            connectionId: connId,
-                            database: db,
-                            schema,
-                            viewName: node.name,
-                        });
-                    } else if (node.type === "materialized_view") {
-                        ddl = await invoke<string>("get_matview_definition", {
-                            connectionId: connId,
-                            database: db,
-                            schema,
-                            viewName: node.name,
-                        });
-                    } else if (node.type === "function" || node.type === "procedure") {
-                        ddl = await invoke<string>("get_function_ddl", {
-                            connectionId: connId,
-                            database: db,
-                            schema,
-                            functionName: node.name,
-                        });
-                    } else if (node.type === "index") {
-                        ddl = await invoke<string>("get_index_ddl", {
-                            connectionId: connId,
-                            database: db,
-                            schema,
-                            tableName: meta?.tableName || "",
-                            indexName: node.name,
-                        });
-                    } else if (node.type === "trigger") {
-                        ddl = await invoke<string>("get_trigger_definition", {
-                            connectionId: connId,
-                            database: db,
-                            schema,
-                            tableName: meta?.tableName || "",
-                            triggerName: node.name,
-                        });
-                    }
-                    session.openDdlTab(`DDL: ${schema}.${node.name}`, ddl);
-                } catch (e) {
-                    console.error("Definition fetch failed:", e);
-                    toast.error(`Failed to load ${node.name}`, { description: String(e) });
-                }
+                await openDdlForNode(node, session);
                 break;
             }
 
@@ -503,38 +483,7 @@
             case "copy_index_ddl":
             case "copy_trigger_ddl": {
                 try {
-                    let ddl = "";
-                    if (node.type === "function" || node.type === "procedure") {
-                        ddl = await invoke<string>("get_function_ddl", {
-                            connectionId: connId,
-                            database: db,
-                            schema,
-                            functionName: node.name,
-                        });
-                    } else if (node.type === "sequence") {
-                        ddl = await invoke<string>("get_sequence_ddl", {
-                            connectionId: connId,
-                            database: db,
-                            schema,
-                            sequenceName: node.name,
-                        });
-                    } else if (node.type === "index") {
-                        ddl = await invoke<string>("get_index_ddl", {
-                            connectionId: connId,
-                            database: db,
-                            schema,
-                            tableName: meta?.tableName || "",
-                            indexName: node.name,
-                        });
-                    } else if (node.type === "trigger") {
-                        ddl = await invoke<string>("get_trigger_definition", {
-                            connectionId: connId,
-                            database: db,
-                            schema,
-                            tableName: meta?.tableName || "",
-                            triggerName: node.name,
-                        });
-                    }
+                    const ddl = await fetchDdlForNode(node);
                     await navigator.clipboard.writeText(ddl);
                 } catch (e) {
                     console.error("Copy DDL failed:", e);
