@@ -11,6 +11,7 @@
 //   2. send(text)  – creates/reuses a session, calls connection.prompt()
 //   3. stop()      – aborts in-flight prompt, closes WS
 
+import { tmpdir } from "os";
 import {
     ClientSideConnection,
     type SessionNotification,
@@ -99,7 +100,7 @@ function makeWebSocketStream(
     ws.onerror = (event) => {
         // Capture the OS-level error message before onclose fires with a generic 1006
         const msg = (event as ErrorEvent).message;
-        if (msg) onError(`WS error: ${msg}`);
+        if (msg) onError(msg);
     };
 
     ws.onclose = () => {
@@ -149,6 +150,8 @@ export abstract class AcpAdapter implements Session {
         this.ws?.close();
     }
 
+    abstract isAvailable(): Promise<boolean>;
+
     /**
      * Called for each sessionUpdate notification from the agent.
      * Subclasses map ACP updates to HarnessEvents.
@@ -196,7 +199,7 @@ export abstract class AcpAdapter implements Session {
 
         // Create the session
         const sessionResult = await this.connection.newSession({
-            cwd: process.cwd(),
+            cwd: tmpdir(),
             mcpServers: [],
         });
         if (this.aborted) return;
