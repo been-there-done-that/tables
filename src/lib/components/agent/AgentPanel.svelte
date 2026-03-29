@@ -245,7 +245,10 @@
                         plansStore.updateStep(step.id, "running", event.toolId).catch(console.error);
                     }
                 }
-                if (ctx) {
+                // Only dispatch tools that require a harness response (DB tool calls from /db/ endpoint).
+                // Provider-internal tools (Codex commandExecution, fileChange, etc.) are informational
+                // only — dispatching them would POST to /tool-result/<provider-id> → 404.
+                if (ctx && event.requiresResponse) {
                     if (needsApproval) {
                         // Hold execution — user must approve before the POST goes to harness.
                         pendingApprovals.set(event.toolId, { toolName: event.toolName, input: event.input, ctx });

@@ -3,7 +3,7 @@
 export type HarnessEvent =
     | { type: "text.delta"; content: string }
     | { type: "thinking.delta"; content: string }
-    | { type: "tool.started"; toolId: string; toolName: string; input: unknown }
+    | { type: "tool.started"; toolId: string; toolName: string; input: unknown; requiresResponse?: boolean }
     | { type: "tool.completed"; toolId: string; output: string }
     | { type: "tool.input_delta"; toolId: string; toolName: string; partialContent: string }
     | { type: "session.init"; sdkSessionId: string }

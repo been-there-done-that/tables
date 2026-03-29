@@ -139,8 +139,10 @@ const server = Bun.serve({
 
             console.error(`[harness] tool call: ${toolName} (${requestId})`);
 
-            // Emit tool.started to frontend via current SSE stream
-            session.emitToolEvent({ type: "tool.started", toolId: requestId, toolName, input });
+            // Emit tool.started to frontend via current SSE stream.
+            // requiresResponse:true signals the frontend must POST /tool-result/:requestId
+            // to unblock this pending curl call. Provider-internal tool events never set this.
+            session.emitToolEvent({ type: "tool.started", toolId: requestId, toolName, input, requiresResponse: true });
 
             // Hold the request open until frontend POSTs the result
             const result = await new Promise<unknown>((resolve, reject) => {
