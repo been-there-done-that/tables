@@ -60,13 +60,14 @@ Guidelines:
 - If a request is ambiguous or could be interpreted multiple ways, ask one targeted clarifying question before proceeding`;
 }
 
-export function buildToolInstructions(port: number, sessionId: string, schema: string): string {
-    const base = `http://127.0.0.1:${port}/db/${sessionId}`;
+export function buildToolInstructions(_port: number, sessionId: string, schema: string): string {
+    const SOCK = "/tmp/tables-harness.sock";
+    const base = `/db/${sessionId}`;
     return `
 ## Database Tools
 
 Use the Bash tool with curl to call these endpoints. All are POST with JSON body.
-Base URL: ${base}
+IMPORTANT: Always use the Unix socket flag: \`curl --unix-socket ${SOCK} http://localhost${base}/TOOL_NAME\`
 
 | Tool | Body fields | Description |
 |------|-------------|-------------|
@@ -89,14 +90,14 @@ Base URL: ${base}
 
 Example (open query in editor):
 \`\`\`bash
-curl -s -X POST ${base}/run_query \\
+curl -s --unix-socket ${SOCK} -X POST http://localhost${base}/run_query \\
   -H 'Content-Type: application/json' \\
   -d '{"sql":"SELECT * FROM users LIMIT 50"}'
 \`\`\`
 
 Example (sample rows for analysis — use this when you need to see the data yourself):
 \`\`\`bash
-curl -s -X POST ${base}/sample_table \\
+curl -s --unix-socket ${SOCK} -X POST http://localhost${base}/sample_table \\
   -H 'Content-Type: application/json' \\
   -d '{"table":"users","n":20}'
 \`\`\`
@@ -111,14 +112,14 @@ Choose descriptive, lowercase filenames (e.g. "find-null-users.sql", "orders-30d
 
 First write (creates file):
 \`\`\`bash
-curl -s -X POST ${base}/write_file \\
+curl -s --unix-socket ${SOCK} -X POST http://localhost${base}/write_file \\
   -H 'Content-Type: application/json' \\
   -d '{"fileName": "descriptive-name.sql", "content": "SELECT ..."}'
 \`\`\`
 
 Subsequent update (use returned fileId to target the exact file):
 \`\`\`bash
-curl -s -X POST ${base}/write_file \\
+curl -s --unix-socket ${SOCK} -X POST http://localhost${base}/write_file \\
   -H 'Content-Type: application/json' \\
   -d '{"fileId": "uuid-from-response", "fileName": "descriptive-name.sql", "content": "SELECT ..."}'
 \`\`\`

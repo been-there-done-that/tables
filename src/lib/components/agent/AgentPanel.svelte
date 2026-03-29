@@ -248,15 +248,22 @@
                 // Only dispatch tools that require a harness response (DB tool calls from /db/ endpoint).
                 // Provider-internal tools (Codex commandExecution, fileChange, etc.) are informational
                 // only — dispatching them would POST to /tool-result/<provider-id> → 404.
+                console.log(`[AgentPanel] tool.started — name="${event.toolName}" id="${event.toolId}" requiresResponse=${event.requiresResponse} ctx=${ctx ? `port=${ctx.port}` : "null"}`);
                 if (ctx && event.requiresResponse) {
                     if (needsApproval) {
                         // Hold execution — user must approve before the POST goes to harness.
+                        console.log(`[AgentPanel] tool "${event.toolName}" held for approval`);
                         pendingApprovals.set(event.toolId, { toolName: event.toolName, input: event.input, ctx });
                     } else {
+                        console.log(`[AgentPanel] dispatching tool "${event.toolName}" id="${event.toolId}"`);
                         dispatchTool(event.toolName, event.toolId, event.input, ctx).catch((e) => {
                             console.error("[AgentPanel] tool dispatch error:", e);
                         });
                     }
+                } else if (!ctx) {
+                    console.warn(`[AgentPanel] tool.started but ctx is null — tool result will NOT be posted`);
+                } else {
+                    console.log(`[AgentPanel] tool.started skipped (requiresResponse=false) — provider-internal tool`);
                 }
                 break;
             }

@@ -21,23 +21,32 @@ export async function dispatchTool(
     input: unknown,
     ctx: ToolContext,
 ): Promise<void> {
+    console.log(`[tool-executor] dispatchTool START — tool="${toolName}" id="${toolId}" port=${ctx.port}`);
+    console.log(`[tool-executor] input =`, JSON.stringify(input));
+
     let result: unknown;
     try {
         result = await executeTool(toolName, input, ctx);
+        console.log(`[tool-executor] executeTool OK — result =`, JSON.stringify(result)?.slice(0, 200));
     } catch (e) {
         result = { error: String(e) };
+        console.error(`[tool-executor] executeTool THREW:`, e);
     }
 
     // POST result back to harness — unblocks the pending curl call
+    const url = `http://127.0.0.1:${ctx.port}/tool-result/${toolId}`;
+    console.log(`[tool-executor] posting result to ${url}`);
     try {
-        await fetch(`http://127.0.0.1:${ctx.port}/tool-result/${toolId}`, {
+        const res = await fetch(url, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(result),
         });
+        console.log(`[tool-executor] POST /tool-result → ${res.status}`);
     } catch (e) {
         console.error("[tool-executor] failed to post result:", e);
     }
+    console.log(`[tool-executor] dispatchTool DONE — tool="${toolName}" id="${toolId}"`);
 }
 
 async function executeTool(toolName: string, input: unknown, ctx: ToolContext): Promise<unknown> {

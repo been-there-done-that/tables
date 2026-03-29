@@ -1,5 +1,6 @@
 import { createSession, checkAvailability } from "./registry";
 import type { Session } from "./types";
+import { unlinkSync } from "fs";
 
 const sessions = new Map<string, Session>();
 const pendingToolResults = new Map<string, { sessionId: string; resolve: (v: unknown) => void; reject: (e: Error) => void }>();
@@ -10,10 +11,11 @@ const CORS = {
     "Access-Control-Allow-Headers": "Content-Type",
 };
 
-const server = Bun.serve({
-    port: 0,
-    idleTimeout: 0,
-    async fetch(req) {
+// Unix socket path — used by sandboxed agents (e.g. Codex) that can't reach TCP localhost.
+// Exported via HARNESS_SOCK so the system prompt can reference it.
+export const SOCKET_PATH = "/tmp/tables-harness.sock";
+
+async function handleRequest(req: Request): Promise<Response> {
         const url = new URL(req.url);
 
         if (req.method === "OPTIONS") {
@@ -137,12 +139,14 @@ const server = Bun.serve({
             const input = await req.json().catch(() => ({}));
             const requestId = crypto.randomUUID();
 
-            console.error(`[harness] tool call: ${toolName} (${requestId})`);
+            console.error(`[harness] /db/ received — tool="${toolName}" session="${pathSessionId}" requestId="${requestId}" input=${JSON.stringify(input)}`);
 
             // Emit tool.started to frontend via current SSE stream.
             // requiresResponse:true signals the frontend must POST /tool-result/:requestId
             // to unblock this pending curl call. Provider-internal tool events never set this.
+            console.error(`[harness] emitting tool.started requiresResponse=true for requestId="${requestId}"`);
             session.emitToolEvent({ type: "tool.started", toolId: requestId, toolName, input, requiresResponse: true });
+            console.error(`[harness] tool.started emitted — now waiting for /tool-result/${requestId}`);
 
             // Hold the request open until frontend POSTs the result
             const result = await new Promise<unknown>((resolve, reject) => {
@@ -150,11 +154,14 @@ const server = Bun.serve({
                 const timeoutMs = 30_000;
                 setTimeout(() => {
                     if (pendingToolResults.has(requestId)) {
+                        console.error(`[harness] tool "${toolName}" (${requestId}) TIMED OUT after ${timeoutMs / 1000}s`);
                         pendingToolResults.delete(requestId);
                         reject(new Error(`Tool "${toolName}" timed out after ${timeoutMs / 1000}s`));
                     }
                 }, timeoutMs);
             }).catch((e) => ({ error: String(e) }));
+
+            console.error(`[harness] /tool-result resolved for requestId="${requestId}" result=${JSON.stringify(result)?.slice(0, 200)}`);
 
             // Emit tool.completed to frontend
             session.emitToolEvent({
@@ -169,12 +176,15 @@ const server = Bun.serve({
         // POST /tool-result/:requestId — frontend submits tool execution result
         if (req.method === "POST" && url.pathname.startsWith("/tool-result/")) {
             const requestId = url.pathname.slice("/tool-result/".length);
+            console.error(`[harness] /tool-result/${requestId} received — pending count=${pendingToolResults.size}`);
             const pending = pendingToolResults.get(requestId);
             if (!pending) {
+                console.error(`[harness] /tool-result/${requestId} — NO MATCHING PENDING (already timed out or wrong id)`);
                 return Response.json({ error: "no pending tool for this id" }, { status: 404, headers: CORS });
             }
             pendingToolResults.delete(requestId);
             const body = await req.json().catch(() => ({}));
+            console.error(`[harness] /tool-result resolving requestId="${requestId}" body=${JSON.stringify(body)?.slice(0, 200)}`);
             pending.resolve(body);
             return Response.json({ ok: true }, { headers: CORS });
         }
@@ -184,8 +194,22 @@ const server = Bun.serve({
             return Response.json(providers, { headers: CORS });
         }
 
-        return new Response("harness ok", { headers: CORS });
-    },
+    return new Response("harness ok", { headers: CORS });
+}
+
+// TCP server — used by the frontend (SSE streams, session management, /providers).
+const server = Bun.serve({
+    port: 0,
+    idleTimeout: 0,
+    fetch: handleRequest,
+});
+
+// Unix socket server — used by sandboxed agents (e.g. Codex) that cannot reach TCP localhost.
+// Silently remove any stale socket file from a previous run.
+try { unlinkSync(SOCKET_PATH); } catch {}
+Bun.serve({
+    unix: SOCKET_PATH,
+    fetch: handleRequest,
 });
 
 console.log(`HARNESS_PORT=${server.port}`);
