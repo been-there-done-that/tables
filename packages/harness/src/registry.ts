@@ -1,18 +1,20 @@
 import type { Session, SessionConfig } from "./types";
 import { ClaudeProvider } from "./providers/claude";
 import { CodexProvider } from "./providers/codex";
-import { GeminiProvider } from "./providers/gemini";
+import { GoogleProvider } from "./providers/google";
+import { OpenRouterProvider } from "./providers/openrouter";
 import { OpenCodeProvider } from "./providers/opencode";
 import { CursorProvider } from "./providers/cursor";
 
 type ProviderFactory = (config: SessionConfig) => Session;
 
 const PROVIDERS: Record<string, ProviderFactory> = {
-    claude:   (c) => new ClaudeProvider(c),
-    codex:    (c) => new CodexProvider(c),
-    gemini:   (c) => new GeminiProvider(c),
-    opencode: (c) => new OpenCodeProvider(c),
-    cursor:   (c) => new CursorProvider(c),
+    claude:      (c) => new ClaudeProvider(c),
+    codex:       (c) => new CodexProvider(c),
+    google:      (c) => new GoogleProvider(c),
+    openrouter:  (c) => new OpenRouterProvider(c),
+    opencode:    (c) => new OpenCodeProvider(c),
+    cursor:      (c) => new CursorProvider(c),
 };
 
 export function createSession(config: SessionConfig): Session {
@@ -28,11 +30,12 @@ export interface AvailableProvider {
 }
 
 export const PROVIDER_LABELS: Record<string, string> = {
-    claude:   "Claude",
-    gemini:   "Gemini",
-    codex:    "Codex",
-    opencode: "OpenCode",
-    cursor:   "Cursor",
+    claude:     "Claude",
+    google:     "Google",
+    openrouter: "OpenRouter",
+    opencode:   "OpenCode",
+    codex:      "Codex",
+    cursor:     "Cursor",
 };
 
 export async function checkAvailability(): Promise<AvailableProvider[]> {
