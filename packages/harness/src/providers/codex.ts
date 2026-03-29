@@ -115,6 +115,9 @@ export class CodexProvider extends JsonRpcAdapter {
             cwd: tmpdir(),
             developerInstructions: this.config.systemPrompt || undefined,
             approvalPolicy: "never",
+            // danger-full-access removes the network sandbox so the agent can
+            // call the local harness HTTP endpoints (curl http://127.0.0.1:PORT/...)
+            sandbox: "danger-full-access",
             experimentalRawEvents: false,
             persistExtendedHistory: false,
             ephemeral: true,
