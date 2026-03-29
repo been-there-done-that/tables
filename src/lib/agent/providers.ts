@@ -8,6 +8,9 @@ export interface ProviderConfig {
     models: ProviderModel[];
     supportsModel: boolean;
     supportsEffort: boolean;
+    requiresApiKey?: boolean;
+    apiKeyLabel?: string;
+    apiKeySettingsKey?: "googleApiKey" | "openrouterApiKey";
 }
 
 export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
@@ -21,14 +24,34 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
         supportsModel: true,
         supportsEffort: true,
     },
-    gemini: {
-        label: "Gemini",
+    google: {
+        label: "Google",
         models: [
-            { id: "gemini-2.5-flash", label: "2.5 Flash" },
-            { id: "gemini-2.5-pro",   label: "2.5 Pro" },
+            { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
+            { id: "gemini-2.5-pro",   label: "Gemini 2.5 Pro" },
+            { id: "gemini-2.0-flash", label: "Gemini 2.0 Flash" },
         ],
         supportsModel: true,
         supportsEffort: false,
+        requiresApiKey: true,
+        apiKeyLabel: "Google API Key",
+        apiKeySettingsKey: "googleApiKey",
+    },
+    openrouter: {
+        label: "OpenRouter",
+        models: [
+            { id: "openai/gpt-4o",               label: "GPT-4o" },
+            { id: "anthropic/claude-sonnet-4-5",  label: "Claude Sonnet" },
+            { id: "google/gemini-2.5-flash",      label: "Gemini 2.5 Flash" },
+            { id: "meta-llama/llama-4-maverick",  label: "Llama 4 Maverick" },
+            { id: "deepseek/deepseek-r1",         label: "DeepSeek R1" },
+            { id: "mistralai/mistral-large-2407", label: "Mistral Large" },
+        ],
+        supportsModel: true,
+        supportsEffort: false,
+        requiresApiKey: true,
+        apiKeyLabel: "OpenRouter API Key",
+        apiKeySettingsKey: "openrouterApiKey",
     },
     codex: {
         label: "Codex",

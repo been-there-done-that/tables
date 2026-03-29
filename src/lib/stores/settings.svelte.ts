@@ -24,6 +24,8 @@ export interface Settings {
     aiEffort: "auto" | "low" | "medium" | "high" | "max";
     queryApproval: "auto" | "ask";
     aiProvider: string;
+    googleApiKey: string;
+    openrouterApiKey: string;
     lastActiveThreadId: string | null;
 }
 
@@ -46,6 +48,8 @@ const DEFAULT_SETTINGS: Settings = {
     aiEffort: "auto",
     queryApproval: "ask",
     aiProvider: "claude",
+    googleApiKey: "",
+    openrouterApiKey: "",
     lastActiveThreadId: null,
 };
 
@@ -110,6 +114,20 @@ function createSettingsStore() {
         set aiProvider(v: string) {
             settings.aiProvider = v;
             commandClient.updateAppSetting("ai_provider", v);
+        },
+        get googleApiKey(): string {
+            return settings.googleApiKey;
+        },
+        set googleApiKey(v: string) {
+            settings.googleApiKey = v;
+            commandClient.updateAppSetting("google_api_key", v);
+        },
+        get openrouterApiKey(): string {
+            return settings.openrouterApiKey;
+        },
+        set openrouterApiKey(v: string) {
+            settings.openrouterApiKey = v;
+            commandClient.updateAppSetting("openrouter_api_key", v);
         },
         get lastActiveThreadId(): string | null {
             return settings.lastActiveThreadId;
@@ -364,6 +382,12 @@ function createSettingsStore() {
                         return;
                     case "ai_provider":
                         settings.aiProvider = value || "claude";
+                        return;
+                    case "google_api_key":
+                        settings.googleApiKey = value || "";
+                        return;
+                    case "openrouter_api_key":
+                        settings.openrouterApiKey = value || "";
                         return;
                     case "last_active_thread_id":
                         settings.lastActiveThreadId = value || null;
