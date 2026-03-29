@@ -35,20 +35,25 @@ export default {
     const issueBody = formatBody(type, body, steps, systemInfo);
     const labels = labelFor(type);
 
-    const ghResponse = await fetch(
-      `https://api.github.com/repos/${env.GITHUB_REPO}/issues`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${env.GITHUB_TOKEN}`,
-          "Content-Type": "application/json",
-          "User-Agent": "tables-feedback-worker",
-          Accept: "application/vnd.github+json",
-          "X-GitHub-Api-Version": "2022-11-28",
-        },
-        body: JSON.stringify({ title: issueTitle, body: issueBody, labels }),
-      }
-    );
+    let ghResponse;
+    try {
+      ghResponse = await fetch(
+        `https://api.github.com/repos/${env.GITHUB_REPO}/issues`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${env.GITHUB_TOKEN}`,
+            "Content-Type": "application/json",
+            "User-Agent": "tables-feedback-worker",
+            Accept: "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+          },
+          body: JSON.stringify({ title: issueTitle, body: issueBody, labels }),
+        }
+      );
+    } catch {
+      return respond(500, { error: "Submission failed. Try again later." }, corsHeaders);
+    }
 
     if (!ghResponse.ok) {
       const errText = await ghResponse.text();
