@@ -37,6 +37,8 @@ pub mod explain_commands;
 pub use explain_commands::*;
 pub mod feedback_commands;
 pub use feedback_commands::*;
+pub mod update_commands;
+pub use update_commands::*;
 
 #[cfg(test)]
 mod pg_sprint_tests;

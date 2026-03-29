@@ -37,5 +37,13 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "PLACEHOLDER_REPLACE_WITH_REAL_KEY",
+      "endpoints": [
+        "https://github.com/OWNER/tables-releases/releases/latest/download/latest.json"
+      ]
+    }
   }
 }

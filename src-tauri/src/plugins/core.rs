@@ -329,6 +329,11 @@ macro_rules! aggregate_plugin_commands {
             // Harness sidecar
             crate::harness::get_harness_port,
 
+            // Updater commands
+            check_for_update,
+            download_update,
+            install_update,
+
         ]
     };
 }
