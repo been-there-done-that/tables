@@ -9,7 +9,7 @@ const baseConfig: SessionConfig = {
     provider: "claude",
 };
 
-const ALL_PROVIDERS = ["claude", "codex", "gemini", "opencode", "cursor"] as const;
+const ALL_PROVIDERS = ["claude", "codex", "google", "openrouter", "opencode", "cursor"] as const;
 
 describe("registry — all providers", () => {
     for (const provider of ALL_PROVIDERS) {

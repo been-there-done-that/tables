@@ -65,16 +65,16 @@ describe("integration", () => {
         expect(fullText.toLowerCase()).toContain("pong");
     }, { timeout: 90_000 });
 
-    it("gemini: responds to a simple prompt", async () => {
-        const events = await runSession("gemini", "Reply with exactly the word PONG and nothing else.");
+    it.skip("google: responds to a simple prompt (requires GOOGLE_API_KEY)", async () => {
+        const events = await runSession("google", "Reply with exactly the word PONG and nothing else.");
         const textEvents = events.filter(e => e.type === "text.delta");
         const fullText = textEvents.map(e => (e as any).content).join("");
         expect(events.some(e => e.type === "turn.done")).toBe(true);
         expect(fullText.toLowerCase()).toContain("pong");
     }, { timeout: 60_000 });
 
-    it("gemini: maintains multi-turn context", async () => {
-        const config: SessionConfig = { ...BASE_CONFIG, sessionId: crypto.randomUUID(), provider: "gemini" };
+    it.skip("google: maintains multi-turn context (requires GOOGLE_API_KEY)", async () => {
+        const config: SessionConfig = { ...BASE_CONFIG, sessionId: crypto.randomUUID(), provider: "google" };
         const session = createSession(config);
         const allEvents: HarnessEvent[] = [];
         let turnResolve!: () => void;
