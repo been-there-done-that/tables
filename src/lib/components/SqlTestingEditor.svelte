@@ -882,8 +882,7 @@
         }
     }
 
-    function handleExplain(raw: boolean = false) {
-        log(`Executing Explain ${raw ? "(Raw)" : ""}...`);
+    async function handleExplain(_raw: boolean = false) {
         const editor = editorHandle?.editor;
         if (!editor) return;
 
@@ -899,12 +898,27 @@
         }
 
         if (!query.trim()) return;
+        if (!schemaStore.activeConnection) { log("No active connection."); return; }
 
-        const explainQuery = raw
-            ? `EXPLAIN (FORMAT JSON) ${query}`
-            : `EXPLAIN ${query}`;
+        log("Running EXPLAIN ANALYZE...");
+        settingsStore.sidebarBottomVisible = true;
+        results.bottomTabVisible = true;
 
-        executeQueryText(explainQuery);
+        try {
+            const explainResult = await invoke<any>("explain_query", {
+                connectionId: schemaStore.activeConnection.id,
+                sessionId: id,
+                database: context.databaseContext || schemaStore.selectedDatabase,
+                query,
+            });
+            results.explainResult = explainResult;
+            results.explainQuery = query;
+            results.activeBottomTab = "explain";
+            log(`Explain complete: ${explainResult.executionMs?.toFixed(1)}ms`);
+        } catch (e) {
+            log(`Explain failed: ${e}`);
+            results.explainResult = null;
+        }
     }
 
     async function handleFormat() {

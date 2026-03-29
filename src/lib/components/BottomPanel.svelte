@@ -7,6 +7,8 @@
     import IconChevronDown from "@tabler/icons-svelte/icons/chevron-down";
     import { settingsStore } from "$lib/stores/settings.svelte";
     import { Button } from "./ui/button";
+    import IconBolt from "@tabler/icons-svelte/icons/bolt";
+    import ExplainPanel from "./ExplainPanel.svelte";
 
     const activeSession = $derived(windowState.activeSession);
     // Only show tabs for SQL editors in the bottom panel that are marked visible
@@ -108,26 +110,66 @@
     <div class="flex-1 overflow-hidden relative">
         {#each editorViews as view (view.id)}
             {#if view.id === activeViewId}
-                <div class="absolute inset-0">
-                    {#if view.type === "editor"}
-                        <SqlResultPanel {view} />
+                <div class="absolute inset-0 flex flex-col">
+                    <!-- Sub-tabs: Results | Explain (only shown when explain result exists) -->
+                    {#if view.data?.results?.explainResult}
+                        <div class="flex items-center border-b border-border bg-muted/10 h-7 px-2 gap-px flex-shrink-0">
+                            <button
+                                class={cn(
+                                    "flex items-center gap-1.5 px-2.5 h-full text-[10px] font-medium transition-colors",
+                                    (view.data.results.activeBottomTab ?? "results") === "results"
+                                        ? "text-foreground border-b-2 border-primary"
+                                        : "text-muted-foreground hover:text-foreground"
+                                )}
+                                onclick={() => { view.data.results.activeBottomTab = "results"; }}
+                            >
+                                Results
+                            </button>
+                            <button
+                                class={cn(
+                                    "flex items-center gap-1.5 px-2.5 h-full text-[10px] font-medium transition-colors relative",
+                                    (view.data.results.activeBottomTab ?? "results") === "explain"
+                                        ? "text-orange-400 border-b-2 border-orange-400"
+                                        : "text-muted-foreground hover:text-foreground"
+                                )}
+                                onclick={() => { view.data.results.activeBottomTab = "explain"; }}
+                            >
+                                <IconBolt class="size-3" />
+                                Explain
+                                {#if view.data.results.explainResult?.issues?.length > 0}
+                                    <span class="ml-1 bg-red-500 text-white text-[9px] font-bold rounded-full px-1 leading-4">
+                                        {view.data.results.explainResult.issues.length}
+                                    </span>
+                                {/if}
+                            </button>
+                        </div>
                     {/if}
+
+                    <!-- Panel content -->
+                    <div class="flex-1 overflow-hidden">
+                        {#if view.type === "editor"}
+                            {#if view.data?.results?.explainResult && (view.data.results.activeBottomTab ?? "results") === "explain"}
+                                <ExplainPanel
+                                    result={view.data.results.explainResult}
+                                    query={view.data.results.explainQuery ?? ""}
+                                />
+                            {:else}
+                                <SqlResultPanel {view} />
+                            {/if}
+                        {/if}
+                    </div>
                 </div>
             {/if}
         {/each}
 
         {#if !isActiveAnEditor && editorViews.length > 0}
-            <div
-                class="h-full flex items-center justify-center text-muted-foreground text-sm italic"
-            >
+            <div class="h-full flex items-center justify-center text-muted-foreground text-sm italic">
                 Select an editor tab to view its results.
             </div>
         {/if}
 
         {#if editorViews.length === 0}
-            <div
-                class="h-full flex items-center justify-center text-muted-foreground text-sm italic"
-            >
+            <div class="h-full flex items-center justify-center text-muted-foreground text-sm italic">
                 Open a query editor to see results here.
             </div>
         {/if}
