@@ -52,7 +52,9 @@
 						action: {
 							label: "View",
 							onClick: () => {
-								window.open(event.payload.issue_url, "_blank");
+								if (event.payload.issue_url) {
+									window.open(event.payload.issue_url, "_blank");
+								}
 							},
 						},
 					});
@@ -66,7 +68,9 @@
 			if (unlisten) {
 				unlisten();
 			}
-			unlistenFeedback();
+			if (unlistenFeedback) {
+				unlistenFeedback();
+			}
 			windowState.cleanup();
 		};
 	});
