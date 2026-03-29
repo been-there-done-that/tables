@@ -183,3 +183,50 @@ pub async fn create_new_window(
     info!("New window {} created successfully", label);
     Ok(())
 }
+
+#[tauri::command]
+pub async fn open_feedback_window(app: tauri::AppHandle) -> Result<(), String> {
+    const LABEL: &str = "feedback-window";
+    debug!("Opening feedback window");
+
+    if let Some(existing) = app.get_webview_window(LABEL) {
+        trace!("Feedback window already exists, focusing");
+        let _ = existing.unminimize();
+        let _ = existing.show();
+        let _ = existing.set_focus();
+        return Ok(());
+    }
+
+    debug!("Creating new feedback window");
+
+    let mut builder = WebviewWindowBuilder::new(
+        &app,
+        LABEL,
+        tauri::WebviewUrl::App("feedback".into()),
+    )
+    .title("Send Feedback")
+    .inner_size(560.0, 580.0)
+    .resizable(false)
+    .decorations(cfg!(target_os = "macos"));
+
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder
+            .title_bar_style(TitleBarStyle::Overlay)
+            .hidden_title(true);
+    }
+
+    let builder = builder
+        .transparent(true)
+        .focused(true);
+
+    let _window = builder
+        .build()
+        .map_err(|e| {
+            error!("Failed to create feedback window: {}", e);
+            format!("Failed to create feedback window: {}", e)
+        })?;
+
+    info!("Feedback window opened successfully");
+    Ok(())
+}
