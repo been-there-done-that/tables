@@ -1,3 +1,4 @@
+import { tmpdir } from "os";
 import { JsonRpcAdapter } from "../adapters/jsonrpc-adapter";
 import type { HarnessEvent, SessionConfig } from "../types";
 
@@ -72,7 +73,7 @@ export class CodexProvider extends JsonRpcAdapter {
         // 3. Start a thread — system prompt goes in developerInstructions
         //    experimentalRawEvents and persistExtendedHistory are required fields
         const response = await this.sendRequest<{ thread: { id: string } }>("thread/start", {
-            cwd: process.cwd(),
+            cwd: tmpdir(),
             developerInstructions: this.config.systemPrompt || undefined,
             approvalPolicy: "never",
             experimentalRawEvents: false,

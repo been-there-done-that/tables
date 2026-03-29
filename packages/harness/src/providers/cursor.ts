@@ -20,12 +20,23 @@ export class CursorProvider extends AcpAdapter {
     }
 
     async isAvailable(): Promise<boolean> {
-        try {
-            const result = await Bun.$`which cursor`.quiet();
-            return result.exitCode === 0;
-        } catch {
-            return false;
-        }
+        // Cursor must be running with its ACP server active on port 4747.
+        // A binary check isn't enough — the server may not be started.
+        return new Promise((resolve) => {
+            let done = false;
+            const finish = (v: boolean) => { if (!done) { done = true; resolve(v); } };
+            const timeout = setTimeout(() => finish(false), 500);
+            Bun.connect({
+                hostname: "127.0.0.1",
+                port: 4747,
+                socket: {
+                    open(s) { clearTimeout(timeout); s.end(); finish(true); },
+                    error() { clearTimeout(timeout); finish(false); },
+                    close() {},
+                    data() {},
+                },
+            }).catch(() => { clearTimeout(timeout); finish(false); });
+        });
     }
 
     protected getEndpoint(): string {

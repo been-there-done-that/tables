@@ -1,3 +1,4 @@
+import { tmpdir } from "os";
 import type { Session, HarnessEvent, SessionConfig } from "../types";
 
 export class GeminiProvider implements Session {
@@ -38,6 +39,7 @@ export class GeminiProvider implements Session {
         const proc = Bun.spawn(["gemini", ...args], {
             stdout: "pipe",
             stderr: "pipe",
+            cwd: tmpdir(),
         });
         this.currentProcess = proc;
 
