@@ -90,6 +90,7 @@ export abstract class JsonRpcAdapter implements Session {
         }
     }
 
+    abstract isAvailable(): Promise<boolean>;
     protected abstract handleNotification(method: string, params: unknown): void;
     protected abstract handleServerRequest(id: unknown, method: string, params: unknown): void;
     abstract send(text: string): void;

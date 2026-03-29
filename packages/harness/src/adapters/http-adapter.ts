@@ -17,6 +17,7 @@ export abstract class HttpAdapter implements Session {
         this.onStop();
     }
 
+    abstract isAvailable(): Promise<boolean>;
     protected isAborted() { return this.aborted; }
     protected abstract onStop(): void;
     abstract send(text: string): void;

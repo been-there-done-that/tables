@@ -22,6 +22,7 @@ export abstract class SdkAdapter implements Session {
         this.ac.abort();
     }
 
+    abstract isAvailable(): Promise<boolean>;
     abstract send(text: string): void;
 
     protected async consume(stream: AsyncIterable<unknown>) {
