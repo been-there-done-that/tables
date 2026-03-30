@@ -55,7 +55,7 @@
         {#if harnessLogStore.entries.length > 0}
             {@const last = harnessLogStore.entries.at(-1)!}
             <div class="px-3 py-1 text-[10px] font-mono text-muted-foreground/50 truncate">
-                {fmtTs(last.ts)} [{last.tag}] {last.message}
+                {fmtTs(last.ts)} <span class="{levelColor[last.level] ?? ''}">[{last.level}]</span> [{last.tag}] {last.message}
             </div>
         {:else}
             <div class="px-3 py-1 text-[10px] text-muted-foreground/40">No log entries</div>
