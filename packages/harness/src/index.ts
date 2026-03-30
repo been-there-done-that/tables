@@ -68,7 +68,10 @@ async function handleRequest(req: Request): Promise<Response> {
             });
 
             session.setEmit((e) => {
-                hLog("info", "emit", `${e.type}${"content" in e ? ` "${(e as any).content?.slice?.(0, 20)}"` : ""}`);
+                // Only log turn-level events to avoid flooding the 200-entry log panel with content deltas
+                if (e.type === "turn.done" || e.type === "error") {
+                    hLog("info", "turn", e.type);
+                }
                 try {
                     controller.enqueue(encoder.encode(`data: ${JSON.stringify(e)}\n\n`));
                     if (e.type === "turn.done" || e.type === "error") {

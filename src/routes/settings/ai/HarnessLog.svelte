@@ -40,7 +40,7 @@
             {#if harnessLogStore.entries.length === 0}
                 <div class="px-3 py-3 text-[10px] text-muted-foreground/50">No log entries yet</div>
             {:else}
-                {#each harnessLogStore.entries as entry (entry.ts + entry.message)}
+                {#each harnessLogStore.entries as entry, i (i)}
                     <div class="flex gap-2 px-3 py-0.5 border-b border-border/30 text-[10px]">
                         <span class="text-muted-foreground/50 shrink-0">{fmtTs(entry.ts)}</span>
                         <span class="{levelColor[entry.level] ?? 'text-muted-foreground'} shrink-0">[{entry.level}]</span>

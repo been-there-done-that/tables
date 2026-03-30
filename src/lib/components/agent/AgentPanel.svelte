@@ -100,8 +100,8 @@
     }
 
     function buildProviderConfig(provider: string): Record<string, unknown> | undefined {
-        if (provider === "google")      return { apiKey: settingsStore.googleApiKey };
-        if (provider === "openrouter")  return { apiKey: settingsStore.openrouterApiKey };
+        if (provider === "google")      return { apiKey: settingsStore.googleApiKey, baseUrl: settingsStore.googleBaseUrl || undefined };
+        if (provider === "openrouter")  return { apiKey: settingsStore.openrouterApiKey, baseUrl: settingsStore.openrouterBaseUrl || undefined };
         return undefined;
     }
 
