@@ -461,22 +461,6 @@
         }
     });
 
-    // When the user enters an API key for Google/OpenRouter, restart the harness session
-    // so the new key is picked up. Plain (non-reactive) variable guards against re-entry —
-    // startThread writes reactive state which would otherwise re-trigger this effect.
-    let _lastRestartedKey = "";
-    $effect(() => {
-        const key = currentProvider === "google"     ? settingsStore.googleApiKey
-                  : currentProvider === "openrouter" ? settingsStore.openrouterApiKey
-                  : null;
-        if (!key || key === _lastRestartedKey || agentStore.messages.length > 0) return;
-        const thread = threadsStore.activeThread;
-        if (thread && thread.provider === currentProvider) {
-            _lastRestartedKey = key; // plain write — not tracked by Svelte, breaks the loop
-            startThread(thread).catch(console.error);
-        }
-    });
-
     // Fetch available providers from harness when port is known
     $effect(() => {
         const port = harnessStore.port;
