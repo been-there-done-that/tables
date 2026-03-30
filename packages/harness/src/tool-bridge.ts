@@ -1,4 +1,5 @@
 import type { HarnessEvent } from "./types";
+import { hLog } from "./logger";
 
 type PendingTool = {
     sessionId: string;
@@ -20,7 +21,7 @@ export async function callTool(
     emitFn: (e: HarnessEvent) => void,
 ): Promise<unknown> {
     const requestId = crypto.randomUUID();
-    console.error(`[bridge] callTool: tool="${toolName}" requestId="${requestId}"`);
+    hLog("info", "bridge", `callTool tool="${toolName}" requestId="${requestId}" session="${sessionId}"`);
 
     emitFn({ type: "tool.started", toolId: requestId, toolName, input, requiresResponse: true });
 
@@ -29,7 +30,7 @@ export async function callTool(
         setTimeout(() => {
             if (pending.has(requestId)) {
                 pending.delete(requestId);
-                console.error(`[bridge] tool "${toolName}" (${requestId}) timed out after 30s`);
+                hLog("error", "bridge", `tool "${toolName}" (${requestId}) timed out after 30s`);
                 reject(new Error(`Tool "${toolName}" timed out after 30s`));
             }
         }, 30_000);
@@ -52,6 +53,7 @@ export function resolveToolResult(requestId: string, result: unknown): boolean {
     const p = pending.get(requestId);
     if (!p) return false;
     pending.delete(requestId);
+    hLog("debug", "bridge", `resolveToolResult requestId="${requestId}"`);
     p.resolve(result);
     return true;
 }
@@ -61,10 +63,13 @@ export function resolveToolResult(requestId: string, result: unknown): boolean {
  * Rejects all pending tool calls for the given session.
  */
 export function cancelSessionTools(sessionId: string): void {
+    let cancelled = 0;
     for (const [reqId, p] of pending) {
         if (p.sessionId === sessionId) {
             pending.delete(reqId);
             p.reject(new Error("Turn stopped by user"));
+            cancelled++;
         }
     }
+    if (cancelled > 0) hLog("info", "bridge", `cancelled ${cancelled} pending tools for session="${sessionId}"`);
 }

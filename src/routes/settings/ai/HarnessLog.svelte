@@ -3,6 +3,16 @@
     import { harnessLogStore } from "$lib/stores/harnessLog.svelte";
 
     let expanded = $state(false);
+    let copied = $state(false);
+
+    function copyLogs() {
+        const text = harnessLogStore.entries
+            .map(e => `${new Date(e.ts).toISOString()} [${e.level}] [${e.tag}] ${e.message}`)
+            .join("\n");
+        navigator.clipboard.writeText(text);
+        copied = true;
+        setTimeout(() => { copied = false; }, 1500);
+    }
 
     function fmtTs(ts: number): string {
         const d = new Date(ts);
@@ -10,6 +20,7 @@
     }
 
     const levelColor: Record<string, string> = {
+        debug: "text-blue-400/70",
         info:  "text-green-400",
         warn:  "text-amber-400",
         error: "text-red-400",
@@ -24,6 +35,11 @@
             <span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
         </div>
         <div class="flex items-center gap-3">
+            <button
+                onclick={copyLogs}
+                disabled={harnessLogStore.entries.length === 0}
+                class="text-[10px] text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30"
+            >{copied ? "✓ copied" : "Copy"}</button>
             <button
                 onclick={() => harnessLogStore.clear()}
                 class="text-[10px] text-muted-foreground hover:text-foreground transition-colors"

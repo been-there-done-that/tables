@@ -3,6 +3,7 @@ import { query } from "@anthropic-ai/claude-agent-sdk";
 import { AsyncQueue } from "../adapters/async-queue";
 import { SdkAdapter } from "../adapters/sdk-adapter";
 import type { SessionConfig } from "../types";
+import { hLog } from "../logger";
 
 type SDKMsg = {
     type: "user";
@@ -32,6 +33,8 @@ export class ClaudeProvider extends SdkAdapter {
         delete childEnv.CLAUDECODE;
         delete childEnv.CLAUDE_CODE_ENTRYPOINT;
         delete childEnv.CLAUDE_CODE_VERSION;
+
+        hLog("info", "claude", `init session=${config.sessionId} model=${config.model ?? "default"} effort=${config.effort ?? "auto"} cwd=${cwd} resume=${config.sdkSessionId ?? "none"}`);
 
         const stream = query({
             prompt: this.queue as any,

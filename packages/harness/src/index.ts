@@ -2,13 +2,9 @@ import { createSession, checkAvailability } from "./registry";
 import type { Session } from "./types";
 import { unlinkSync } from "fs";
 import { callTool, resolveToolResult, cancelSessionTools } from "./tool-bridge";
+import { hLog } from "./logger";
 
 const sessions = new Map<string, Session>();
-
-/** Emit a structured log line to stderr for Rust to capture and forward as a Tauri event. */
-function hLog(level: "info" | "warn" | "error", tag: string, message: string): void {
-    process.stderr.write(JSON.stringify({ ts: Date.now(), level, tag, message }) + "\n");
-}
 
 const CORS = {
     "Access-Control-Allow-Origin": "*",
