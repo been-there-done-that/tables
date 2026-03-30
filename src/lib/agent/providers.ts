@@ -8,9 +8,6 @@ export interface ProviderConfig {
     models: ProviderModel[];
     supportsModel: boolean;
     supportsEffort: boolean;
-    requiresApiKey?: boolean;
-    apiKeyLabel?: string;
-    apiKeySettingsKey?: "googleApiKey" | "openrouterApiKey";
 }
 
 export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
@@ -33,9 +30,6 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
         ],
         supportsModel: true,
         supportsEffort: false,
-        requiresApiKey: true,
-        apiKeyLabel: "Google API Key",
-        apiKeySettingsKey: "googleApiKey",
     },
     openrouter: {
         label: "OpenRouter",
@@ -49,9 +43,6 @@ export const PROVIDER_CONFIGS: Record<string, ProviderConfig> = {
         ],
         supportsModel: true,
         supportsEffort: false,
-        requiresApiKey: true,
-        apiKeyLabel: "OpenRouter API Key",
-        apiKeySettingsKey: "openrouterApiKey",
     },
     codex: {
         label: "Codex",
