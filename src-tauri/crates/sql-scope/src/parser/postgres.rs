@@ -37,8 +37,76 @@ pub fn parse_postgres(sql: &str) -> Option<ParsedStatement> {
             kind: DangerousKind::Drop,
             has_where: false,
         }),
-        _ => Some(ParsedStatement::Other),
+        // ANALYZE / VACUUM — VacuumStmt covers both
+        NodeEnum::VacuumStmt(vac) => {
+            let table_refs = vac.rels.iter()
+                .filter_map(|node| node.node.as_ref())
+                .filter_map(|n| {
+                    if let NodeEnum::VacuumRelation(vr) = n {
+                        let relation = vr.relation.as_ref()?;
+                        let name = relation.relname.to_lowercase();
+                        if name.is_empty() {
+                            return None;
+                        }
+                        let schema = if relation.schemaname.is_empty() {
+                            None
+                        } else {
+                            Some(relation.schemaname.to_lowercase())
+                        };
+                        Some(TableRefIr::Table { schema, name, alias: None, byte_range: 0..sql.len() })
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            Some(ParsedStatement::Other { table_refs })
+        }
+        // INSERT — carries the target relation
+        NodeEnum::InsertStmt(ins) => {
+            let table_refs = extract_range_var_ref(ins.relation.as_ref(), sql);
+            Some(ParsedStatement::Other { table_refs })
+        }
+        // LOCK TABLE
+        NodeEnum::LockStmt(lock) => {
+            let table_refs = lock.relations.iter()
+                .filter_map(|node| node.node.as_ref())
+                .filter_map(|n| {
+                    if let NodeEnum::RangeVar(rv) = n {
+                        let name = rv.relname.to_lowercase();
+                        if name.is_empty() {
+                            return None;
+                        }
+                        let schema = if rv.schemaname.is_empty() {
+                            None
+                        } else {
+                            Some(rv.schemaname.to_lowercase())
+                        };
+                        Some(TableRefIr::Table { schema, name, alias: None, byte_range: 0..sql.len() })
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            Some(ParsedStatement::Other { table_refs })
+        }
+        // CREATE TABLE, ALTER TABLE, etc. — no pre-existing table refs to validate
+        _ => Some(ParsedStatement::Other { table_refs: vec![] }),
     }
+}
+
+/// Extract a single TableRefIr from an optional RangeVar (used by INSERT)
+fn extract_range_var_ref(rv: Option<&pg_query::protobuf::RangeVar>, sql: &str) -> Vec<TableRefIr> {
+    let Some(rv) = rv else { return vec![] };
+    let name = rv.relname.to_lowercase();
+    if name.is_empty() {
+        return vec![];
+    }
+    let schema = if rv.schemaname.is_empty() {
+        None
+    } else {
+        Some(rv.schemaname.to_lowercase())
+    };
+    vec![TableRefIr::Table { schema, name, alias: None, byte_range: 0..sql.len() }]
 }
 
 fn convert_select_stmt(
@@ -683,7 +751,7 @@ mod tests {
     fn test_insert_returns_other() {
         let sql = "INSERT INTO users (id, name) VALUES (1, 'Alice')";
         let result = parse_postgres(sql).expect("should parse");
-        assert!(matches!(result, ParsedStatement::Other));
+        assert!(matches!(result, ParsedStatement::Other { .. }));
     }
 
     // =========================================================================
@@ -694,7 +762,7 @@ mod tests {
     fn test_create_table_returns_other() {
         let sql = "CREATE TABLE users (id INT, name TEXT)";
         let result = parse_postgres(sql).expect("should parse");
-        assert!(matches!(result, ParsedStatement::Other));
+        assert!(matches!(result, ParsedStatement::Other { .. }));
     }
 
     // =========================================================================
@@ -813,7 +881,7 @@ mod tests {
     fn test_alter_table_returns_other() {
         let sql = "ALTER TABLE users ADD COLUMN email TEXT";
         let result = parse_postgres(sql).expect("should parse");
-        assert!(matches!(result, ParsedStatement::Other));
+        assert!(matches!(result, ParsedStatement::Other { .. }));
     }
 
     #[test]
@@ -923,6 +991,94 @@ mod tests {
             );
         } else {
             panic!("Expected Select");
+        }
+    }
+
+    #[test]
+    fn test_insert_carries_target_table() {
+        let sql = "INSERT INTO production.users (id, name) VALUES (1, 'Alice')";
+        let result = parse_postgres(sql).expect("should parse");
+        if let ParsedStatement::Other { table_refs } = result {
+            assert_eq!(table_refs.len(), 1, "INSERT should carry the target table");
+            if let TableRefIr::Table { schema, name, .. } = &table_refs[0] {
+                assert_eq!(schema.as_deref(), Some("production"));
+                assert_eq!(name, "users");
+            } else {
+                panic!("Expected Table ref");
+            }
+        } else {
+            panic!("Expected Other");
+        }
+    }
+
+    #[test]
+    fn test_analyze_carries_relation() {
+        let sql = "ANALYZE production.tasks";
+        let result = parse_postgres(sql).expect("should parse");
+        if let ParsedStatement::Other { table_refs } = result {
+            assert_eq!(table_refs.len(), 1, "ANALYZE should carry the target relation");
+            if let TableRefIr::Table { schema, name, .. } = &table_refs[0] {
+                assert_eq!(schema.as_deref(), Some("production"));
+                assert_eq!(name, "tasks");
+            } else {
+                panic!("Expected Table ref");
+            }
+        } else {
+            panic!("Expected Other");
+        }
+    }
+
+    #[test]
+    fn test_analyze_multiple_tables() {
+        let sql = "ANALYZE production.tasks, production.users";
+        let result = parse_postgres(sql).expect("should parse");
+        if let ParsedStatement::Other { table_refs } = result {
+            assert_eq!(table_refs.len(), 2);
+        } else {
+            panic!("Expected Other");
+        }
+    }
+
+    #[test]
+    fn test_vacuum_carries_relation() {
+        let sql = "VACUUM production.logs";
+        let result = parse_postgres(sql).expect("should parse");
+        if let ParsedStatement::Other { table_refs } = result {
+            assert_eq!(table_refs.len(), 1);
+            if let TableRefIr::Table { name, .. } = &table_refs[0] {
+                assert_eq!(name, "logs");
+            } else {
+                panic!("Expected Table");
+            }
+        } else {
+            panic!("Expected Other");
+        }
+    }
+
+    #[test]
+    fn test_lock_table_carries_relation() {
+        let sql = "LOCK TABLE production.orders IN EXCLUSIVE MODE";
+        let result = parse_postgres(sql).expect("should parse");
+        if let ParsedStatement::Other { table_refs } = result {
+            assert_eq!(table_refs.len(), 1);
+            if let TableRefIr::Table { name, .. } = &table_refs[0] {
+                assert_eq!(name, "orders");
+            } else {
+                panic!("Expected Table");
+            }
+        } else {
+            panic!("Expected Other");
+        }
+    }
+
+    #[test]
+    fn test_create_table_empty_refs() {
+        let sql = "CREATE TABLE users (id INT, name TEXT)";
+        let result = parse_postgres(sql).expect("should parse");
+        if let ParsedStatement::Other { table_refs } = result {
+            assert!(table_refs.is_empty(), "CREATE TABLE should have no table refs");
+        } else {
+            panic!("Expected Other");
         }
     }
 
