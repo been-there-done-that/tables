@@ -477,6 +477,17 @@
 
     const sessionHasMessages = $derived(agentStore.messages.length > 0);
 
+    // Override harness availability with local API-key presence check (reactive)
+    const effectiveProviders = $derived(
+        availableProviders.map(p => ({
+            ...p,
+            available:
+                p.id === "google"     ? p.available && !!settingsStore.googleApiKey :
+                p.id === "openrouter" ? p.available && !!settingsStore.openrouterApiKey :
+                p.available,
+        }))
+    );
+
     // Restart the harness session when planMode is toggled mid-conversation so
     // the system prompt reflects the new mode. Guard: only restart if the thread
     // already has messages (avoid restarting a fresh empty thread).
@@ -493,9 +504,19 @@
 
     function handleProviderChange(newProvider: string) {
         settingsStore.aiProvider = newProvider;
-        const firstModel = defaultModel(newProvider);
+        // Pick first pinned model if available, otherwise fall back to provider default
+        let firstModel = defaultModel(newProvider);
+        if (newProvider === "google" && settingsStore.googlePinnedModels.length > 0) {
+            firstModel = settingsStore.googlePinnedModels[0];
+        } else if (newProvider === "openrouter" && settingsStore.openrouterPinnedModels.length > 0) {
+            firstModel = settingsStore.openrouterPinnedModels[0];
+        }
         settingsStore.aiModel = firstModel;
         void createAndStartThread();
+    }
+
+    function handleModelChange(model: string) {
+        settingsStore.aiModel = model;
     }
 
     // Auto-send pending message when set from outside (e.g. Explain panel "Ask AI")
@@ -562,13 +583,20 @@
             />
         </div>
         <div class="flex items-center gap-2 shrink-0">
-            <!-- Provider badge — locked when session has messages -->
+            <!-- Provider + model badge — locked when session has messages -->
             {#if sessionHasMessages}
+                {@const modelLabel = (() => {
+                    const cfg = PROVIDER_CONFIGS[currentProvider];
+                    if (!cfg) return sessionModel;
+                    const known = cfg.models.find(m => m.id === sessionModel);
+                    return known?.label ?? sessionModel?.split("/").pop() ?? sessionModel;
+                })()}
                 <span
                     class="flex items-center gap-1 rounded-full border border-border/30 px-2 py-0.5 text-[9.5px] text-muted-foreground/60"
                     title="Provider locked for this session"
                 >
                     {PROVIDER_CONFIGS[currentProvider]?.label ?? currentProvider}
+                    {#if modelLabel}· <span class="font-mono">{modelLabel}</span>{/if}
                     <IconLock size={9} class="opacity-50" />
                 </span>
             {/if}
@@ -624,9 +652,13 @@
         {#if agentStore.messages.length === 0 && agentStore.status !== "running"}
             <div class="flex flex-1 flex-col items-center justify-center">
                 <ProviderPicker
-                    providers={availableProviders}
+                    providers={effectiveProviders}
                     selected={currentProvider}
+                    currentModel={settingsStore.aiModel}
+                    pinnedGoogleModels={settingsStore.googlePinnedModels}
+                    pinnedOpenrouterModels={settingsStore.openrouterPinnedModels}
                     onProviderChange={handleProviderChange}
+                    onModelChange={handleModelChange}
                 />
             </div>
         {:else}
