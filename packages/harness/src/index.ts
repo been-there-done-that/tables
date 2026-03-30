@@ -5,6 +5,11 @@ import { callTool, resolveToolResult, cancelSessionTools } from "./tool-bridge";
 
 const sessions = new Map<string, Session>();
 
+/** Emit a structured log line to stderr for Rust to capture and forward as a Tauri event. */
+function hLog(level: "info" | "warn" | "error", tag: string, message: string): void {
+    process.stderr.write(JSON.stringify({ ts: Date.now(), level, tag, message }) + "\n");
+}
+
 const CORS = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -34,7 +39,7 @@ async function handleRequest(req: Request): Promise<Response> {
             };
             sessions.get(sessionId)?.stop();
             sessions.set(sessionId, createSession({ sessionId, threadId, systemPrompt, provider, providerConfig, model, effort }));
-            console.error(`[harness] session started: ${sessionId}`);
+            hLog("info", "session", `started — provider=${provider} model=${model ?? "default"} session=${sessionId}`);
             return Response.json({ ok: true }, { headers: CORS });
         }
 
@@ -48,7 +53,7 @@ async function handleRequest(req: Request): Promise<Response> {
                 return Response.json({ error: "session not found" }, { status: 404, headers: CORS });
             }
 
-            console.error(`[harness] session send: ${sessionId} — "${text.slice(0, 60)}"`);
+            hLog("info", "send", `session=${sessionId} — "${text.slice(0, 60)}"`);
 
             const encoder = new TextEncoder();
             let controller!: ReadableStreamDefaultController<Uint8Array>;
@@ -56,14 +61,14 @@ async function handleRequest(req: Request): Promise<Response> {
             const stream = new ReadableStream<Uint8Array>({
                 start(c) { controller = c; },
                 cancel() {
-                    console.error(`[harness] SSE stream cancelled for ${sessionId}`);
+                    hLog("warn", "send", `SSE stream cancelled session=${sessionId}`);
                     session.setEmit(() => {});
                     cancelSessionTools(sessionId);
                 },
             });
 
             session.setEmit((e) => {
-                console.error(`[harness] emit → ${e.type}${"content" in e ? ` "${(e as any).content?.slice?.(0, 20)}"` : ""}`);
+                hLog("info", "emit", `${e.type}${"content" in e ? ` "${(e as any).content?.slice?.(0, 20)}"` : ""}`);
                 try {
                     controller.enqueue(encoder.encode(`data: ${JSON.stringify(e)}\n\n`));
                     if (e.type === "turn.done" || e.type === "error") {
@@ -74,7 +79,7 @@ async function handleRequest(req: Request): Promise<Response> {
                 }
             });
 
-            console.error(`[harness] calling session.send for ${sessionId}`);
+            hLog("info", "send", `calling session.send session=${sessionId}`);
             session.send(text);
 
             return new Response(stream, {
@@ -91,7 +96,7 @@ async function handleRequest(req: Request): Promise<Response> {
             const { sessionId } = (await req.json()) as { sessionId: string };
             sessions.get(sessionId)?.stop();
             sessions.delete(sessionId);
-            console.error(`[harness] session stopped: ${sessionId}`);
+            hLog("info", "session", `stopped session=${sessionId}`);
             return Response.json({ ok: true }, { headers: CORS });
         }
 
@@ -108,7 +113,7 @@ async function handleRequest(req: Request): Promise<Response> {
             };
             sessions.get(sessionId)?.stop();
             sessions.set(sessionId, createSession({ sessionId, threadId, systemPrompt, provider, providerConfig, model, effort, sdkSessionId }));
-            console.error(`[harness] session resumed: ${sessionId} sdk: ${sdkSessionId}`);
+            hLog("info", "session", `resumed — provider=${provider} model=${model ?? "default"} session=${sessionId} sdk=${sdkSessionId}`);
             return Response.json({ ok: true }, { headers: CORS });
         }
 
@@ -128,7 +133,7 @@ async function handleRequest(req: Request): Promise<Response> {
             }
 
             const input = await req.json().catch(() => ({}));
-            console.error(`[harness] /db/ received — tool="${toolName}" session="${pathSessionId}" input=${JSON.stringify(input)}`);
+            hLog("info", "tool", `db call tool="${toolName}" session="${pathSessionId}" input=${JSON.stringify(input)}`);
 
             const result = await callTool(
                 pathSessionId,
@@ -143,13 +148,13 @@ async function handleRequest(req: Request): Promise<Response> {
         // POST /tool-result/:requestId — frontend submits tool execution result
         if (req.method === "POST" && url.pathname.startsWith("/tool-result/")) {
             const requestId = url.pathname.slice("/tool-result/".length);
-            console.error(`[harness] /tool-result/${requestId} received`);
             const body = await req.json().catch(() => ({}));
             const resolved = resolveToolResult(requestId, body);
             if (!resolved) {
-                console.error(`[harness] /tool-result/${requestId} — no matching pending tool`);
+                hLog("warn", "tool", `no matching pending tool requestId=${requestId}`);
                 return Response.json({ error: "no pending tool for this id" }, { status: 404, headers: CORS });
             }
+            hLog("info", "tool", `result received requestId=${requestId}`);
             return Response.json({ ok: true }, { headers: CORS });
         }
 
