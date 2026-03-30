@@ -8,12 +8,18 @@
     let activeTab = $state<ProviderTab>("claude");
 
     // ── Google ──────────────────────────────────────────────────────────
-    // Seed from cache so models/chips are visible without clicking Fetch
-    let googleModels = $state<CachedModel[]>(settingsStore.googleCachedModels);
-    let googleFetchStatus = $state<"idle" | "loading" | "ok" | "error">(
-        settingsStore.googleCachedModels.length > 0 ? "ok" : "idle"
-    );
+    let googleModels = $state<CachedModel[]>([]);
+    let googleFetchStatus = $state<"idle" | "loading" | "ok" | "error">("idle");
     let googleFetchError = $state("");
+
+    // Reactively seed from cache once settings finish loading from SQLite
+    $effect(() => {
+        const cached = settingsStore.googleCachedModels;
+        if (cached.length > 0 && googleFetchStatus === "idle") {
+            googleModels = cached;
+            googleFetchStatus = "ok";
+        }
+    });
 
     async function fetchGoogleModels() {
         const key = settingsStore.googleApiKey;
@@ -48,12 +54,18 @@
     }
 
     // ── OpenRouter ──────────────────────────────────────────────────────
-    // Seed from cache so models/chips are visible without clicking Fetch
-    let orModels = $state<CachedModel[]>(settingsStore.openrouterCachedModels);
-    let orFetchStatus = $state<"idle" | "loading" | "ok" | "error">(
-        settingsStore.openrouterCachedModels.length > 0 ? "ok" : "idle"
-    );
+    let orModels = $state<CachedModel[]>([]);
+    let orFetchStatus = $state<"idle" | "loading" | "ok" | "error">("idle");
     let orFetchError = $state("");
+
+    // Reactively seed from cache once settings finish loading from SQLite
+    $effect(() => {
+        const cached = settingsStore.openrouterCachedModels;
+        if (cached.length > 0 && orFetchStatus === "idle") {
+            orModels = cached;
+            orFetchStatus = "ok";
+        }
+    });
 
     async function fetchOpenRouterModels() {
         const key = settingsStore.openrouterApiKey;
