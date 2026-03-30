@@ -6,8 +6,8 @@ pub enum ParsedStatement {
     Select(SelectIr),
     /// DROP / TRUNCATE / DELETE / UPDATE — flagged for dangerous statement warning
     Dangerous { kind: DangerousKind, has_where: bool },
-    /// INSERT, CREATE, ALTER, etc. — kept for future expansion
-    Other,
+    /// INSERT, CREATE, ALTER, ANALYZE, etc. — carries table references for semantic checks
+    Other { table_refs: Vec<TableRefIr> },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -239,8 +239,8 @@ mod tests {
 
     #[test]
     fn test_parsed_statement_other() {
-        let stmt = ParsedStatement::Other;
-        assert!(matches!(stmt, ParsedStatement::Other));
+        let stmt = ParsedStatement::Other { table_refs: vec![] };
+        assert!(matches!(stmt, ParsedStatement::Other { .. }));
     }
 
     #[test]
@@ -496,7 +496,7 @@ mod tests {
             byte_range: 0..10,
         });
         assert!(matches!(stmt, ParsedStatement::Select(_)));
-        assert!(!matches!(stmt, ParsedStatement::Other));
+        assert!(!matches!(stmt, ParsedStatement::Other { .. }));
     }
 
     #[test]
@@ -1024,6 +1024,51 @@ mod tests {
         let cloned = item.clone();
         if let SelectItemIr::Expr { byte_range, .. } = cloned {
             assert_eq!(byte_range, 42..99);
+        }
+    }
+
+    #[test]
+    fn test_parsed_statement_other_with_table_refs() {
+        let tref = TableRefIr::Table {
+            schema: Some("production".to_string()),
+            name: "tasks".to_string(),
+            alias: None,
+            byte_range: 0..20,
+        };
+        let stmt = ParsedStatement::Other { table_refs: vec![tref] };
+        if let ParsedStatement::Other { table_refs } = stmt {
+            assert_eq!(table_refs.len(), 1);
+            assert!(matches!(&table_refs[0], TableRefIr::Table { name, .. } if name == "tasks"));
+        } else {
+            panic!("Expected Other");
+        }
+    }
+
+    #[test]
+    fn test_parsed_statement_other_empty_refs() {
+        let stmt = ParsedStatement::Other { table_refs: vec![] };
+        if let ParsedStatement::Other { table_refs } = stmt {
+            assert!(table_refs.is_empty());
+        } else {
+            panic!("Expected Other");
+        }
+    }
+
+    #[test]
+    fn test_clone_parsed_statement_other_with_refs() {
+        let stmt = ParsedStatement::Other {
+            table_refs: vec![TableRefIr::Table {
+                schema: None,
+                name: "logs".to_string(),
+                alias: None,
+                byte_range: 0..4,
+            }],
+        };
+        let cloned = stmt.clone();
+        if let ParsedStatement::Other { table_refs } = cloned {
+            assert_eq!(table_refs.len(), 1);
+        } else {
+            panic!("Expected Other");
         }
     }
 }
