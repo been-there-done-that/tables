@@ -14,6 +14,8 @@
 
   import RefreshIcon from "@tabler/icons-svelte/icons/refresh";
   import UpdatesComponent from "./Updates.svelte";
+  import AiIcon from "@tabler/icons-svelte/icons/ai";
+  import AIComponent from "./AI.svelte";
 
   let themes = $state<ThemeRecord[]>([]);
   let activeId = $state<string>("");
@@ -46,6 +48,10 @@
     {
       name: "editor",
       icon: TypographyIcon,
+    },
+    {
+      name: "ai",
+      icon: AiIcon,
     },
     {
       name: "dangerous",
@@ -91,6 +97,8 @@
         <ShortcutsComponent />
       {:else if selectedSection === "editor"}
         <EditorComponent />
+      {:else if selectedSection === "ai"}
+        <AIComponent />
       {:else if selectedSection === "dangerous"}
         <DangerousComponent />
       {:else if selectedSection === "updates"}
