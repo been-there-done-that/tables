@@ -500,27 +500,32 @@ pub async fn execute_query(
         // Determine final query text and optional count query
         let (final_query, count_query) = if let (Some(l), Some(offset_val)) = (limit, offset) {
             let trimmed = query.trim().trim_end_matches(';');
-            // If the original query already has a top-level LIMIT, wrapping it in
-            // COUNT(*) would return the limit value, not the true total — useless and
-            // wastes a full DB round-trip (especially painful with ORDER BY RANDOM()).
-            let has_limit = {
-                let upper = trimmed.to_uppercase();
-                upper.contains(" LIMIT ") || upper.ends_with(" LIMIT") || upper.starts_with("LIMIT ")
-            };
-            match engine.as_str() {
-                "postgres" | "postgresql" => {
-                    (
-                        format!("SELECT * FROM ({}) AS __subquery LIMIT {} OFFSET {}", trimmed, l, offset_val),
-                        if has_limit { None } else { Some(format!("SELECT COUNT(*) FROM ({}) AS __total", trimmed)) }
-                    )
+            let upper = trimmed.to_uppercase();
+            // Only wrap SELECT/WITH queries — utility statements (ANALYZE, VACUUM,
+            // INSERT, UPDATE, DELETE, CREATE, EXPLAIN, …) cannot be used as subqueries.
+            let is_select = upper.starts_with("SELECT") || upper.starts_with("WITH");
+            if !is_select {
+                (query.clone(), None)
+            } else {
+                // If the original query already has a top-level LIMIT, wrapping it in
+                // COUNT(*) would return the limit value, not the true total — useless and
+                // wastes a full DB round-trip (especially painful with ORDER BY RANDOM()).
+                let has_limit = upper.contains(" LIMIT ") || upper.ends_with(" LIMIT") || upper.starts_with("LIMIT ");
+                match engine.as_str() {
+                    "postgres" | "postgresql" => {
+                        (
+                            format!("SELECT * FROM ({}) AS __subquery LIMIT {} OFFSET {}", trimmed, l, offset_val),
+                            if has_limit { None } else { Some(format!("SELECT COUNT(*) FROM ({}) AS __total", trimmed)) }
+                        )
+                    }
+                    "sqlite" => {
+                        (
+                            format!("SELECT * FROM ({}) LIMIT {} OFFSET {}", trimmed, l, offset_val),
+                            if has_limit { None } else { Some(format!("SELECT COUNT(*) FROM ({})", trimmed)) }
+                        )
+                    }
+                    _ => (query.clone(), None)
                 }
-                "sqlite" => {
-                    (
-                        format!("SELECT * FROM ({}) LIMIT {} OFFSET {}", trimmed, l, offset_val),
-                        if has_limit { None } else { Some(format!("SELECT COUNT(*) FROM ({})", trimmed)) }
-                    )
-                }
-                _ => (query.clone(), None)
             }
         } else {
             (query.clone(), None)

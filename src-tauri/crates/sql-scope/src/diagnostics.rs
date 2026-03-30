@@ -19,13 +19,30 @@ pub fn run_diagnostics(tree: &ScopeTree, schema: &dyn SchemaSnapshot, _sql: &str
                 if !schema.table_exists(tschema.as_deref(), name)
                     && !scope.cte_sources.contains_key(name.as_str())
                 {
+                    // Find the table's byte range in the SQL text.
+                    // Try schema-qualified match first (e.g. "production.tasksj"),
+                    // then fall back to just the table name, then the whole statement.
+                    let byte_range = {
+                        let sql_lower = _sql.to_lowercase();
+                        let qualified = tschema.as_ref()
+                            .map(|s| format!("{}.{}", s, name))
+                            .unwrap_or_else(|| name.clone());
+                        sql_lower
+                            .find(qualified.as_str())
+                            .map(|pos| pos..pos + qualified.len())
+                            .or_else(|| {
+                                sql_lower.find(name.as_str()).map(|pos| pos..pos + name.len())
+                            })
+                            .unwrap_or(0.._sql.len())
+                    };
+                    let message = match tschema {
+                        Some(s) => format!("Table '{}.{}' does not exist in the schema", s, name),
+                        None => format!("Table '{}' does not exist in the schema", name),
+                    };
                     diags.push(ScopeDiagnostic {
-                        message: format!("Unknown table '{}'", name),
+                        message,
                         severity: DiagSeverity::Warning,
-                        // TODO: `Source::Table` does not currently carry source position.
-                        // When position tracking is added to the IR, replace 0..1 with the
-                        // actual byte range of the table reference.
-                        byte_range: 0..1,
+                        byte_range,
                     });
                 }
             }

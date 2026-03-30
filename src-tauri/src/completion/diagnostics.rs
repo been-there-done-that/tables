@@ -53,6 +53,7 @@ impl DiagnosticEngine {
                     let (start, end) = Self::extract_error_position(&msg, stmt_str, offset);
                     diagnostics.push(Diagnostic {
                         message: format!("Syntax error: {}", Self::clean_pg_error(&msg)),
+
                         start,
                         end,
                         severity: 1,
@@ -75,13 +76,13 @@ impl DiagnosticEngine {
             if let ParsedStatement::Dangerous { kind, has_where } = stmt {
                 let message = match kind {
                     sql_scope::DangerousKind::Drop =>
-                        Some("Destructive: DROP cannot be undone".to_string()),
+                        Some("DROP will permanently delete the object and cannot be undone".to_string()),
                     sql_scope::DangerousKind::Truncate =>
-                        Some("Destructive: TRUNCATE will delete all rows".to_string()),
+                        Some("TRUNCATE will permanently delete all rows in the table".to_string()),
                     sql_scope::DangerousKind::DeleteWithoutWhere if !has_where =>
-                        Some("DELETE without WHERE will erase every row".to_string()),
+                        Some("DELETE has no WHERE clause — every row in the table will be deleted".to_string()),
                     sql_scope::DangerousKind::UpdateWithoutWhere if !has_where =>
-                        Some("UPDATE without WHERE will modify every row".to_string()),
+                        Some("UPDATE has no WHERE clause — every row in the table will be modified".to_string()),
                     _ => None, // has WHERE — not dangerous
                 };
                 if let Some(msg) = message {
@@ -112,8 +113,22 @@ impl DiagnosticEngine {
     }
 
     /// Clean up pg_query error message for user display.
-    fn clean_pg_error(msg: &str) -> &str {
-        msg.split(" (position:").next().unwrap_or(msg).trim()
+    /// pg_query messages look like: "syntax error at or near \"foo\" (position: 42)"
+    /// We strip the position suffix and the redundant "syntax error " prefix
+    /// since the caller already labels it as a syntax error.
+    fn clean_pg_error(msg: &str) -> String {
+        let stripped = msg.split(" (position:").next().unwrap_or(msg).trim();
+        // pg_query always prefixes with lowercase "syntax error " — remove it to avoid
+        // "Syntax error: syntax error at or near ..." in the UI
+        let without_prefix = stripped
+            .strip_prefix("syntax error ")
+            .unwrap_or(stripped);
+        // Capitalize first letter
+        let mut chars = without_prefix.chars();
+        match chars.next() {
+            None => String::new(),
+            Some(c) => c.to_uppercase().collect::<String>() + chars.as_str(),
+        }
     }
 }
 
@@ -143,7 +158,7 @@ mod tests {
 
         let diagnostics = DiagnosticEngine::check(&tree, sql, &schema);
 
-        assert!(diagnostics.iter().any(|d| d.message.contains("Unknown table")));
+        assert!(diagnostics.iter().any(|d| d.message.contains("does not exist in the schema")));
     }
 
     #[test]
@@ -181,7 +196,7 @@ mod tests {
         let tree = parse_sql(sql, None).unwrap();
         let schema = SchemaGraph::new();
         let diagnostics = DiagnosticEngine::check(&tree, sql, &schema);
-        assert!(diagnostics.iter().any(|d| d.message.contains("DELETE without WHERE")));
+        assert!(diagnostics.iter().any(|d| d.message.contains("DELETE has no WHERE clause")));
     }
 
     #[test]
@@ -190,7 +205,7 @@ mod tests {
         let tree = parse_sql(sql, None).unwrap();
         let schema = SchemaGraph::new();
         let diagnostics = DiagnosticEngine::check(&tree, sql, &schema);
-        assert!(!diagnostics.iter().any(|d| d.message.contains("DELETE without WHERE")));
+        assert!(!diagnostics.iter().any(|d| d.message.contains("DELETE has no WHERE clause")));
     }
 
     #[test]
@@ -199,7 +214,7 @@ mod tests {
         let tree = parse_sql(sql, None).unwrap();
         let schema = SchemaGraph::new();
         let diagnostics = DiagnosticEngine::check(&tree, sql, &schema);
-        assert!(diagnostics.iter().any(|d| d.message.contains("UPDATE without WHERE")));
+        assert!(diagnostics.iter().any(|d| d.message.contains("UPDATE has no WHERE clause")));
     }
 
     #[test]
@@ -208,7 +223,7 @@ mod tests {
         let tree = parse_sql(sql, None).unwrap();
         let schema = SchemaGraph::new();
         let diagnostics = DiagnosticEngine::check(&tree, sql, &schema);
-        assert!(diagnostics.iter().any(|d| d.message.contains("DROP cannot be undone")));
+        assert!(diagnostics.iter().any(|d| d.message.contains("DROP will permanently delete")));
     }
 
     #[test]
@@ -217,7 +232,7 @@ mod tests {
         let tree = parse_sql(sql, None).unwrap();
         let schema = SchemaGraph::new();
         let diagnostics = DiagnosticEngine::check(&tree, sql, &schema);
-        assert!(diagnostics.iter().any(|d| d.message.contains("TRUNCATE will delete all rows")));
+        assert!(diagnostics.iter().any(|d| d.message.contains("TRUNCATE will permanently delete")));
     }
 
     #[test]
