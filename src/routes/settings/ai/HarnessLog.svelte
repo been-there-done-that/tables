@@ -43,7 +43,8 @@
                 {#each harnessLogStore.entries as entry (entry.ts + entry.message)}
                     <div class="flex gap-2 px-3 py-0.5 border-b border-border/30 text-[10px]">
                         <span class="text-muted-foreground/50 shrink-0">{fmtTs(entry.ts)}</span>
-                        <span class="{levelColor[entry.level] ?? 'text-muted-foreground'} shrink-0">[{entry.tag}]</span>
+                        <span class="{levelColor[entry.level] ?? 'text-muted-foreground'} shrink-0">[{entry.level}]</span>
+                        <span class="text-muted-foreground/60 shrink-0">[{entry.tag}]</span>
                         <span class="text-muted-foreground truncate">{entry.message}</span>
                     </div>
                 {/each}
