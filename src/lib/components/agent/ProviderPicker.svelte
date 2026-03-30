@@ -31,33 +31,24 @@
               }))
     );
 
-    /** Models available for the currently selected provider */
-    const availableModels = $derived.by(() => {
+    /** Pinned + unpinned model lists for the selected provider */
+    const modelGroups = $derived.by(() => {
         const cfg = PROVIDER_CONFIGS[selected];
-        if (!cfg || !cfg.supportsModel) return [];
+        if (!cfg || !cfg.supportsModel) return { pinned: [], rest: cfg?.models ?? [] };
 
-        if (selected === "google") {
-            if (pinnedGoogleModels.length > 0) {
-                // Show pinned models with labels where known
-                return pinnedGoogleModels.map(id => {
-                    const known = cfg.models.find(m => m.id === id);
-                    return known ?? { id, label: id };
-                });
-            }
-            return cfg.models;
-        }
+        const pinnedIds = selected === "google" ? pinnedGoogleModels : selected === "openrouter" ? pinnedOpenrouterModels : [];
 
-        if (selected === "openrouter") {
-            if (pinnedOpenrouterModels.length > 0) {
-                return pinnedOpenrouterModels.map(id => {
-                    const known = cfg.models.find(m => m.id === id);
-                    return known ?? { id, label: id.split("/").pop() ?? id };
-                });
-            }
-            return cfg.models;
-        }
+        const pinnedList = pinnedIds.map(id => {
+            const known = cfg.models.find(m => m.id === id);
+            return known ?? { id, label: id.split("/").pop() ?? id };
+        });
 
-        return cfg.models;
+        // For Claude or providers without pinned list, "rest" is all models
+        if (pinnedIds.length === 0) return { pinned: [], rest: cfg.models };
+
+        const pinnedSet = new Set(pinnedIds);
+        const rest = cfg.models.filter(m => !pinnedSet.has(m.id));
+        return { pinned: pinnedList, rest };
     });
 
     function handleClick(p: AvailableProvider) {
@@ -97,7 +88,7 @@
     </div>
 
     <!-- Model selector — shown for providers that support model selection -->
-    {#if availableModels.length > 0}
+    {#if modelGroups.pinned.length > 0 || modelGroups.rest.length > 0}
         <div class="w-full max-w-[240px] flex flex-col gap-1">
             <label for="provider-model-select" class="text-[10px] text-muted-foreground/50 uppercase tracking-wider">Model</label>
             <select id="provider-model-select"
@@ -105,9 +96,24 @@
                 onchange={(e) => onModelChange((e.target as HTMLSelectElement).value)}
                 class="w-full rounded-md border border-border/50 bg-background px-2.5 py-1.5 text-[11px] text-foreground focus:border-accent/60 focus:outline-none focus:ring-1 focus:ring-accent/40"
             >
-                {#each availableModels as m}
-                    <option value={m.id}>{m.label}</option>
-                {/each}
+                {#if modelGroups.pinned.length > 0}
+                    <optgroup label="★ Pinned">
+                        {#each modelGroups.pinned as m}
+                            <option value={m.id}>{m.label}</option>
+                        {/each}
+                    </optgroup>
+                    {#if modelGroups.rest.length > 0}
+                        <optgroup label="All models">
+                            {#each modelGroups.rest as m}
+                                <option value={m.id}>{m.label}</option>
+                            {/each}
+                        </optgroup>
+                    {/if}
+                {:else}
+                    {#each modelGroups.rest as m}
+                        <option value={m.id}>{m.label}</option>
+                    {/each}
+                {/if}
             </select>
         </div>
     {/if}
