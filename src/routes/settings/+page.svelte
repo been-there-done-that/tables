@@ -34,7 +34,8 @@
 
   const handleSetActive = (id: string) => setActive(id);
 
-  let selectedSection = $state<string>("theme");
+  import { page } from "$app/stores";
+  let selectedSection = $state<string>($page.url.searchParams.get("section") ?? "theme");
 
   let sections = [
     {

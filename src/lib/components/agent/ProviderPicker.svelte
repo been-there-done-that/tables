@@ -3,7 +3,9 @@
     import { PROVIDER_CONFIGS } from "$lib/agent/providers";
     import IconCheck from "@tabler/icons-svelte/icons/check";
     import IconChevronDown from "@tabler/icons-svelte/icons/chevron-down";
+    import IconSettings from "@tabler/icons-svelte/icons/settings";
     import * as Menu from "$lib/components/ui/dropdown-menu";
+    import { goto } from "$app/navigation";
 
     export interface AvailableProvider {
         id: string;
@@ -105,6 +107,15 @@
             </button>
         {/each}
     </div>
+
+    <!-- Quick link to AI settings -->
+    <button
+        onclick={() => goto("/settings?section=ai")}
+        class="flex items-center gap-1 text-[10px] text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+    >
+        <IconSettings size={10} />
+        Configure providers
+    </button>
 
     <!-- Model picker — custom dropdown, only for providers that support it -->
     {#if modelList.length > 0}
