@@ -461,6 +461,19 @@
         }
     });
 
+    // When the user enters an API key for Google/OpenRouter, restart the harness session
+    // so the new key is picked up. Guard: only restart if no messages yet (fresh session).
+    $effect(() => {
+        const key = currentProvider === "google"     ? settingsStore.googleApiKey
+                  : currentProvider === "openrouter" ? settingsStore.openrouterApiKey
+                  : null;
+        if (!key || agentStore.messages.length > 0) return;
+        const thread = threadsStore.activeThread;
+        if (thread && thread.provider === currentProvider) {
+            startThread(thread).catch(console.error);
+        }
+    });
+
     // Fetch available providers from harness when port is known
     $effect(() => {
         const port = harnessStore.port;
