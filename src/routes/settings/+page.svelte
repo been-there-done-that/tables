@@ -35,7 +35,16 @@
   const handleSetActive = (id: string) => setActive(id);
 
   import { page } from "$app/stores";
+  import { listen } from "@tauri-apps/api/event";
   let selectedSection = $state<string>($page.url.searchParams.get("section") ?? "theme");
+
+  // Listen for section-switch events from other windows (e.g. ProviderPicker "Configure providers")
+  $effect(() => {
+    const unlisten = listen<string>("settings:switch-section", (e) => {
+      selectedSection = e.payload;
+    });
+    return () => { unlisten.then(fn => fn()); };
+  });
 
   let sections = [
     {
@@ -92,19 +101,36 @@
     </div>
     <!-- Main Content -->
     <div class="flex-1 overflow-auto">
-      {#if selectedSection === "theme"}
-        <ThemeComponent />
-      {:else if selectedSection === "shortcuts"}
-        <ShortcutsComponent />
-      {:else if selectedSection === "editor"}
-        <EditorComponent />
-      {:else if selectedSection === "ai"}
-        <AIComponent />
-      {:else if selectedSection === "dangerous"}
-        <DangerousComponent />
-      {:else if selectedSection === "updates"}
-        <UpdatesComponent />
-      {/if}
+      {#key selectedSection}
+        <div class="section-content">
+          {#if selectedSection === "theme"}
+            <ThemeComponent />
+          {:else if selectedSection === "shortcuts"}
+            <ShortcutsComponent />
+          {:else if selectedSection === "editor"}
+            <EditorComponent />
+          {:else if selectedSection === "ai"}
+            <AIComponent />
+          {:else if selectedSection === "dangerous"}
+            <DangerousComponent />
+          {:else if selectedSection === "updates"}
+            <UpdatesComponent />
+          {/if}
+        </div>
+      {/key}
     </div>
   </div>
 </div>
+
+<style>
+  @keyframes fadeSlideIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .section-content {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    animation: fadeSlideIn 0.18s ease-out both;
+  }
+</style>

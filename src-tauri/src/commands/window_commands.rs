@@ -65,15 +65,19 @@ pub async fn open_datasource_window(app: tauri::AppHandle) -> Result<(), String>
 }
 
 #[tauri::command]
-pub async fn open_appearance_window(app: tauri::AppHandle) -> Result<(), String> {
+pub async fn open_appearance_window(app: tauri::AppHandle, section: Option<String>) -> Result<(), String> {
     const LABEL: &str = "appearance-window";
-    debug!("Opening appearance window");
+    debug!("Opening appearance window (section: {:?})", section);
 
     if let Some(window) = app.get_webview_window(LABEL) {
         trace!("Appearance window already exists, focusing");
         let _ = window.unminimize();
         let _ = window.show();
         let _ = window.set_focus();
+        // Tell the already-open settings page to switch to the requested section
+        if let Some(ref sec) = section {
+            let _ = window.emit("settings:switch-section", sec.clone());
+        }
         return Ok(());
     }
 
@@ -82,7 +86,12 @@ pub async fn open_appearance_window(app: tauri::AppHandle) -> Result<(), String>
     // Calculate dynamic size (70% of primary monitor)
     let (width, height) = get_preferred_window_size(&app);
 
-    let mut builder = WebviewWindowBuilder::new(&app, LABEL, tauri::WebviewUrl::App("/settings".into()))
+    let url_path = match &section {
+        Some(sec) => format!("/settings?section={}", sec),
+        None => "/settings".to_string(),
+    };
+
+    let mut builder = WebviewWindowBuilder::new(&app, LABEL, tauri::WebviewUrl::App(url_path.into()))
         .title("Appearance")
         .inner_size(width, height)
         .resizable(true)

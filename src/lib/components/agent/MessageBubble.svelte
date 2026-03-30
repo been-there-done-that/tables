@@ -3,6 +3,8 @@
     import type { AgentMessage } from "$lib/stores/agent.svelte";
     import { windowState } from "$lib/stores/window.svelte";
     import IconPlayerPlay from "@tabler/icons-svelte/icons/player-play-filled";
+    import IconCopy from "@tabler/icons-svelte/icons/copy";
+    import IconCheck from "@tabler/icons-svelte/icons/check";
     import { renderDocAsHtml } from "$lib/agent/doc-renderer";
     import PlanCard from "./PlanCard.svelte";
     import { plansStore, type AgentPlan } from "$lib/stores/plans.svelte";
@@ -134,23 +136,44 @@ ${runBtn}
         // Make sure the SQL editor mode is active
         windowState.layout.showSqlEditor = false;
     }
+
+    let copied = $state(false);
+    function copyMessage() {
+        navigator.clipboard.writeText(message.content);
+        copied = true;
+        setTimeout(() => { copied = false; }, 1500);
+    }
 </script>
 
 <div class="group flex flex-col {isUser ? 'items-end' : 'items-start'} gap-1 px-3 py-1">
     {#if isUser}
-        <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions a11y_no_noninteractive_element_interactions a11y_interactive_supports_focus -->
-        <div
-            class="max-w-[85%] rounded-2xl rounded-tr-sm bg-accent/15 px-3 py-1.5 text-[12px] text-foreground leading-relaxed"
-            role="button"
-            tabindex="0"
-            onclick={handleClick}
-        >
-            {#if message.docJson}
-                <!-- eslint-disable-next-line svelte/no-at-html-tags -->
-                {@html renderDocAsHtml(message.docJson)}
-            {:else}
-                {message.content}
-            {/if}
+        <div class="flex items-end gap-1.5 max-w-[85%]">
+            <!-- Copy button — left of bubble for user messages -->
+            <button
+                onclick={copyMessage}
+                class="opacity-0 group-hover:opacity-100 transition-opacity shrink-0 p-1 rounded text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted/50"
+                title="Copy message"
+            >
+                {#if copied}
+                    <IconCheck size={11} />
+                {:else}
+                    <IconCopy size={11} />
+                {/if}
+            </button>
+            <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions a11y_no_noninteractive_element_interactions a11y_interactive_supports_focus -->
+            <div
+                class="rounded-2xl rounded-tr-sm bg-accent/15 px-3 py-1.5 text-[12px] text-foreground leading-relaxed"
+                role="button"
+                tabindex="0"
+                onclick={handleClick}
+            >
+                {#if message.docJson}
+                    <!-- eslint-disable-next-line svelte/no-at-html-tags -->
+                    {@html renderDocAsHtml(message.docJson)}
+                {:else}
+                    {message.content}
+                {/if}
+            </div>
         </div>
     {:else if message.isError}
         <div class="mx-3 my-0.5 flex items-start gap-1.5 rounded-md border border-red-500/20 bg-red-500/8 px-2.5 py-1.5 text-[11.5px] text-red-400/80">
@@ -179,6 +202,20 @@ ${runBtn}
                 {/if}
             {/if}
         </div>
+        <!-- Copy button — below assistant message -->
+        {#if !message.streaming}
+            <button
+                onclick={copyMessage}
+                class="opacity-0 group-hover:opacity-100 transition-opacity self-start p-1 rounded text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted/50 -mt-0.5"
+                title="Copy message"
+            >
+                {#if copied}
+                    <IconCheck size={11} class="text-green-400" />
+                {:else}
+                    <IconCopy size={11} />
+                {/if}
+            </button>
+        {/if}
     {/if}
 </div>
 

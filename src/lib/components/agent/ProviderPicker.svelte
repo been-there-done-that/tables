@@ -5,7 +5,7 @@
     import IconChevronDown from "@tabler/icons-svelte/icons/chevron-down";
     import IconSettings from "@tabler/icons-svelte/icons/settings";
     import * as Menu from "$lib/components/ui/dropdown-menu";
-    import { goto } from "$app/navigation";
+    import { invoke } from "@tauri-apps/api/core";
 
     export interface AvailableProvider {
         id: string;
@@ -110,7 +110,7 @@
 
     <!-- Quick link to AI settings -->
     <button
-        onclick={() => goto("/settings?section=ai")}
+        onclick={() => invoke("open_appearance_window", { section: "ai" })}
         class="flex items-center gap-1 text-[10px] text-muted-foreground/40 hover:text-muted-foreground transition-colors"
     >
         <IconSettings size={10} />
