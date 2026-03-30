@@ -1,18 +1,13 @@
 <!-- src/routes/settings/ai/ModelGrid.svelte -->
 <script lang="ts">
-    export interface ModelEntry {
-        id: string;
-        contextLength?: number;
-        pricingIn?: number;   // cost per token in USD (multiply by 1M for per-1M price)
-        pricingOut?: number;  // cost per token in USD
-    }
+    import type { CachedModel } from "$lib/stores/settings.svelte";
 
     let {
         models,
         pinned,
         onToggle,
     }: {
-        models: ModelEntry[];
+        models: CachedModel[];
         pinned: string[];
         onToggle: (id: string) => void;
     } = $props();
@@ -97,13 +92,13 @@
                                 </span>
                                 <div class="flex flex-wrap gap-1">
                                     {#if model.contextLength}
-                                        <span class="text-[9px] px-1 rounded border bg-blue-950/30 border-blue-800/30 text-blue-400">{fmtCtx(model.contextLength)}</span>
+                                        <span class="text-[9px] px-1 rounded border border-blue-800/40 text-blue-400/80">{fmtCtx(model.contextLength)}</span>
                                     {/if}
                                     {#if model.pricingIn !== undefined}
-                                        <span class="text-[9px] px-1 rounded border bg-green-950/30 border-green-800/30 text-green-400">↓{fmtPrice(model.pricingIn)}</span>
+                                        <span class="text-[9px] px-1 rounded border border-green-800/40 text-green-400/80">↓{fmtPrice(model.pricingIn)}</span>
                                     {/if}
                                     {#if model.pricingOut !== undefined}
-                                        <span class="text-[9px] px-1 rounded border bg-amber-950/30 border-amber-800/30 text-amber-400">↑{fmtPrice(model.pricingOut)}</span>
+                                        <span class="text-[9px] px-1 rounded border border-amber-800/40 text-amber-400/80">↑{fmtPrice(model.pricingOut)}</span>
                                     {/if}
                                 </div>
                             </div>
@@ -139,13 +134,13 @@
                                 </span>
                                 <div class="flex flex-wrap gap-1">
                                     {#if model.contextLength}
-                                        <span class="text-[9px] px-1 rounded border bg-blue-950/30 border-blue-800/30 text-blue-400">{fmtCtx(model.contextLength)}</span>
+                                        <span class="text-[9px] px-1 rounded border border-blue-800/40 text-blue-400/80">{fmtCtx(model.contextLength)}</span>
                                     {/if}
                                     {#if model.pricingIn !== undefined}
-                                        <span class="text-[9px] px-1 rounded border bg-green-950/30 border-green-800/30 text-green-400">↓{fmtPrice(model.pricingIn)}</span>
+                                        <span class="text-[9px] px-1 rounded border border-green-800/40 text-green-400/80">↓{fmtPrice(model.pricingIn)}</span>
                                     {/if}
                                     {#if model.pricingOut !== undefined}
-                                        <span class="text-[9px] px-1 rounded border bg-amber-950/30 border-amber-800/30 text-amber-400">↑{fmtPrice(model.pricingOut)}</span>
+                                        <span class="text-[9px] px-1 rounded border border-amber-800/40 text-amber-400/80">↑{fmtPrice(model.pricingOut)}</span>
                                     {/if}
                                 </div>
                             </div>

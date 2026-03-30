@@ -1,16 +1,18 @@
 <!-- src/routes/settings/AI.svelte -->
 <script lang="ts">
-    import { settingsStore } from "$lib/stores/settings.svelte";
+    import { settingsStore, type CachedModel } from "$lib/stores/settings.svelte";
     import ModelGrid from "./ai/ModelGrid.svelte";
     import HarnessLog from "./ai/HarnessLog.svelte";
-    import type { ModelEntry } from "./ai/ModelGrid.svelte";
 
     type ProviderTab = "claude" | "google" | "openrouter" | "codex" | "opencode" | "cursor";
     let activeTab = $state<ProviderTab>("claude");
 
     // ── Google ──────────────────────────────────────────────────────────
-    let googleModels = $state<ModelEntry[]>([]);
-    let googleFetchStatus = $state<"idle" | "loading" | "ok" | "error">("idle");
+    // Seed from cache so models/chips are visible without clicking Fetch
+    let googleModels = $state<CachedModel[]>(settingsStore.googleCachedModels);
+    let googleFetchStatus = $state<"idle" | "loading" | "ok" | "error">(
+        settingsStore.googleCachedModels.length > 0 ? "ok" : "idle"
+    );
     let googleFetchError = $state("");
 
     async function fetchGoogleModels() {
@@ -29,6 +31,7 @@
                     id: m.name.replace("models/", ""),
                     contextLength: m.inputTokenLimit,
                 }));
+            settingsStore.googleCachedModels = googleModels;
             googleFetchStatus = "ok";
             googleFetchError = "";
         } catch (e) {
@@ -45,8 +48,11 @@
     }
 
     // ── OpenRouter ──────────────────────────────────────────────────────
-    let orModels = $state<ModelEntry[]>([]);
-    let orFetchStatus = $state<"idle" | "loading" | "ok" | "error">("idle");
+    // Seed from cache so models/chips are visible without clicking Fetch
+    let orModels = $state<CachedModel[]>(settingsStore.openrouterCachedModels);
+    let orFetchStatus = $state<"idle" | "loading" | "ok" | "error">(
+        settingsStore.openrouterCachedModels.length > 0 ? "ok" : "idle"
+    );
     let orFetchError = $state("");
 
     async function fetchOpenRouterModels() {
@@ -62,10 +68,11 @@
             const data = await res.json();
             orModels = (data.data ?? []).map((m: any) => ({
                 id: m.id,
-                contextLength: m.context_length,
+                contextLength: m.context_length ?? undefined,
                 pricingIn: m.pricing?.prompt ? parseFloat(m.pricing.prompt) : undefined,
                 pricingOut: m.pricing?.completion ? parseFloat(m.pricing.completion) : undefined,
             }));
+            settingsStore.openrouterCachedModels = orModels;
             orFetchStatus = "ok";
             orFetchError = "";
         } catch (e) {

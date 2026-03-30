@@ -2,6 +2,13 @@ import { commandClient } from "$lib/commands/client";
 import { debounce } from "$lib/utils";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
+export interface CachedModel {
+    id: string;
+    contextLength?: number;
+    pricingIn?: number;
+    pricingOut?: number;
+}
+
 export interface Settings {
     editorFontFamily: string;
     editorFontSize: number;
@@ -30,6 +37,8 @@ export interface Settings {
     openrouterBaseUrl: string;
     googlePinnedModels: string[];
     openrouterPinnedModels: string[];
+    googleCachedModels: CachedModel[];
+    openrouterCachedModels: CachedModel[];
     lastActiveThreadId: string | null;
 }
 
@@ -58,6 +67,8 @@ const DEFAULT_SETTINGS: Settings = {
     openrouterBaseUrl: "",
     googlePinnedModels: [],
     openrouterPinnedModels: [],
+    googleCachedModels: [],
+    openrouterCachedModels: [],
     lastActiveThreadId: null,
 };
 
@@ -164,6 +175,20 @@ function createSettingsStore() {
         set openrouterPinnedModels(v: string[]) {
             settings.openrouterPinnedModels = v;
             commandClient.updateAppSetting("openrouter_pinned_models", JSON.stringify(v));
+        },
+        get googleCachedModels(): CachedModel[] {
+            return settings.googleCachedModels;
+        },
+        set googleCachedModels(v: CachedModel[]) {
+            settings.googleCachedModels = v;
+            commandClient.updateAppSetting("google_cached_models", JSON.stringify(v));
+        },
+        get openrouterCachedModels(): CachedModel[] {
+            return settings.openrouterCachedModels;
+        },
+        set openrouterCachedModels(v: CachedModel[]) {
+            settings.openrouterCachedModels = v;
+            commandClient.updateAppSetting("openrouter_cached_models", JSON.stringify(v));
         },
         get lastActiveThreadId(): string | null {
             return settings.lastActiveThreadId;
@@ -342,6 +367,14 @@ function createSettingsStore() {
                                     case "openrouter_pinned_models":
                                         try { parsedSettings.openrouterPinnedModels = JSON.parse(aiVal); }
                                         catch { parsedSettings.openrouterPinnedModels = []; }
+                                        break;
+                                    case "google_cached_models":
+                                        try { parsedSettings.googleCachedModels = JSON.parse(aiVal); }
+                                        catch { parsedSettings.googleCachedModels = []; }
+                                        break;
+                                    case "openrouter_cached_models":
+                                        try { parsedSettings.openrouterCachedModels = JSON.parse(aiVal); }
+                                        catch { parsedSettings.openrouterCachedModels = []; }
                                         break;
                                     case "ai_provider":              parsedSettings.aiProvider = aiVal || "claude"; break;
                                     case "ai_model":                 parsedSettings.aiModel = aiVal; break;
