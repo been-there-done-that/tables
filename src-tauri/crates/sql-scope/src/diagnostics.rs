@@ -128,4 +128,54 @@ mod tests {
         assert!(diags.iter().any(|d| d.message.contains("nonexistent")),
             "expected warning for 'nonexistent' used inside CTE body");
     }
+
+    #[test]
+    fn analyze_unknown_table_warns() {
+        let sql = "ANALYZE production.tasksj";
+        let stmt = parse_postgres(sql).unwrap();
+        let schema = schema_with(&["tasks"]); // "tasksj" not in schema
+        let tree = traverse_scope(&stmt, &schema);
+        let diags = run_diagnostics(&tree, &schema, sql);
+        assert!(
+            diags.iter().any(|d| d.message.contains("tasksj") && d.severity == DiagSeverity::Warning),
+            "expected warning for unknown table 'tasksj', got {:?}", diags
+        );
+    }
+
+    #[test]
+    fn analyze_known_table_no_warning() {
+        let sql = "ANALYZE production.tasks";
+        let stmt = parse_postgres(sql).unwrap();
+        let schema = schema_with(&["tasks"]);
+        let tree = traverse_scope(&stmt, &schema);
+        let diags = run_diagnostics(&tree, &schema, sql);
+        assert!(
+            !diags.iter().any(|d| d.message.contains("tasks")),
+            "known table should not warn, got {:?}", diags
+        );
+    }
+
+    #[test]
+    fn insert_unknown_table_warns() {
+        let sql = "INSERT INTO ghost_table (id) VALUES (1)";
+        let stmt = parse_postgres(sql).unwrap();
+        let schema = schema_with(&["users"]);
+        let tree = traverse_scope(&stmt, &schema);
+        let diags = run_diagnostics(&tree, &schema, sql);
+        assert!(
+            diags.iter().any(|d| d.message.contains("ghost_table")),
+            "expected warning for unknown insert target, got {:?}", diags
+        );
+    }
+
+    #[test]
+    fn create_table_no_warning() {
+        // CREATE TABLE produces Other { table_refs: [] }, no scope, no diagnostics
+        let sql = "CREATE TABLE new_table (id INT)";
+        let stmt = parse_postgres(sql).unwrap();
+        let schema = schema_with(&[]); // empty schema
+        let tree = traverse_scope(&stmt, &schema);
+        let diags = run_diagnostics(&tree, &schema, sql);
+        assert!(diags.is_empty(), "CREATE TABLE should produce no diagnostics, got {:?}", diags);
+    }
 }
