@@ -24,6 +24,8 @@ pub use scope::{
 pub use scope::traverse_scope;
 pub use diagnostics::run_diagnostics;
 pub use types::resolve_column_type;
+pub use ir::DangerousKind;
+pub use parser::postgres::parse_postgres as parse_postgres_stmt;
 
 /// Resolve scope for a single SQL statement.
 /// Use `split_statements()` first for multi-statement input.
