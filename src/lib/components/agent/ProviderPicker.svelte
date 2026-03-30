@@ -1,6 +1,9 @@
 <!-- src/lib/components/agent/ProviderPicker.svelte -->
 <script lang="ts">
     import { PROVIDER_CONFIGS } from "$lib/agent/providers";
+    import IconCheck from "@tabler/icons-svelte/icons/check";
+    import IconChevronDown from "@tabler/icons-svelte/icons/chevron-down";
+    import * as Menu from "$lib/components/ui/dropdown-menu";
 
     export interface AvailableProvider {
         id: string;
@@ -20,35 +23,42 @@
 
     let { providers, selected, currentModel, pinnedGoogleModels, pinnedOpenrouterModels, onProviderChange, onModelChange }: Props = $props();
 
-    // Fallback: if no providers passed yet, show all from PROVIDER_CONFIGS as unavailable
+    // USER-FACING providers only — filter out internal harness aliases like "gemini"
+    const USER_PROVIDERS = new Set(Object.keys(PROVIDER_CONFIGS));
+
     const displayProviders = $derived(
-        providers.length > 0
-            ? providers
-            : Object.entries(PROVIDER_CONFIGS).map(([id, cfg]) => ({
-                  id,
-                  label: cfg.label,
-                  available: false,
-              }))
+        (providers.length > 0 ? providers : Object.entries(PROVIDER_CONFIGS).map(([id, cfg]) => ({
+            id,
+            label: cfg.label,
+            available: false,
+        }))).filter(p => USER_PROVIDERS.has(p.id))
     );
 
-    /** Pinned + unpinned model lists for the selected provider */
-    const modelGroups = $derived.by(() => {
+    /** Model list for the selected provider's picker */
+    const modelList = $derived.by(() => {
         const cfg = PROVIDER_CONFIGS[selected];
-        if (!cfg || !cfg.supportsModel) return { pinned: [], rest: cfg?.models ?? [] };
+        if (!cfg?.supportsModel) return [];
 
-        const pinnedIds = selected === "google" ? pinnedGoogleModels : selected === "openrouter" ? pinnedOpenrouterModels : [];
+        const pinnedIds = selected === "google" ? pinnedGoogleModels
+                        : selected === "openrouter" ? pinnedOpenrouterModels
+                        : [];
 
-        const pinnedList = pinnedIds.map(id => {
-            const known = cfg.models.find(m => m.id === id);
-            return known ?? { id, label: id.split("/").pop() ?? id };
-        });
+        // When user has pinned models, show ONLY pinned — they curated this list
+        if (pinnedIds.length > 0) {
+            return pinnedIds.map(id => {
+                const known = cfg.models.find(m => m.id === id);
+                return known ?? { id, label: id.split("/").pop() ?? id };
+            });
+        }
 
-        // For Claude or providers without pinned list, "rest" is all models
-        if (pinnedIds.length === 0) return { pinned: [], rest: cfg.models };
+        return cfg.models;
+    });
 
-        const pinnedSet = new Set(pinnedIds);
-        const rest = cfg.models.filter(m => !pinnedSet.has(m.id));
-        return { pinned: pinnedList, rest };
+    const currentModelLabel = $derived.by(() => {
+        const found = modelList.find(m => m.id === currentModel);
+        if (found) return found.label;
+        // Fallback for IDs not in static config (e.g. fetched from API)
+        return currentModel?.split("/").pop() ?? currentModel ?? "Model";
     });
 
     function handleClick(p: AvailableProvider) {
@@ -57,29 +67,38 @@
     }
 </script>
 
-<div class="flex flex-col items-center gap-3 px-4 py-5">
-    <p class="text-[11px] font-medium text-foreground/70">Choose a provider</p>
-    <p class="text-[10.5px] text-muted-foreground/60 text-center leading-relaxed max-w-[200px]">
-        Locked for the session once you send your first message.
-    </p>
-    <div class="grid grid-cols-2 gap-2 w-full max-w-[240px]">
+<div class="flex flex-col items-center gap-4 px-4 py-5">
+    <div class="flex flex-col items-center gap-1">
+        <p class="text-[11.5px] font-medium text-foreground/80">Choose a provider</p>
+        <p class="text-[10px] text-muted-foreground/50 text-center">Locked once you send your first message</p>
+    </div>
+
+    <!-- Provider grid -->
+    <div class="grid grid-cols-2 gap-1.5 w-full max-w-[260px]">
         {#each displayProviders as p}
+            {@const isSelected = p.id === selected}
             <button
                 onclick={() => handleClick(p)}
                 disabled={!p.available}
-                class="flex flex-col items-start gap-1.5 rounded-lg border px-3 py-2.5 text-left transition-all
-                    {p.available
-                        ? p.id === selected
-                            ? 'border-accent/60 bg-accent/5 cursor-pointer ring-1 ring-accent/50'
-                            : 'border-border/50 bg-background hover:border-border cursor-pointer hover:bg-foreground/[0.02] ring-1 ring-green-600/35'
-                        : 'border-border/20 bg-background/50 cursor-not-allowed opacity-35'}"
+                class="flex flex-col items-start rounded-md border px-3 py-2 text-left transition-all
+                    {isSelected
+                        ? 'border-accent/50 bg-accent/8 cursor-pointer'
+                        : p.available
+                            ? 'border-border/40 bg-muted/30 cursor-pointer hover:border-border hover:bg-muted/60'
+                            : 'border-border/20 bg-transparent cursor-not-allowed opacity-30'}"
                 title={p.available ? `Use ${p.label}` : `${p.label} not available`}
             >
-                <span class="text-[10.5px] font-medium {p.id === selected ? 'text-accent' : 'text-foreground/80'}">
-                    {p.label}
-                </span>
+                <div class="flex items-center gap-1.5 w-full">
+                    <span class="w-1.5 h-1.5 rounded-full shrink-0
+                        {isSelected ? 'bg-accent' : p.available ? 'bg-green-500/70' : 'bg-muted-foreground/20'}">
+                    </span>
+                    <span class="text-[10.5px] font-medium leading-none
+                        {isSelected ? 'text-accent' : p.available ? 'text-foreground/80' : 'text-foreground/40'}">
+                        {p.label}
+                    </span>
+                </div>
                 {#if !p.available}
-                    <span class="text-[9px] text-muted-foreground/40">
+                    <span class="text-[9px] text-muted-foreground/35 mt-1 pl-3">
                         {p.id === "google" || p.id === "openrouter" ? "No API key" : "Not installed"}
                     </span>
                 {/if}
@@ -87,34 +106,31 @@
         {/each}
     </div>
 
-    <!-- Model selector — shown for providers that support model selection -->
-    {#if modelGroups.pinned.length > 0 || modelGroups.rest.length > 0}
-        <div class="w-full max-w-[240px] flex flex-col gap-1">
-            <label for="provider-model-select" class="text-[10px] text-muted-foreground/50 uppercase tracking-wider">Model</label>
-            <select id="provider-model-select"
-                value={currentModel}
-                onchange={(e) => onModelChange((e.target as HTMLSelectElement).value)}
-                class="w-full rounded-md border border-border/50 bg-background px-2.5 py-1.5 text-[11px] text-foreground focus:border-accent/60 focus:outline-none focus:ring-1 focus:ring-accent/40"
-            >
-                {#if modelGroups.pinned.length > 0}
-                    <optgroup label="★ Pinned">
-                        {#each modelGroups.pinned as m}
-                            <option value={m.id}>{m.label}</option>
-                        {/each}
-                    </optgroup>
-                    {#if modelGroups.rest.length > 0}
-                        <optgroup label="All models">
-                            {#each modelGroups.rest as m}
-                                <option value={m.id}>{m.label}</option>
-                            {/each}
-                        </optgroup>
-                    {/if}
-                {:else}
-                    {#each modelGroups.rest as m}
-                        <option value={m.id}>{m.label}</option>
+    <!-- Model picker — custom dropdown, only for providers that support it -->
+    {#if modelList.length > 0}
+        <div class="w-full max-w-[260px] flex flex-col gap-1">
+            <span class="text-[9.5px] text-muted-foreground/40 uppercase tracking-wider font-medium">Model</span>
+            <Menu.Root>
+                <Menu.Trigger>
+                    <button class="w-full flex items-center justify-between gap-2 rounded-md border border-border/40 bg-muted/30 px-2.5 py-1.5 text-left hover:border-border hover:bg-muted/60 transition-all">
+                        <span class="text-[10.5px] font-mono text-foreground/75 truncate">{currentModelLabel}</span>
+                        <IconChevronDown size={10} class="shrink-0 text-muted-foreground/40" />
+                    </button>
+                </Menu.Trigger>
+                <Menu.Content class="w-56 border border-border bg-background shadow-md p-1" align="start" side="top">
+                    {#each modelList as m}
+                        <Menu.Item
+                            class="flex items-center justify-between gap-2 px-2 py-1.5 text-[10.5px] font-mono rounded cursor-pointer"
+                            onclick={() => onModelChange(m.id)}
+                        >
+                            <span class="truncate">{m.label}</span>
+                            {#if currentModel === m.id}
+                                <IconCheck size={10} class="shrink-0 text-accent" />
+                            {/if}
+                        </Menu.Item>
                     {/each}
-                {/if}
-            </select>
+                </Menu.Content>
+            </Menu.Root>
         </div>
     {/if}
 </div>

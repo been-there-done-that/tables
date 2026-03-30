@@ -55,11 +55,35 @@
     ] as const;
 
     const providerConfig = $derived(PROVIDER_CONFIGS[provider] ?? PROVIDER_CONFIGS.claude);
-    const currentModelLabel = $derived(
-        providerConfig.models.find((m) => m.id === settingsStore.aiModel)?.label
-        ?? providerConfig.models[0]?.label
-        ?? "Model"
+
+    /** Pinned model IDs for the active provider */
+    const pinnedModelIds = $derived(
+        provider === "google"      ? settingsStore.googlePinnedModels
+        : provider === "openrouter" ? settingsStore.openrouterPinnedModels
+        : [] as string[]
     );
+
+    /** Models shown in the composer dropdown — pinned first, then static config */
+    const composerModels = $derived.by(() => {
+        const pinned = pinnedModelIds.map(id => {
+            const known = providerConfig.models.find(m => m.id === id);
+            return known ?? { id, label: id.split("/").pop() ?? id };
+        });
+        if (pinned.length > 0) return pinned;
+        return providerConfig.models;
+    });
+
+    const currentModelLabel = $derived.by(() => {
+        const id = settingsStore.aiModel;
+        // Check pinned list first (may include API-fetched IDs not in static config)
+        const fromPinned = pinnedModelIds.includes(id)
+            ? (providerConfig.models.find(m => m.id === id)?.label ?? id.split("/").pop() ?? id)
+            : null;
+        if (fromPinned) return fromPinned;
+        return providerConfig.models.find(m => m.id === id)?.label
+            ?? composerModels[0]?.label
+            ?? "Model";
+    });
     const currentEffortLabel = $derived(
         EFFORTS.find((e) => e.id === settingsStore.aiEffort)?.label ?? "Auto"
     );
@@ -404,14 +428,14 @@
                             align="start"
                             side="top"
                         >
-                            {#each providerConfig.models as m}
+                            {#each composerModels as m}
                                 <Menu.Item
-                                    class="flex items-center justify-between gap-2 px-2 py-1.5 text-[11px] font-mono rounded cursor-pointer"
+                                    class="flex items-center justify-between gap-2 px-2 py-1.5 text-[10.5px] font-mono rounded cursor-pointer"
                                     onclick={() => { settingsStore.aiModel = m.id; }}
                                 >
-                                    {m.label}
+                                    <span class="truncate">{m.label}</span>
                                     {#if settingsStore.aiModel === m.id}
-                                        <IconCheck size={11} class="shrink-0 text-accent" />
+                                        <IconCheck size={10} class="shrink-0 text-accent" />
                                     {/if}
                                 </Menu.Item>
                             {/each}
