@@ -55,22 +55,15 @@
     }
 </script>
 
-{#snippet chip(label: string, value: string, border: string, labelColor: string, valueColor: string)}
-    <span class="inline-flex items-baseline gap-[3px] px-1.5 py-[3px] rounded border {border}">
-        <span class="text-[8px] leading-none {labelColor} font-sans">{label}</span>
-        <span class="text-[9px] leading-none {valueColor} font-mono tracking-tight">{value}</span>
-    </span>
-{/snippet}
-
-{#snippet modelChips(model: CachedModel)}
-    {#if model.contextLength}
-        {@render chip("ctx", fmtCtx(model.contextLength), "border-blue-800/35", "text-blue-400/40", "text-blue-400/75")}
-    {/if}
-    {#if model.pricingIn !== undefined}
-        {@render chip("in", fmtPrice(model.pricingIn), "border-green-800/35", "text-green-400/40", "text-green-400/75")}
-    {/if}
-    {#if model.pricingOut !== undefined}
-        {@render chip("out", fmtPrice(model.pricingOut), "border-amber-800/35", "text-amber-400/40", "text-amber-400/75")}
+{#snippet modelMeta(model: CachedModel)}
+    {@const parts: string[] = []}
+    {@const ctx = model.contextLength ? fmtCtx(model.contextLength) : null}
+    {@const prIn = model.pricingIn !== undefined ? `↓${fmtPrice(model.pricingIn)}` : null}
+    {@const prOut = model.pricingOut !== undefined ? `↑${fmtPrice(model.pricingOut)}` : null}
+    {#if ctx || prIn || prOut}
+        <span class="text-[9px] font-mono text-muted-foreground/50 tracking-tight leading-none">
+            {[ctx, prIn, prOut].filter(Boolean).join(" · ")}
+        </span>
     {/if}
 {/snippet}
 
@@ -109,9 +102,7 @@
                                 <span class="text-[10px] font-mono truncate text-accent leading-tight" title={model.id}>
                                     {model.id}
                                 </span>
-                                <div class="flex flex-wrap gap-1">
-                                    {@render modelChips(model)}
-                                </div>
+                                {@render modelMeta(model)}
                             </div>
                             <button
                                 onclick={() => onToggle(model.id)}
@@ -143,9 +134,7 @@
                                 <span class="text-[10px] font-mono truncate text-foreground leading-tight" title={model.id}>
                                     {model.id}
                                 </span>
-                                <div class="flex flex-wrap gap-1">
-                                    {@render modelChips(model)}
-                                </div>
+                                {@render modelMeta(model)}
                             </div>
                             <button
                                 onclick={() => onToggle(model.id)}

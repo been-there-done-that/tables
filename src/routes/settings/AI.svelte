@@ -170,12 +170,17 @@
 
             <!-- Status -->
             {#if googleFetchStatus === "ok"}
-                <div class="flex items-center gap-2 text-[10.5px] text-green-400 px-1 py-0.5">
-                    <span class="w-1.5 h-1.5 rounded-full bg-green-400"></span>
-                    {googleModels.length} models available · {settingsStore.googlePinnedModels.length} pinned
+                <div class="flex items-center gap-1.5 text-[10.5px]">
+                    <span class="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0"></span>
+                    <span class="text-foreground/70">{googleModels.length} models available</span>
+                    <span class="text-muted-foreground/40">·</span>
+                    <span class="text-muted-foreground/60">{settingsStore.googlePinnedModels.length} pinned</span>
                 </div>
             {:else if googleFetchStatus === "error"}
-                <div class="text-[10.5px] text-red-400 px-1 py-0.5">{googleFetchError}</div>
+                <div class="flex items-center gap-1.5 text-[10.5px]">
+                    <span class="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0"></span>
+                    <span class="text-red-400/80">{googleFetchError}</span>
+                </div>
             {/if}
 
             <ModelGrid
@@ -225,12 +230,17 @@
 
             <!-- Status -->
             {#if orFetchStatus === "ok"}
-                <div class="flex items-center gap-2 text-[10.5px] text-green-400 px-1 py-0.5">
-                    <span class="w-1.5 h-1.5 rounded-full bg-green-400"></span>
-                    {orModels.length} models available · {settingsStore.openrouterPinnedModels.length} pinned
+                <div class="flex items-center gap-1.5 text-[10.5px]">
+                    <span class="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0"></span>
+                    <span class="text-foreground/70">{orModels.length} models available</span>
+                    <span class="text-muted-foreground/40">·</span>
+                    <span class="text-muted-foreground/60">{settingsStore.openrouterPinnedModels.length} pinned</span>
                 </div>
             {:else if orFetchStatus === "error"}
-                <div class="text-[10.5px] text-red-400 px-1 py-0.5">{orFetchError}</div>
+                <div class="flex items-center gap-1.5 text-[10.5px]">
+                    <span class="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0"></span>
+                    <span class="text-red-400/80">{orFetchError}</span>
+                </div>
             {/if}
 
             <ModelGrid
