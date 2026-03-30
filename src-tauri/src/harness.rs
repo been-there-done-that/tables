@@ -70,7 +70,7 @@ pub fn spawn(app: AppHandle) {
             .env("HOME", home_env)
             .env("USER", user_env)
             .stdout(Stdio::piped())
-            .stderr(Stdio::inherit())
+            .stderr(Stdio::piped())
             .spawn()
         {
             Ok(c) => { log::info!("[harness] spawned pid={}", c.id()); c }
@@ -78,6 +78,22 @@ pub fn spawn(app: AppHandle) {
         };
 
         let stdout = child.stdout.take().unwrap();
+
+        // Capture stderr: parse JSON log lines and emit as Tauri events
+        let stderr = child.stderr.take().unwrap();
+        let app_log = app.clone();
+        std::thread::spawn(move || {
+            for line in BufReader::new(stderr).lines().flatten() {
+                // Try to parse structured JSON log
+                if let Ok(val) = serde_json::from_str::<serde_json::Value>(&line) {
+                    app_log.emit("harness://log", val).ok();
+                } else {
+                    // Fallback: plain text line
+                    eprintln!("[harness stderr] {}", line);
+                }
+            }
+        });
+
         for line in BufReader::new(stdout).lines().flatten() {
             if let Some(port_str) = line.strip_prefix("HARNESS_PORT=") {
                 if let Ok(port) = port_str.parse::<u16>() {
