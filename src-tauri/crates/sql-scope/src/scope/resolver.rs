@@ -7,12 +7,32 @@ use std::collections::HashMap;
 
 /// Build a `ScopeTree` for the given parsed statement.
 ///
-/// Only `ParsedStatement::Select` is handled; all other variants produce an
-/// empty tree (no scopes registered).
+/// - `Select`: full scope tree with CTEs and derived tables.
+/// - `Other { table_refs }`: a single flat scope with the table refs registered.
+///   This enables `run_diagnostics` to validate table names in INSERT/ANALYZE/LOCK/etc.
+/// - `Dangerous` / `Other { table_refs: [] }`: empty tree (no validation needed).
 pub fn traverse_scope(stmt: &ParsedStatement, schema: &dyn SchemaSnapshot) -> ScopeTree {
     let mut tree = ScopeTree::new();
-    if let ParsedStatement::Select(sel) = stmt {
-        build_select_scope(sel, None, &mut tree, schema);
+    match stmt {
+        ParsedStatement::Select(sel) => {
+            build_select_scope(sel, None, &mut tree, schema);
+        }
+        ParsedStatement::Other { table_refs } if !table_refs.is_empty() => {
+            // Build a minimal flat scope so diagnostics can validate table refs
+            let scope_id = tree.add_scope(Scope {
+                id: 0,
+                parent: None,
+                scope_type: ScopeType::Root,
+                byte_range: 0..1,
+                sources: HashMap::new(),
+                cte_sources: IndexMap::new(),
+                columns: Vec::new(),
+            });
+            for tref in table_refs {
+                register_table_ref(tref, scope_id, &mut tree, schema);
+            }
+        }
+        _ => {} // Dangerous, Other { table_refs: [] } — nothing to scope
     }
     tree
 }
@@ -347,5 +367,30 @@ mod tests {
             !cte_a_scope.cte_sources.contains_key("b"),
             "CTE 'a' should not be able to see CTE 'b' which is declared after it"
         );
+    }
+
+    #[test]
+    fn analyze_stmt_registers_table_in_scope() {
+        use crate::parser::postgres::parse_postgres;
+        let sql = "ANALYZE production.tasks";
+        let stmt = parse_postgres(sql).unwrap();
+        let schema = mock(&[("tasks", &[])]);
+        let tree = traverse_scope(&stmt, &schema);
+        // The scope tree should have at least one scope with "tasks" registered
+        let all = tree.all_scopes();
+        assert!(!all.is_empty(), "ANALYZE should produce a scope");
+        let has_tasks = all.iter().any(|s| s.sources.contains_key("tasks"));
+        assert!(has_tasks, "tasks should be registered as a source");
+    }
+
+    #[test]
+    fn other_with_empty_refs_produces_empty_tree() {
+        use crate::parser::postgres::parse_postgres;
+        let sql = "CREATE TABLE newt (id INT)";
+        let stmt = parse_postgres(sql).unwrap();
+        let schema = mock(&[]);
+        let tree = traverse_scope(&stmt, &schema);
+        // CREATE TABLE produces Other { table_refs: [] } — no scopes needed
+        assert!(tree.scope_at(5).is_none(), "CREATE TABLE should produce no scopes");
     }
 }
