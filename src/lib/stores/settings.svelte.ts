@@ -26,6 +26,10 @@ export interface Settings {
     aiProvider: string;
     googleApiKey: string;
     openrouterApiKey: string;
+    googleBaseUrl: string;
+    openrouterBaseUrl: string;
+    googlePinnedModels: string[];
+    openrouterPinnedModels: string[];
     lastActiveThreadId: string | null;
 }
 
@@ -50,6 +54,10 @@ const DEFAULT_SETTINGS: Settings = {
     aiProvider: "claude",
     googleApiKey: "",
     openrouterApiKey: "",
+    googleBaseUrl: "",
+    openrouterBaseUrl: "",
+    googlePinnedModels: [],
+    openrouterPinnedModels: [],
     lastActiveThreadId: null,
 };
 
@@ -128,6 +136,34 @@ function createSettingsStore() {
         set openrouterApiKey(v: string) {
             settings.openrouterApiKey = v;
             commandClient.updateAppSetting("openrouter_api_key", v);
+        },
+        get googleBaseUrl(): string {
+            return settings.googleBaseUrl;
+        },
+        set googleBaseUrl(v: string) {
+            settings.googleBaseUrl = v;
+            commandClient.updateAppSetting("google_base_url", v);
+        },
+        get openrouterBaseUrl(): string {
+            return settings.openrouterBaseUrl;
+        },
+        set openrouterBaseUrl(v: string) {
+            settings.openrouterBaseUrl = v;
+            commandClient.updateAppSetting("openrouter_base_url", v);
+        },
+        get googlePinnedModels(): string[] {
+            return settings.googlePinnedModels;
+        },
+        set googlePinnedModels(v: string[]) {
+            settings.googlePinnedModels = v;
+            commandClient.updateAppSetting("google_pinned_models", JSON.stringify(v));
+        },
+        get openrouterPinnedModels(): string[] {
+            return settings.openrouterPinnedModels;
+        },
+        set openrouterPinnedModels(v: string[]) {
+            settings.openrouterPinnedModels = v;
+            commandClient.updateAppSetting("openrouter_pinned_models", JSON.stringify(v));
         },
         get lastActiveThreadId(): string | null {
             return settings.lastActiveThreadId;
@@ -314,6 +350,12 @@ function createSettingsStore() {
                             }
                         }
 
+                        // Handle JSON arrays (pinned models)
+                        if (key === "googlePinnedModels" || key === "openrouterPinnedModels") {
+                            try { parsedSettings[key] = JSON.parse(value as string); } catch { parsedSettings[key] = []; }
+                            continue;
+                        }
+
                         // Default to string
                         parsedSettings[key] = value;
                     }
@@ -388,6 +430,18 @@ function createSettingsStore() {
                         return;
                     case "openrouter_api_key":
                         settings.openrouterApiKey = value || "";
+                        return;
+                    case "google_base_url":
+                        settings.googleBaseUrl = value || "";
+                        return;
+                    case "openrouter_base_url":
+                        settings.openrouterBaseUrl = value || "";
+                        return;
+                    case "google_pinned_models":
+                        try { settings.googlePinnedModels = JSON.parse(value || "[]"); } catch { settings.googlePinnedModels = []; }
+                        return;
+                    case "openrouter_pinned_models":
+                        try { settings.openrouterPinnedModels = JSON.parse(value || "[]"); } catch { settings.openrouterPinnedModels = []; }
                         return;
                     case "last_active_thread_id":
                         settings.lastActiveThreadId = value || null;
