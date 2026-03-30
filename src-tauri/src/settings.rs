@@ -76,7 +76,12 @@ pub fn get_settings(conn: &Connection) -> Result<AppSettings> {
                 "editor_show_all_run_buttons" => {
                     settings.editor_show_all_run_buttons = value == "true";
                 }
-                k if k.starts_with("ai_agent_") => {
+                k if k.starts_with("ai_agent_")
+                    || k.starts_with("ai_")
+                    || k.starts_with("google_")
+                    || k.starts_with("openrouter_")
+                    || k == "query_approval"
+                    || k == "last_active_thread_id" => {
                     settings.ai_settings.insert(k.to_string(), value);
                 }
                 k if k.starts_with("window:") => {

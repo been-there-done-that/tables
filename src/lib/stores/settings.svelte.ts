@@ -327,6 +327,32 @@ function createSettingsStore() {
                     for (const [key, value] of Object.entries(globalSettings)) {
                         if (value === null || value === undefined) continue;
 
+                        // Unpack the nested aiSettings map (Rust HashMap<String,String> → { google_api_key: ... })
+                        if (key === "aiSettings" && value && typeof value === "object") {
+                            for (const [aiKey, aiVal] of Object.entries(value as Record<string, string>)) {
+                                switch (aiKey) {
+                                    case "google_api_key":           parsedSettings.googleApiKey = aiVal; break;
+                                    case "openrouter_api_key":       parsedSettings.openrouterApiKey = aiVal; break;
+                                    case "google_base_url":          parsedSettings.googleBaseUrl = aiVal; break;
+                                    case "openrouter_base_url":      parsedSettings.openrouterBaseUrl = aiVal; break;
+                                    case "google_pinned_models":
+                                        try { parsedSettings.googlePinnedModels = JSON.parse(aiVal); }
+                                        catch { parsedSettings.googlePinnedModels = []; }
+                                        break;
+                                    case "openrouter_pinned_models":
+                                        try { parsedSettings.openrouterPinnedModels = JSON.parse(aiVal); }
+                                        catch { parsedSettings.openrouterPinnedModels = []; }
+                                        break;
+                                    case "ai_provider":              parsedSettings.aiProvider = aiVal || "claude"; break;
+                                    case "ai_model":                 parsedSettings.aiModel = aiVal; break;
+                                    case "ai_effort":                parsedSettings.aiEffort = aiVal as any; break;
+                                    case "query_approval":           parsedSettings.queryApproval = aiVal as "auto" | "ask"; break;
+                                    case "last_active_thread_id":    parsedSettings.lastActiveThreadId = aiVal || null; break;
+                                }
+                            }
+                            continue;
+                        }
+
                         // Handle Booleans
                         if (
                             key.endsWith("Visible") ||
