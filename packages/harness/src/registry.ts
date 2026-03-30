@@ -12,6 +12,7 @@ const PROVIDERS: Record<string, ProviderFactory> = {
     claude:      (c) => new ClaudeProvider(c),
     codex:       (c) => new CodexProvider(c),
     google:      (c) => new GoogleProvider(c),
+    gemini:      (c) => new GoogleProvider(c), // legacy alias — threads saved before rename
     openrouter:  (c) => new OpenRouterProvider(c),
     opencode:    (c) => new OpenCodeProvider(c),
     cursor:      (c) => new CursorProvider(c),
