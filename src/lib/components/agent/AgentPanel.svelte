@@ -488,6 +488,22 @@
         }))
     );
 
+    /**
+     * The model to show selected in the picker. If the stored aiModel isn't in the
+     * pinned list for the current provider, fall back to first pinned (or default).
+     */
+    const effectiveModel = $derived.by(() => {
+        const provider = currentProvider;
+        const stored = settingsStore.aiModel;
+        const pinned = provider === "google"      ? settingsStore.googlePinnedModels
+                     : provider === "openrouter"  ? settingsStore.openrouterPinnedModels
+                     : [] as string[];
+        if (pinned.length > 0) {
+            return pinned.includes(stored) ? stored : pinned[0];
+        }
+        return stored || defaultModel(provider);
+    });
+
     // Restart the harness session when planMode is toggled mid-conversation so
     // the system prompt reflects the new mode. Guard: only restart if the thread
     // already has messages (avoid restarting a fresh empty thread).
@@ -654,7 +670,7 @@
                 <ProviderPicker
                     providers={effectiveProviders}
                     selected={currentProvider}
-                    currentModel={settingsStore.aiModel}
+                    currentModel={effectiveModel}
                     pinnedGoogleModels={settingsStore.googlePinnedModels}
                     pinnedOpenrouterModels={settingsStore.openrouterPinnedModels}
                     onProviderChange={handleProviderChange}

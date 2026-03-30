@@ -19,25 +19,31 @@
 
     let search = $state("");
 
-    const filteredIds = $derived(
-        new Set(
-            search.trim()
-                ? models.filter((m) => m.id.toLowerCase().includes(search.trim().toLowerCase())).map(m => m.id)
-                : models.map(m => m.id)
+    const searchLower = $derived(search.trim().toLowerCase());
+
+    /**
+     * Pinned models in saved order — shows stubs for IDs not yet fetched.
+     * This means pinned models always appear even before clicking Fetch.
+     */
+    const pinnedModels = $derived(
+        (searchLower
+            ? pinned.filter(id => id.toLowerCase().includes(searchLower))
+            : pinned
+        ).map(id => models.find(m => m.id === id) ?? { id })
+    );
+
+    const pinnedSet = $derived(new Set(pinned));
+
+    /** Fetched models that are not pinned, subject to search filter */
+    const unpinnedModels = $derived(
+        models.filter(m =>
+            !pinnedSet.has(m.id) &&
+            (!searchLower || m.id.toLowerCase().includes(searchLower))
         )
     );
 
-    /** Pinned models in their saved order, subject to search filter */
-    const pinnedModels = $derived(
-        pinned
-            .map(id => models.find(m => m.id === id))
-            .filter((m): m is ModelEntry => !!m && filteredIds.has(m.id))
-    );
-
-    /** Everything else, subject to search filter */
-    const unpinnedModels = $derived(
-        models.filter(m => !pinned.includes(m.id) && filteredIds.has(m.id))
-    );
+    const totalVisible = $derived(pinnedModels.length + unpinnedModels.length);
+    const totalAll = $derived(models.length + pinned.filter(id => !models.find(m => m.id === id)).length);
 
     function fmtCtx(n: number | undefined): string {
         if (!n) return "";
@@ -68,7 +74,7 @@
             />
         </div>
         <span class="text-[10px] text-muted-foreground whitespace-nowrap">
-            {filteredIds.size} of {models.length}
+            {totalVisible} of {totalAll}
         </span>
     </div>
 
@@ -156,7 +162,7 @@
             </div>
         {/if}
 
-        {#if pinnedModels.length === 0 && unpinnedModels.length === 0}
+        {#if totalVisible === 0}
             <div class="text-center text-[11px] text-muted-foreground py-6">
                 {search ? "No models match your search" : "No models — click Fetch to load"}
             </div>
