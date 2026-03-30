@@ -55,6 +55,25 @@
     }
 </script>
 
+{#snippet chip(label: string, value: string, border: string, labelColor: string, valueColor: string)}
+    <span class="inline-flex items-baseline gap-[3px] px-1.5 py-[3px] rounded border {border}">
+        <span class="text-[8px] leading-none {labelColor} font-sans">{label}</span>
+        <span class="text-[9px] leading-none {valueColor} font-mono tracking-tight">{value}</span>
+    </span>
+{/snippet}
+
+{#snippet modelChips(model: CachedModel)}
+    {#if model.contextLength}
+        {@render chip("ctx", fmtCtx(model.contextLength), "border-blue-800/35", "text-blue-400/40", "text-blue-400/75")}
+    {/if}
+    {#if model.pricingIn !== undefined}
+        {@render chip("in", fmtPrice(model.pricingIn), "border-green-800/35", "text-green-400/40", "text-green-400/75")}
+    {/if}
+    {#if model.pricingOut !== undefined}
+        {@render chip("out", fmtPrice(model.pricingOut), "border-amber-800/35", "text-amber-400/40", "text-amber-400/75")}
+    {/if}
+{/snippet}
+
 <div class="flex flex-col gap-2 min-h-0 flex-1">
     <!-- Search + count row -->
     <div class="flex items-center gap-2">
@@ -86,20 +105,12 @@
                 <div class="rounded-md border border-accent/25 bg-accent/[0.04] p-1.5 grid grid-cols-2 gap-1">
                     {#each pinnedModels as model (model.id)}
                         <div class="flex items-center gap-2 rounded px-2 py-1.5 bg-accent/5 border border-accent/30">
-                            <div class="flex-1 min-w-0 flex flex-col gap-0.5">
-                                <span class="text-[10px] font-mono truncate text-accent" title={model.id}>
+                            <div class="flex-1 min-w-0 flex flex-col gap-1">
+                                <span class="text-[10px] font-mono truncate text-accent leading-tight" title={model.id}>
                                     {model.id}
                                 </span>
                                 <div class="flex flex-wrap gap-1">
-                                    {#if model.contextLength}
-                                        <span class="text-[9px] px-1 rounded border border-blue-800/40 text-blue-400/80">{fmtCtx(model.contextLength)}</span>
-                                    {/if}
-                                    {#if model.pricingIn !== undefined}
-                                        <span class="text-[9px] px-1 rounded border border-green-800/40 text-green-400/80">↓{fmtPrice(model.pricingIn)}</span>
-                                    {/if}
-                                    {#if model.pricingOut !== undefined}
-                                        <span class="text-[9px] px-1 rounded border border-amber-800/40 text-amber-400/80">↑{fmtPrice(model.pricingOut)}</span>
-                                    {/if}
+                                    {@render modelChips(model)}
                                 </div>
                             </div>
                             <button
@@ -128,20 +139,12 @@
                 <div class="grid grid-cols-2 gap-1">
                     {#each unpinnedModels as model (model.id)}
                         <div class="flex items-center gap-2 rounded px-2.5 py-1.5 border border-border bg-muted/60 transition-colors">
-                            <div class="flex-1 min-w-0 flex flex-col gap-0.5">
-                                <span class="text-[10px] font-mono truncate text-foreground" title={model.id}>
+                            <div class="flex-1 min-w-0 flex flex-col gap-1">
+                                <span class="text-[10px] font-mono truncate text-foreground leading-tight" title={model.id}>
                                     {model.id}
                                 </span>
                                 <div class="flex flex-wrap gap-1">
-                                    {#if model.contextLength}
-                                        <span class="text-[9px] px-1 rounded border border-blue-800/40 text-blue-400/80">{fmtCtx(model.contextLength)}</span>
-                                    {/if}
-                                    {#if model.pricingIn !== undefined}
-                                        <span class="text-[9px] px-1 rounded border border-green-800/40 text-green-400/80">↓{fmtPrice(model.pricingIn)}</span>
-                                    {/if}
-                                    {#if model.pricingOut !== undefined}
-                                        <span class="text-[9px] px-1 rounded border border-amber-800/40 text-amber-400/80">↑{fmtPrice(model.pricingOut)}</span>
-                                    {/if}
+                                    {@render modelChips(model)}
                                 </div>
                             </div>
                             <button
