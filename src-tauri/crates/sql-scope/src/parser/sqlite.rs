@@ -45,7 +45,7 @@ fn convert_statement(stmt: Statement, sql: &str) -> Option<ParsedStatement> {
             kind: DangerousKind::Drop,
             has_where: false,
         }),
-        _ => Some(ParsedStatement::Other),
+        _ => Some(ParsedStatement::Other { table_refs: vec![] }),
     }
 }
 
@@ -561,7 +561,7 @@ mod tests {
     fn test_sqlite_insert_returns_other() {
         let sql = "INSERT INTO users (id, name) VALUES (1, 'Alice')";
         let result = parse_sqlite(sql).expect("should parse");
-        assert!(matches!(result, ParsedStatement::Other));
+        assert!(matches!(result, ParsedStatement::Other { .. }));
     }
 
     // =========================================================================
@@ -763,6 +763,6 @@ mod tests {
     fn test_sqlite_create_table_returns_other() {
         let sql = "CREATE TABLE t (id INTEGER PRIMARY KEY)";
         let result = parse_sqlite(sql).expect("should parse");
-        assert!(matches!(result, ParsedStatement::Other));
+        assert!(matches!(result, ParsedStatement::Other { .. }));
     }
 }

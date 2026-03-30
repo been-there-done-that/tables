@@ -43,17 +43,7 @@ pub fn parse_postgres(sql: &str) -> Option<ParsedStatement> {
                 .filter_map(|node| node.node.as_ref())
                 .filter_map(|n| {
                     if let NodeEnum::VacuumRelation(vr) = n {
-                        let relation = vr.relation.as_ref()?;
-                        let name = relation.relname.to_lowercase();
-                        if name.is_empty() {
-                            return None;
-                        }
-                        let schema = if relation.schemaname.is_empty() {
-                            None
-                        } else {
-                            Some(relation.schemaname.to_lowercase())
-                        };
-                        Some(TableRefIr::Table { schema, name, alias: None, byte_range: 0..sql.len() })
+                        vr.relation.as_ref().and_then(|rv| range_var_to_table_ref(rv, sql))
                     } else {
                         None
                     }
@@ -72,16 +62,7 @@ pub fn parse_postgres(sql: &str) -> Option<ParsedStatement> {
                 .filter_map(|node| node.node.as_ref())
                 .filter_map(|n| {
                     if let NodeEnum::RangeVar(rv) = n {
-                        let name = rv.relname.to_lowercase();
-                        if name.is_empty() {
-                            return None;
-                        }
-                        let schema = if rv.schemaname.is_empty() {
-                            None
-                        } else {
-                            Some(rv.schemaname.to_lowercase())
-                        };
-                        Some(TableRefIr::Table { schema, name, alias: None, byte_range: 0..sql.len() })
+                        range_var_to_table_ref(rv, sql)
                     } else {
                         None
                     }
@@ -94,19 +75,26 @@ pub fn parse_postgres(sql: &str) -> Option<ParsedStatement> {
     }
 }
 
-/// Extract a single TableRefIr from an optional RangeVar (used by INSERT)
-fn extract_range_var_ref(rv: Option<&pg_query::protobuf::RangeVar>, sql: &str) -> Vec<TableRefIr> {
-    let Some(rv) = rv else { return vec![] };
+/// Extract a TableRefIr from a RangeVar node embedded in a pg_query Node list.
+/// Used by LOCK TABLE, VACUUM, ANALYZE etc.
+fn range_var_to_table_ref(rv: &pg_query::protobuf::RangeVar, sql: &str) -> Option<TableRefIr> {
     let name = rv.relname.to_lowercase();
     if name.is_empty() {
-        return vec![];
+        return None;
     }
     let schema = if rv.schemaname.is_empty() {
         None
     } else {
         Some(rv.schemaname.to_lowercase())
     };
-    vec![TableRefIr::Table { schema, name, alias: None, byte_range: 0..sql.len() }]
+    Some(TableRefIr::Table { schema, name, alias: None, byte_range: 0..sql.len() })
+}
+
+/// Extract a single TableRefIr from an optional RangeVar (used by INSERT)
+fn extract_range_var_ref(rv: Option<&pg_query::protobuf::RangeVar>, sql: &str) -> Vec<TableRefIr> {
+    rv.and_then(|r| range_var_to_table_ref(r, sql))
+        .into_iter()
+        .collect()
 }
 
 fn convert_select_stmt(

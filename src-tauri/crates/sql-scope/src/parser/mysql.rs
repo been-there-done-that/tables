@@ -248,7 +248,7 @@ mod tests {
     fn test_mysql_insert_returns_other() {
         let sql = "INSERT INTO users (id, name) VALUES (1, 'Alice')";
         let result = parse_mysql(sql).expect("should parse");
-        assert!(matches!(result, ParsedStatement::Other));
+        assert!(matches!(result, ParsedStatement::Other { .. }));
     }
 
     #[test]
