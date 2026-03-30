@@ -170,12 +170,12 @@
 
             <!-- Status -->
             {#if googleFetchStatus === "ok"}
-                <div class="flex items-center gap-2 text-[10.5px] text-green-400 bg-green-950/20 border border-green-800/30 rounded px-3 py-1.5">
+                <div class="flex items-center gap-2 text-[10.5px] text-green-400 px-1 py-0.5">
                     <span class="w-1.5 h-1.5 rounded-full bg-green-400"></span>
                     {googleModels.length} models available · {settingsStore.googlePinnedModels.length} pinned
                 </div>
             {:else if googleFetchStatus === "error"}
-                <div class="text-[10.5px] text-red-400 bg-red-950/20 border border-red-800/30 rounded px-3 py-1.5">{googleFetchError}</div>
+                <div class="text-[10.5px] text-red-400 px-1 py-0.5">{googleFetchError}</div>
             {/if}
 
             <ModelGrid
@@ -225,12 +225,12 @@
 
             <!-- Status -->
             {#if orFetchStatus === "ok"}
-                <div class="flex items-center gap-2 text-[10.5px] text-green-400 bg-green-950/20 border border-green-800/30 rounded px-3 py-1.5">
+                <div class="flex items-center gap-2 text-[10.5px] text-green-400 px-1 py-0.5">
                     <span class="w-1.5 h-1.5 rounded-full bg-green-400"></span>
                     {orModels.length} models available · {settingsStore.openrouterPinnedModels.length} pinned
                 </div>
             {:else if orFetchStatus === "error"}
-                <div class="text-[10.5px] text-red-400 bg-red-950/20 border border-red-800/30 rounded px-3 py-1.5">{orFetchError}</div>
+                <div class="text-[10.5px] text-red-400 px-1 py-0.5">{orFetchError}</div>
             {/if}
 
             <ModelGrid
