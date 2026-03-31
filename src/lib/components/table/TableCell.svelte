@@ -3,6 +3,7 @@
     import { cn } from "$lib/utils";
     import { Badge } from "$lib/components/ui/badge";
     import CellEditor from "./CellEditor.svelte";
+    import IconCopy from "@tabler/icons-svelte/icons/copy";
 
     interface Props {
         row: any;
@@ -38,6 +39,7 @@
             columnIndex: number,
             event: MouseEvent,
         ) => void;
+        onCopyCell?: () => void;
     }
 
     let {
@@ -58,7 +60,10 @@
         onEditComplete,
         onEditCancel,
         onContextMenu,
+        onCopyCell,
     }: Props = $props();
+
+    let cellHovered = $state(false);
 
     function unwrapValue(v: any) {
         let current = v;
@@ -285,7 +290,8 @@
         50}px; max-width: {column.maxWidth}px; flex-shrink: 0; overflow: hidden;"
     onclick={handleClick}
     onmousedown={handleMouseDown}
-    onmouseenter={handleMouseEnter}
+    onmouseenter={() => { cellHovered = true; handleMouseEnter(); }}
+    onmouseleave={() => { cellHovered = false; }}
     ondblclick={handleDoubleClick}
     oncontextmenu={handleContextMenu}
     aria-disabled={disabled}
@@ -372,4 +378,16 @@
             </span>
         {/if}
     </div>
+
+    {#if cellHovered && !isEditing && onCopyCell}
+        <div class="absolute right-0.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5 bg-background/80 rounded px-0.5 z-10">
+            <button
+                class="h-4 w-4 rounded hover:bg-accent flex items-center justify-center opacity-70 hover:opacity-100"
+                title="Copy cell value"
+                onclick={(e) => { e.stopPropagation(); onCopyCell?.(); }}
+            >
+                <IconCopy class="h-3 w-3" />
+            </button>
+        </div>
+    {/if}
 </div>

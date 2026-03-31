@@ -190,6 +190,13 @@
             onContextMenu={onCellContextMenu}
             {onEditComplete}
             {onEditCancel}
+            onCopyCell={() => {
+                const v = pendingEdits[getRowKey(row)]?.[column.id] !== undefined
+                    ? pendingEdits[getRowKey(row)][column.id]
+                    : row[column.id];
+                const text = v === null || v === undefined ? "" : String(v);
+                navigator.clipboard.writeText(text).catch(() => {});
+            }}
         />
     {/each}
 </div>
