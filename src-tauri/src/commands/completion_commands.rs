@@ -318,9 +318,9 @@ pub async fn update_completion_schema(
     db_state: State<'_, crate::DatabaseState>,
     connection_id: String,
     #[allow(unused_variables)]
-    databases: Vec<MetaDatabase>,  // Kept for API compatibility, but ignored
+    databases: serde_json::Value,  // Kept for API compatibility, but ignored (use Value to avoid i64 overflow from JS)
     #[allow(unused_variables)]
-    selected_database: Option<String>,  // Kept for API compatibility, but ignored  
+    selected_database: Option<String>,  // Kept for API compatibility, but ignored
     engine_type: Option<String>,
 ) -> Result<(), String> {
     // Fetch tables WITH columns directly from the introspector

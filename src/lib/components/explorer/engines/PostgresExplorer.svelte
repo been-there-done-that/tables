@@ -117,7 +117,7 @@
                 type: "folder" as NodeType,
                 count: functions.length > 0 ? functions.length : undefined,
                 children: functions.map((f: any) => ({
-                    id: `function:${db.name}:${schema.name}.${f.name}`,
+                    id: `function:${db.name}:${schema.name}.${f.name}:${f.oid}`,
                     name: f.name,
                     type: "function" as NodeType,
                     detail: f.return_type || undefined,
@@ -132,7 +132,7 @@
                 type: "folder" as NodeType,
                 count: procedures.length > 0 ? procedures.length : undefined,
                 children: procedures.map((f: any) => ({
-                    id: `procedure:${db.name}:${schema.name}.${f.name}`,
+                    id: `procedure:${db.name}:${schema.name}.${f.name}:${f.oid}`,
                     name: f.name,
                     type: "procedure" as NodeType,
                     detail: undefined,
