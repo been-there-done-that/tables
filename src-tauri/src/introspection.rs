@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use rusqlite::{params, Connection as SqliteConnection};
-use log::{info, debug, error};
+use log::{info, debug, error, warn};
 use std::sync::{Arc, Mutex};
 use chrono;
 use tokio_postgres;
@@ -618,8 +618,10 @@ impl Introspector {
             // Fetch functions and sequences per schema (async outside lock), then save
             let mut schema_fns: Vec<(String, Vec<MetaFunction>, Vec<MetaSequence>)> = Vec::new();
             for s_name in &all_schemas {
-                let fns = self.fetch_postgres_functions(&client, connection_id, database_name, s_name).await.unwrap_or_default();
-                let seqs = self.fetch_postgres_sequences(&client, connection_id, database_name, s_name).await.unwrap_or_default();
+                let fns = self.fetch_postgres_functions(&client, connection_id, database_name, s_name).await
+                    .unwrap_or_else(|e| { warn!("fetch_postgres_functions failed for schema '{}': {}", s_name, e); vec![] });
+                let seqs = self.fetch_postgres_sequences(&client, connection_id, database_name, s_name).await
+                    .unwrap_or_else(|e| { warn!("fetch_postgres_sequences failed for schema '{}': {}", s_name, e); vec![] });
                 schema_fns.push((s_name.clone(), fns, seqs));
             }
             let app_db = self.app_db.lock().unwrap();
@@ -1799,11 +1801,34 @@ impl Introspector {
         }
 
         // Fetch functions + sequences (Postgres-specific — always supported in this path)
+        // Use ALL schemas (not just table-bearing ones) so schemas with only functions/sequences
+        // are also covered. Save any missing schemas to meta_schemas first.
         {
+            let all_ns_rows = client.query(
+                "SELECT nspname FROM pg_namespace WHERE nspname NOT LIKE 'pg_toast%' AND nspname NOT LIKE 'pg_temp_%' ORDER BY nspname",
+                &[]
+            ).await.unwrap_or_default();
+            let all_ns: Vec<String> = all_ns_rows.iter().map(|r| r.get(0)).collect();
+
+            // Ensure any schema not already in meta_schemas is saved before we look up schema_id
+            {
+                let app_db = self.app_db.lock().unwrap();
+                let tx = app_db.unchecked_transaction().map_err(|e| e.to_string())?;
+                for s_name in &all_ns {
+                    if !schemas_vec.contains(s_name) {
+                        let schema_type = if matches!(s_name.as_str(), "information_schema" | "pg_catalog") { "system" } else { "user" };
+                        let _ = self.save_schema(&tx, connection_id, current_database, s_name, schema_type, NamespaceKind::Schema);
+                    }
+                }
+                tx.commit().map_err(|e| e.to_string())?;
+            }
+
             let mut schema_fns: Vec<(String, Vec<MetaFunction>, Vec<MetaSequence>)> = Vec::new();
-            for s_name in &schemas_vec {
-                let fns = self.fetch_postgres_functions(&client, connection_id, current_database, s_name).await.unwrap_or_default();
-                let seqs = self.fetch_postgres_sequences(&client, connection_id, current_database, s_name).await.unwrap_or_default();
+            for s_name in &all_ns {
+                let fns = self.fetch_postgres_functions(&client, connection_id, current_database, s_name).await
+                    .unwrap_or_else(|e| { warn!("fetch_postgres_functions failed for schema '{}': {}", s_name, e); vec![] });
+                let seqs = self.fetch_postgres_sequences(&client, connection_id, current_database, s_name).await
+                    .unwrap_or_else(|e| { warn!("fetch_postgres_sequences failed for schema '{}': {}", s_name, e); vec![] });
                 schema_fns.push((s_name.clone(), fns, seqs));
             }
             let app_db = self.app_db.lock().unwrap();
