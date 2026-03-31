@@ -184,6 +184,8 @@
 </div>
 
 <style>
+    @reference "../../app.css";
+
     .menu-item {
         @apply relative flex w-full cursor-pointer select-none items-center rounded-lg px-2.5 py-2 text-xs outline-none transition-colors hover:bg-accent/10 hover:text-accent focus:bg-accent/10 focus:text-accent;
     }
