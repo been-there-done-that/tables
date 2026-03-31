@@ -211,6 +211,18 @@ export class TableEditManager {
         }
     }
 
+    revertCell(rowId: any, columnId: string) {
+        const rId = String(rowId);
+        const next = { ...this.pendingEdits };
+        if (next[rId] && columnId in next[rId]) {
+            delete next[rId][columnId];
+            if (Object.keys(next[rId]).length === 0) delete next[rId];
+            this.recordHistory();
+            this.pendingEdits = next;
+        }
+        this.originalValues.delete(`${rId}:${columnId}`);
+    }
+
     getPendingValue(rowId: any, columnId: string): any | undefined {
         return this.pendingEdits[String(rowId)]?.[columnId];
     }

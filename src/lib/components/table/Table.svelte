@@ -193,6 +193,16 @@
         columnIndex: number;
     } | null>(null);
 
+    const isEditableGrid = $derived(!!onApplyEdits);
+
+    const contextCellHasPendingEdit = $derived.by(() => {
+        if (!contextMenuState) return false;
+        const row = filteredRows[contextMenuState.rowIndex];
+        const col = visibleColumns[contextMenuState.columnIndex];
+        if (!row || !col) return false;
+        return editManager.hasPendingValue(getRowKey(row), col.id);
+    });
+
     // Virtualization state (passed to/from Body)
     let scrollTop = $state(viewState?.scrollTop || 0);
     // Sync scrollTop back to viewState
@@ -1379,6 +1389,16 @@
         applyValueToSelection(DEFAULT_TOKEN, "context-set-default");
     }
 
+    function contextRevertCell() {
+        if (!contextMenuState) return;
+        const { rowIndex, columnIndex } = contextMenuState;
+        const row = filteredRows[rowIndex];
+        const col = visibleColumns[columnIndex];
+        if (!row || !col) return;
+        editManager.revertCell(getRowKey(row), col.id);
+        closeContextMenu();
+    }
+
     async function handlePaste() {
         const anchorFn = focusedCell ?? selectionAnchor ?? selectionHead;
         if (!anchorFn) {
@@ -2272,11 +2292,19 @@
         y={contextMenuState.y}
         onEdit={handleContextEdit}
         onCopy={contextCopy}
+        onCopyAs={(fmt) => { copySelectionAs(fmt); closeContextMenu(); }}
         onPaste={contextPaste}
         onSetNull={contextSetNull}
         onSetDefault={contextSetDefault}
+        onRevertCell={contextRevertCell}
         onDeleteRow={handleDeleteRow}
         onClose={closeContextMenu}
+        isEditable={isEditableGrid}
+        hasPendingEdit={contextCellHasPendingEdit}
+        isSingleColumn={(() => {
+            const b = getActiveBounds();
+            return b ? b.left === b.right : true;
+        })()}
     />
 {/if}
 

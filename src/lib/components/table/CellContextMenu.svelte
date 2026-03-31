@@ -7,32 +7,35 @@
         IconRestore,
         IconPlayerStop,
     } from "@tabler/icons-svelte";
-    import * as ContextMenuPrimitive from "$lib/components/ui/context-menu";
+    import { COPY_FORMAT_LABELS, type CopyFormat } from "./copyFormats";
 
-    import { onMount, tick } from "svelte";
+    import { tick } from "svelte";
 
     interface Props {
         x: number;
         y: number;
         onEdit: () => void;
         onCopy: () => void;
+        onCopyAs: (format: CopyFormat) => void;
         onPaste: () => void;
         onSetNull: () => void;
         onSetDefault: () => void;
+        onRevertCell: () => void;
         onDeleteRow: () => void;
         onClose: () => void;
+        isEditable?: boolean;
+        hasPendingEdit?: boolean;
+        isSingleColumn?: boolean;
     }
 
     let {
-        x,
-        y,
-        onEdit,
-        onCopy,
-        onPaste,
-        onSetNull,
-        onSetDefault,
-        onDeleteRow,
+        x, y,
+        onEdit, onCopy, onCopyAs, onPaste,
+        onSetNull, onSetDefault, onRevertCell, onDeleteRow,
         onClose,
+        isEditable = false,
+        hasPendingEdit = false,
+        isSingleColumn = false,
     }: Props = $props();
 
     let menuEl: HTMLDivElement;
@@ -104,81 +107,84 @@
 <div
     bind:this={menuEl}
     use:handleClickOutside
-    class="fixed z-50 min-w-40 overflow-hidden rounded-xl border border-border/50 bg-surface/95 p-1 text-foreground shadow-2xl backdrop-blur-xl w-52 animate-in fade-in zoom-in-95 duration-200"
-    style="top: {y}px; left: {x}px;"
+    class="fixed z-50 min-w-[200px] rounded-xl border border-border/50 bg-surface/95 p-1 text-foreground shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200"
+    style="left: {x}px; top: {y}px;"
     role="menu"
     tabindex="-1"
-    oncontextmenu={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-    }}
+    oncontextmenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
     onkeydown={handleKeyDown}
 >
-    <button
-        use:focusAction
-        class="relative flex w-full cursor-pointer select-none items-center rounded-lg px-2.5 py-2 text-xs outline-none transition-colors hover:bg-accent/10 hover:text-accent focus:bg-accent/10 focus:text-accent data-disabled:pointer-events-none data-disabled:opacity-50"
-        onclick={onEdit}
-    >
-        <IconEdit class="mr-2 size-4 opacity-70" />
-        <span class="flex-1 text-left">Edit Cell</span>
-    </button>
-    <button
-        class="relative flex w-full cursor-pointer select-none items-center rounded-lg px-2.5 py-2 text-xs outline-none transition-colors hover:bg-accent/10 hover:text-accent focus:bg-accent/10 focus:text-accent data-disabled:pointer-events-none data-disabled:opacity-50"
-        onclick={onCopy}
-    >
+    <!-- Copy (uses current format) -->
+    <button use:focusAction class="menu-item" onclick={() => { onCopy(); onClose(); }}>
         <IconCopy class="mr-2 size-4 opacity-70" />
-        <span class="flex-1 text-left">Copy Value</span>
+        <span class="flex-1 text-left">Copy</span>
+        <span class="ml-auto text-[10px] text-muted-foreground opacity-60">⌘C</span>
     </button>
-    <button
-        class="relative flex w-full cursor-pointer select-none items-center rounded-lg px-2.5 py-2 text-xs outline-none transition-colors hover:bg-accent/10 hover:text-accent focus:bg-accent/10 focus:text-accent data-disabled:pointer-events-none data-disabled:opacity-50"
-        onclick={onPaste}
-    >
+
+    <!-- Copy as submenu (hover reveals) -->
+    <div class="relative group/copyAs">
+        <button class="menu-item">
+            <IconCopy class="mr-2 size-4 opacity-70" />
+            <span class="flex-1 text-left">Copy as</span>
+            <span class="ml-auto text-[10px] text-muted-foreground">▶</span>
+        </button>
+        <div class="absolute left-full top-0 hidden group-hover/copyAs:flex flex-col min-w-[160px] rounded-xl border border-border/50 bg-surface/95 p-1 shadow-2xl backdrop-blur-xl z-50">
+            {#each Object.entries(COPY_FORMAT_LABELS) as [fmt, label]}
+                {#if fmt !== "sql_in" || isSingleColumn}
+                    <button
+                        class="menu-item text-xs"
+                        onclick={() => { onCopyAs(fmt as CopyFormat); onClose(); }}
+                    >
+                        {label}
+                    </button>
+                {/if}
+            {/each}
+        </div>
+    </div>
+
+    <div class="my-1 h-px bg-border/40"></div>
+
+    <!-- Paste -->
+    <button class="menu-item" onclick={() => { onPaste(); onClose(); }}>
         <IconClipboard class="mr-2 size-4 opacity-70" />
-        <span class="flex-1 text-left">Paste Value</span>
+        <span class="flex-1 text-left">Paste</span>
+        <span class="ml-auto text-[10px] text-muted-foreground opacity-60">⌘V</span>
     </button>
 
-    <div class="my-1 h-px bg-border/40"></div>
+    {#if isEditable}
+        <div class="my-1 h-px bg-border/40"></div>
 
-    <button
-        class="relative flex w-full cursor-pointer select-none items-center rounded-lg px-2.5 py-2 text-xs outline-none transition-colors hover:bg-accent/10 hover:text-accent focus:bg-accent/10 focus:text-accent data-disabled:pointer-events-none data-disabled:opacity-50"
-        onclick={onSetNull}
-    >
-        <IconBan class="mr-2 size-4 opacity-70" />
-        <span class="flex-1 text-left">Set as NULL</span>
-    </button>
-    <button
-        class="relative flex w-full cursor-pointer select-none items-center rounded-lg px-2.5 py-2 text-xs outline-none transition-colors hover:bg-accent/10 hover:text-accent focus:bg-accent/10 focus:text-accent data-disabled:pointer-events-none data-disabled:opacity-50"
-        onclick={onSetDefault}
-    >
-        <IconRestore class="mr-2 size-4 opacity-70" />
-        <span class="flex-1 text-left">Set to DEFAULT</span>
-    </button>
+        <button class="menu-item" onclick={() => { onSetNull(); onClose(); }}>
+            <IconBan class="mr-2 size-4 opacity-70" />
+            <span class="flex-1 text-left">Set NULL</span>
+        </button>
 
-    <div class="my-1 h-px bg-border/40"></div>
+        <button class="menu-item" onclick={() => { onSetDefault(); onClose(); }}>
+            <IconRestore class="mr-2 size-4 opacity-70" />
+            <span class="flex-1 text-left">Set Default</span>
+        </button>
 
-    <button
-        class="relative flex w-full cursor-pointer select-none items-center rounded-lg px-2.5 py-2 text-xs outline-none transition-colors hover:bg-red-500/10 text-red-500 focus:bg-red-500/10 focus:text-red-500 data-disabled:pointer-events-none data-disabled:opacity-50"
-        onclick={onDeleteRow}
-    >
-        <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            class="mr-2 opacity-80"
+        {#if hasPendingEdit}
+            <button class="menu-item" onclick={() => { onRevertCell(); onClose(); }}>
+                <IconRestore class="mr-2 size-4 opacity-70" />
+                <span class="flex-1 text-left">Revert cell</span>
+            </button>
+        {/if}
+
+        <div class="my-1 h-px bg-border/40"></div>
+
+        <button
+            class="relative flex w-full cursor-pointer select-none items-center rounded-lg px-2.5 py-2 text-xs outline-none transition-colors hover:bg-red-500/10 text-red-500 focus:bg-red-500/10"
+            onclick={() => { onDeleteRow(); onClose(); }}
         >
-            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-            <path d="M4 7l16 0" />
-            <path d="M10 11l0 6" />
-            <path d="M14 11l0 6" />
-            <path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" />
-            <path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3" />
-        </svg>
-        <span class="flex-1 text-left font-medium">Delete Row</span>
-    </button>
+            <IconPlayerStop class="mr-2 size-4" />
+            <span class="flex-1 text-left font-medium">Delete Row</span>
+        </button>
+    {/if}
 </div>
+
+<style>
+    .menu-item {
+        @apply relative flex w-full cursor-pointer select-none items-center rounded-lg px-2.5 py-2 text-xs outline-none transition-colors hover:bg-accent/10 hover:text-accent focus:bg-accent/10 focus:text-accent;
+    }
+</style>
