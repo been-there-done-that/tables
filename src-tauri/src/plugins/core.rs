@@ -334,6 +334,9 @@ macro_rules! aggregate_plugin_commands {
             download_update,
             install_update,
 
+            // Export commands
+            cancel_export,
+
         ]
     };
 }

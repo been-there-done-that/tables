@@ -53,3 +53,17 @@ struct ActiveExport {
 pub struct ExportState {
     pub active: Arc<Mutex<HashMap<String, ActiveExport>>>,
 }
+
+use tauri::State;
+
+#[tauri::command]
+pub async fn cancel_export(
+    export_id: String,
+    export_state: State<'_, ExportState>,
+) -> Result<(), String> {
+    let map = export_state.active.lock().await;
+    if let Some(handle) = map.get(&export_id) {
+        handle.token.cancel();
+    }
+    Ok(())
+}
