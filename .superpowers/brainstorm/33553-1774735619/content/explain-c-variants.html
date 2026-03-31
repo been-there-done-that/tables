@@ -1,0 +1,143 @@
+<h2>Layout C — which style for the plan view?</h2>
+<p class="subtitle">Same concept (explain takes over the bottom panel), three different visual treatments inside it</p>
+
+<div class="cards">
+
+  <!-- C1: Node cards with connecting lines -->
+  <div class="card" data-choice="c1" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#1e1e2e;border-radius:6px;padding:10px;font-family:sans-serif;font-size:11px;color:#cdd6f4">
+        <!-- Header bar -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div style="display:flex;gap:6px;align-items:center">
+            <span style="font-size:10px;color:#fab387;font-weight:600">⚡ Explain Analyze</span>
+            <span style="background:#313244;border-radius:10px;padding:1px 6px;font-size:9px;color:#a6adc8">43ms</span>
+          </div>
+          <div style="display:flex;gap:4px">
+            <div style="background:#cba6f7;border-radius:3px;padding:2px 6px;font-size:9px;color:#1e1e2e;font-weight:600">Tree</div>
+            <div style="background:#313244;border-radius:3px;padding:2px 6px;font-size:9px;color:#6c7086">Table</div>
+            <div style="background:#313244;border-radius:3px;padding:2px 6px;font-size:9px;color:#6c7086">Stats</div>
+            <div style="background:#313244;border-radius:3px;padding:2px 6px;font-size:9px;color:#89dceb">✨ Ask AI</div>
+          </div>
+        </div>
+        <!-- Graphical node tree -->
+        <div style="display:flex;flex-direction:column;align-items:center;gap:0">
+          <!-- Root node -->
+          <div style="background:#313244;border:1px solid #f38ba8;border-radius:6px;padding:6px 12px;text-align:center;min-width:140px">
+            <div style="font-size:9px;color:#f38ba8;font-weight:600">Nested Loop</div>
+            <div style="font-size:8px;color:#6c7086">cost: 0..8.43</div>
+            <div style="font-size:8px;color:#f38ba8">⏱ 42ms  ●●●</div>
+          </div>
+          <!-- Connector -->
+          <div style="display:flex;gap:40px;position:relative">
+            <div style="border-top:1px solid #45475a;border-left:1px solid #45475a;width:50px;height:10px;margin-top:0"></div>
+            <div style="border-top:1px solid #45475a;border-right:1px solid #45475a;width:50px;height:10px;margin-top:0"></div>
+          </div>
+          <!-- Children -->
+          <div style="display:flex;gap:12px">
+            <div style="background:#313244;border:1px solid #a6e3a1;border-radius:6px;padding:6px 10px;text-align:center;min-width:100px">
+              <div style="font-size:9px;color:#a6e3a1;font-weight:600">Index Scan</div>
+              <div style="font-size:8px;color:#6c7086">users (id)</div>
+              <div style="font-size:8px;color:#a6e3a1">⏱ 1ms  ●</div>
+            </div>
+            <div style="background:#313244;border:2px solid #f38ba8;border-radius:6px;padding:6px 10px;text-align:center;min-width:100px">
+              <div style="font-size:9px;color:#f38ba8;font-weight:600">Seq Scan ⚠</div>
+              <div style="font-size:8px;color:#6c7086">orders</div>
+              <div style="font-size:8px;color:#f38ba8">⏱ 38ms  ●●●</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C1 — Graphical node tree</h3>
+      <p>Connected boxes like pgAdmin. Each node shows cost, timing, row estimates. Color borders = severity. Click a node for full stats on the right.</p>
+    </div>
+  </div>
+
+  <!-- C2: Depesz table style -->
+  <div class="card" data-choice="c2" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#1e1e2e;border-radius:6px;padding:10px;font-family:monospace;font-size:10px;color:#cdd6f4">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="color:#fab387;font-weight:600;font-family:sans-serif">⚡ Explain Analyze</span>
+          <div style="display:flex;gap:4px">
+            <div style="background:#313244;border-radius:3px;padding:2px 6px;font-size:9px;color:#6c7086;font-family:sans-serif">Tree</div>
+            <div style="background:#cba6f7;border-radius:3px;padding:2px 6px;font-size:9px;color:#1e1e2e;font-weight:600;font-family:sans-serif">Table</div>
+            <div style="background:#313244;border-radius:3px;padding:2px 6px;font-size:9px;color:#6c7086;font-family:sans-serif">Stats</div>
+            <div style="background:#313244;border-radius:3px;padding:2px 6px;font-size:9px;color:#89dceb;font-family:sans-serif">✨ Ask AI</div>
+          </div>
+        </div>
+        <!-- Table header -->
+        <div style="display:grid;grid-template-columns:2fr 0.8fr 0.8fr 0.8fr 0.8fr;gap:4px;padding:4px 6px;background:#313244;border-radius:3px 3px 0 0;font-size:8px;color:#6c7086;font-family:sans-serif">
+          <div>Node</div><div>Excl. ms</div><div>Incl. ms</div><div>Rows</div><div>Loops</div>
+        </div>
+        <!-- Rows -->
+        <div style="display:grid;grid-template-columns:2fr 0.8fr 0.8fr 0.8fr 0.8fr;gap:4px;padding:4px 6px;background:#2a1a1a;border-bottom:1px solid #313244;font-size:8px">
+          <div style="color:#f38ba8">↳ Nested Loop</div>
+          <div style="color:#f38ba8">38ms</div><div style="color:#f38ba8">42ms</div><div>120</div><div>1</div>
+        </div>
+        <div style="display:grid;grid-template-columns:2fr 0.8fr 0.8fr 0.8fr 0.8fr;gap:4px;padding:4px 6px;background:#1a2a1a;border-bottom:1px solid #313244;font-size:8px">
+          <div style="color:#a6e3a1;padding-left:10px">↳ Index Scan (users.id)</div>
+          <div style="color:#a6e3a1">1ms</div><div style="color:#a6e3a1">1ms</div><div>1</div><div>120</div>
+        </div>
+        <div style="display:grid;grid-template-columns:2fr 0.8fr 0.8fr 0.8fr 0.8fr;gap:4px;padding:4px 6px;background:#2a1a1a;font-size:8px">
+          <div style="color:#f38ba8;padding-left:10px">↳ Seq Scan (orders) ⚠</div>
+          <div style="color:#f38ba8">38ms</div><div style="color:#f38ba8">38ms</div><div style="color:#fab387">8.5k</div><div>1</div>
+        </div>
+        <div style="font-size:8px;color:#6c7086;margin-top:6px;font-family:sans-serif">Red = &gt;50% time · Orange = row estimate off by 10x+</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C2 — Depesz-style table</h3>
+      <p>Rows per plan node, color-coded by time %. Exclusive vs inclusive timing. Row estimate accuracy. Dense, scannable, familiar to Postgres devs.</p>
+    </div>
+  </div>
+
+  <!-- C3: Waterfall/flame style -->
+  <div class="card" data-choice="c3" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#1e1e2e;border-radius:6px;padding:10px;font-family:sans-serif;font-size:10px;color:#cdd6f4">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="color:#fab387;font-weight:600">⚡ Explain Analyze · 43ms total</span>
+          <div style="background:#313244;border-radius:3px;padding:2px 6px;font-size:9px;color:#89dceb">✨ Ask AI</div>
+        </div>
+        <!-- Waterfall bars -->
+        <div style="display:flex;flex-direction:column;gap:5px">
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:8px;color:#6c7086;margin-bottom:2px">
+              <span>Nested Loop</span><span style="color:#f38ba8">42ms (98%)</span>
+            </div>
+            <div style="background:#313244;border-radius:2px;height:8px">
+              <div style="background:#f38ba8;width:98%;height:100%;border-radius:2px"></div>
+            </div>
+          </div>
+          <div style="padding-left:12px">
+            <div style="display:flex;justify-content:space-between;font-size:8px;color:#6c7086;margin-bottom:2px">
+              <span>↳ Seq Scan (orders)</span><span style="color:#f38ba8">38ms (88%)</span>
+            </div>
+            <div style="background:#313244;border-radius:2px;height:8px">
+              <div style="background:#f38ba8;width:88%;height:100%;border-radius:2px"></div>
+            </div>
+          </div>
+          <div style="padding-left:12px">
+            <div style="display:flex;justify-content:space-between;font-size:8px;color:#6c7086;margin-bottom:2px">
+              <span>↳ Index Scan (users)</span><span style="color:#a6e3a1">1ms (2%)</span>
+            </div>
+            <div style="background:#313244;border-radius:2px;height:8px">
+              <div style="background:#a6e3a1;width:2%;height:100%;border-radius:2px"></div>
+            </div>
+          </div>
+        </div>
+        <div style="font-size:8px;color:#6c7086;margin-top:8px">Click any bar to see node details →</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C3 — Waterfall / flame bars</h3>
+      <p>Horizontal time bars like Chrome DevTools. Instantly shows which node eats the most time. Indented for tree structure. Click to drill into a node.</p>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:16px">Pick the plan visualization style you want inside Layout C — or mix (e.g. C1 for Tree tab, C2 for Table tab).</p>

@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Settings Mockup</title>
+<style>
+  :root {
+    --theme-bg-primary: hsl(222 16% 12%);
+    --theme-bg-secondary: hsl(222 16% 17%);
+    --theme-bg-tertiary: hsl(222 16% 20%);
+    --theme-bg-hover: hsl(222 16% 18%);
+    --theme-fg-primary: hsl(210 20% 92%);
+    --theme-fg-secondary: hsl(210 15% 82%);
+    --theme-fg-tertiary: hsl(210 12% 70%);
+    --theme-accent-primary: hsl(217 91% 60%);
+    --theme-border-default: hsl(220 16% 25%);
+    --theme-border-subtle: hsl(220 16% 18%);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--theme-bg-primary);
+    color: var(--theme-fg-primary);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 13px;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .settings-shell {
+    width: 900px;
+    height: 600px;
+    background: var(--theme-bg-primary);
+    border: 1px solid var(--theme-border-default);
+    border-radius: 10px;
+    display: flex;
+    overflow: hidden;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+  }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    width: 180px;
+    flex-shrink: 0;
+    border-right: 1px solid var(--theme-border-default);
+    padding: 80px 10px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .sidebar-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    color: hsl(210 15% 60%);
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+  .sidebar-item.active {
+    background: hsl(217 91% 60% / 0.12);
+    color: var(--theme-accent-primary);
+    font-weight: 500;
+  }
+  .sidebar-item:not(.active):hover { background: var(--theme-bg-hover); }
+  .sidebar-item svg { opacity: 0.7; }
+
+  /* ── Main content ── */
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── Provider tabs ── */
+  .provider-tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--theme-border-default);
+    padding: 0 20px;
+    flex-shrink: 0;
+  }
+  .provider-tab {
+    padding: 11px 16px;
+    font-size: 11.5px;
+    color: hsl(210 15% 55%);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color 0.12s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .provider-tab.active {
+    color: var(--theme-accent-primary);
+    border-bottom-color: var(--theme-accent-primary);
+    font-weight: 500;
+  }
+  .provider-tab:not(.active):hover { color: var(--theme-fg-primary); }
+  .status-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: hsl(142 71% 45%);
+    flex-shrink: 0;
+  }
+  .status-dot.warn { background: hsl(38 92% 50%); }
+  .status-dot.off  { background: hsl(220 16% 35%); }
+
+  /* ── Tab body ── */
+  .tab-body {
+    flex: 1;
+    overflow: hidden;
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  /* ── Fields ── */
+  .field-row { display: flex; gap: 10px; align-items: flex-end; }
+  .field { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+  .field-label {
+    font-size: 10px;
+    color: hsl(210 12% 55%);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 500;
+  }
+  .field-input {
+    background: var(--theme-bg-secondary);
+    border: 1px solid var(--theme-border-default);
+    border-radius: 5px;
+    padding: 6px 10px;
+    font-size: 11.5px;
+    font-family: ui-monospace, monospace;
+    color: var(--theme-fg-secondary);
+    width: 100%;
+  }
+  .field-input.placeholder-style { color: hsl(210 12% 45%); }
+
+  .btn {
+    padding: 6px 14px;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    border: 1px solid;
+    transition: background 0.12s;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .btn-primary {
+    background: hsl(217 91% 60% / 0.14);
+    border-color: hsl(217 91% 60% / 0.35);
+    color: var(--theme-accent-primary);
+  }
+  .btn-primary:hover { background: hsl(217 91% 60% / 0.22); }
+
+  /* ── Status bar ── */
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 10.5px;
+    color: hsl(142 60% 55%);
+    padding: 6px 10px;
+    background: hsl(142 40% 20% / 0.2);
+    border: 1px solid hsl(142 40% 30% / 0.3);
+    border-radius: 5px;
+  }
+
+  /* ── Search ── */
+  .search-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-shrink: 0;
+  }
+  .search-input {
+    flex: 1;
+    background: var(--theme-bg-secondary);
+    border: 1px solid var(--theme-border-default);
+    border-radius: 5px;
+    padding: 6px 10px 6px 30px;
+    font-size: 11.5px;
+    color: var(--theme-fg-secondary);
+    position: relative;
+  }
+  .search-wrap {
+    position: relative;
+    flex: 1;
+  }
+  .search-wrap svg {
+    position: absolute;
+    left: 9px;
+    top: 50%;
+    transform: translateY(-50%);
+    opacity: 0.35;
+    pointer-events: none;
+  }
+  .model-count {
+    font-size: 10px;
+    color: hsl(210 12% 45%);
+    white-space: nowrap;
+  }
+
+  /* ── Model grid ── */
+  .model-section {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 0;
+  }
+  .model-section-header {
+    font-size: 10px;
+    color: hsl(210 12% 45%);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 500;
+    flex-shrink: 0;
+  }
+  .model-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 5px;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+    padding-right: 4px;
+  }
+  .model-grid::-webkit-scrollbar { width: 4px; }
+  .model-grid::-webkit-scrollbar-track { background: transparent; }
+  .model-grid::-webkit-scrollbar-thumb { background: var(--theme-border-default); border-radius: 2px; }
+
+  /* ── Model card ── */
+  .model-card {
+    background: var(--theme-bg-secondary);
+    border: 1px solid var(--theme-border-default);
+    border-radius: 5px;
+    padding: 7px 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: border-color 0.12s;
+  }
+  .model-card.pinned {
+    border-color: hsl(217 91% 60% / 0.4);
+    background: hsl(217 91% 60% / 0.04);
+  }
+  .model-card-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .model-name {
+    font-size: 10.5px;
+    font-family: ui-monospace, monospace;
+    color: var(--theme-fg-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .model-card.pinned .model-name { color: var(--theme-accent-primary); }
+  .model-meta {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 3px;
+  }
+  .meta-chip {
+    font-size: 9px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: var(--theme-bg-tertiary);
+    border: 1px solid var(--theme-border-subtle);
+    color: hsl(210 12% 55%);
+    white-space: nowrap;
+  }
+  .meta-chip.context { color: hsl(210 50% 65%); border-color: hsl(210 50% 30% / 0.4); background: hsl(210 50% 20% / 0.2); }
+  .meta-chip.price-in  { color: hsl(142 50% 55%); border-color: hsl(142 40% 30% / 0.4); background: hsl(142 40% 15% / 0.25); }
+  .meta-chip.price-out { color: hsl(38 80% 55%);  border-color: hsl(38 60% 30% / 0.4);  background: hsl(38 60% 15% / 0.25); }
+
+  /* ── Toggle ── */
+  .toggle {
+    width: 30px;
+    height: 16px;
+    border-radius: 8px;
+    background: var(--theme-border-default);
+    cursor: pointer;
+    position: relative;
+    flex-shrink: 0;
+    transition: background 0.18s;
+  }
+  .toggle.on {
+    background: var(--theme-accent-primary);
+  }
+  .toggle::after {
+    content: '';
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: white;
+    top: 2px;
+    left: 2px;
+    transition: left 0.18s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+  }
+  .toggle.on::after { left: 16px; }
+
+  /* ── Harness logs section ── */
+  .logs-section {
+    background: var(--theme-bg-secondary);
+    border: 1px solid var(--theme-border-default);
+    border-radius: 6px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .logs-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 7px 12px;
+    border-bottom: 1px solid var(--theme-border-subtle);
+    font-size: 10px;
+    color: hsl(210 12% 50%);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .log-line {
+    padding: 4px 12px;
+    font-size: 10px;
+    font-family: ui-monospace, monospace;
+    color: hsl(210 12% 50%);
+    border-bottom: 1px solid hsl(220 16% 16%);
+    line-height: 1.5;
+  }
+  .log-line .ts { color: hsl(210 12% 38%); margin-right: 8px; }
+  .log-line .ok  { color: hsl(142 60% 50%); }
+  .log-line .err { color: hsl(0 70% 60%); }
+  .log-line .dim { color: hsl(210 12% 42%); }
+
+  /* caption */
+  .caption {
+    text-align: center;
+    padding: 20px;
+    font-size: 13px;
+    color: hsl(210 15% 65%);
+    background: hsl(217 91% 60% / 0.06);
+    border-top: 1px solid var(--theme-border-default);
+  }
+</style>
+</head>
+<body>
+
+<div style="display:flex;flex-direction:column;gap:16px;width:940px">
+
+  <div style="text-align:center">
+    <div style="font-size:16px;font-weight:600;color:hsl(210 20% 92%);margin-bottom:4px">Settings → AI — Refined Mockup (Option C)</div>
+    <div style="font-size:12px;color:hsl(210 12% 50%)">Tabs · API key + Base URL · Fetch models · 2-column card grid with toggles, search, pricing</div>
+  </div>
+
+  <div class="settings-shell">
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="sidebar-item">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v3M12 20v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M1 12h3M20 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg>
+        Theme
+      </div>
+      <div class="sidebar-item">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 12h6M9 15h4"/></svg>
+        Editor
+      </div>
+      <div class="sidebar-item active">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z"/><path d="M12 8v4l3 3"/></svg>
+        AI
+      </div>
+      <div class="sidebar-item">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        Shortcuts
+      </div>
+      <div class="sidebar-item">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+        Dangerous
+      </div>
+    </div>
+
+    <!-- Main content -->
+    <div class="main">
+      <!-- Provider tabs -->
+      <div class="provider-tabs">
+        <div class="provider-tab">
+          <div class="status-dot"></div>
+          Claude
+        </div>
+        <div class="provider-tab">
+          <div class="status-dot warn"></div>
+          Google
+        </div>
+        <div class="provider-tab active">
+          <div class="status-dot"></div>
+          OpenRouter
+        </div>
+        <div class="provider-tab">
+          <div class="status-dot"></div>
+          Codex
+        </div>
+        <div class="provider-tab">
+          <div class="status-dot off"></div>
+          OpenCode
+        </div>
+        <div class="provider-tab">
+          <div class="status-dot"></div>
+          Cursor
+        </div>
+      </div>
+
+      <!-- Tab body: OpenRouter -->
+      <div class="tab-body">
+
+        <!-- Status -->
+        <div class="status-bar">
+          <div class="status-dot"></div>
+          Connected — 247 models available · Last fetched 2 min ago
+        </div>
+
+        <!-- Credentials row -->
+        <div class="field-row">
+          <div class="field" style="flex:1.2">
+            <div class="field-label">API Key</div>
+            <div class="field-input">sk-or-v1-785…266</div>
+          </div>
+          <div class="field" style="flex:2">
+            <div class="field-label">Base URL <span style="color:hsl(210 12% 38%);text-transform:none;letter-spacing:0;font-weight:400">(override for custom endpoints)</span></div>
+            <div class="field-input placeholder-style">https://openrouter.ai/api/v1</div>
+          </div>
+          <div>
+            <button class="btn btn-primary" style="height:32px;margin-bottom:1px">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+              Fetch models
+            </button>
+          </div>
+        </div>
+
+        <!-- Model browser -->
+        <div class="model-section">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+            <div class="model-section-header">Available Models</div>
+            <div class="model-count">247 total · 5 pinned to picker</div>
+          </div>
+
+          <!-- Search -->
+          <div class="search-row" style="flex-shrink:0">
+            <div class="search-wrap">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+              <div class="search-input">gpt</div>
+            </div>
+            <div style="font-size:10px;color:hsl(210 12% 45%)">3 results</div>
+          </div>
+
+          <!-- 2-col model grid -->
+          <div class="model-grid">
+
+            <div class="model-card pinned">
+              <div class="model-card-info">
+                <div class="model-name">openai/gpt-4o</div>
+                <div class="model-meta">
+                  <div class="meta-chip context">128k</div>
+                  <div class="meta-chip price-in">↓$5</div>
+                  <div class="meta-chip price-out">↑$15</div>
+                </div>
+              </div>
+              <div class="toggle on"></div>
+            </div>
+
+            <div class="model-card pinned">
+              <div class="model-card-info">
+                <div class="model-name">openai/gpt-4o-mini</div>
+                <div class="model-meta">
+                  <div class="meta-chip context">128k</div>
+                  <div class="meta-chip price-in">↓$0.15</div>
+                  <div class="meta-chip price-out">↑$0.6</div>
+                </div>
+              </div>
+              <div class="toggle on"></div>
+            </div>
+
+            <div class="model-card">
+              <div class="model-card-info">
+                <div class="model-name">openai/gpt-4-turbo</div>
+                <div class="model-meta">
+                  <div class="meta-chip context">128k</div>
+                  <div class="meta-chip price-in">↓$10</div>
+                  <div class="meta-chip price-out">↑$30</div>
+                </div>
+              </div>
+              <div class="toggle"></div>
+            </div>
+
+            <div class="model-card pinned">
+              <div class="model-card-info">
+                <div class="model-name">anthropic/claude-sonnet-4-5</div>
+                <div class="model-meta">
+                  <div class="meta-chip context">200k</div>
+                  <div class="meta-chip price-in">↓$3</div>
+                  <div class="meta-chip price-out">↑$15</div>
+                </div>
+              </div>
+              <div class="toggle on"></div>
+            </div>
+
+            <div class="model-card">
+              <div class="model-card-info">
+                <div class="model-name">google/gemini-2.5-flash</div>
+                <div class="model-meta">
+                  <div class="meta-chip context">1M</div>
+                  <div class="meta-chip price-in">↓$0.15</div>
+                  <div class="meta-chip price-out">↑$0.6</div>
+                </div>
+              </div>
+              <div class="toggle"></div>
+            </div>
+
+            <div class="model-card">
+              <div class="model-card-info">
+                <div class="model-name">deepseek/deepseek-r1</div>
+                <div class="model-meta">
+                  <div class="meta-chip context">64k</div>
+                  <div class="meta-chip price-in">↓$0.5</div>
+                  <div class="meta-chip price-out">↑$2.5</div>
+                </div>
+              </div>
+              <div class="toggle"></div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Harness debug logs mockup -->
+  <div style="width:900px">
+    <div style="font-size:11px;color:hsl(210 12% 50%);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Also proposed — Harness Debug Log (inside Settings → AI, collapsible)</div>
+    <div class="logs-section">
+      <div class="logs-header">
+        <span>Harness Log</span>
+        <div style="display:flex;gap:12px;align-items:center">
+          <span style="color:hsl(142 60% 45%)">● Live</span>
+          <span style="cursor:pointer;color:hsl(210 12% 45%)">Clear</span>
+          <span style="cursor:pointer;color:hsl(210 12% 45%)">▼ collapse</span>
+        </div>
+      </div>
+      <div class="log-line"><span class="ts">06:20:15</span><span class="ok">[session]</span> <span class="dim">started — provider=openrouter model=openai/gpt-4o session=abc123</span></div>
+      <div class="log-line"><span class="ts">06:20:15</span><span class="dim">[send]</span> <span class="dim">"list the tables in this database"</span></div>
+      <div class="log-line"><span class="ts">06:20:16</span><span class="ok">[tool]</span> <span class="dim">list_tables — input={schema:"public"} → awaiting frontend</span></div>
+      <div class="log-line"><span class="ts">06:20:16</span><span class="ok">[tool]</span> <span class="dim">list_tables → resolved in 42ms → 12 rows</span></div>
+      <div class="log-line"><span class="ts">06:20:18</span><span class="ok">[turn]</span> <span class="dim">done — 2 tool calls · 1.4s · 847 tokens</span></div>
+    </div>
+  </div>
+
+  <div class="caption" style="border-radius:8px;border:1px solid hsl(220 16% 25%)">
+    All colors use the actual CSS theme tokens from app.css · Tabs · Toggles (not checkboxes) · 2-col model cards · Context / price-in / price-out chips · Search · Scrollable grid · Harness log panel
+  </div>
+
+</div>
+
+</body>
+</html>

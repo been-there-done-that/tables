@@ -1,0 +1,116 @@
+<h2>What's inside the OpenRouter tab?</h2>
+<p class="subtitle">You'll enter an API key and browse/select models. How much control do you want over the model list?</p>
+
+<div class="options">
+
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Key + fetch + searchable model table</h3>
+      <p>Enter API key → click "Fetch models" → get the live list from OpenRouter API. Searchable table shows all models with context window size and pricing. Toggle checkboxes to pin models to the main picker.</p>
+      <div class="mockup" style="margin-top:10px">
+        <div class="mockup-header">Settings → AI → OpenRouter</div>
+        <div class="mockup-body" style="padding:14px;display:flex;flex-direction:column;gap:10px">
+          <!-- Status -->
+          <div style="display:flex;align-items:center;gap:6px;font-size:10px;color:rgba(126,200,164,0.8)">
+            <div style="width:6px;height:6px;border-radius:50%;background:#7ec8a4"></div>
+            Connected — 247 models available
+          </div>
+          <!-- API key row -->
+          <div style="display:flex;gap:8px;align-items:flex-end">
+            <div style="flex:1">
+              <div style="font-size:10px;color:rgba(255,255,255,0.4);margin-bottom:3px">API Key</div>
+              <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:4px;padding:6px 10px;font-size:11px;font-family:monospace;color:rgba(255,255,255,0.6)">sk-or-v1-••••••••••••••••</div>
+            </div>
+            <div style="background:rgba(126,200,164,0.12);border:1px solid rgba(126,200,164,0.25);border-radius:4px;padding:6px 12px;font-size:10px;color:#7ec8a4;cursor:pointer;white-space:nowrap">↻ Refresh</div>
+          </div>
+          <!-- Search -->
+          <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:4px;padding:5px 10px;font-size:10px;color:rgba(255,255,255,0.3)">🔍 Search models… (gpt, claude, llama…)</div>
+          <!-- Model table -->
+          <div style="border:1px solid rgba(255,255,255,0.08);border-radius:4px;overflow:hidden">
+            <div style="display:grid;grid-template-columns:1fr 60px 70px 36px;padding:5px 10px;background:rgba(255,255,255,0.03);font-size:9px;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:.4px;gap:8px">
+              <span>Model</span><span>Context</span><span>$/1M tok</span><span>Pin</span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 60px 70px 36px;padding:6px 10px;align-items:center;gap:8px;font-size:10px;border-top:1px solid rgba(255,255,255,0.05)">
+              <span style="color:rgba(255,255,255,0.8)">openai/gpt-4o</span><span style="color:rgba(255,255,255,0.35)">128k</span><span style="color:rgba(255,255,255,0.35)">$5 / $15</span><span><input type="checkbox" checked /></span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 60px 70px 36px;padding:6px 10px;align-items:center;gap:8px;font-size:10px;border-top:1px solid rgba(255,255,255,0.05)">
+              <span style="color:rgba(255,255,255,0.8)">anthropic/claude-sonnet-4-5</span><span style="color:rgba(255,255,255,0.35)">200k</span><span style="color:rgba(255,255,255,0.35)">$3 / $15</span><span><input type="checkbox" checked /></span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 60px 70px 36px;padding:6px 10px;align-items:center;gap:8px;font-size:10px;border-top:1px solid rgba(255,255,255,0.05)">
+              <span style="color:rgba(255,255,255,0.6)">google/gemini-2.5-flash</span><span style="color:rgba(255,255,255,0.35)">1M</span><span style="color:rgba(255,255,255,0.35)">$0.15/$0.6</span><span><input type="checkbox" checked /></span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 60px 70px 36px;padding:6px 10px;align-items:center;gap:8px;font-size:10px;border-top:1px solid rgba(255,255,255,0.05)">
+              <span style="color:rgba(255,255,255,0.4)">deepseek/deepseek-r1</span><span style="color:rgba(255,255,255,0.35)">64k</span><span style="color:rgba(255,255,255,0.35)">$0.5/$2.5</span><span><input type="checkbox" /></span>
+            </div>
+            <div style="padding:4px 10px;font-size:9px;color:rgba(255,255,255,0.2);text-align:center;border-top:1px solid rgba(255,255,255,0.05)">+243 more — use search to filter</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Key + base URL + manual model list</h3>
+      <p>API key + base URL field (for custom endpoints / self-hosted). No live fetch — you type in model IDs manually (or paste a list). Simpler, works offline, supports any OpenAI-compatible endpoint.</p>
+      <div class="mockup" style="margin-top:10px">
+        <div class="mockup-header">Settings → AI → OpenRouter</div>
+        <div class="mockup-body" style="padding:14px;display:flex;flex-direction:column;gap:10px">
+          <div>
+            <div style="font-size:10px;color:rgba(255,255,255,0.4);margin-bottom:3px">API Key</div>
+            <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:4px;padding:6px 10px;font-size:11px;font-family:monospace;color:rgba(255,255,255,0.6)">sk-or-v1-••••••••</div>
+          </div>
+          <div>
+            <div style="font-size:10px;color:rgba(255,255,255,0.4);margin-bottom:3px">Base URL <span style="color:rgba(255,255,255,0.2)">(optional — default: https://openrouter.ai/api/v1)</span></div>
+            <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:4px;padding:6px 10px;font-size:11px;font-family:monospace;color:rgba(255,255,255,0.4)">https://openrouter.ai/api/v1</div>
+          </div>
+          <div>
+            <div style="font-size:10px;color:rgba(255,255,255,0.4);margin-bottom:3px">Models <span style="color:rgba(255,255,255,0.2)">(one per line)</span></div>
+            <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:4px;padding:8px 10px;font-size:10px;font-family:monospace;color:rgba(255,255,255,0.6);line-height:1.6">openai/gpt-4o<br/>anthropic/claude-sonnet-4-5<br/>google/gemini-2.5-flash</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Key + base URL + live fetch (best of both)</h3>
+      <p>Has base URL field (works with any OpenAI-compatible endpoint, not just OpenRouter). Click "Fetch models" to pull the live list and browse. If fetch fails, falls back to manual entry. Google tab also fetches its model list.</p>
+      <div class="mockup" style="margin-top:10px">
+        <div class="mockup-header">Settings → AI → OpenRouter</div>
+        <div class="mockup-body" style="padding:14px;display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;gap:8px">
+            <div style="flex:2">
+              <div style="font-size:10px;color:rgba(255,255,255,0.4);margin-bottom:3px">API Key</div>
+              <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:4px;padding:6px 10px;font-size:10px;font-family:monospace;color:rgba(255,255,255,0.6)">sk-or-v1-••••••</div>
+            </div>
+            <div style="flex:3">
+              <div style="font-size:10px;color:rgba(255,255,255,0.4);margin-bottom:3px">Base URL</div>
+              <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:4px;padding:6px 10px;font-size:10px;font-family:monospace;color:rgba(255,255,255,0.35)">https://openrouter.ai/api/v1</div>
+            </div>
+            <div style="display:flex;align-items:flex-end">
+              <div style="background:rgba(126,200,164,0.12);border:1px solid rgba(126,200,164,0.25);border-radius:4px;padding:6px 12px;font-size:10px;color:#7ec8a4;cursor:pointer;white-space:nowrap">Fetch ↻</div>
+            </div>
+          </div>
+          <div style="border:1px solid rgba(255,255,255,0.08);border-radius:4px;overflow:hidden">
+            <div style="display:grid;grid-template-columns:1fr 60px 36px;padding:5px 10px;background:rgba(255,255,255,0.03);font-size:9px;color:rgba(255,255,255,0.3);text-transform:uppercase;gap:8px">
+              <span>Model</span><span>Context</span><span>Pin</span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 60px 36px;padding:6px 10px;align-items:center;gap:8px;font-size:10px;border-top:1px solid rgba(255,255,255,0.05)">
+              <span style="color:rgba(255,255,255,0.8)">openai/gpt-4o</span><span style="color:rgba(255,255,255,0.35)">128k</span><span><input type="checkbox" checked /></span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 60px 36px;padding:6px 10px;align-items:center;gap:8px;font-size:10px;border-top:1px solid rgba(255,255,255,0.05)">
+              <span style="color:rgba(255,255,255,0.8)">anthropic/claude-sonnet-4-5</span><span style="color:rgba(255,255,255,0.35)">200k</span><span><input type="checkbox" checked /></span>
+            </div>
+          </div>
+          <div style="font-size:9px;color:rgba(255,255,255,0.25)">Works with OpenRouter, Ollama, LM Studio, any OpenAI-compatible endpoint</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>

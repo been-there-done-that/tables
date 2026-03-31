@@ -1,0 +1,129 @@
+<h2>What does Settings → AI look like?</h2>
+<p class="subtitle">You've picked A (new section in /settings). How should the per-provider config be structured?</p>
+
+<div class="options">
+
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Provider tabs across the top</h3>
+      <p>Horizontal tab strip: Claude | Google | OpenRouter | Codex | Cursor. Click a tab to configure that provider. Full area below shows that provider's fields — API key, base URL, model browser.</p>
+      <div class="mockup" style="margin-top:10px">
+        <div class="mockup-header">Settings → AI</div>
+        <div class="mockup-body" style="padding:0">
+          <div style="display:flex;gap:0;border-bottom:1px solid rgba(255,255,255,0.1)">
+            <div style="padding:8px 16px;font-size:11px;border-bottom:2px solid #7ec8a4;color:#7ec8a4;cursor:pointer">Claude</div>
+            <div style="padding:8px 16px;font-size:11px;color:rgba(255,255,255,0.4);cursor:pointer">Google</div>
+            <div style="padding:8px 16px;font-size:11px;color:rgba(255,255,255,0.4);cursor:pointer">OpenRouter</div>
+            <div style="padding:8px 16px;font-size:11px;color:rgba(255,255,255,0.4);cursor:pointer">Codex</div>
+            <div style="padding:8px 16px;font-size:11px;color:rgba(255,255,255,0.4);cursor:pointer">Cursor</div>
+          </div>
+          <div style="padding:16px;display:flex;flex-direction:column;gap:12px">
+            <div style="font-size:11px;color:rgba(255,255,255,0.5)">✓ Available — claude CLI detected</div>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <div style="font-size:10px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:.5px">Model</div>
+              <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;padding:6px 10px;font-size:11px;color:rgba(255,255,255,0.7)">claude-sonnet-4-6 ▾</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <div style="font-size:10px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:.5px">Effort</div>
+              <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;padding:6px 10px;font-size:11px;color:rgba(255,255,255,0.7)">Auto ▾</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Stacked cards — one per provider</h3>
+      <p>All providers visible at once as expandable cards. Each card has a header (provider name + status dot) that expands to show its config. Collapse what you don't need.</p>
+      <div class="mockup" style="margin-top:10px">
+        <div class="mockup-header">Settings → AI</div>
+        <div class="mockup-body" style="padding:12px;display:flex;flex-direction:column;gap:8px">
+          <!-- Claude card expanded -->
+          <div style="border:1px solid rgba(255,255,255,0.15);border-radius:6px;overflow:hidden">
+            <div style="padding:10px 14px;display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,0.03)">
+              <div style="display:flex;align-items:center;gap:8px">
+                <div style="width:7px;height:7px;border-radius:50%;background:#7ec8a4"></div>
+                <span style="font-size:12px;font-weight:500">Claude</span>
+              </div>
+              <span style="font-size:10px;color:rgba(255,255,255,0.3)">▲ collapse</span>
+            </div>
+            <div style="padding:12px 14px;display:flex;flex-direction:column;gap:8px;border-top:1px solid rgba(255,255,255,0.07)">
+              <div style="font-size:10px;color:rgba(255,255,255,0.5)">Model: claude-sonnet-4-6 ▾  &nbsp;&nbsp; Effort: Auto ▾</div>
+            </div>
+          </div>
+          <!-- Google card collapsed -->
+          <div style="border:1px solid rgba(255,255,255,0.1);border-radius:6px">
+            <div style="padding:10px 14px;display:flex;align-items:center;justify-content:space-between">
+              <div style="display:flex;align-items:center;gap:8px">
+                <div style="width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,0.15)"></div>
+                <span style="font-size:12px;color:rgba(255,255,255,0.5)">Google</span>
+                <span style="font-size:10px;color:rgba(255,200,100,0.7)">API key required</span>
+              </div>
+              <span style="font-size:10px;color:rgba(255,255,255,0.3)">▼ expand</span>
+            </div>
+          </div>
+          <!-- OpenRouter card collapsed -->
+          <div style="border:1px solid rgba(255,255,255,0.1);border-radius:6px">
+            <div style="padding:10px 14px;display:flex;align-items:center;justify-content:space-between">
+              <div style="display:flex;align-items:center;gap:8px">
+                <div style="width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,0.15)"></div>
+                <span style="font-size:12px;color:rgba(255,255,255,0.5)">OpenRouter</span>
+                <span style="font-size:10px;color:rgba(255,200,100,0.7)">API key required</span>
+              </div>
+              <span style="font-size:10px;color:rgba(255,255,255,0.3)">▼ expand</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Left sub-nav inside the AI section</h3>
+      <p>Settings sidebar gets an "AI" item. Clicking it shows a second-level list of providers (Claude, Google, OpenRouter…) on the left. The right panel shows the selected provider's full config — including a live model browser table.</p>
+      <div class="mockup" style="margin-top:10px">
+        <div class="mockup-header">Settings → AI → OpenRouter</div>
+        <div class="mockup-body" style="padding:0;display:flex;min-height:140px">
+          <div style="width:110px;border-right:1px solid rgba(255,255,255,0.08);padding:8px;display:flex;flex-direction:column;gap:2px;flex-shrink:0">
+            <div style="padding:5px 8px;font-size:10px;color:rgba(255,255,255,0.4);border-radius:3px">Claude</div>
+            <div style="padding:5px 8px;font-size:10px;color:rgba(255,255,255,0.4);border-radius:3px">Google</div>
+            <div style="padding:5px 8px;font-size:10px;color:#7ec8a4;background:rgba(126,200,164,0.1);border-radius:3px;font-weight:500">OpenRouter</div>
+            <div style="padding:5px 8px;font-size:10px;color:rgba(255,255,255,0.4);border-radius:3px">Codex</div>
+            <div style="padding:5px 8px;font-size:10px;color:rgba(255,255,255,0.4);border-radius:3px">Cursor</div>
+          </div>
+          <div style="flex:1;padding:12px;display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;gap:8px;align-items:flex-end">
+              <div style="flex:1">
+                <div style="font-size:10px;color:rgba(255,255,255,0.4);margin-bottom:3px;text-transform:uppercase;letter-spacing:.5px">API Key</div>
+                <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;padding:5px 8px;font-size:10px;font-family:monospace;color:rgba(255,255,255,0.5)">sk-or-v1-••••••••</div>
+              </div>
+              <div style="background:rgba(126,200,164,0.15);border:1px solid rgba(126,200,164,0.3);border-radius:4px;padding:5px 10px;font-size:10px;color:#7ec8a4;white-space:nowrap">Fetch models</div>
+            </div>
+            <div style="font-size:10px;color:rgba(255,255,255,0.4);margin-bottom:2px;text-transform:uppercase;letter-spacing:.5px">Available Models</div>
+            <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:4px;overflow:hidden">
+              <div style="display:flex;padding:5px 8px;border-bottom:1px solid rgba(255,255,255,0.07);font-size:9px;color:rgba(255,255,255,0.3);gap:8px">
+                <span style="flex:1">Model ID</span><span style="width:60px">Context</span><span style="width:40px">Show</span>
+              </div>
+              <div style="display:flex;padding:5px 8px;align-items:center;gap:8px;font-size:10px;border-bottom:1px solid rgba(255,255,255,0.05)">
+                <span style="flex:1;color:rgba(255,255,255,0.7)">openai/gpt-4o</span><span style="width:60px;color:rgba(255,255,255,0.3)">128k</span><span style="width:40px"><input type="checkbox" checked /></span>
+              </div>
+              <div style="display:flex;padding:5px 8px;align-items:center;gap:8px;font-size:10px;border-bottom:1px solid rgba(255,255,255,0.05)">
+                <span style="flex:1;color:rgba(255,255,255,0.7)">anthropic/claude-sonnet-4-5</span><span style="width:60px;color:rgba(255,255,255,0.3)">200k</span><span style="width:40px"><input type="checkbox" checked /></span>
+              </div>
+              <div style="display:flex;padding:5px 8px;align-items:center;gap:8px;font-size:10px">
+                <span style="flex:1;color:rgba(255,255,255,0.4)">deepseek/deepseek-r1</span><span style="width:60px;color:rgba(255,255,255,0.3)">64k</span><span style="width:40px"><input type="checkbox" /></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>

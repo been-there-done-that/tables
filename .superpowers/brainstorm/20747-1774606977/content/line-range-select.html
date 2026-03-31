@@ -1,0 +1,83 @@
+<h2>Line range context — highlight → Add to chat</h2>
+<p class="subtitle">User selects in Monaco, button appears, chip lands in composer</p>
+
+<div style="display:flex; gap:18px; margin-top:16px; align-items:flex-start;">
+
+  <!-- Left: Monaco editor with selection -->
+  <div style="flex:1.3;">
+    <div class="label" style="margin-bottom:8px;">SQL editor (Monaco)</div>
+    <div style="background:#0d0d1a; border:1px solid #2a2a3e; border-radius:8px; overflow:hidden; font-family:monospace; font-size:11px;">
+      <!-- Tab bar -->
+      <div style="background:#111; border-bottom:1px solid #2a2a3e; padding:0 8px; display:flex; align-items:center; gap:1px;">
+        <div style="padding:6px 12px; background:#0d0d1a; border-bottom:2px solid #3b82f6; color:#ccc; font-size:11px;">orders.sql</div>
+        <div style="padding:6px 12px; color:#64748b; font-size:11px;">users.sql</div>
+      </div>
+      <!-- Code lines -->
+      <div style="padding:10px 0; position:relative;">
+        <div style="display:flex; color:#64748b; line-height:1.8;">
+          <div style="width:32px; text-align:right; padding-right:12px; select:none; font-size:10px;">
+            <div>10</div><div>11</div><div>12</div><div style="color:#94a3b8;">13</div><div style="color:#94a3b8;">14</div><div style="color:#94a3b8;">15</div><div style="color:#94a3b8;">16</div><div>17</div><div>18</div>
+          </div>
+          <div style="flex:1; padding-right:12px;">
+            <div style="color:#94a3b8;">SELECT o.id, o.user_id,</div>
+            <div style="color:#94a3b8;">  o.created_at, o.total</div>
+            <div style="color:#94a3b8;">FROM orders o</div>
+            <!-- Selected lines 13-16 -->
+            <div style="background:#1e3a5f; color:#cdd; margin:0 -4px; padding:0 4px;">  LEFT JOIN users u</div>
+            <div style="background:#1e3a5f; color:#cdd; margin:0 -4px; padding:0 4px;">    ON o.user_id = u.id</div>
+            <div style="background:#1e3a5f; color:#cdd; margin:0 -4px; padding:0 4px;">  WHERE o.created_at</div>
+            <div style="background:#1e3a5f; color:#cdd; margin:0 -4px; padding:0 4px;">    > NOW() - INTERVAL '30d'</div>
+            <div style="color:#94a3b8;">ORDER BY o.created_at DESC</div>
+            <div style="color:#94a3b8;">LIMIT 100</div>
+          </div>
+        </div>
+
+        <!-- Floating "Add to chat" button near selection end -->
+        <div style="position:absolute; right:14px; top:88px; display:flex; gap:5px; align-items:center;">
+          <div style="background:#1e3a5f; border:1px solid #3b82f6; border-radius:5px; padding:3px 8px; color:#60a5fa; font-size:10px; cursor:pointer; display:flex; align-items:center; gap:4px; box-shadow:0 2px 8px rgba(0,0,0,.4);">
+            <span>+</span> Add to chat
+          </div>
+          <div style="background:#1a1a2e; border:1px solid #333; border-radius:5px; padding:3px 7px; color:#64748b; font-size:10px; cursor:pointer;" title="Cmd+L">⌘L</div>
+        </div>
+      </div>
+    </div>
+    <div style="color:#475569; font-size:10px; margin-top:6px;">Button appears on any non-empty selection. ⌘L works too — adds without clicking.</div>
+  </div>
+
+  <!-- Right: arrow + result in composer -->
+  <div style="flex:0.08; display:flex; align-items:center; justify-content:center; font-size:20px; color:#475569; padding-top:60px;">→</div>
+
+  <div style="flex:1;">
+    <div class="label" style="margin-bottom:8px;">Composer (after click)</div>
+    <div style="background:#0d0d1a; border:1px solid #2a2a3e; border-radius:8px; padding:10px; font-family:monospace;">
+      <div style="background:#0d0d1a; border:1px solid #2a2a40; border-radius:8px; padding:8px 10px; font-size:12px; line-height:1.8; min-height:60px; color:#ccc;">
+        why is
+        <span style="display:inline-flex; align-items:center; gap:3px; background:#0d2040; border:1px solid #2d5a8f; border-radius:5px; padding:1px 6px; font-size:11px; color:#60a5fa; vertical-align:middle;">
+          <span>📄</span> orders.sql<span style="color:#94a3b8; font-size:9px; margin-left:1px;">:13–16</span>
+          <span style="color:#475569; margin-left:2px; cursor:pointer;">×</span>
+        </span>
+        slow on large date ranges<span style="background:#60a5fa; width:2px; height:14px; display:inline-block; vertical-align:middle; margin-left:1px;"></span>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:7px;">
+        <span style="font-size:10px; color:#475569;">@ attach · ⌘L from editor</span>
+        <div style="background:#2563eb; color:white; border-radius:6px; padding:4px 12px; font-size:12px;">Send</div>
+      </div>
+    </div>
+
+    <div style="margin-top:14px; background:#0f0f1a; border:1px solid #2a2a3e; border-radius:8px; padding:12px; font-size:11px; color:#94a3b8; line-height:1.7;">
+      <div style="color:#d4d48a; font-size:10px; text-transform:uppercase; letter-spacing:.05em; margin-bottom:6px;">What gets sent to agent</div>
+      <div style="background:#0d0d1a; border-radius:4px; padding:8px; font-family:monospace; color:#64748b; font-size:10px; line-height:1.6;">
+        <span style="color:#475569;">&lt;context&gt;</span><br>
+        &nbsp;&nbsp;<span style="color:#86efac;">&lt;file path="orders.sql" lines="13-16"&gt;</span><br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#ccc;">  LEFT JOIN users u</span><br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#ccc;">    ON o.user_id = u.id</span><br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#ccc;">  WHERE o.created_at</span><br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#ccc;">    > NOW() - INTERVAL '30d'</span><br>
+        &nbsp;&nbsp;<span style="color:#86efac;">&lt;/file&gt;</span><br>
+        <span style="color:#475569;">&lt;/context&gt;</span><br><br>
+        <span style="color:#ccc;">why is orders.sql:13-16 slow on large date ranges</span>
+      </div>
+    </div>
+  </div>
+
+</div>

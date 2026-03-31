@@ -1,0 +1,99 @@
+<h2>Where do query results live?</h2>
+<p class="subtitle">When the agent runs a query, where do the results appear?</p>
+
+<div class="options" style="display: flex; flex-direction: column; gap: 16px;">
+
+  <div class="option" data-choice="inline" onclick="toggleSelect(this)" style="align-items: flex-start; padding: 0; overflow: hidden; border-radius: 10px;">
+    <div style="padding: 14px 20px; display: flex; align-items: center; gap: 12px; width: 100%; box-sizing: border-box;">
+      <div class="letter" style="flex-shrink: 0;">A</div>
+      <div>
+        <h3 style="margin: 0 0 2px;">Inline mini grid — results inside the chat</h3>
+        <p style="margin: 0; font-size: 13px; color: var(--text-secondary);">Results render right inside the message bubble. Scrollable, compact, feels like a conversation.</p>
+      </div>
+    </div>
+    <div style="background: var(--surface-raised); border-top: 1px solid var(--border); padding: 16px 20px; width: 100%; box-sizing: border-box;">
+      <!-- Mockup of inline result -->
+      <div style="background: var(--bg); border-radius: 8px; overflow: hidden; border: 1px solid var(--border); font-size: 12px; max-width: 480px;">
+        <div style="padding: 8px 12px; background: #6366f110; border-bottom: 1px solid var(--border); color: #6366f1; font-weight: 600; display: flex; justify-content: space-between; align-items: center;">
+          <span>🔧 run_query · 240ms</span>
+          <span style="font-weight: 400; color: var(--text-tertiary); font-size: 11px;">3 rows · SELECT user_id, name, email FROM users LIMIT 3</span>
+        </div>
+        <table style="width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr style="background: var(--surface-raised);">
+              <th style="padding: 6px 12px; text-align: left; color: var(--text-secondary); font-weight: 600; border-bottom: 1px solid var(--border);">user_id</th>
+              <th style="padding: 6px 12px; text-align: left; color: var(--text-secondary); font-weight: 600; border-bottom: 1px solid var(--border);">name</th>
+              <th style="padding: 6px 12px; text-align: left; color: var(--text-secondary); font-weight: 600; border-bottom: 1px solid var(--border);">email</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td style="padding: 5px 12px; border-bottom: 1px solid var(--border);">1</td><td style="padding: 5px 12px; border-bottom: 1px solid var(--border);">Alice</td><td style="padding: 5px 12px; border-bottom: 1px solid var(--border);">alice@example.com</td></tr>
+            <tr style="background: var(--surface-raised);"><td style="padding: 5px 12px; border-bottom: 1px solid var(--border);">2</td><td style="padding: 5px 12px; border-bottom: 1px solid var(--border);">Bob</td><td style="padding: 5px 12px; border-bottom: 1px solid var(--border);">bob@example.com</td></tr>
+            <tr><td style="padding: 5px 12px;">3</td><td style="padding: 5px 12px;">Carol</td><td style="padding: 5px 12px;">carol@example.com</td></tr>
+          </tbody>
+        </table>
+        <div style="padding: 6px 12px; color: var(--text-tertiary); font-size: 11px; border-top: 1px solid var(--border); display: flex; gap: 12px;">
+          <span>↗ Open in editor</span>
+          <span>📋 Copy SQL</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="panel" onclick="toggleSelect(this)" style="align-items: flex-start; padding: 0; overflow: hidden; border-radius: 10px;">
+    <div style="padding: 14px 20px; display: flex; align-items: center; gap: 12px; width: 100%; box-sizing: border-box;">
+      <div class="letter" style="flex-shrink: 0;">B</div>
+      <div>
+        <h3 style="margin: 0 0 2px;">Tool card + opens in main editor</h3>
+        <p style="margin: 0; font-size: 13px; color: var(--text-secondary);">Chat shows a compact tool card. Clicking it opens the query + full results in the main SQL editor panel.</p>
+      </div>
+    </div>
+    <div style="background: var(--surface-raised); border-top: 1px solid var(--border); padding: 16px 20px; width: 100%; box-sizing: border-box;">
+      <div style="background: var(--bg); border-radius: 8px; border: 1px solid var(--border); font-size: 12px; max-width: 360px;">
+        <div style="padding: 10px 14px; display: flex; align-items: center; gap: 10px; cursor: pointer;">
+          <span style="color: #10b981; font-size: 14px;">✓</span>
+          <div style="flex: 1;">
+            <div style="font-weight: 600; color: var(--text);">run_query</div>
+            <div style="color: var(--text-secondary); font-size: 11px;">SELECT user_id, name... · 3 rows · 240ms</div>
+          </div>
+          <span style="color: var(--text-tertiary); font-size: 11px;">↗ open</span>
+        </div>
+      </div>
+      <div style="margin-top: 8px; font-size: 11px; color: var(--text-tertiary); padding-left: 4px;">Clicking "open" pushes a new tab into the SQL editor with the query pre-filled and results loaded</div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="both" onclick="toggleSelect(this)" style="align-items: flex-start; padding: 0; overflow: hidden; border-radius: 10px;">
+    <div style="padding: 14px 20px; display: flex; align-items: center; gap: 12px; width: 100%; box-sizing: border-box;">
+      <div class="letter" style="flex-shrink: 0;">C</div>
+      <div>
+        <h3 style="margin: 0 0 2px;">Both — compact by default, expandable inline</h3>
+        <p style="margin: 0; font-size: 13px; color: var(--text-secondary);">Tool card is compact. Click to expand inline grid in chat. Always has "Open in editor" to push to main panel.</p>
+      </div>
+    </div>
+    <div style="background: var(--surface-raised); border-top: 1px solid var(--border); padding: 16px 20px; width: 100%; box-sizing: border-box;">
+      <div style="background: var(--bg); border-radius: 8px; border: 1px solid var(--border); font-size: 12px; max-width: 400px; overflow: hidden;">
+        <div style="padding: 10px 14px; display: flex; align-items: center; gap: 10px; cursor: pointer; border-bottom: 1px solid var(--border);">
+          <span style="color: #10b981;">✓</span>
+          <div style="flex: 1; font-weight: 600;">run_query · 3 rows · 240ms</div>
+          <span style="font-size: 11px; color: var(--text-tertiary);">▼ expand</span>
+        </div>
+        <table style="width: 100%; border-collapse: collapse;">
+          <thead><tr style="background: var(--surface-raised);">
+            <th style="padding: 5px 10px; text-align:left; color: var(--text-secondary); font-weight: 600; border-bottom: 1px solid var(--border); font-size: 11px;">user_id</th>
+            <th style="padding: 5px 10px; text-align:left; color: var(--text-secondary); font-weight: 600; border-bottom: 1px solid var(--border); font-size: 11px;">name</th>
+            <th style="padding: 5px 10px; text-align:left; color: var(--text-secondary); font-weight: 600; border-bottom: 1px solid var(--border); font-size: 11px;">email</th>
+          </tr></thead>
+          <tbody>
+            <tr><td style="padding: 4px 10px; border-bottom: 1px solid var(--border);">1</td><td style="padding: 4px 10px; border-bottom: 1px solid var(--border);">Alice</td><td style="padding: 4px 10px; border-bottom: 1px solid var(--border);">alice@…</td></tr>
+            <tr style="background: var(--surface-raised);"><td style="padding: 4px 10px;">2</td><td style="padding: 4px 10px;">Bob</td><td style="padding: 4px 10px;">bob@…</td></tr>
+          </tbody>
+        </table>
+        <div style="padding: 6px 12px; border-top: 1px solid var(--border); display: flex; gap: 12px; font-size: 11px; color: var(--text-tertiary);">
+          <span>↗ Open in editor</span><span>📋 Copy SQL</span><span>▲ collapse</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>

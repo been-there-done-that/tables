@@ -1,0 +1,90 @@
+<h2>Elapsed time in the agent panel</h2>
+<p class="subtitle">How timing looks while the agent is working — and after it's done</p>
+
+<div style="max-width: 480px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px;">
+
+  <!-- Live while running -->
+  <div>
+    <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-tertiary); margin-bottom: 10px;">While running</div>
+    <div style="background: var(--surface-raised); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 8px; font-size: 13px; border: 1px solid var(--border);">
+
+      <!-- Tool running -->
+      <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; display: flex; align-items: center; gap: 10px;">
+        <span style="color: #6366f1; font-size: 14px; animation: spin 1s linear infinite; display: inline-block;">⟳</span>
+        <div style="flex: 1;">
+          <div style="font-weight: 600;">run_query</div>
+          <div style="color: var(--text-secondary); font-size: 11px; font-family: monospace;">SELECT * FROM orders WHERE created_at > now() - interval '7 days'</div>
+        </div>
+        <div style="font-family: monospace; font-size: 12px; color: #6366f1; font-weight: 600; min-width: 40px; text-align: right;">1.4s</div>
+      </div>
+
+      <!-- Tool done -->
+      <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; display: flex; align-items: center; gap: 10px; opacity: 0.7;">
+        <span style="color: #10b981; font-size: 14px;">✓</span>
+        <div style="flex: 1;">
+          <div style="font-weight: 600;">list_tables</div>
+          <div style="color: var(--text-secondary); font-size: 11px;">14 tables in public</div>
+        </div>
+        <div style="font-family: monospace; font-size: 12px; color: var(--text-tertiary); font-weight: 600; min-width: 40px; text-align: right;">82ms</div>
+      </div>
+
+      <!-- Turn timer -->
+      <div style="display: flex; justify-content: flex-end; align-items: center; gap: 6px; padding-right: 4px; padding-top: 2px;">
+        <span style="font-size: 11px; color: var(--text-tertiary);">total</span>
+        <span style="font-family: monospace; font-size: 13px; color: var(--text-secondary); font-weight: 600;">3.2s</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- After done -->
+  <div>
+    <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-tertiary); margin-bottom: 10px;">After turn completes</div>
+    <div style="background: var(--surface-raised); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 8px; font-size: 13px; border: 1px solid var(--border);">
+
+      <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; display: flex; align-items: center; gap: 10px;">
+        <span style="color: #10b981;">✓</span>
+        <div style="flex: 1;">
+          <div style="font-weight: 600;">list_tables</div>
+          <div style="color: var(--text-secondary); font-size: 11px;">14 tables in public</div>
+        </div>
+        <div style="font-family: monospace; font-size: 12px; color: var(--text-tertiary); font-weight: 600;">82ms</div>
+      </div>
+
+      <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; display: flex; align-items: center; gap: 10px;">
+        <span style="color: #10b981;">✓</span>
+        <div style="flex: 1;">
+          <div style="font-weight: 600;">run_query</div>
+          <div style="color: var(--text-secondary); font-size: 11px;">847 rows · <span style="font-family: monospace;">SELECT * FROM orders WHERE...</span></div>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <button style="font-size: 11px; padding: 3px 8px; border-radius: 4px; border: 1px solid var(--border); background: var(--surface-raised); color: var(--text); cursor: pointer;">▶ Run</button>
+          <div style="font-family: monospace; font-size: 12px; color: var(--text-tertiary); font-weight: 600;">1.4s</div>
+        </div>
+      </div>
+
+      <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; display: flex; align-items: center; gap: 10px;">
+        <span style="color: #10b981;">✓</span>
+        <div style="flex: 1;">
+          <div style="font-weight: 600;">describe_table</div>
+          <div style="color: var(--text-secondary); font-size: 11px;">orders — 12 columns</div>
+        </div>
+        <div style="font-family: monospace; font-size: 12px; color: var(--text-tertiary); font-weight: 600;">210ms</div>
+      </div>
+
+      <!-- Total -->
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 4px 2px; border-top: 1px solid var(--border); margin-top: 2px;">
+        <span style="font-size: 11px; color: var(--text-tertiary);">3 tools · turn complete</span>
+        <span style="font-family: monospace; font-size: 12px; color: var(--text-secondary); font-weight: 600;">total 8.3s</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="background: #10b98110; border: 1px solid #10b98130; border-radius: 8px; padding: 12px 16px; font-size: 12px; color: var(--text-secondary);">
+    <strong style="color: var(--text);">▶ Run button</strong> only shows on <code>run_query</code>, <code>sample_table</code>, <code>count_rows</code>, <code>explain_query</code> — tools that produce SQL the user might want to run themselves. Schema tools and profiling tools show result summary only.
+  </div>
+
+</div>
+
+<style>
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+</style>

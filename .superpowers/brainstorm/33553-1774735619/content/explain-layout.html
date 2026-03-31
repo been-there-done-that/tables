@@ -1,0 +1,138 @@
+<h2>Where does the Explain panel live?</h2>
+<p class="subtitle">Three layout options for surfacing EXPLAIN ANALYZE output alongside query results</p>
+
+<div class="cards">
+
+  <!-- Option A -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#1e1e2e;border-radius:6px;padding:12px;font-family:monospace;font-size:11px;color:#cdd6f4">
+        <!-- Editor area -->
+        <div style="background:#181825;border-radius:4px;padding:8px;margin-bottom:8px;color:#a6e3a1;font-size:10px">
+          SELECT * FROM orders o<br>
+          JOIN users u ON u.id = o.user_id<br>
+          WHERE o.created_at &gt; '2024-01-01'
+        </div>
+        <!-- Toolbar -->
+        <div style="display:flex;gap:6px;margin-bottom:8px">
+          <div style="background:#313244;border-radius:3px;padding:3px 8px;font-size:10px;color:#cba6f7">▶ Run</div>
+          <div style="background:#45475a;border-radius:3px;padding:3px 8px;font-size:10px;color:#fab387">⚡ Explain</div>
+          <div style="background:#313244;border-radius:3px;padding:3px 8px;font-size:10px;color:#89b4fa">Format</div>
+        </div>
+        <!-- Bottom panel with tabs -->
+        <div style="background:#181825;border-radius:4px">
+          <div style="display:flex;gap:0;border-bottom:1px solid #313244">
+            <div style="padding:4px 10px;font-size:10px;color:#89dceb;border-bottom:2px solid #89dceb">Results</div>
+            <div style="padding:4px 10px;font-size:10px;color:#fab387;border-bottom:2px solid #fab387;background:#1e1b16">⚡ Explain</div>
+            <div style="padding:4px 10px;font-size:10px;color:#6c7086">Logs</div>
+          </div>
+          <div style="padding:8px">
+            <!-- Explain sub-tabs -->
+            <div style="display:flex;gap:6px;margin-bottom:6px">
+              <div style="background:#313244;border-radius:3px;padding:2px 7px;font-size:9px;color:#cba6f7">Plan Tree</div>
+              <div style="background:#181825;border-radius:3px;padding:2px 7px;font-size:9px;color:#6c7086">Table</div>
+              <div style="background:#181825;border-radius:3px;padding:2px 7px;font-size:9px;color:#6c7086">Stats</div>
+              <div style="background:#181825;border-radius:3px;padding:2px 7px;font-size:9px;color:#6c7086">✨ AI</div>
+            </div>
+            <!-- Mini plan tree -->
+            <div style="font-size:9px;color:#a6e3a1;line-height:1.6">
+              <div>↳ Nested Loop  <span style="color:#f38ba8">42ms</span></div>
+              <div style="padding-left:12px">↳ Index Scan on users  <span style="color:#a6e3a1">1ms</span></div>
+              <div style="padding-left:12px">↳ Seq Scan on orders  <span style="color:#f38ba8">38ms</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — New tab in bottom panel</h3>
+      <p>Explain gets its own tab alongside Results and Logs. Inside it has sub-tabs: Plan Tree, Table, Stats, AI. Familiar pattern — same space as results.</p>
+    </div>
+  </div>
+
+  <!-- Option B -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#1e1e2e;border-radius:6px;padding:12px;font-family:monospace;font-size:11px;color:#cdd6f4">
+        <div style="background:#181825;border-radius:4px;padding:8px;margin-bottom:8px;color:#a6e3a1;font-size:10px">
+          SELECT * FROM orders o<br>
+          JOIN users u ON u.id = o.user_id
+        </div>
+        <div style="display:flex;gap:6px;margin-bottom:8px">
+          <div style="background:#313244;border-radius:3px;padding:3px 8px;font-size:10px;color:#cba6f7">▶ Run</div>
+          <div style="background:#45475a;border-radius:3px;padding:3px 8px;font-size:10px;color:#fab387">⚡ Explain</div>
+        </div>
+        <!-- Split bottom panel -->
+        <div style="display:flex;gap:6px;background:#181825;border-radius:4px;padding:8px">
+          <div style="flex:1">
+            <div style="font-size:9px;color:#6c7086;margin-bottom:4px;text-transform:uppercase">Results</div>
+            <div style="font-size:9px;color:#cdd6f4;line-height:1.6">
+              <div style="color:#89b4fa">id  | name   | total</div>
+              <div>12  | Alice  | 240.00</div>
+              <div>13  | Bob    | 89.50</div>
+              <div>14  | Carol  | 512.00</div>
+            </div>
+          </div>
+          <div style="width:1px;background:#313244"></div>
+          <div style="flex:1">
+            <div style="font-size:9px;color:#fab387;margin-bottom:4px;text-transform:uppercase">⚡ Explain</div>
+            <div style="font-size:9px;color:#a6e3a1;line-height:1.6">
+              <div>↳ Nested Loop  <span style="color:#f38ba8">42ms</span></div>
+              <div style="padding-left:10px">↳ Index Scan  <span style="color:#a6e3a1">1ms</span></div>
+              <div style="padding-left:10px">↳ Seq Scan  <span style="color:#f38ba8">38ms</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Side-by-side split</h3>
+      <p>Results on left, Explain plan on right. Both visible at once when explain is active. No sub-tabs — explain shows inline tree. Maximises simultaneous info but tight on space.</p>
+    </div>
+  </div>
+
+  <!-- Option C -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#1e1e2e;border-radius:6px;padding:12px;font-family:monospace;font-size:11px;color:#cdd6f4">
+        <div style="background:#181825;border-radius:4px;padding:8px;margin-bottom:8px;color:#a6e3a1;font-size:10px">
+          SELECT * FROM orders o<br>
+          JOIN users u ON u.id = o.user_id
+        </div>
+        <div style="display:flex;gap:6px;margin-bottom:8px">
+          <div style="background:#313244;border-radius:3px;padding:3px 8px;font-size:10px;color:#cba6f7">▶ Run</div>
+          <div style="background:#45475a;border-radius:3px;padding:3px 8px;font-size:10px;color:#fab387">⚡ Explain Analyze</div>
+        </div>
+        <!-- Full explain panel replaces results -->
+        <div style="background:#181825;border-radius:4px">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-bottom:1px solid #313244">
+            <div style="display:flex;gap:8px">
+              <span style="font-size:9px;color:#fab387;font-weight:bold">⚡ Explain Analyze</span>
+              <span style="font-size:9px;color:#6c7086">43ms total</span>
+            </div>
+            <div style="display:flex;gap:4px">
+              <div style="background:#313244;border-radius:3px;padding:2px 6px;font-size:9px;color:#cba6f7">Tree</div>
+              <div style="background:#181825;border-radius:3px;padding:2px 6px;font-size:9px;color:#6c7086">Table</div>
+              <div style="background:#181825;border-radius:3px;padding:2px 6px;font-size:9px;color:#6c7086">Stats</div>
+              <div style="background:#f38ba8;border-radius:3px;padding:2px 6px;font-size:9px;color:#1e1e2e">✨ Ask AI</div>
+            </div>
+          </div>
+          <div style="padding:8px">
+            <div style="font-size:9px;color:#a6e3a1;line-height:1.8">
+              <div>↳ <span style="color:#89b4fa">Nested Loop</span>  cost=0..42 rows=120  <span style="color:#f38ba8">●●● 42ms</span></div>
+              <div style="padding-left:14px">↳ <span style="color:#a6e3a1">Index Scan</span> on users  <span style="color:#a6e3a1">● 1ms</span></div>
+              <div style="padding-left:14px">↳ <span style="color:#f38ba8">Seq Scan</span> on orders  <span style="color:#f38ba8">●●● 38ms</span> ⚠</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Full panel, explain replaces results when active</h3>
+      <p>Clicking "Explain" switches the bottom panel to a full explain view with Tree/Table/Stats sub-views and a prominent "Ask AI" button. Click Results tab to go back to data.</p>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:16px">Click your preferred layout — or describe what you want differently in the terminal.</p>

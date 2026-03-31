@@ -1,0 +1,83 @@
+<h2>Where does DDL / source code appear?</h2>
+<p class="subtitle">When you click "View Definition" on a function, trigger, or table — where does the content show up?</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0d1117;border-radius:6px;padding:12px;font-family:monospace;font-size:11px;color:#c9d1d9">
+      <div style="display:flex;height:160px;gap:8px">
+        <div style="width:180px;background:#161b22;border-radius:4px;padding:8px;font-size:10px;color:#8b949e">
+          <div style="color:#58a6ff;margin-bottom:6px">▼ my_schema</div>
+          <div style="padding-left:12px;margin-bottom:2px">📋 Tables (12)</div>
+          <div style="padding-left:12px;margin-bottom:2px">⚡ Functions (8)</div>
+          <div style="padding-left:12px;background:#21262d;border-radius:3px;color:#e6edf3;padding:2px 8px;margin-bottom:2px">→ get_user_by_id</div>
+          <div style="padding-left:12px;margin-bottom:2px">🔄 Triggers (3)</div>
+          <div style="padding-left:12px;margin-bottom:2px">🔢 Sequences (5)</div>
+        </div>
+        <div style="flex:1;background:#161b22;border-radius:4px;padding:8px">
+          <div style="color:#8b949e;font-size:10px;margin-bottom:6px;border-bottom:1px solid #30363d;padding-bottom:4px">get_user_by_id — Definition</div>
+          <div style="color:#79c0ff;font-size:10px">CREATE OR REPLACE FUNCTION</div>
+          <div style="color:#e6edf3;font-size:10px">  get_user_by_id(user_id uuid)</div>
+          <div style="color:#79c0ff;font-size:10px">RETURNS</div>
+          <div style="color:#e6edf3;font-size:10px">  TABLE(id uuid, email text)</div>
+          <div style="color:#79c0ff;font-size:10px">LANGUAGE</div>
+          <div style="color:#e6edf3;font-size:10px">  plpgsql AS $$</div>
+          <div style="color:#e6edf3;font-size:10px">BEGIN ...</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Detail panel (right side)</h3>
+      <p>Clicking an object shows its DDL/source in a persistent panel on the right. Like VS Code's preview pane. Explorer stays visible.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0d1117;border-radius:6px;padding:12px;font-family:monospace;font-size:11px;color:#c9d1d9">
+      <div style="height:160px">
+        <div style="background:#161b22;border-radius:4px;padding:6px;margin-bottom:6px">
+          <div style="display:flex;gap:6px;font-size:10px;color:#8b949e;border-bottom:1px solid #30363d;padding-bottom:4px;margin-bottom:4px">
+            <span style="color:#e6edf3;background:#21262d;padding:2px 8px;border-radius:3px 3px 0 0">users</span>
+            <span>orders</span>
+            <span style="color:#58a6ff;background:#21262d;padding:2px 8px;border-radius:3px 3px 0 0">⚡ get_user_by_id</span>
+            <span style="color:#8b949e;padding:2px 4px">+ New Query</span>
+          </div>
+          <div style="color:#79c0ff;font-size:10px">CREATE OR REPLACE FUNCTION</div>
+          <div style="color:#e6edf3;font-size:10px">  get_user_by_id(user_id uuid)</div>
+          <div style="color:#79c0ff;font-size:10px">RETURNS TABLE(id uuid, email text)</div>
+          <div style="color:#79c0ff;font-size:10px">LANGUAGE plpgsql AS $$</div>
+          <div style="color:#e6edf3;font-size:10px">BEGIN</div>
+          <div style="color:#e6edf3;font-size:10px">  RETURN QUERY SELECT ...</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — New editor tab</h3>
+      <p>DDL/source opens as a read-only tab in the query editor. Like opening a file. You can copy it, run it, compare tabs.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0d1117;border-radius:6px;padding:12px;font-family:monospace;font-size:11px;color:#c9d1d9">
+      <div style="height:160px;display:flex;align-items:center;justify-content:center">
+        <div style="background:#161b22;border:1px solid #30363d;border-radius:6px;padding:16px;width:260px">
+          <div style="color:#e6edf3;font-size:11px;margin-bottom:8px;font-weight:600">⚡ get_user_by_id</div>
+          <div style="color:#8b949e;font-size:10px;margin-bottom:6px">Language: plpgsql · Returns: TABLE</div>
+          <div style="background:#0d1117;border-radius:4px;padding:6px;font-size:10px;color:#79c0ff;margin-bottom:8px">
+            CREATE OR REPLACE FUNCTION...<br/>
+            <span style="color:#e6edf3">  get_user_by_id(user_id uuid)</span>
+          </div>
+          <div style="display:flex;justify-content:flex-end;gap:6px">
+            <button style="background:#21262d;border:1px solid #30363d;color:#e6edf3;padding:3px 10px;border-radius:4px;font-size:10px">Copy DDL</button>
+            <button style="background:#21262d;border:1px solid #30363d;color:#e6edf3;padding:3px 10px;border-radius:4px;font-size:10px">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Floating modal/sheet</h3>
+      <p>Quick peek modal appears on double-click or context menu. Shows definition + copy button. Dismisses easily. Good for quick inspection.</p>
+    </div>
+  </div>
+
+</div>

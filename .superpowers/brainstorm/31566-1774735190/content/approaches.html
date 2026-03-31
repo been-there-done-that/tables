@@ -1,0 +1,83 @@
+<h2>3 Approaches for the Tables Updater</h2>
+<p class="subtitle">Evaluating update delivery architecture — pick one to go deep on</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>tauri-plugin-updater + GitHub Releases <span style="font-size:11px;background:#22c55e22;color:#16a34a;padding:2px 7px;border-radius:9px;margin-left:6px;">Recommended</span></h3>
+      <p>The official Tauri 2 updater plugin. You publish a <code>latest.json</code> manifest to GitHub Releases (or a static URL). The plugin checks it, compares versions, downloads + verifies using Ed25519 signing, and installs. All update transport logic is handled by Tauri.</p>
+      <div class="pros-cons" style="margin-top:10px">
+        <div class="pros">
+          <h4>Pros</h4>
+          <ul>
+            <li>Minimal code — plugin handles download, verify, install</li>
+            <li>Ed25519 signing built-in (separate from Apple notarization)</li>
+            <li>GitHub Actions can auto-generate the manifest on release</li>
+            <li>Works on macOS, Windows, Linux</li>
+          </ul>
+        </div>
+        <div class="cons">
+          <h4>Cons</h4>
+          <ul>
+            <li>Requires generating + storing an Ed25519 keypair as a GitHub secret</li>
+            <li>macOS Gatekeeper warnings without Apple notarization (expected for now)</li>
+            <li>No staged rollouts or A/B without extra tooling</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>tauri-plugin-updater + Custom Update Server</h3>
+      <p>Same plugin, but instead of GitHub Releases JSON you host a small server (Cloudflare Worker, Vercel function, or S3 + Lambda) that returns the update manifest. Binaries still live on GitHub Releases or S3.</p>
+      <div class="pros-cons" style="margin-top:10px">
+        <div class="pros">
+          <h4>Pros</h4>
+          <ul>
+            <li>Staged rollouts (send update to 10% of users first)</li>
+            <li>Channel support (stable / beta)</li>
+            <li>Update analytics without third parties</li>
+          </ul>
+        </div>
+        <div class="cons">
+          <h4>Cons</h4>
+          <ul>
+            <li>Server infra to set up and maintain</li>
+            <li>Overkill for v1 with a small user base</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>DIY — GitHub Releases API via reqwest</h3>
+      <p>Skip the plugin entirely. Call the GitHub Releases API from Rust using your existing <code>reqwest</code> dependency, compare semver, download the asset, verify checksum, and launch the installer. Full custom control.</p>
+      <div class="pros-cons" style="margin-top:10px">
+        <div class="pros">
+          <h4>Pros</h4>
+          <ul>
+            <li>No new Tauri plugin dependency</li>
+            <li>Complete control over every step</li>
+            <li>Can use SHA256 checksum instead of Ed25519 keypair setup</li>
+          </ul>
+        </div>
+        <div class="cons">
+          <h4>Cons</h4>
+          <ul>
+            <li>Must implement: version compare, download progress, verify, install launch</li>
+            <li>More Rust code to maintain</li>
+            <li>Platform-specific installer launch logic (macOS dmg vs Windows msi)</li>
+            <li>No built-in atomic install / rollback</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,195 @@
+<h2>Multi-Provider — Empty State &amp; Provider Picker</h2>
+<p class="subtitle">New thread empty state. Installed providers are selectable; undetected ones are greyed out with "Not installed".</p>
+
+<style>
+  body { font-family: ui-monospace, monospace; }
+  .panel {
+    background: #141414; border: 1px solid #222; border-radius: 10px;
+    overflow: hidden; max-width: 320px; width: 100%;
+  }
+  .panel-header {
+    display: flex; align-items: center; gap: 6px;
+    padding: 7px 10px; border-bottom: 1px solid #1e1e1e;
+  }
+  .thread-name { flex: 1; font-size: 11px; color: #ccc; font-weight: 500; }
+  .chevron { font-size: 7px; color: #444; }
+  .empty-body {
+    padding: 20px 14px 14px;
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+  }
+  .empty-title { font-size: 12px; color: #bbb; font-weight: 600; }
+  .empty-sub { font-size: 10.5px; color: #555; text-align: center; line-height: 1.6; max-width: 220px; }
+  .provider-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 6px; width: 100%;
+  }
+  .tile {
+    display: flex; flex-direction: column; align-items: flex-start;
+    gap: 4px; padding: 9px 10px; border-radius: 7px;
+    border: 1px solid #222; cursor: pointer;
+    background: #1a1a1a; transition: all 0.1s;
+  }
+  .tile:hover:not(.disabled) { border-color: #333; background: #1e1e1e; }
+  .tile.selected { border-color: #f59e0b; background: rgba(245,158,11,0.05); }
+  .tile.selected .tile-name { color: #f59e0b; }
+  .tile.disabled { opacity: 0.38; cursor: not-allowed; }
+  .tile-row { display: flex; align-items: center; gap: 6px; width: 100%; }
+  .tile-name { font-size: 10.5px; color: #ccc; font-weight: 500; }
+  .tile-desc { font-size: 9.5px; color: #555; line-height: 1.4; }
+  .tile-status { font-size: 8.5px; margin-top: 1px; }
+  .tile-status.ok { color: #4ade80; }
+  .tile-status.na { color: #555; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .dot-claude { background: #f59e0b; }
+  .dot-gemini { background: #3b82f6; }
+  .dot-codex { background: #10b981; }
+  .dot-opencode { background: #f472b6; }
+  .dot-cursor { background: #a78bfa; }
+  .bar {
+    display: flex; align-items: center; gap: 4px;
+    padding: 5px 8px; border-top: 1px solid #1e1e1e;
+    font-size: 10px; color: #444;
+  }
+  .bar-input { flex: 1; color: #666; }
+  .send-btn {
+    width: 20px; height: 20px; background: #e5e7eb; border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .badge {
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 9px; padding: 2px 5px; border-radius: 8px;
+    border: 1px solid #222; color: #666;
+  }
+  .lock { font-size: 8px; }
+  .active-header {
+    display: flex; align-items: center; gap: 6px;
+    padding: 7px 10px; border-bottom: 1px solid #1e1e1e;
+  }
+  .active-panel {
+    background: #141414; border: 1px solid #222; border-radius: 10px;
+    overflow: hidden; max-width: 320px; width: 100%;
+  }
+  .msg-area { padding: 10px; display: flex; flex-direction: column; gap: 5px; }
+  .msg { padding: 5px 8px; border-radius: 6px; font-size: 10px; max-width: 80%; }
+  .msg.u { background: #222; color: #ccc; align-self: flex-end; }
+  .msg.a { background: #1a2a1a; color: #86efac; align-self: flex-start; }
+</style>
+
+<div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start">
+
+  <!-- Empty state: new thread, pick provider -->
+  <div>
+    <div class="label" style="margin-bottom:6px;font-size:9px;color:#555;text-transform:uppercase;letter-spacing:.05em">New thread — pick provider</div>
+    <div class="panel">
+      <div class="panel-header">
+        <span class="thread-name">New session</span>
+        <span class="chevron">▾</span>
+      </div>
+      <div class="empty-body">
+        <div class="empty-title">Choose a provider</div>
+        <div class="empty-sub">Locked for the session once you send your first message.</div>
+        <div class="provider-grid">
+          <!-- Claude: installed, selected -->
+          <div class="tile selected">
+            <div class="tile-row">
+              <span class="dot dot-claude"></span>
+              <span class="tile-name">Claude</span>
+            </div>
+            <div class="tile-status ok">● Installed</div>
+          </div>
+          <!-- Gemini: installed -->
+          <div class="tile">
+            <div class="tile-row">
+              <span class="dot dot-gemini"></span>
+              <span class="tile-name">Gemini</span>
+            </div>
+            <div class="tile-status ok">● Installed</div>
+          </div>
+          <!-- Codex: not installed -->
+          <div class="tile disabled">
+            <div class="tile-row">
+              <span class="dot dot-codex"></span>
+              <span class="tile-name">Codex</span>
+            </div>
+            <div class="tile-status na">○ Not installed</div>
+          </div>
+          <!-- OpenCode: not installed -->
+          <div class="tile disabled">
+            <div class="tile-row">
+              <span class="dot dot-opencode"></span>
+              <span class="tile-name">OpenCode</span>
+            </div>
+            <div class="tile-status na">○ Not installed</div>
+          </div>
+          <!-- Cursor: installed -->
+          <div class="tile" style="grid-column:span 2">
+            <div class="tile-row">
+              <span class="dot dot-cursor"></span>
+              <span class="tile-name">Cursor</span>
+            </div>
+            <div class="tile-status ok">● Installed</div>
+          </div>
+        </div>
+      </div>
+      <div class="bar">
+        <span class="bar-input">Ask anything to start…</span>
+        <div class="send-btn">
+          <svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M7 11V3M3 7l4-4 4 4" stroke="#111" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Active session: badge locked -->
+  <div>
+    <div class="label" style="margin-bottom:6px;font-size:9px;color:#555;text-transform:uppercase;letter-spacing:.05em">Active session — badge locked</div>
+    <div class="active-panel">
+      <div class="active-header">
+        <span class="thread-name">Analyze users table</span>
+        <span class="chevron">▾</span>
+        <div class="badge">
+          <span class="dot dot-claude"></span>
+          Claude
+          <span class="lock">🔒</span>
+        </div>
+      </div>
+      <div class="msg-area">
+        <div class="msg u">show me null columns</div>
+        <div class="msg a">Running find_nulls…</div>
+      </div>
+      <div class="bar">
+        <span class="bar-input">Ask anything…</span>
+        <div class="send-btn">
+          <svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M7 11V3M3 7l4-4 4 4" stroke="#111" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- empty session: can still switch -->
+    <div style="margin-top:14px">
+      <div class="label" style="margin-bottom:6px;font-size:9px;color:#555;text-transform:uppercase;letter-spacing:.05em">Empty session — can still switch</div>
+      <div class="active-panel">
+        <div class="active-header">
+          <span class="thread-name">New session</span>
+          <span class="chevron">▾</span>
+          <div class="badge" style="border-color:#3b82f6;color:#3b82f6;cursor:pointer">
+            <span class="dot dot-gemini"></span>
+            Gemini
+            <span style="font-size:7px;opacity:0.6">▾</span>
+          </div>
+        </div>
+        <div class="empty-body" style="padding:16px 14px 10px">
+          <div class="empty-sub" style="text-align:center;color:#444">No messages yet. Pick a provider above or start typing.</div>
+        </div>
+        <div class="bar">
+          <span class="bar-input">Ask anything to start…</span>
+          <div class="send-btn">
+            <svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M7 11V3M3 7l4-4 4 4" stroke="#111" stroke-width="2" stroke-linecap="round"/></svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:18px">Detection runs once at startup via <code>GET /providers</code> on the harness. Each provider checks its binary/server is reachable. Result cached for the session.</p>

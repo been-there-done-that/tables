@@ -1,0 +1,100 @@
+<h2>Streaming file writes</h2>
+<p class="subtitle">Agent generates SQL token-by-token directly into the editor tab</p>
+
+<div style="margin-top:20px; display:flex; flex-direction:column; gap:16px;">
+
+  <!-- Flow diagram -->
+  <div style="background:#0f0f1a; border:1px solid #2a2a3e; border-radius:10px; padding:16px; font-size:11px; font-family:monospace;">
+    <div style="color:#64748b; font-size:10px; text-transform:uppercase; letter-spacing:.05em; margin-bottom:12px;">SDK → harness → frontend → editor (live)</div>
+
+    <div style="display:flex; flex-direction:column; gap:6px;">
+
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span style="background:#1e3a5f; border:1px solid #2d5a8f; border-radius:4px; padding:2px 8px; color:#60a5fa; white-space:nowrap;">content_block_start</span>
+        <span style="color:#475569;">→</span>
+        <span style="color:#94a3b8;">tool_use name=<span style="color:#a78bfa;">write_file</span> detected</span>
+        <span style="color:#475569;">→</span>
+        <span style="color:#4ade80;">emit tool.started</span>
+        <span style="color:#475569;">→</span>
+        <span style="color:#fbbf24;">create editor tab immediately (empty)</span>
+      </div>
+
+      <div style="display:flex; align-items:flex-start; gap:10px; margin-top:4px;">
+        <span style="background:#1a0d30; border:1px solid #5b21b6; border-radius:4px; padding:2px 8px; color:#a78bfa; white-space:nowrap;">input_json_delta ×N</span>
+        <span style="color:#475569; margin-top:2px;">→</span>
+        <div style="display:flex; flex-direction:column; gap:3px;">
+          <span style="color:#94a3b8;">accumulate partial JSON string</span>
+          <div style="background:#0d0d1a; border-radius:4px; padding:6px 8px; color:#64748b;">
+            chunk 1: <span style="color:#ccc;">'{"fileName":"orders.sql","content":"SELECT user_id'</span><br>
+            chunk 2: <span style="color:#ccc;">',\n  COUNT(*) AS cnt'</span><br>
+            chunk 3: <span style="color:#ccc;">'\nFROM orders'</span><br>
+            <span style="color:#475569;">…</span>
+          </div>
+          <span style="color:#94a3b8;">regex-extract partial <code style="color:#f97316;">content</code> value after each chunk</span>
+          <span style="color:#4ade80;">→ emit <strong>tool.input_delta</strong> { toolId, partialContent }</span>
+          <span style="color:#fbbf24;">→ editor tab content updated every ~50ms (debounced)</span>
+        </div>
+      </div>
+
+      <div style="display:flex; align-items:center; gap:10px; margin-top:4px;">
+        <span style="background:#1a2010; border:1px solid #365314; border-radius:4px; padding:2px 8px; color:#86efac; white-space:nowrap;">content_block_stop</span>
+        <span style="color:#475569;">→</span>
+        <span style="color:#94a3b8;">full content finalized</span>
+        <span style="color:#475569;">→</span>
+        <span style="color:#4ade80;">emit tool.completed</span>
+        <span style="color:#475569;">→</span>
+        <span style="color:#fbbf24;">editor tab content set to final value</span>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- What changes -->
+  <div style="display:flex; gap:14px;">
+
+    <div style="flex:1; background:#0f0f1a; border:1px solid #2a2a3e; border-radius:8px; padding:12px; font-size:11px;">
+      <div style="color:#60a5fa; margin-bottom:8px; font-size:10px; text-transform:uppercase; letter-spacing:.05em;">session.ts changes</div>
+      <div style="color:#94a3b8; line-height:1.8;">
+        Track active <span style="color:#a78bfa;">tool_use</span> block IDs<br>
+        On <span style="color:#f97316;">input_json_delta</span> for <span style="color:#a78bfa;">write_file</span>:<br>
+        <span style="color:#475569; margin-left:12px;">→</span> accumulate partial JSON<br>
+        <span style="color:#475569; margin-left:12px;">→</span> extract <code style="color:#86efac;">content</code> field with regex<br>
+        <span style="color:#475569; margin-left:12px;">→</span> emit new <code style="color:#4ade80;">tool.input_delta</code> event<br><br>
+        New event type:<br>
+        <code style="background:#0d0d1a; padding:2px 6px; border-radius:3px; color:#4ade80; font-size:10px;">{ type: "tool.input_delta",<br>  toolId, toolName, partialContent }</code>
+      </div>
+    </div>
+
+    <div style="flex:1; background:#0f0f1a; border:1px solid #2a2a3e; border-radius:8px; padding:12px; font-size:11px;">
+      <div style="color:#fbbf24; margin-bottom:8px; font-size:10px; text-transform:uppercase; letter-spacing:.05em;">tool-executor.ts changes</div>
+      <div style="color:#94a3b8; line-height:1.8;">
+        Handle <code style="color:#4ade80;">tool.input_delta</code> for <span style="color:#a78bfa;">write_file</span>:<br>
+        <span style="color:#475569; margin-left:12px;">→</span> find or create editor tab<br>
+        <span style="color:#475569; margin-left:12px;">→</span> update tab content (debounced 50ms)<br>
+        <span style="color:#475569; margin-left:12px;">→</span> editor shows streaming cursor<br><br>
+        On <code style="color:#4ade80;">tool.completed</code> for <span style="color:#a78bfa;">write_file</span>:<br>
+        <span style="color:#475569; margin-left:12px;">→</span> set final content, remove stream indicator
+      </div>
+    </div>
+
+    <div style="flex:1; background:#0f0f1a; border:1px solid #2a2a3e; border-radius:8px; padding:12px; font-size:11px;">
+      <div style="color:#a78bfa; margin-bottom:8px; font-size:10px; text-transform:uppercase; letter-spacing:.05em;">ToolCallCard.svelte</div>
+      <div style="color:#94a3b8; line-height:1.8;">
+        While streaming:<br>
+        <span style="color:#475569; margin-left:12px;">→</span> show animated write indicator<br>
+        <span style="color:#475569; margin-left:12px;">→</span> preview first line of content<br><br>
+        When done:<br>
+        <span style="color:#475569; margin-left:12px;">→</span> <span style="color:#4ade80;">✓ wrote orders.sql</span><br>
+        <span style="color:#475569; margin-left:12px;">→</span> line count badge<br>
+        <span style="color:#475569; margin-left:12px;">→</span> <span style="color:#60a5fa;">↗ jump to file</span> button
+      </div>
+    </div>
+
+  </div>
+
+  <!-- UX result -->
+  <div style="background:#1a1a10; border:1px solid #2d2d14; border-radius:8px; padding:12px; font-size:11px; color:#a3a380; line-height:1.7;">
+    <strong style="color:#d4d48a;">Result:</strong> The editor tab opens the moment the agent starts writing. The user watches SQL appear token by token — same feel as Cursor generating code. No waiting for the full response before seeing anything. The chat message stays clean (just "Updated orders.sql — 14 lines").
+  </div>
+
+</div>

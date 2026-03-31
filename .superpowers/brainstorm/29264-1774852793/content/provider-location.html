@@ -1,0 +1,40 @@
+<h2>Where should AI provider config live?</h2>
+<p class="subtitle">You need a place to set API keys, base URLs, and manage models. Where should this UI live in the app?</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>New tab inside /settings</h3>
+      <p>Add an "AI" section to the existing Settings page alongside Theme, Editor, Shortcuts. Full-width config panel with per-provider expandable sections.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Consistent with existing settings UX</li><li>Plenty of space for model browsing</li><li>Already has sidebar nav pattern</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Requires navigating away from the main view</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Dedicated panel in the agent sidebar</h3>
+      <p>A "Configure" button/tab in the agent panel header. Slides in a config view inline — stays close to where you use it. Model picker, API key, base URL all in one place without leaving the main screen.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>In-context — configure while connected to a DB</li><li>No navigation needed</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Tight space in the sidebar panel</li><li>Model browser may feel cramped</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Both — quick-edit in agent panel + full config in /settings</h3>
+      <p>Agent panel has a small inline key/model picker for quick changes. Settings → AI has the full config: model browser, base URL, token limits, etc.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Best of both worlds</li><li>Power users get full config, casual users get quick access</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Two places to maintain</li><li>More work to build</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>

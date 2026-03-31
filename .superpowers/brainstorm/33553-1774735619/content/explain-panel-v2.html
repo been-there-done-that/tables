@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Explain Panel — Design</title>
+<style>
+  :root {
+    --bg-primary:     hsl(222, 16%, 12%);
+    --bg-secondary:   hsl(222, 16%, 17%);
+    --bg-tertiary:    hsl(222, 16%, 20%);
+    --bg-hover:       hsl(222, 16%, 18%);
+    --fg-primary:     hsl(210, 20%, 92%);
+    --fg-secondary:   hsl(210, 15%, 82%);
+    --fg-tertiary:    hsl(210, 12%, 60%);
+    --accent:         hsl(217, 91%, 60%);
+    --border:         hsl(220, 16%, 25%);
+    --border-subtle:  hsl(220, 16%, 18%);
+    --danger:         hsl(5, 78%, 65%);
+    --danger-bg:      hsl(5, 60%, 14%);
+    --danger-border:  hsl(5, 60%, 25%);
+    --warning:        hsl(28, 85%, 65%);
+    --warning-bg:     hsl(28, 60%, 13%);
+    --warning-border: hsl(28, 60%, 24%);
+    --success:        hsl(150, 55%, 62%);
+    --success-bg:     hsl(150, 40%, 12%);
+    --radius-sm: 4px;
+    --radius-md: 6px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: hsl(220, 16%, 8%);
+    font-family: "Inter", system-ui, -apple-system, sans-serif;
+    color: var(--fg-primary);
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  h2 {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--fg-primary);
+    margin-bottom: 4px;
+    text-align: center;
+  }
+  .subtitle {
+    font-size: 12px;
+    color: var(--fg-tertiary);
+    text-align: center;
+    margin-bottom: 20px;
+  }
+
+  /* ── App shell ──────────────────────────────────────── */
+  .app-shell {
+    width: 820px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  /* ── Editor area ─────────────────────────────────────── */
+  .editor-area {
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 14px;
+    font-family: "SF Mono", "Fira Code", ui-monospace, monospace;
+    font-size: 12px;
+    color: hsl(150, 55%, 62%);
+    line-height: 1.5;
+  }
+
+  /* ── Toolbar ─────────────────────────────────────────── */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    line-height: 1;
+  }
+  .btn-default {
+    background: var(--bg-tertiary);
+    color: var(--fg-secondary);
+    border: 1px solid var(--border);
+  }
+  .btn-run {
+    background: hsl(150, 40%, 16%);
+    color: var(--success);
+    border: 1px solid hsl(150, 40%, 22%);
+  }
+  .btn-explain {
+    background: hsl(28, 50%, 16%);
+    color: var(--warning);
+    border: 1px solid hsl(28, 50%, 24%);
+  }
+  .spacer { flex: 1; }
+  .kbd {
+    font-size: 10px;
+    color: var(--fg-tertiary);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-family: inherit;
+  }
+
+  /* ── Tab bar ─────────────────────────────────────────── */
+  .tab-bar {
+    display: flex;
+    align-items: stretch;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+  }
+  .tab {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 7px 14px;
+    font-size: 12px;
+    color: var(--fg-tertiary);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    user-select: none;
+  }
+  .tab.active {
+    color: var(--warning);
+    border-bottom-color: var(--warning);
+    background: var(--bg-primary);
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--danger);
+    color: hsl(0, 0%, 100%);
+    font-size: 9px;
+    font-weight: 700;
+    border-radius: 10px;
+    padding: 1px 5px;
+    line-height: 1.3;
+  }
+
+  /* ── Explain panel body ──────────────────────────────── */
+  .explain-body {
+    padding: 14px 16px;
+    background: var(--bg-primary);
+  }
+
+  /* ── Explain header ──────────────────────────────────── */
+  .explain-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .explain-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .explain-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--fg-primary);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .stat-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 2px 8px;
+    font-size: 10px;
+    color: var(--fg-tertiary);
+  }
+  .btn-ai {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 11px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    font-weight: 500;
+    background: hsl(217, 50%, 16%);
+    color: hsl(217, 91%, 70%);
+    border: 1px solid hsl(217, 50%, 26%);
+    cursor: pointer;
+  }
+
+  /* ── Waterfall ───────────────────────────────────────── */
+  .waterfall {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin-bottom: 16px;
+  }
+  .wf-row {
+    display: grid;
+    grid-template-columns: 200px 1fr 64px 36px;
+    align-items: center;
+    gap: 8px;
+    padding: 3px 0;
+    border-radius: var(--radius-sm);
+    transition: background 0.1s;
+  }
+  .wf-row:hover {
+    background: var(--bg-hover);
+    cursor: pointer;
+  }
+  .wf-label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    padding: 0 4px;
+  }
+  .wf-indent { display: inline-block; width: 16px; flex-shrink: 0; }
+  .wf-node-name { overflow: hidden; text-overflow: ellipsis; }
+  .wf-bar-track {
+    height: 16px;
+    background: var(--bg-tertiary);
+    border-radius: 3px;
+    overflow: hidden;
+    position: relative;
+  }
+  .wf-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    position: absolute;
+    left: 0; top: 0;
+    transition: width 0.3s ease;
+  }
+  .wf-ms {
+    font-size: 11px;
+    font-weight: 500;
+    text-align: right;
+    font-family: "SF Mono", ui-monospace, monospace;
+  }
+  .wf-pct {
+    font-size: 10px;
+    color: var(--fg-tertiary);
+    text-align: right;
+    font-family: "SF Mono", ui-monospace, monospace;
+  }
+  .wf-hint {
+    grid-column: 2 / -1;
+    font-size: 10px;
+    color: var(--fg-tertiary);
+    padding: 0 0 2px 0;
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .wf-hint-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    background: var(--warning-bg);
+    border: 1px solid var(--warning-border);
+    color: var(--warning);
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-size: 9px;
+  }
+  .color-danger  { color: var(--danger); }
+  .color-warning { color: var(--warning); }
+  .color-success { color: var(--success); }
+  .bar-danger    { background: var(--danger); }
+  .bar-warning   { background: var(--warning); }
+  .bar-success   { background: var(--success); }
+
+  /* ── Issues ──────────────────────────────────────────── */
+  .section-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--fg-tertiary);
+    margin-bottom: 7px;
+  }
+  .issues { display: flex; flex-direction: column; gap: 6px; }
+  .issue-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: var(--radius-md);
+  }
+  .issue-card.danger {
+    background: var(--danger-bg);
+    border: 1px solid var(--danger-border);
+  }
+  .issue-card.warning {
+    background: var(--warning-bg);
+    border: 1px solid var(--warning-border);
+  }
+  .issue-icon {
+    margin-top: 1px;
+    flex-shrink: 0;
+  }
+  .issue-title {
+    font-size: 12px;
+    font-weight: 500;
+    margin-bottom: 3px;
+  }
+  .issue-body {
+    font-size: 11px;
+    color: var(--fg-tertiary);
+    line-height: 1.5;
+  }
+  .inline-code {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 0 4px;
+    font-family: "SF Mono", ui-monospace, monospace;
+    font-size: 10.5px;
+    color: var(--fg-secondary);
+  }
+
+  .divider {
+    border: none;
+    border-top: 1px solid var(--border-subtle);
+    margin: 14px 0;
+  }
+</style>
+</head>
+<body>
+
+<h2>Explain Panel — Design v2</h2>
+<p class="subtitle">Using app color tokens · Tabler icons · Clean waterfall bars</p>
+
+<div class="app-shell">
+
+  <!-- Editor -->
+  <div class="editor-area">
+    SELECT o.id, u.name, o.total FROM orders o
+    JOIN users u ON u.id = o.user_id WHERE o.created_at &gt; '2024-01-01'
+  </div>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <!-- Run button -->
+    <button class="btn btn-run">
+      <!-- IconPlayerPlayFilled -->
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M6 4l15 8-15 8z"/>
+      </svg>
+      Run
+    </button>
+
+    <!-- Explain button -->
+    <button class="btn btn-explain">
+      <!-- IconBolt / lightning -->
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+      </svg>
+      Explain
+    </button>
+
+    <div class="spacer"></div>
+    <kbd class="kbd">⌘⇧E</kbd>
+  </div>
+
+  <!-- Tab bar -->
+  <div class="tab-bar">
+    <div class="tab">
+      <!-- IconTable -->
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/>
+      </svg>
+      Results
+    </div>
+    <div class="tab active">
+      <!-- IconBolt -->
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+      </svg>
+      Explain
+      <span class="badge">2</span>
+    </div>
+    <div class="tab">
+      <!-- IconListDetails -->
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M13 5h8M13 9h5M13 15h8M13 19h5M3 5l3 3-3 3M3 15l3 3-3 3"/>
+      </svg>
+      Logs
+    </div>
+  </div>
+
+  <!-- Explain body -->
+  <div class="explain-body">
+
+    <!-- Header -->
+    <div class="explain-header">
+      <div class="explain-meta">
+        <div class="explain-title">
+          <!-- IconReportAnalytics -->
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
+            <rect x="9" y="3" width="6" height="4" rx="2"/>
+            <path d="M9 17v-5M12 17v-3M15 17v-7"/>
+          </svg>
+          Execution Plan
+        </div>
+        <span class="stat-chip">
+          <!-- IconClockPlay -->
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+          Planning 0.3ms
+        </span>
+        <span class="stat-chip">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+          Execution 43.1ms
+        </span>
+        <span class="stat-chip">
+          <!-- IconRows -->
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+          120 rows
+        </span>
+      </div>
+
+      <!-- Ask AI -->
+      <button class="btn-ai">
+        <!-- IconSparkles -->
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/>
+        </svg>
+        Ask AI
+      </button>
+    </div>
+
+    <!-- Waterfall -->
+    <div class="waterfall">
+
+      <!-- Row 1: Nested Loop (root) -->
+      <div class="wf-row">
+        <div class="wf-label color-danger">
+          <!-- No indent for root -->
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1M5 8H4a4 4 0 0 0 0 8h1M8 12h8"/></svg>
+          <span class="wf-node-name">Nested Loop</span>
+        </div>
+        <div class="wf-bar-track">
+          <div class="wf-bar-fill bar-danger" style="width:99%"></div>
+        </div>
+        <span class="wf-ms color-danger">43.1ms</span>
+        <span class="wf-pct">99%</span>
+      </div>
+
+      <!-- Row 2: Seq Scan (child) + hint -->
+      <div class="wf-row">
+        <div class="wf-label color-danger">
+          <span class="wf-indent"></span>
+          <!-- IconAlertTriangle -->
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--danger);flex-shrink:0">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          <span class="wf-node-name">Seq Scan · orders</span>
+        </div>
+        <div class="wf-bar-track">
+          <div class="wf-bar-fill bar-danger" style="width:89%"></div>
+        </div>
+        <span class="wf-ms color-danger">38.2ms</span>
+        <span class="wf-pct">88%</span>
+      </div>
+      <div class="wf-row" style="padding:0 0 4px 0">
+        <div></div>
+        <div class="wf-hint" style="grid-column:2/-1;padding-left:4px">
+          <span class="wf-hint-tag">
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>
+            row estimate off
+          </span>
+          <span>Planned 120 rows · actual 8,500 — stats may be stale</span>
+        </div>
+      </div>
+
+      <!-- Row 3: Index Scan (child) -->
+      <div class="wf-row">
+        <div class="wf-label color-success">
+          <span class="wf-indent"></span>
+          <!-- IconCheck -->
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          <span class="wf-node-name">Index Scan · users(id)</span>
+        </div>
+        <div class="wf-bar-track">
+          <div class="wf-bar-fill bar-success" style="width:2%"></div>
+        </div>
+        <span class="wf-ms color-success">0.9ms</span>
+        <span class="wf-pct">2%</span>
+      </div>
+
+    </div>
+
+    <hr class="divider">
+
+    <!-- Issues -->
+    <div class="section-label">Issues detected</div>
+    <div class="issues">
+
+      <div class="issue-card danger">
+        <div class="issue-icon">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+        </div>
+        <div>
+          <div class="issue-title color-danger">Sequential scan on <code class="inline-code">orders</code></div>
+          <div class="issue-body">Scanned 8,500 rows to return 120. Consider an index on <code class="inline-code">orders.created_at</code> to support this filter.</div>
+        </div>
+      </div>
+
+      <div class="issue-card warning">
+        <div class="issue-icon">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+        </div>
+        <div>
+          <div class="issue-title color-warning">Row estimate mismatch on <code class="inline-code">orders</code></div>
+          <div class="issue-body">Planner estimated 120 rows, actual 8,500 (70× off). Table statistics may be stale — run <code class="inline-code">ANALYZE orders</code>.</div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:16px">Does this look right? Let me know in the terminal.</p>
+
+</body>
+</html>

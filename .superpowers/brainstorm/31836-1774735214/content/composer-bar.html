@@ -1,0 +1,170 @@
+<h2>AgentComposer — Bottom Bar Layout</h2>
+<p class="subtitle">3 options for fitting provider + bigger icons into the existing bottom bar. Icons are currently 11px; all options bump to 13–14px.</p>
+
+<style>
+  .bar-mock {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 8px;
+    background: #1a1a1a;
+    border-top: 1px solid #2a2a2a;
+    border-radius: 0 0 8px 8px;
+    font-family: ui-monospace, monospace;
+    font-size: 11px;
+    color: #aaa;
+  }
+  .bar-mock .spacer { flex: 1; }
+  .btn {
+    display: flex; align-items: center; gap: 4px;
+    padding: 3px 7px; border-radius: 5px; cursor: pointer;
+    white-space: nowrap;
+  }
+  .btn:hover { background: rgba(255,255,255,0.06); }
+  .btn.active { color: #f59e0b; }
+  .btn.accent { color: #a78bfa; }
+  .btn.muted { color: #555; }
+  .icon { width: 13px; height: 13px; display: inline-flex; align-items: center; justify-content: center; }
+  .icon14 { width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; }
+  .send-btn {
+    width: 22px; height: 22px; background: #e5e7eb; border-radius: 5px;
+    display: flex; align-items: center; justify-content: center; color: #111;
+  }
+  .divider { width: 1px; height: 14px; background: #2a2a2a; margin: 0 2px; }
+  svg { width: 100%; height: 100%; }
+  .label { font-size: 10px; }
+  .label-sm { font-size: 9.5px; }
+  .provider-chip {
+    display: flex; align-items: center; gap: 3px;
+    padding: 2px 6px; border-radius: 4px;
+    border: 1px solid #2a2a2a;
+    font-size: 10px; color: #888;
+  }
+  .chevron { font-size: 7px; opacity: 0.5; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; }
+  .dot-claude { background: #f59e0b; }
+  .dot-gemini { background: #3b82f6; }
+  .dot-codex { background: #10b981; }
+  .effort-badge {
+    font-size: 9px; padding: 1px 4px; border-radius: 3px;
+    background: rgba(167,139,250,0.15); color: #a78bfa;
+  }
+  .tag { font-size: 9px; padding: 1px 5px; border-radius: 10px; background: rgba(255,255,255,0.05); color: #666; margin-left: 2px; }
+</style>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Provider replaces model — single picker</h3>
+      <p>Provider + model are one combined dropdown. "Claude · Sonnet 4.6" or "Gemini · Pro". Effort stays separate. Cleanest bar — one fewer button.</p>
+      <div class="bar-mock" style="margin-top:10px">
+        <!-- provider+model combined -->
+        <div class="btn active">
+          <svg viewBox="0 0 14 14" class="icon"><path d="M2 7 L7 2 L12 7 L7 12 Z" fill="none" stroke="#f59e0b" stroke-width="1.5"/><circle cx="7" cy="7" r="2" fill="#f59e0b"/></svg>
+          <span class="label">Agent</span>
+        </div>
+        <div class="btn active">
+          <svg viewBox="0 0 14 14" class="icon"><path d="M7 2 L7 12 M2 5 L7 2 L12 5" fill="none" stroke="#f59e0b" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </div>
+        <div class="divider"></div>
+        <div class="btn accent">
+          <span class="dot dot-claude"></span>
+          <span class="label">Claude · Sonnet 4.6</span>
+          <span class="chevron">▾</span>
+        </div>
+        <div class="btn">
+          <svg viewBox="0 0 14 14" class="icon"><circle cx="7" cy="7" r="5" fill="none" stroke="#a78bfa" stroke-width="1.4"/><path d="M5 7 Q7 4 9 7 Q7 10 5 7" fill="#a78bfa"/></svg>
+          <span class="label effort-badge">Auto</span>
+          <span class="chevron">▾</span>
+        </div>
+        <div class="spacer"></div>
+        <div class="send-btn">
+          <svg viewBox="0 0 14 14" style="width:13px;height:13px"><path d="M7 11 L7 3 M3 7 L7 3 L11 7" fill="none" stroke="#111" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+      </div>
+      <div class="pros-cons" style="margin-top:8px;font-size:10.5px">
+        <div class="pros"><h4>Pros</h4><ul><li>Fewest buttons</li><li>Provider change is natural part of model pick</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Long dropdown with mixed providers + models</li><li>Grouping needed to avoid confusion</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Provider chip before model — two separate pickers</h3>
+      <p>Provider is its own pill (Claude / Gemini / Codex…). Model picker updates to show only that provider's models. Most explicit and discoverable.</p>
+      <div class="bar-mock" style="margin-top:10px">
+        <div class="btn active">
+          <svg viewBox="0 0 14 14" class="icon"><path d="M2 7 L7 2 L12 7 L7 12 Z" fill="none" stroke="#f59e0b" stroke-width="1.5"/><circle cx="7" cy="7" r="2" fill="#f59e0b"/></svg>
+          <span class="label">Agent</span>
+        </div>
+        <div class="btn active">
+          <svg viewBox="0 0 14 14" class="icon"><path d="M7 2 L7 12 M2 5 L7 2 L12 5" fill="none" stroke="#f59e0b" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </div>
+        <div class="divider"></div>
+        <div class="provider-chip">
+          <span class="dot dot-claude"></span>
+          <span>Claude</span>
+          <span class="chevron">▾</span>
+        </div>
+        <div class="btn accent">
+          <svg viewBox="0 0 14 14" class="icon"><rect x="2" y="2" width="10" height="10" rx="2" fill="none" stroke="#a78bfa" stroke-width="1.3"/><path d="M5 7 L7 9 L9 5" fill="none" stroke="#a78bfa" stroke-width="1.3" stroke-linecap="round"/></svg>
+          <span class="label">Sonnet 4.6</span>
+          <span class="chevron">▾</span>
+        </div>
+        <div class="btn">
+          <svg viewBox="0 0 14 14" class="icon"><circle cx="7" cy="7" r="5" fill="none" stroke="#a78bfa" stroke-width="1.4"/><path d="M5 7 Q7 4 9 7 Q7 10 5 7" fill="#a78bfa"/></svg>
+          <span class="label effort-badge">Auto</span>
+          <span class="chevron">▾</span>
+        </div>
+        <div class="spacer"></div>
+        <div class="send-btn">
+          <svg viewBox="0 0 14 14" style="width:13px;height:13px"><path d="M7 11 L7 3 M3 7 L7 3 L11 7" fill="none" stroke="#111" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+      </div>
+      <div class="pros-cons" style="margin-top:8px;font-size:10.5px">
+        <div class="pros"><h4>Pros</h4><ul><li>Clear what provider is active at a glance</li><li>Model list stays focused (only that provider's models)</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>One more button in the bar</li><li>Effort picker hidden when non-Claude (show/hide logic)</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Provider lives in thread/session header — bar unchanged</h3>
+      <p>Provider is picked at session-start (in the thread picker or a session config panel), not in the composer bar. The bar stays as-is, just bigger icons. Provider switch = start new thread.</p>
+      <div class="bar-mock" style="margin-top:10px">
+        <div class="btn active">
+          <svg viewBox="0 0 14 14" class="icon"><path d="M2 7 L7 2 L12 7 L7 12 Z" fill="none" stroke="#f59e0b" stroke-width="1.5"/><circle cx="7" cy="7" r="2" fill="#f59e0b"/></svg>
+          <span class="label">Agent</span>
+        </div>
+        <div class="btn active">
+          <svg viewBox="0 0 14 14" class="icon"><path d="M7 2 L7 12 M2 5 L7 2 L12 5" fill="none" stroke="#f59e0b" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </div>
+        <div class="divider"></div>
+        <div class="btn accent">
+          <svg viewBox="0 0 14 14" class="icon"><rect x="2" y="2" width="10" height="10" rx="2" fill="none" stroke="#a78bfa" stroke-width="1.3"/></svg>
+          <span class="label">Sonnet 4.6</span>
+          <span class="chevron">▾</span>
+        </div>
+        <div class="btn">
+          <svg viewBox="0 0 14 14" class="icon"><circle cx="7" cy="7" r="5" fill="none" stroke="#a78bfa" stroke-width="1.4"/><path d="M5 7 Q7 4 9 7 Q7 10 5 7" fill="#a78bfa"/></svg>
+          <span class="label effort-badge">Auto</span>
+          <span class="chevron">▾</span>
+        </div>
+        <div class="spacer"></div>
+        <div class="send-btn">
+          <svg viewBox="0 0 14 14" style="width:13px;height:13px"><path d="M7 11 L7 3 M3 7 L7 3 L11 7" fill="none" stroke="#111" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+      </div>
+      <p style="font-size:10.5px;color:#666;margin-top:8px">Session header area (ThreadPicker) would show: <span class="tag">Claude · Sonnet</span> with a change option that's disabled mid-session.</p>
+      <div class="pros-cons" style="margin-top:8px;font-size:10.5px">
+        <div class="pros"><h4>Pros</h4><ul><li>Bar stays compact</li><li>Provider is naturally tied to session lifecycle</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Provider is less discoverable — need to find the session header</li><li>Users may not realise they can change it</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>

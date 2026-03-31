@@ -1,0 +1,85 @@
+<h2>What should this agent become?</h2>
+<p class="subtitle">Three visions — pick the one that excites you most (or mix them)</p>
+
+<div class="cards" style="grid-template-columns: repeat(3, 1fr); gap: 20px;">
+
+  <div class="card" data-choice="analyst" onclick="toggleSelect(this)" style="border-top: 4px solid #6366f1;">
+    <div class="card-body">
+      <div style="font-size: 2rem; margin-bottom: 12px;">🔬</div>
+      <h3 style="color: #6366f1;">Data Analyst</h3>
+      <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 16px;">
+        The agent as a tireless analyst. You ask a question in plain English — it explores the schema, samples data, runs queries, and returns insights with inline results.
+      </p>
+      <div style="font-size: 12px; color: var(--text-secondary);">
+        <div style="margin-bottom: 6px; padding: 6px 10px; background: var(--surface-raised); border-radius: 6px;">"Which users signed up last month but never placed an order?"</div>
+        <div style="margin-bottom: 6px; padding: 6px 10px; background: var(--surface-raised); border-radius: 6px;">"Show me the top 10 products by revenue this quarter"</div>
+        <div style="padding: 6px 10px; background: var(--surface-raised); border-radius: 6px;">"Are there any orphaned records in the orders table?"</div>
+      </div>
+      <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+        <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-tertiary); margin-bottom: 8px;">Tools</div>
+        <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+          <span style="font-size: 11px; padding: 2px 8px; background: #6366f120; color: #6366f1; border-radius: 99px;">explore_schema</span>
+          <span style="font-size: 11px; padding: 2px 8px; background: #6366f120; color: #6366f1; border-radius: 99px;">run_query</span>
+          <span style="font-size: 11px; padding: 2px 8px; background: #6366f120; color: #6366f1; border-radius: 99px;">sample_table</span>
+          <span style="font-size: 11px; padding: 2px 8px; background: #6366f120; color: #6366f1; border-radius: 99px;">count_rows</span>
+          <span style="font-size: 11px; padding: 2px 8px; background: #6366f120; color: #6366f1; border-radius: 99px;">get_distinct_values</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-choice="dba" onclick="toggleSelect(this)" style="border-top: 4px solid #10b981;">
+    <div class="card-body">
+      <div style="font-size: 2rem; margin-bottom: 12px;">🛠</div>
+      <h3 style="color: #10b981;">DBA Copilot</h3>
+      <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 16px;">
+        A senior DBA in your pocket. Understands schema health, index usage, FK integrity, query performance. Can propose migrations, explain EXPLAIN plans, and write DDL.
+      </p>
+      <div style="font-size: 12px; color: var(--text-secondary);">
+        <div style="margin-bottom: 6px; padding: 6px 10px; background: var(--surface-raised); border-radius: 6px;">"Why is this query slow? Here's the EXPLAIN output..."</div>
+        <div style="margin-bottom: 6px; padding: 6px 10px; background: var(--surface-raised); border-radius: 6px;">"What indexes are missing on the orders table?"</div>
+        <div style="padding: 6px 10px; background: var(--surface-raised); border-radius: 6px;">"Generate a migration to add soft deletes to users"</div>
+      </div>
+      <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+        <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-tertiary); margin-bottom: 8px;">Tools</div>
+        <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+          <span style="font-size: 11px; padding: 2px 8px; background: #10b98120; color: #10b981; border-radius: 99px;">get_indexes</span>
+          <span style="font-size: 11px; padding: 2px 8px; background: #10b98120; color: #10b981; border-radius: 99px;">explain_query</span>
+          <span style="font-size: 11px; padding: 2px 8px; background: #10b98120; color: #10b981; border-radius: 99px;">check_fk_integrity</span>
+          <span style="font-size: 11px; padding: 2px 8px; background: #10b98120; color: #10b981; border-radius: 99px;">get_table_stats</span>
+          <span style="font-size: 11px; padding: 2px 8px; background: #10b98120; color: #10b981; border-radius: 99px;">run_ddl</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-choice="copilot" onclick="toggleSelect(this)" style="border-top: 4px solid #f59e0b;">
+    <div class="card-body">
+      <div style="font-size: 2rem; margin-bottom: 12px;">✈️</div>
+      <h3 style="color: #f59e0b;">Universal Copilot</h3>
+      <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 16px;">
+        All of the above, plus deep agentic loops. The agent autonomously explores, queries, cross-references tables, builds context, then delivers a complete answer — like a junior developer doing research.
+      </p>
+      <div style="font-size: 12px; color: var(--text-secondary);">
+        <div style="margin-bottom: 6px; padding: 6px 10px; background: var(--surface-raised); border-radius: 6px;">"Build me a full data quality report for this database"</div>
+        <div style="margin-bottom: 6px; padding: 6px 10px; background: var(--surface-raised); border-radius: 6px;">"Understand the schema and suggest a reporting model"</div>
+        <div style="padding: 6px 10px; background: var(--surface-raised); border-radius: 6px;">"Find all the queries from history that could be optimized"</div>
+      </div>
+      <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+        <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-tertiary); margin-bottom: 8px;">Tools</div>
+        <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+          <span style="font-size: 11px; padding: 2px 8px; background: #f59e0b20; color: #f59e0b; border-radius: 99px;">everything above +</span>
+          <span style="font-size: 11px; padding: 2px 8px; background: #f59e0b20; color: #f59e0b; border-radius: 99px;">open_in_editor</span>
+          <span style="font-size: 11px; padding: 2px 8px; background: #f59e0b20; color: #f59e0b; border-radius: 99px;">query_history</span>
+          <span style="font-size: 11px; padding: 2px 8px; background: #f59e0b20; color: #f59e0b; border-radius: 99px;">save_snippet</span>
+          <span style="font-size: 11px; padding: 2px 8px; background: #f59e0b20; color: #f59e0b; border-radius: 99px;">multi_connection</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<p style="text-align: center; margin-top: 24px; font-size: 13px; color: var(--text-tertiary);">
+  You can pick more than one — these can be phases of the same product. Click to select.
+</p>

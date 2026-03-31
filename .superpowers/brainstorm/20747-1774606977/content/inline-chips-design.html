@@ -1,0 +1,155 @@
+<h2>Rich composer — inline chips + result tagging</h2>
+<p class="subtitle">Chips live inside the text, results are taggable as context</p>
+
+<div style="display:flex; gap:20px; margin-top:16px; align-items:flex-start;">
+
+  <!-- Left: Full agent panel mockup -->
+  <div style="flex:1.4; min-width:0;">
+    <div class="label" style="margin-bottom:8px;">Agent panel</div>
+    <div style="background:#0f0f1a; border:1px solid #2a2a3e; border-radius:10px; overflow:hidden; font-family: monospace;">
+
+      <!-- Messages -->
+      <div style="padding:14px; display:flex; flex-direction:column; gap:10px; min-height:300px;">
+
+        <!-- User message with inline chips -->
+        <div style="align-self:flex-end; display:flex; flex-direction:column; align-items:flex-end; gap:3px; max-width:88%;">
+          <div style="background:#1e3a5f; border:1px solid #2d5a8f; color:#cdd; border-radius:12px 12px 2px 12px; padding:8px 12px; font-size:12px; line-height:1.7;">
+            look at
+            <span style="display:inline-flex; align-items:center; gap:3px; background:#0d2040; border:1px solid #2d5a8f; border-radius:5px; padding:1px 6px; font-size:11px; color:#60a5fa; vertical-align:middle;">
+              <span>📄</span> orders.sql<span style="color:#94a3b8; font-size:9px;">:14-32</span>
+              <span style="color:#475569; margin-left:1px; cursor:pointer;">×</span>
+            </span>
+            — why are there nulls in
+            <span style="display:inline-flex; align-items:center; gap:3px; background:#1a0d30; border:1px solid #5b21b6; border-radius:5px; padding:1px 6px; font-size:11px; color:#a78bfa; vertical-align:middle;">
+              <span>🗄️</span> user_id
+              <span style="color:#475569; margin-left:1px; cursor:pointer;">×</span>
+            </span>
+            ?
+          </div>
+        </div>
+
+        <!-- Tool call card — with tag button -->
+        <div style="background:#1a1a2e; border:1px solid #2a2a3e; border-radius:8px; padding:8px 10px; font-size:11px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:5px;">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="color:#4ade80; font-size:10px;">✓</span>
+              <span style="color:#94a3b8;">run_query</span>
+              <span style="color:#64748b; font-size:10px;">1.2s</span>
+            </div>
+            <!-- TAG BUTTON -->
+            <button style="background:#1e2d40; border:1px solid #2d4a6f; border-radius:4px; color:#60a5fa; font-size:10px; padding:2px 7px; cursor:pointer; display:flex; align-items:center; gap:3px;" title="Add to composer context">
+              <span>@</span> use as context
+            </button>
+          </div>
+          <div style="color:#64748b; font-size:10px; font-family:monospace; background:#0d0d1a; border-radius:4px; padding:4px 7px;">
+            SELECT user_id, COUNT(*) FROM orders GROUP BY 1 HAVING user_id IS NULL — <span style="color:#f97316;">3 rows</span>
+          </div>
+        </div>
+
+        <!-- Assistant text message -->
+        <div style="align-self:flex-start; background:#1a1a2e; border:1px solid #2a2a3e; color:#ccc; border-radius:2px 12px 12px 12px; padding:8px 12px; font-size:12px; max-width:90%; line-height:1.6;">
+          Those 3 rows are from guest checkouts — <code style="background:#111; padding:1px 4px; border-radius:3px; font-size:10px; color:#f97316;">orders</code> allows null <code style="background:#111; padding:1px 4px; border-radius:3px; font-size:10px; color:#f97316;">user_id</code> for unauthenticated users. I've updated
+          <span style="color:#a78bfa;">orders.sql</span> with a note on line 18.
+        </div>
+
+        <!-- Another tool card — tagging in progress -->
+        <div style="background:#1a1a2e; border:1px solid #2a2a3e; border-radius:8px; padding:8px 10px; font-size:11px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:5px;">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="color:#4ade80; font-size:10px;">✓</span>
+              <span style="color:#94a3b8;">describe_table</span>
+              <span style="color:#64748b; font-size:10px;">0.3s</span>
+            </div>
+            <button style="background:#1a3020; border:1px solid #14532d; border-radius:4px; color:#4ade80; font-size:10px; padding:2px 7px; cursor:pointer; display:flex; align-items:center; gap:3px;">
+              <span>✓</span> tagged
+            </button>
+          </div>
+          <div style="color:#64748b; font-size:10px; font-family:monospace; background:#0d0d1a; border-radius:4px; padding:4px 7px;">
+            orders — 8 columns, user_id NULLABLE int8
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Rich composer at bottom -->
+      <div style="border-top:1px solid #1e1e30; padding:10px;">
+        <div style="background:#0d0d1a; border:1px solid #2a2a40; border-radius:8px; padding:8px 10px; min-height:60px; font-size:12px; color:#94a3b8; line-height:1.8; position:relative;">
+          <span style="color:#ccc;">now fix it — also check </span>
+          <span style="display:inline-flex; align-items:center; gap:3px; background:#1a0d30; border:1px solid #5b21b6; border-radius:5px; padding:1px 6px; font-size:11px; color:#a78bfa; vertical-align:middle; margin:0 2px;">
+            <span>📊</span> describe_table result
+            <span style="color:#475569; margin-left:1px; cursor:pointer;">×</span>
+          </span>
+          <span style="color:#ccc;"> and </span>
+          <span style="display:inline-flex; align-items:center; gap:3px; background:#0d2040; border:1px solid #2d5a8f; border-radius:5px; padding:1px 6px; font-size:11px; color:#60a5fa; vertical-align:middle; margin:0 2px;">
+            <span>📄</span> schema/migrations.sql
+            <span style="color:#475569; margin-left:1px; cursor:pointer;">×</span>
+          </span>
+          <span style="background:#60a5fa; width:2px; height:14px; display:inline-block; vertical-align:middle; margin-left:1px; animation:blink 1s infinite;"></span>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:7px;">
+          <span style="font-size:10px; color:#475569;">type <kbd style="background:#1e1e30; border:1px solid #333; border-radius:3px; padding:0 4px; font-size:9px;">@</kbd> to attach · <kbd style="background:#1e1e30; border:1px solid #333; border-radius:3px; padding:0 4px; font-size:9px;">↵</kbd> send · <kbd style="background:#1e1e30; border:1px solid #333; border-radius:3px; padding:0 4px; font-size:9px;">⇧↵</kbd> newline</span>
+          <div style="background:#2563eb; color:white; border-radius:6px; padding:4px 12px; font-size:12px; cursor:pointer;">Send</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Chip type legend + @ dropdown -->
+  <div style="flex:0.8; min-width:0; display:flex; flex-direction:column; gap:14px;">
+
+    <div>
+      <div class="label" style="margin-bottom:8px;">Context chip types (all inline)</div>
+      <div style="background:#0f0f1a; border:1px solid #2a2a3e; border-radius:8px; padding:12px; display:flex; flex-direction:column; gap:8px; font-size:11px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="display:inline-flex; align-items:center; gap:3px; background:#0d2040; border:1px solid #2d5a8f; border-radius:5px; padding:2px 7px; color:#60a5fa;">📄 orders.sql</span>
+          <span style="color:#64748b;">full file</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="display:inline-flex; align-items:center; gap:3px; background:#0d2040; border:1px solid #2d5a8f; border-radius:5px; padding:2px 7px; color:#60a5fa;">📄 orders.sql<span style="font-size:9px; color:#94a3b8;">:14-32</span></span>
+          <span style="color:#64748b;">line range</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="display:inline-flex; align-items:center; gap:3px; background:#1a0d30; border:1px solid #5b21b6; border-radius:5px; padding:2px 7px; color:#a78bfa;">🗄️ orders</span>
+          <span style="color:#64748b;">table schema</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="display:inline-flex; align-items:center; gap:3px; background:#1a2010; border:1px solid #365314; border-radius:5px; padding:2px 7px; color:#86efac;">📊 run_query result</span>
+          <span style="color:#64748b;">tagged result</span>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="label" style="margin-bottom:8px;">@ dropdown menu</div>
+      <div style="background:#0f0f1a; border:1px solid #2a2a3e; border-radius:8px; overflow:hidden; font-size:11px;">
+        <div style="padding:6px 10px; background:#0d0d1a; color:#475569; font-size:10px; border-bottom:1px solid #1e1e30;">
+          @ <span style="color:#94a3b8;">ord</span><span style="background:#60a5fa; width:1px; height:11px; display:inline-block; vertical-align:middle;"></span>
+        </div>
+        <div style="padding:4px 0;">
+          <div style="padding:5px 10px; background:#1e2d40; display:flex; align-items:center; gap:8px; color:#ccc;">
+            <span>📄</span> <span>orders.sql</span> <span style="color:#475569; font-size:9px; margin-left:auto;">file</span>
+          </div>
+          <div style="padding:5px 10px; display:flex; align-items:center; gap:8px; color:#94a3b8;">
+            <span>🗄️</span> <span>orders</span> <span style="color:#475569; font-size:9px; margin-left:auto;">table</span>
+          </div>
+          <div style="padding:5px 10px; display:flex; align-items:center; gap:8px; color:#94a3b8;">
+            <span>📊</span> <span>run_query result</span> <span style="color:#475569; font-size:9px; margin-left:auto;">result</span>
+          </div>
+          <div style="padding:5px 10px; display:flex; align-items:center; gap:8px; color:#94a3b8;">
+            <span>📊</span> <span>describe_table result</span> <span style="color:#475569; font-size:9px; margin-left:auto;">result</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="background:#1a1a10; border:1px solid #2d2d14; border-radius:8px; padding:10px; font-size:11px; line-height:1.6; color:#a3a380;">
+      <div style="color:#d4d48a; margin-bottom:4px; font-size:10px; text-transform:uppercase; letter-spacing:.05em;">How agent gets context</div>
+      Each chip → its content is injected into the system prompt when sent. Files → full content (or sliced lines). Tables → schema. Results → raw JSON/text output from the tool call.
+    </div>
+
+  </div>
+</div>
+
+<style>
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+</style>

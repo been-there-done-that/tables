@@ -1,0 +1,139 @@
+<h2>How should cloud providers appear in the driver grid?</h2>
+<p class="subtitle">Pick the layout that feels most natural when adding a new connection</p>
+
+<div class="cards">
+
+  <!-- Option A -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f0f0f;padding:16px;border-radius:6px;">
+      <div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Select a database</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">
+        <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:6px;padding:10px 6px;text-align:center;">
+          <div style="font-size:18px;margin-bottom:4px;">🐘</div>
+          <div style="font-size:9px;color:#ccc;">PostgreSQL</div>
+        </div>
+        <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:6px;padding:10px 6px;text-align:center;">
+          <div style="font-size:18px;margin-bottom:4px;">🔶</div>
+          <div style="font-size:9px;color:#ccc;">Supabase</div>
+        </div>
+        <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:6px;padding:10px 6px;text-align:center;">
+          <div style="font-size:18px;margin-bottom:4px;">⚡</div>
+          <div style="font-size:9px;color:#ccc;">Neon</div>
+        </div>
+        <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:6px;padding:10px 6px;text-align:center;">
+          <div style="font-size:18px;margin-bottom:4px;">🌍</div>
+          <div style="font-size:9px;color:#ccc;">PlanetScale</div>
+        </div>
+        <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:6px;padding:10px 6px;text-align:center;">
+          <div style="font-size:18px;margin-bottom:4px;">🐬</div>
+          <div style="font-size:9px;color:#ccc;">MySQL</div>
+        </div>
+        <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:6px;padding:10px 6px;text-align:center;">
+          <div style="font-size:18px;margin-bottom:4px;">🗃️</div>
+          <div style="font-size:9px;color:#ccc;">SQLite</div>
+        </div>
+        <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:6px;padding:10px 6px;text-align:center;">
+          <div style="font-size:18px;margin-bottom:4px;">🍃</div>
+          <div style="font-size:9px;color:#ccc;">MongoDB</div>
+        </div>
+        <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:6px;padding:10px 6px;text-align:center;">
+          <div style="font-size:18px;margin-bottom:4px;">🔴</div>
+          <div style="font-size:9px;color:#ccc;">Redis</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Flat grid, all equal</h3>
+      <p>Supabase, Neon, PlanetScale sit alongside PostgreSQL as first-class entries. Simple, discoverable, mirrors DB Pro.</p>
+    </div>
+  </div>
+
+  <!-- Option B -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f0f0f;padding:16px;border-radius:6px;">
+      <div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Select a database</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;">
+        <div style="background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:10px 6px;text-align:center;">
+          <div style="font-size:18px;margin-bottom:4px;">🐘</div>
+          <div style="font-size:9px;color:#ccc;">PostgreSQL</div>
+        </div>
+        <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:6px;padding:10px 6px;text-align:center;">
+          <div style="font-size:18px;margin-bottom:4px;">🐬</div>
+          <div style="font-size:9px;color:#ccc;">MySQL</div>
+        </div>
+        <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:6px;padding:10px 6px;text-align:center;">
+          <div style="font-size:18px;margin-bottom:4px;">🗃️</div>
+          <div style="font-size:9px;color:#ccc;">SQLite</div>
+        </div>
+        <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:6px;padding:10px 6px;text-align:center;">
+          <div style="font-size:18px;margin-bottom:4px;">🍃</div>
+          <div style="font-size:9px;color:#ccc;">MongoDB</div>
+        </div>
+      </div>
+      <div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">☁️ Cloud Providers</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+        <div style="background:#1a1a2e;border:1px solid #3d2b6e;border-radius:6px;padding:10px 6px;text-align:center;">
+          <div style="font-size:18px;margin-bottom:4px;">🔶</div>
+          <div style="font-size:9px;color:#a78bfa;">Supabase</div>
+        </div>
+        <div style="background:#1a1a2e;border:1px solid #3d2b6e;border-radius:6px;padding:10px 6px;text-align:center;">
+          <div style="font-size:18px;margin-bottom:4px;">⚡</div>
+          <div style="font-size:9px;color:#a78bfa;">Neon</div>
+        </div>
+        <div style="background:#1a1a2e;border:1px solid #3d2b6e;border-radius:6px;padding:10px 6px;text-align:center;">
+          <div style="font-size:18px;margin-bottom:4px;">🌍</div>
+          <div style="font-size:9px;color:#a78bfa;">PlanetScale</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Two sections: Engines + Cloud Providers</h3>
+      <p>Engines and cloud providers are visually separated. Makes the "cloud" concept explicit and easy to expand later.</p>
+    </div>
+  </div>
+
+  <!-- Option C -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f0f0f;padding:16px;border-radius:6px;">
+      <div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Select a database</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;">
+        <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:6px;padding:10px 6px;text-align:center;">
+          <div style="font-size:18px;margin-bottom:4px;">🐘</div>
+          <div style="font-size:9px;color:#ccc;">PostgreSQL</div>
+        </div>
+        <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:6px;padding:10px 6px;text-align:center;">
+          <div style="font-size:18px;margin-bottom:4px;">🐬</div>
+          <div style="font-size:9px;color:#ccc;">MySQL</div>
+        </div>
+        <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:6px;padding:10px 6px;text-align:center;">
+          <div style="font-size:18px;margin-bottom:4px;">🗃️</div>
+          <div style="font-size:9px;color:#ccc;">SQLite</div>
+        </div>
+        <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:6px;padding:10px 6px;text-align:center;">
+          <div style="font-size:18px;margin-bottom:4px;">🍃</div>
+          <div style="font-size:9px;color:#ccc;">MongoDB</div>
+        </div>
+      </div>
+      <!-- PostgreSQL row with expand -->
+      <div style="background:#1a1a2e;border:1px solid #2d3748;border-radius:6px;padding:10px 12px;display:flex;align-items:center;gap:10px;">
+        <div style="font-size:18px;">🐘</div>
+        <div style="flex:1;">
+          <div style="font-size:10px;color:#a78bfa;font-weight:600;">PostgreSQL Providers</div>
+          <div style="display:flex;gap:6px;margin-top:5px;">
+            <div style="background:#252540;border:1px solid #4c3d7a;border-radius:4px;padding:3px 8px;font-size:9px;color:#c4b5fd;">Supabase</div>
+            <div style="background:#252540;border:1px solid #4c3d7a;border-radius:4px;padding:3px 8px;font-size:9px;color:#c4b5fd;">Neon</div>
+            <div style="background:#252540;border:1px solid #4c3d7a;border-radius:4px;padding:3px 8px;font-size:9px;color:#c4b5fd;">PlanetScale</div>
+          </div>
+        </div>
+        <div style="color:#555;font-size:12px;">›</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Engine row with inline provider chips</h3>
+      <p>PostgreSQL is one entry, but has clickable chips below it for each cloud provider. Hover/click PostgreSQL → sub-select provider. Compact, but a bit hidden.</p>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:16px;">Click your preferred layout, then reply in the terminal</p>

@@ -1,0 +1,192 @@
+<h2>Session Header — Provider Display</h2>
+<p class="subtitle">The ThreadPicker area shows the active provider. Two options for how much it surfaces the provider.</p>
+
+<style>
+  .panel-mock {
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    border-radius: 8px;
+    width: 100%;
+    max-width: 340px;
+    overflow: hidden;
+    font-family: ui-monospace, monospace;
+  }
+  .panel-header {
+    display: flex; align-items: center; gap: 6px;
+    padding: 7px 10px;
+    border-bottom: 1px solid #222;
+    font-size: 11px; color: #aaa;
+  }
+  .thread-name {
+    flex: 1; font-size: 11px; color: #ccc; font-weight: 500;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .chevron { font-size: 7px; opacity: 0.4; }
+  .provider-badge {
+    display: flex; align-items: center; gap: 3px;
+    font-size: 9.5px; padding: 2px 6px;
+    border-radius: 10px; border: 1px solid #2a2a2a;
+    color: #777;
+  }
+  .provider-badge .dot { width: 5px; height: 5px; border-radius: 50%; }
+  .dot-claude { background: #f59e0b; }
+  .dot-gemini { background: #3b82f6; }
+  .dot-codex { background: #10b981; }
+  .dot-cursor { background: #a78bfa; }
+  .provider-badge.locked { opacity: 0.5; cursor: not-allowed; }
+  .provider-badge.clickable { cursor: pointer; }
+  .provider-badge.clickable:hover { border-color: #444; color: #aaa; }
+  .new-thread-btn {
+    font-size: 9.5px; color: #6366f1; padding: 2px 6px;
+    border-radius: 4px; cursor: pointer;
+  }
+  .new-thread-btn:hover { background: rgba(99,102,241,0.1); }
+  .lock-icon { font-size: 8px; }
+  .empty-state {
+    padding: 24px 16px; text-align: center;
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+  }
+  .empty-icon { font-size: 28px; opacity: 0.3; }
+  .empty-title { font-size: 12px; color: #ccc; font-weight: 500; }
+  .empty-sub { font-size: 10.5px; color: #666; line-height: 1.5; max-width: 200px; }
+  .provider-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+    width: 100%; max-width: 240px;
+  }
+  .provider-tile {
+    display: flex; align-items: center; gap: 6px;
+    padding: 7px 10px; border-radius: 6px;
+    border: 1px solid #2a2a2a; cursor: pointer;
+    font-size: 10.5px; color: #888;
+    background: #1e1e1e;
+  }
+  .provider-tile:hover { border-color: #444; color: #bbb; background: #222; }
+  .provider-tile.selected { border-color: #f59e0b; color: #f59e0b; }
+  .messages-mock { padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+  .msg { font-size: 10px; padding: 5px 8px; border-radius: 6px; max-width: 80%; }
+  .msg.user { background: #2a2a2a; color: #ccc; align-self: flex-end; }
+  .msg.ai { background: #1e2a1e; color: #86efac; align-self: flex-start; }
+  .composer-bar {
+    display: flex; align-items: center; gap: 4px;
+    padding: 5px 8px; border-top: 1px solid #222;
+    font-size: 10px; color: #666;
+  }
+  .composer-input { flex: 1; background: transparent; border: none; outline: none; color: #888; font-size: 10px; }
+  .send-btn { width: 18px; height: 18px; background: #e5e7eb; border-radius: 4px; display: flex; align-items: center; justify-content: center; }
+  .tag { font-size: 9px; padding: 1px 5px; border-radius: 10px; background: rgba(255,255,255,0.05); color: #555; }
+  .divider-line { height: 1px; background: #222; margin: 0; }
+  .section-label { font-size: 9px; color: #444; padding: 6px 10px 2px; text-transform: uppercase; letter-spacing: 0.05em; }
+</style>
+
+<div class="options">
+
+  <!-- Option A: badge in header, picker in empty state -->
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Provider badge in header — change only from empty state</h3>
+      <p>Active session header shows a small locked badge. To change provider, start a new thread — the empty state shows the provider picker.</p>
+
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:10px">
+        <!-- active session -->
+        <div>
+          <div class="label" style="margin-bottom:4px;font-size:9px;color:#555">Active session (locked)</div>
+          <div class="panel-mock" style="max-width:260px">
+            <div class="panel-header">
+              <span class="thread-name">Analyze users table</span>
+              <span class="chevron">▾</span>
+              <div class="provider-badge locked">
+                <span class="dot dot-claude"></span>
+                Claude
+                <span class="lock-icon">🔒</span>
+              </div>
+            </div>
+            <div class="messages-mock">
+              <div class="msg user">show me null columns</div>
+              <div class="msg ai">Running find_nulls...</div>
+            </div>
+            <div class="composer-bar"><span class="composer-input">Ask anything…</span></div>
+          </div>
+        </div>
+
+        <!-- new thread empty state -->
+        <div>
+          <div class="label" style="margin-bottom:4px;font-size:9px;color:#555">New thread — pick provider</div>
+          <div class="panel-mock" style="max-width:260px">
+            <div class="panel-header">
+              <span class="thread-name">New session</span>
+              <span class="chevron">▾</span>
+            </div>
+            <div class="empty-state">
+              <div class="empty-title">Choose a provider</div>
+              <div class="empty-sub">Select the AI provider for this session. You can't change it mid-conversation.</div>
+              <div class="provider-grid">
+                <div class="provider-tile selected"><span class="dot dot-claude" style="width:7px;height:7px"></span>Claude</div>
+                <div class="provider-tile"><span class="dot dot-gemini" style="width:7px;height:7px"></span>Gemini</div>
+                <div class="provider-tile"><span class="dot dot-codex" style="width:7px;height:7px"></span>Codex</div>
+                <div class="provider-tile"><span class="dot dot-cursor" style="width:7px;height:7px"></span>Cursor</div>
+              </div>
+            </div>
+            <div class="composer-bar"><span class="composer-input">Ask anything to start…</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option B: badge is clickable when session is done -->
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Provider badge always visible — clickable when session is idle</h3>
+      <p>Badge shows in header at all times. When the session is idle (not running), clicking it opens a small inline provider picker in-place. Locked with tooltip during active run.</p>
+
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:10px">
+        <!-- idle, clickable -->
+        <div>
+          <div class="label" style="margin-bottom:4px;font-size:9px;color:#555">Idle — badge is clickable</div>
+          <div class="panel-mock" style="max-width:260px">
+            <div class="panel-header">
+              <span class="thread-name">Analyze users table</span>
+              <span class="chevron">▾</span>
+              <div class="provider-badge clickable" style="border-color:#444;color:#aaa">
+                <span class="dot dot-claude"></span>
+                Claude
+                <span class="chevron">▾</span>
+              </div>
+            </div>
+            <div class="messages-mock">
+              <div class="msg user">show me null columns</div>
+              <div class="msg ai">Done — 3 columns have nulls.</div>
+            </div>
+            <div class="composer-bar"><span class="composer-input">Ask anything…</span></div>
+          </div>
+        </div>
+
+        <!-- running, locked -->
+        <div>
+          <div class="label" style="margin-bottom:4px;font-size:9px;color:#555">Running — badge locked</div>
+          <div class="panel-mock" style="max-width:260px">
+            <div class="panel-header">
+              <span class="thread-name">Analyze users table</span>
+              <span class="chevron">▾</span>
+              <div class="provider-badge locked">
+                <span class="dot dot-claude"></span>
+                Claude
+                <span style="font-size:8px;margin-left:2px;opacity:0.5">⬤</span>
+              </div>
+            </div>
+            <div class="messages-mock">
+              <div class="msg user">show me null columns</div>
+              <div class="msg ai" style="opacity:0.6">Finding nulls…</div>
+            </div>
+            <div class="composer-bar"><span class="composer-input" style="opacity:0.4">Running…</span></div>
+          </div>
+        </div>
+      </div>
+
+      <p style="font-size:10px;color:#666;margin-top:8px">Note: switching provider when idle but mid-thread shows a warning: "Switching provider will start a new session — continue?"</p>
+    </div>
+  </div>
+
+</div>

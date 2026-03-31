@@ -1,0 +1,127 @@
+<h2>Explain Panel — Full Design Mockup</h2>
+<p class="subtitle">How the bottom panel looks after clicking Explain. Click anywhere to select/deselect.</p>
+
+<div class="mockup" style="max-width:780px;margin:0 auto">
+  <div class="mockup-header">Tables — Query Editor (bottom panel in Explain mode)</div>
+  <div class="mockup-body" style="padding:0;background:#1e1e2e;border-radius:0 0 6px 6px;font-family:sans-serif">
+
+    <!-- Editor area (top, abbreviated) -->
+    <div style="padding:10px 14px;background:#181825;border-bottom:1px solid #313244;font-family:monospace;font-size:11px;color:#a6e3a1">
+      SELECT o.id, u.name, o.total FROM orders o JOIN users u ON u.id = o.user_id WHERE o.created_at &gt; '2024-01-01'
+    </div>
+
+    <!-- Toolbar row -->
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 14px;background:#181825;border-bottom:1px solid #313244">
+      <div style="background:#313244;border-radius:4px;padding:4px 10px;font-size:11px;color:#cba6f7;cursor:pointer">▶ Run</div>
+      <div style="background:#fab387;border-radius:4px;padding:4px 10px;font-size:11px;color:#1e1e2e;font-weight:600;cursor:pointer">⚡ Explain</div>
+      <div style="flex:1"></div>
+      <div style="font-size:10px;color:#6c7086">Cmd+Shift+E</div>
+    </div>
+
+    <!-- Bottom panel tab bar -->
+    <div style="display:flex;align-items:center;gap:0;background:#181825;border-bottom:1px solid #313244">
+      <div style="padding:6px 14px;font-size:11px;color:#6c7086;cursor:pointer">Results</div>
+      <div style="padding:6px 14px;font-size:11px;color:#fab387;border-bottom:2px solid #fab387;background:#1e1e2e;cursor:pointer;display:flex;align-items:center;gap:5px">
+        <span>⚡</span><span>Explain</span>
+        <span style="background:#f38ba8;color:#1e1e2e;font-size:9px;border-radius:10px;padding:1px 5px;font-weight:700">2 issues</span>
+      </div>
+      <div style="padding:6px 14px;font-size:11px;color:#6c7086;cursor:pointer">Logs</div>
+    </div>
+
+    <!-- Explain panel content -->
+    <div style="padding:10px 14px;background:#1e1e2e">
+
+      <!-- Explain header: timing summary + Ask AI -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:12px;color:#cdd6f4;font-weight:600">Execution Plan</span>
+          <span style="background:#313244;border-radius:10px;padding:2px 8px;font-size:10px;color:#a6adc8">Planning: 0.3ms</span>
+          <span style="background:#313244;border-radius:10px;padding:2px 8px;font-size:10px;color:#a6adc8">Execution: 43.1ms</span>
+          <span style="background:#313244;border-radius:10px;padding:2px 8px;font-size:10px;color:#a6adc8">Rows: 120</span>
+        </div>
+        <div style="background:#313244;border:1px solid #45475a;border-radius:5px;padding:4px 10px;font-size:11px;color:#89dceb;cursor:pointer;display:flex;align-items:center;gap:5px">
+          <span>✨</span><span>Ask AI</span>
+        </div>
+      </div>
+
+      <!-- Waterfall bars -->
+      <div style="display:flex;flex-direction:column;gap:6px">
+
+        <!-- Node 1: Nested Loop (root) -->
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="width:160px;font-size:10px;color:#cdd6f4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Nested Loop</div>
+          <div style="flex:1;background:#313244;border-radius:3px;height:18px;position:relative">
+            <div style="background:#f38ba8;width:99%;height:100%;border-radius:3px;opacity:0.85"></div>
+          </div>
+          <div style="width:60px;text-align:right;font-size:10px;color:#f38ba8;font-weight:600">43.1ms</div>
+          <div style="width:36px;text-align:right;font-size:10px;color:#6c7086">99%</div>
+        </div>
+
+        <!-- Node 2: Seq Scan (child, indented) — highlighted as bottleneck -->
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="width:160px;font-size:10px;color:#f38ba8;white-space:nowrap;display:flex;align-items:center;gap:4px">
+            <span style="color:#313244;padding-left:14px">↳</span>
+            <span style="color:#f38ba8">Seq Scan</span>
+            <span style="font-size:9px;background:#f38ba8;color:#1e1e2e;border-radius:3px;padding:0 4px">⚠</span>
+          </div>
+          <div style="flex:1;background:#313244;border-radius:3px;height:18px;position:relative">
+            <div style="background:#f38ba8;width:88%;height:100%;border-radius:3px"></div>
+          </div>
+          <div style="width:60px;text-align:right;font-size:10px;color:#f38ba8;font-weight:600">38.2ms</div>
+          <div style="width:36px;text-align:right;font-size:10px;color:#6c7086">88%</div>
+        </div>
+
+        <!-- Node 2b: relation label under seq scan -->
+        <div style="display:flex;align-items:center;gap:8px;margin-top:-4px;margin-bottom:2px">
+          <div style="width:160px;font-size:9px;color:#6c7086;padding-left:30px">orders · 8,500 rows scanned</div>
+          <div style="flex:1;font-size:9px;color:#fab387">↑ row estimate off: planned 120, actual 8,500</div>
+        </div>
+
+        <!-- Node 3: Index Scan (child, indented) -->
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="width:160px;font-size:10px;color:#a6e3a1;white-space:nowrap;display:flex;align-items:center;gap:4px">
+            <span style="color:#313244;padding-left:14px">↳</span>
+            <span>Index Scan</span>
+          </div>
+          <div style="flex:1;background:#313244;border-radius:3px;height:18px;position:relative">
+            <div style="background:#a6e3a1;width:2%;height:100%;border-radius:3px"></div>
+          </div>
+          <div style="width:60px;text-align:right;font-size:10px;color:#a6e3a1;font-weight:600">0.9ms</div>
+          <div style="width:36px;text-align:right;font-size:10px;color:#6c7086">2%</div>
+        </div>
+
+        <!-- Node 3b: relation label -->
+        <div style="display:flex;align-items:center;gap:8px;margin-top:-4px">
+          <div style="width:160px;font-size:9px;color:#6c7086;padding-left:30px">users (id) · 120 rows</div>
+          <div style="flex:1"></div>
+        </div>
+
+      </div>
+
+      <!-- Divider -->
+      <div style="border-top:1px solid #313244;margin:12px 0"></div>
+
+      <!-- Issues summary -->
+      <div style="display:flex;flex-direction:column;gap:5px">
+        <div style="font-size:10px;color:#6c7086;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px">Issues detected</div>
+        <div style="display:flex;align-items:flex-start;gap:8px;background:#2a1a1a;border:1px solid #f38ba820;border-radius:5px;padding:7px 10px">
+          <span style="font-size:12px">⚠</span>
+          <div>
+            <div style="font-size:11px;color:#f38ba8;font-weight:500">Sequential scan on <code style="background:#313244;padding:1px 4px;border-radius:2px">orders</code></div>
+            <div style="font-size:10px;color:#6c7086;margin-top:2px">Scanned 8,500 rows, returned 120. Consider an index on <code style="background:#313244;padding:1px 4px;border-radius:2px">orders.created_at</code>.</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:8px;background:#2a1f14;border:1px solid #fab38720;border-radius:5px;padding:7px 10px">
+          <span style="font-size:12px">↑</span>
+          <div>
+            <div style="font-size:11px;color:#fab387;font-weight:500">Row estimate mismatch on <code style="background:#313244;padding:1px 4px;border-radius:2px">orders</code></div>
+            <div style="font-size:10px;color:#6c7086;margin-top:2px">Planner estimated 120 rows, actual 8,500. Statistics may be stale — run <code style="background:#313244;padding:1px 4px;border-radius:2px">ANALYZE orders</code>.</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:16px;text-align:center">Does this layout and level of detail look right? Let me know in the terminal.</p>

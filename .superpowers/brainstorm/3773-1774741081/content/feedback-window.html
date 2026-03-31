@@ -1,0 +1,237 @@
+<style>
+  :root {
+    --bg: hsl(222 16% 12%);
+    --bg2: hsl(222 16% 17%);
+    --bg3: hsl(222 16% 20%);
+    --hover: hsl(222 16% 22%);
+    --fg: hsl(210 20% 92%);
+    --fg2: hsl(210 15% 60%);
+    --fg3: hsl(210 12% 42%);
+    --border: hsl(220 16% 25%);
+    --border2: hsl(220 16% 18%);
+    --accent: hsl(217 91% 60%);
+    --accent-bg: rgba(59,130,246,0.12);
+    --red: rgb(248,113,113);
+    --red-bg: rgba(239,68,68,0.12);
+  }
+
+  .win {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    width: 520px;
+    margin: 0 auto;
+    font-size: 13px;
+    color: var(--fg);
+  }
+
+  .titlebar {
+    height: 36px;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+    gap: 8px;
+  }
+  .tl { width: 11px; height: 11px; border-radius: 50%; }
+  .win-title { font-size: 12px; color: var(--fg2); margin-left: 8px; font-weight: 500; }
+
+  .body { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+
+  /* Type selector */
+  .type-tabs { display: flex; gap: 4px; }
+  .tab {
+    flex: 1;
+    padding: 7px 0;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--fg2);
+    font-size: 12px;
+    font-weight: 500;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .tab.active {
+    background: var(--accent-bg);
+    border-color: rgba(59,130,246,0.4);
+    color: var(--accent);
+  }
+  .tab:not(.active):hover { background: var(--hover); color: var(--fg); }
+
+  /* Form fields */
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .label { font-size: 11px; font-weight: 600; color: var(--fg2); text-transform: uppercase; letter-spacing: 0.04em; }
+  .input {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    color: var(--fg);
+    font-size: 13px;
+    outline: none;
+  }
+  .input:focus { border-color: var(--accent); }
+  .textarea { resize: none; height: 80px; font-family: inherit; line-height: 1.5; }
+  .textarea.tall { height: 110px; }
+
+  /* System info */
+  .sysinfo {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .sysinfo-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    cursor: pointer;
+  }
+  .sysinfo-title { font-size: 12px; font-weight: 500; color: var(--fg2); display: flex; align-items: center; gap: 6px; }
+  .sysinfo-remove { font-size: 11px; color: var(--red); cursor: pointer; opacity: 0.8; }
+  .sysinfo-body { padding: 0 12px 10px; display: flex; flex-direction: column; gap: 3px; }
+  .sysinfo-row { display: flex; gap: 8px; font-size: 11px; }
+  .sysinfo-key { color: var(--fg3); width: 80px; flex-shrink: 0; }
+  .sysinfo-val { color: var(--fg2); font-family: monospace; }
+
+  /* Footer */
+  .footer {
+    padding: 12px 20px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .hint { font-size: 11px; color: var(--fg3); }
+  .btns { display: flex; gap: 8px; }
+  .btn {
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--fg2);
+  }
+  .btn:hover { background: var(--hover); color: var(--fg); }
+  .btn.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+  }
+  .btn.primary:hover { opacity: 0.9; }
+
+  .chevron { font-size: 10px; opacity: 0.5; }
+
+  /* Section break */
+  .sep { height: 1px; background: var(--border2); }
+</style>
+
+<h2>Feedback Window — Bug Report view</h2>
+<p class="subtitle">Separate Tauri window (same pattern as datasource configurator). Click the tabs to preview each form type.</p>
+
+<div style="margin-top: 16px;">
+  <div class="win">
+    <!-- Titlebar -->
+    <div class="titlebar">
+      <div class="tl" style="background:#ff5f57"></div>
+      <div class="tl" style="background:#febc2e"></div>
+      <div class="tl" style="background:#28c840"></div>
+      <span class="win-title">Send Feedback</span>
+    </div>
+
+    <!-- Body -->
+    <div class="body">
+      <!-- Type selector -->
+      <div class="type-tabs" id="tabs">
+        <div class="tab active" onclick="switchTab('bug', this)">🐛 Bug Report</div>
+        <div class="tab" onclick="switchTab('feature', this)">✨ Feature Request</div>
+        <div class="tab" onclick="switchTab('feedback', this)">💬 General Feedback</div>
+      </div>
+
+      <!-- Dynamic form area -->
+      <div id="form-bug">
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <div class="field">
+            <div class="label">Title</div>
+            <div class="input" style="color:var(--fg3)">Short description of the bug…</div>
+          </div>
+          <div class="field">
+            <div class="label">What happened?</div>
+            <div class="input textarea tall" style="color:var(--fg3);display:flex;align-items:flex-start;padding-top:10px;">Describe what went wrong…</div>
+          </div>
+          <div class="field">
+            <div class="label">Steps to reproduce <span style="color:var(--fg3);font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></div>
+            <div class="input textarea" style="color:var(--fg3);display:flex;align-items:flex-start;padding-top:10px;">1. Open a connection…</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="form-feature" style="display:none">
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <div class="field">
+            <div class="label">Feature title</div>
+            <div class="input" style="color:var(--fg3)">What would you like to see?</div>
+          </div>
+          <div class="field">
+            <div class="label">Why would this be useful?</div>
+            <div class="input textarea tall" style="color:var(--fg3);display:flex;align-items:flex-start;padding-top:10px;">Describe your use case…</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="form-feedback" style="display:none">
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <div class="field">
+            <div class="label">Your message</div>
+            <div class="input textarea tall" style="color:var(--fg3);display:flex;align-items:flex-start;padding-top:10px;height:140px;">Share anything on your mind…</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- System info (only shown for bug reports) -->
+      <div id="sysinfo-section" class="sysinfo">
+        <div class="sysinfo-header">
+          <div class="sysinfo-title">
+            <span>📎</span>
+            <span>System info will be attached</span>
+            <span class="chevron">▾</span>
+          </div>
+          <span class="sysinfo-remove">Remove</span>
+        </div>
+        <div class="sysinfo-body">
+          <div class="sysinfo-row"><span class="sysinfo-key">Version</span><span class="sysinfo-val">v0.1.0</span></div>
+          <div class="sysinfo-row"><span class="sysinfo-key">OS</span><span class="sysinfo-val">macOS 15.4 (Darwin)</span></div>
+          <div class="sysinfo-row"><span class="sysinfo-key">Arch</span><span class="sysinfo-val">aarch64</span></div>
+          <div class="sysinfo-row"><span class="sysinfo-key">Memory</span><span class="sysinfo-val">16 GB</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <span class="hint">Creates a GitHub issue in tables-releases</span>
+      <div class="btns">
+        <div class="btn">Cancel</div>
+        <div class="btn primary">Submit</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function switchTab(type, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('form-bug').style.display = type === 'bug' ? 'block' : 'none';
+  document.getElementById('form-feature').style.display = type === 'feature' ? 'block' : 'none';
+  document.getElementById('form-feedback').style.display = type === 'feedback' ? 'block' : 'none';
+  document.getElementById('sysinfo-section').style.display = type === 'bug' ? 'block' : 'none';
+}
+</script>

@@ -1,0 +1,125 @@
+<h2>Updater UI Flow</h2>
+<p class="subtitle">Four states — each showing the titlebar + toolbar region of Tables</p>
+
+<div style="display:flex;flex-direction:column;gap:24px;margin-top:8px">
+
+  <!-- State 1: Idle / checking -->
+  <div class="mockup">
+    <div class="mockup-header">State 1 — Normal (background check in progress, user unaware)</div>
+    <div class="mockup-body" style="padding:0">
+      <div style="background:#1a1a1f;border-radius:6px;overflow:hidden">
+        <!-- Titlebar -->
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 14px;background:#111114;border-bottom:1px solid #2a2a30">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="width:12px;height:12px;border-radius:50%;background:#ff5f57"></div>
+            <div style="width:12px;height:12px;border-radius:50%;background:#febc2e"></div>
+            <div style="width:12px;height:12px;border-radius:50%;background:#28c840"></div>
+          </div>
+          <div style="font-size:12px;color:#888;font-family:monospace">Tables — v0.2.0</div>
+          <div style="width:60px"></div>
+        </div>
+        <!-- Toolbar -->
+        <div style="display:flex;align-items:center;padding:5px 12px;background:#16161a;border-bottom:1px solid #222228;font-size:12px;color:#666">
+          <span>Explorer</span>
+          <span style="margin:0 8px;opacity:0.3">|</span>
+          <span>Untitled query</span>
+          <span style="flex:1"></span>
+          <span style="color:#444;font-size:11px">No updates</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- State 2: Update available chip -->
+  <div class="mockup">
+    <div class="mockup-header">State 2 — Update available (chip appears in titlebar + toast on launch)</div>
+    <div class="mockup-body" style="padding:0">
+      <div style="background:#1a1a1f;border-radius:6px;overflow:hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 14px;background:#111114;border-bottom:1px solid #2a2a30">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="width:12px;height:12px;border-radius:50%;background:#ff5f57"></div>
+            <div style="width:12px;height:12px;border-radius:50%;background:#febc2e"></div>
+            <div style="width:12px;height:12px;border-radius:50%;background:#28c840"></div>
+          </div>
+          <div style="font-size:12px;color:#888;font-family:monospace">Tables — v0.2.0</div>
+          <!-- The chip -->
+          <div style="display:flex;align-items:center;gap:5px;background:#7c3aed22;border:1px solid #7c3aed55;border-radius:99px;padding:2px 9px;cursor:pointer">
+            <div style="width:6px;height:6px;border-radius:50%;background:#a78bfa"></div>
+            <span style="font-size:11px;color:#a78bfa;font-weight:500">v0.3.0 available</span>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;padding:5px 12px;background:#16161a;border-bottom:1px solid #222228;font-size:12px;color:#666">
+          <span>Explorer</span><span style="margin:0 8px;opacity:0.3">|</span><span>Untitled query</span>
+        </div>
+        <!-- Toast (bottom right) -->
+        <div style="position:relative;height:60px">
+          <div style="position:absolute;bottom:8px;right:12px;background:#1e1e24;border:1px solid #333340;border-radius:8px;padding:8px 12px;font-size:11px;max-width:240px;box-shadow:0 4px 12px rgba(0,0,0,0.4)">
+            <div style="font-weight:600;color:#e2e2e8;margin-bottom:2px">Tables v0.3.0 is available</div>
+            <div style="color:#888">Click the chip in the titlebar to update.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- State 3: Downloading -->
+  <div class="mockup">
+    <div class="mockup-header">State 3 — Downloading (progress bar in toolbar, chip updates)</div>
+    <div class="mockup-body" style="padding:0">
+      <div style="background:#1a1a1f;border-radius:6px;overflow:hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 14px;background:#111114;border-bottom:1px solid #2a2a30">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="width:12px;height:12px;border-radius:50%;background:#ff5f57"></div>
+            <div style="width:12px;height:12px;border-radius:50%;background:#febc2e"></div>
+            <div style="width:12px;height:12px;border-radius:50%;background:#28c840"></div>
+          </div>
+          <div style="font-size:12px;color:#888;font-family:monospace">Tables — v0.2.0</div>
+          <div style="display:flex;align-items:center;gap:5px;background:#1d4ed822;border:1px solid #1d4ed855;border-radius:99px;padding:2px 9px">
+            <div style="width:8px;height:8px;border-radius:50%;border:1.5px solid #60a5fa;border-top-color:transparent;animation:spin 0.8s linear infinite"></div>
+            <span style="font-size:11px;color:#60a5fa;font-weight:500">Downloading… 62%</span>
+          </div>
+        </div>
+        <!-- Toolbar with progress bar -->
+        <div style="background:#16161a;border-bottom:1px solid #222228">
+          <div style="display:flex;align-items:center;padding:5px 12px;font-size:12px;color:#666">
+            <span>Explorer</span><span style="margin:0 8px;opacity:0.3">|</span><span>Untitled query</span>
+          </div>
+          <!-- Progress bar -->
+          <div style="height:2px;background:#222228;margin:0 0 0 0">
+            <div style="height:100%;width:62%;background:linear-gradient(90deg,#6d28d9,#7c3aed);border-radius:0 2px 2px 0;transition:width 0.3s"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- State 4: Ready to restart -->
+  <div class="mockup">
+    <div class="mockup-header">State 4 — Ready to install (chip becomes action button)</div>
+    <div class="mockup-body" style="padding:0">
+      <div style="background:#1a1a1f;border-radius:6px;overflow:hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 14px;background:#111114;border-bottom:1px solid #2a2a30">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="width:12px;height:12px;border-radius:50%;background:#ff5f57"></div>
+            <div style="width:12px;height:12px;border-radius:50%;background:#febc2e"></div>
+            <div style="width:12px;height:12px;border-radius:50%;background:#28c840"></div>
+          </div>
+          <div style="font-size:12px;color:#888;font-family:monospace">Tables — v0.2.0</div>
+          <!-- Restart chip -->
+          <div style="display:flex;align-items:center;gap:5px;background:#15803d22;border:1px solid #15803d55;border-radius:99px;padding:2px 9px;cursor:pointer">
+            <div style="width:6px;height:6px;border-radius:50%;background:#4ade80"></div>
+            <span style="font-size:11px;color:#4ade80;font-weight:500">Restart to install</span>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;padding:5px 12px;background:#16161a;border-bottom:1px solid #222228;font-size:12px;color:#666">
+          <span>Explorer</span><span style="margin:0 8px;opacity:0.3">|</span><span>Untitled query</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<style>
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>

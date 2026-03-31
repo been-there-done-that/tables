@@ -1,0 +1,183 @@
+<h2>Connection form for a cloud provider (e.g. Supabase)</h2>
+<p class="subtitle">How should the "paste connection string" and manual fields coexist?</p>
+
+<div class="cards">
+
+  <!-- Option A: String at top, fields below, auto-parse -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f0f0f;padding:16px;border-radius:6px;font-family:monospace;">
+
+      <!-- Provider header -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+        <div style="background:#f97316;width:20px;height:20px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:11px;">S</div>
+        <div>
+          <div style="font-size:11px;color:#fff;font-weight:600;">Supabase</div>
+          <div style="font-size:9px;color:#666;">PostgreSQL · supabase.com</div>
+        </div>
+      </div>
+
+      <!-- Connection string box -->
+      <div style="background:#1a1a1a;border:1px dashed #444;border-radius:6px;padding:10px 12px;margin-bottom:12px;">
+        <div style="font-size:9px;color:#888;margin-bottom:5px;text-transform:uppercase;letter-spacing:1px;">Paste connection string</div>
+        <div style="font-size:9px;color:#555;font-style:italic;">postgresql://postgres:••••••@db.xxxx.supabase.co:5432/postgres</div>
+        <div style="font-size:8px;color:#3b82f6;margin-top:5px;">→ Fields will auto-fill when you paste</div>
+      </div>
+
+      <!-- Divider -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+        <div style="flex:1;height:1px;background:#222;"></div>
+        <div style="font-size:9px;color:#555;">or fill manually</div>
+        <div style="flex:1;height:1px;background:#222;"></div>
+      </div>
+
+      <!-- Fields -->
+      <div style="display:grid;grid-template-columns:3fr 1fr;gap:6px;margin-bottom:6px;">
+        <div style="background:#151515;border:1px solid #2a2a2a;border-radius:4px;padding:6px 8px;">
+          <div style="font-size:8px;color:#666;">Host</div>
+          <div style="font-size:9px;color:#6ee7b7;">db.xxxx.supabase.co</div>
+        </div>
+        <div style="background:#151515;border:1px solid #2a2a2a;border-radius:4px;padding:6px 8px;">
+          <div style="font-size:8px;color:#666;">Port</div>
+          <div style="font-size:9px;color:#6ee7b7;">5432</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;">
+        <div style="background:#151515;border:1px solid #2a2a2a;border-radius:4px;padding:6px 8px;">
+          <div style="font-size:8px;color:#666;">Username</div>
+          <div style="font-size:9px;color:#aaa;">postgres</div>
+        </div>
+        <div style="background:#151515;border:1px solid #2a2a2a;border-radius:4px;padding:6px 8px;">
+          <div style="font-size:8px;color:#666;">Password</div>
+          <div style="font-size:9px;color:#aaa;">••••••••</div>
+        </div>
+      </div>
+      <div style="background:#151515;border:1px solid #2a2a2a;border-radius:4px;padding:6px 8px;">
+        <div style="font-size:8px;color:#666;">Database</div>
+        <div style="font-size:9px;color:#aaa;">postgres</div>
+      </div>
+
+      <!-- TLS hint -->
+      <div style="display:flex;align-items:center;gap:6px;margin-top:8px;">
+        <div style="width:8px;height:8px;background:#22c55e;border-radius:2px;"></div>
+        <div style="font-size:8px;color:#666;">TLS enabled by default for Supabase</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — String at top, auto-parses into fields below</h3>
+      <p>Paste fills the fields live. Fields are always visible and editable. Most transparent — you always see what you're connecting with.</p>
+    </div>
+  </div>
+
+  <!-- Option B: Tabbed — Quick (string) vs Manual -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f0f0f;padding:16px;border-radius:6px;">
+
+      <!-- Provider header -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+        <div style="background:#f97316;width:20px;height:20px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:11px;">S</div>
+        <div>
+          <div style="font-size:11px;color:#fff;font-weight:600;">Supabase</div>
+          <div style="font-size:9px;color:#666;">PostgreSQL · supabase.com</div>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div style="display:flex;gap:0;margin-bottom:12px;border-bottom:1px solid #2a2a2a;">
+        <div style="padding:6px 12px;font-size:9px;color:#a78bfa;border-bottom:2px solid #a78bfa;margin-bottom:-1px;">Quick Connect</div>
+        <div style="padding:6px 12px;font-size:9px;color:#555;">Manual</div>
+      </div>
+
+      <!-- Quick tab content -->
+      <div style="background:#1a1a1a;border:1px dashed #444;border-radius:6px;padding:14px;margin-bottom:10px;text-align:center;">
+        <div style="font-size:9px;color:#888;margin-bottom:6px;">Paste your connection string from Supabase dashboard</div>
+        <div style="background:#111;border:1px solid #333;border-radius:4px;padding:8px;font-size:8px;color:#555;font-style:italic;font-family:monospace;">postgresql://postgres:••••••@db.xxxx.supabase.co:5432/postgres</div>
+      </div>
+
+      <!-- Help link -->
+      <div style="background:#1a1a2e;border:1px solid #2d2560;border-radius:4px;padding:8px 10px;display:flex;align-items:center;gap:8px;">
+        <div style="font-size:14px;">📖</div>
+        <div>
+          <div style="font-size:9px;color:#a78bfa;">Where do I find my connection string?</div>
+          <div style="font-size:8px;color:#555;">Supabase Dashboard → Settings → Database</div>
+        </div>
+      </div>
+
+      <!-- Name field at bottom -->
+      <div style="margin-top:10px;background:#151515;border:1px solid #2a2a2a;border-radius:4px;padding:6px 8px;">
+        <div style="font-size:8px;color:#666;">Connection name</div>
+        <div style="font-size:9px;color:#aaa;">My Supabase DB</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Tabbed: Quick Connect vs Manual</h3>
+      <p>Quick Connect tab focuses purely on string paste. Manual tab shows fields. Plus contextual help pointing to the provider's dashboard. Cleaner for the common case.</p>
+    </div>
+  </div>
+
+  <!-- Option C: Provider guide sidebar -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f0f0f;padding:16px;border-radius:6px;">
+      <div style="display:grid;grid-template-columns:1.6fr 1fr;gap:10px;">
+
+        <!-- Left: form -->
+        <div>
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;">
+            <div style="background:#f97316;width:16px;height:16px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:9px;">S</div>
+            <div style="font-size:10px;color:#fff;font-weight:600;">Supabase</div>
+          </div>
+
+          <div style="background:#151515;border:1px dashed #3a3a3a;border-radius:4px;padding:7px;margin-bottom:8px;">
+            <div style="font-size:8px;color:#888;margin-bottom:3px;">Connection URI</div>
+            <div style="font-size:8px;color:#555;font-family:monospace;">paste here...</div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:3fr 1fr;gap:4px;margin-bottom:4px;">
+            <div style="background:#151515;border:1px solid #222;border-radius:3px;padding:5px 6px;">
+              <div style="font-size:7px;color:#666;">Host</div>
+              <div style="font-size:8px;color:#6ee7b7;">db.xxxx.supabase.co</div>
+            </div>
+            <div style="background:#151515;border:1px solid #222;border-radius:3px;padding:5px 6px;">
+              <div style="font-size:7px;color:#666;">Port</div>
+              <div style="font-size:8px;color:#6ee7b7;">5432</div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:4px;">
+            <div style="background:#151515;border:1px solid #222;border-radius:3px;padding:5px 6px;">
+              <div style="font-size:7px;color:#666;">User</div>
+              <div style="font-size:8px;color:#aaa;">postgres</div>
+            </div>
+            <div style="background:#151515;border:1px solid #222;border-radius:3px;padding:5px 6px;">
+              <div style="font-size:7px;color:#666;">Password</div>
+              <div style="font-size:8px;color:#aaa;">••••••</div>
+            </div>
+          </div>
+          <div style="background:#151515;border:1px solid #222;border-radius:3px;padding:5px 6px;">
+            <div style="font-size:7px;color:#666;">Database</div>
+            <div style="font-size:8px;color:#aaa;">postgres</div>
+          </div>
+        </div>
+
+        <!-- Right: provider guide -->
+        <div style="background:#0d1117;border:1px solid #1e2030;border-radius:6px;padding:10px;">
+          <div style="font-size:9px;color:#f97316;font-weight:600;margin-bottom:8px;">📍 Supabase guide</div>
+          <div style="font-size:8px;color:#888;line-height:1.6;">
+            <div style="margin-bottom:5px;">1. Go to <span style="color:#a78bfa;">Settings</span></div>
+            <div style="margin-bottom:5px;">2. Click <span style="color:#a78bfa;">Database</span></div>
+            <div style="margin-bottom:5px;">3. Copy the <span style="color:#6ee7b7;">URI</span></div>
+            <div style="margin-bottom:8px;">4. Paste it here ↑</div>
+          </div>
+          <div style="font-size:8px;color:#22c55e;">✓ TLS required</div>
+          <div style="font-size:8px;color:#f59e0b;margin-top:3px;">⚠ Use port 5432<br/>(not 6543)</div>
+        </div>
+
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Form + inline provider guide panel</h3>
+      <p>Two-column layout: connection fields on the left, provider-specific step-by-step guide on the right. Self-contained — no external links needed.</p>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:16px;">Check http://localhost:50781 — click your preferred form layout, then reply in terminal</p>

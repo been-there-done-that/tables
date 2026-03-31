@@ -1,0 +1,96 @@
+<h2>Provider Picker — Installed indicator options</h2>
+<p class="subtitle">3 visual treatments for "installed" vs "not installed" — no text label needed.</p>
+
+<style>
+  body { font-family: ui-monospace, monospace; }
+  .provider-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 6px; width: 200px;
+  }
+  .tile {
+    display: flex; flex-direction: column; align-items: flex-start;
+    gap: 3px; padding: 9px 10px; border-radius: 7px;
+    cursor: pointer; background: #1a1a1a;
+    transition: all 0.15s;
+  }
+  .tile-row { display: flex; align-items: center; gap: 6px; width: 100%; }
+  .tile-name { font-size: 10.5px; color: #ccc; font-weight: 500; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .dot-claude { background: #f59e0b; }
+  .dot-gemini { background: #3b82f6; }
+  .dot-codex { background: #10b981; }
+  .dot-opencode { background: #f472b6; }
+  .dot-cursor { background: #a78bfa; }
+  .tile.selected .tile-name { color: #f59e0b; }
+
+  /* Option A: green left border for installed, dim border for not */
+  .a .tile { border: 1px solid #222; }
+  .a .tile.installed { border-left: 2px solid #22c55e; }
+  .a .tile.not-installed { opacity: 0.35; cursor: not-allowed; border: 1px solid #1a1a1a; }
+  .a .tile.selected { border-left: 2px solid #f59e0b; }
+
+  /* Option B: subtle green glow/ring for installed */
+  .b .tile { border: 1px solid #222; }
+  .b .tile.installed { border: 1px solid #222; box-shadow: 0 0 0 1px rgba(34,197,94,0.25); }
+  .b .tile.not-installed { opacity: 0.35; cursor: not-allowed; }
+  .b .tile.selected { border: 1px solid #f59e0b; box-shadow: 0 0 0 1px rgba(245,158,11,0.25); }
+
+  /* Option C: small green dot indicator in corner */
+  .c .tile { border: 1px solid #222; position: relative; }
+  .c .tile.installed::after {
+    content: ''; position: absolute; top: 6px; right: 6px;
+    width: 5px; height: 5px; border-radius: 50%; background: #22c55e;
+    box-shadow: 0 0 4px rgba(34,197,94,0.6);
+  }
+  .c .tile.not-installed { opacity: 0.35; cursor: not-allowed; }
+  .c .tile.selected { border: 1px solid #f59e0b; }
+  .c .tile.selected::after { background: #f59e0b; box-shadow: 0 0 4px rgba(245,158,11,0.6); }
+
+  .col { display: flex; flex-direction: column; gap: 8px; }
+  .col-label { font-size: 9px; color: #555; text-transform: uppercase; letter-spacing: .05em; }
+</style>
+
+<div class="options">
+
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Green left border</h3>
+      <p>Installed tiles get a green left accent border. Not installed are dimmed with no border. Clean, minimal.</p>
+      <div class="provider-grid a" style="margin-top:10px">
+        <div class="tile installed selected"><div class="tile-row"><span class="dot dot-claude"></span><span class="tile-name">Claude</span></div></div>
+        <div class="tile installed"><div class="tile-row"><span class="dot dot-gemini"></span><span class="tile-name">Gemini</span></div></div>
+        <div class="tile not-installed"><div class="tile-row"><span class="dot dot-codex"></span><span class="tile-name">Codex</span></div></div>
+        <div class="tile not-installed"><div class="tile-row"><span class="dot dot-opencode"></span><span class="tile-name">OpenCode</span></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Green ring / glow</h3>
+      <p>Installed tiles have a soft green outer ring (box-shadow). Not installed are dimmed. Selection turns ring amber.</p>
+      <div class="provider-grid b" style="margin-top:10px">
+        <div class="tile installed selected"><div class="tile-row"><span class="dot dot-claude"></span><span class="tile-name">Claude</span></div></div>
+        <div class="tile installed"><div class="tile-row"><span class="dot dot-gemini"></span><span class="tile-name">Gemini</span></div></div>
+        <div class="tile not-installed"><div class="tile-row"><span class="dot dot-codex"></span><span class="tile-name">Codex</span></div></div>
+        <div class="tile not-installed"><div class="tile-row"><span class="dot dot-opencode"></span><span class="tile-name">OpenCode</span></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Small green dot in top-right corner</h3>
+      <p>A glowing 5px dot in the corner signals "ready". Not installed are dimmed. Subtle, like a status LED.</p>
+      <div class="provider-grid c" style="margin-top:10px">
+        <div class="tile installed selected"><div class="tile-row"><span class="dot dot-claude"></span><span class="tile-name">Claude</span></div></div>
+        <div class="tile installed"><div class="tile-row"><span class="dot dot-gemini"></span><span class="tile-name">Gemini</span></div></div>
+        <div class="tile not-installed"><div class="tile-row"><span class="dot dot-codex"></span><span class="tile-name">Codex</span></div></div>
+        <div class="tile not-installed"><div class="tile-row"><span class="dot dot-opencode"></span><span class="tile-name">OpenCode</span></div></div>
+      </div>
+    </div>
+  </div>
+
+</div>

@@ -1,0 +1,157 @@
+<h2>PostgreSQL Feature Sprint — Full Design</h2>
+<p class="subtitle">Read-only · Editor tabs for DDL · pgAdmin-style tree & menus · 3 parallel tracks</p>
+
+<div class="section">
+  <div class="label">Track 1 — Explorer Tree Restructure</div>
+  <div style="display:flex;gap:24px;margin-top:12px">
+
+    <div style="flex:1">
+      <div style="font-size:11px;color:#8b949e;margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em">Before</div>
+      <div style="background:#0d1117;border-radius:6px;padding:14px;font-family:monospace;font-size:11px;color:#c9d1d9;line-height:1.8">
+        <div style="color:#58a6ff">▼ my_database</div>
+        <div style="padding-left:14px;color:#79c0ff">▼ public</div>
+        <div style="padding-left:28px">▼ Tables</div>
+        <div style="padding-left:42px;color:#8b949e">users</div>
+        <div style="padding-left:42px;color:#8b949e">orders</div>
+        <div style="padding-left:28px;color:#8b949e">▼ Views</div>
+        <div style="padding-left:42px;color:#8b949e">active_users</div>
+        <div style="padding-left:14px;color:#8b949e">analytics</div>
+      </div>
+    </div>
+
+    <div style="flex:1">
+      <div style="font-size:11px;color:#3fb950;margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em">After</div>
+      <div style="background:#0d1117;border-radius:6px;padding:14px;font-family:monospace;font-size:11px;color:#c9d1d9;line-height:1.8">
+        <div style="color:#58a6ff">▼ my_database</div>
+        <div style="padding-left:14px;color:#79c0ff">▼ public</div>
+        <div style="padding-left:28px">▶ Tables <span style="color:#8b949e">(12)</span></div>
+        <div style="padding-left:28px">▶ Views <span style="color:#8b949e">(4)</span></div>
+        <div style="padding-left:28px">▶ Mat. Views <span style="color:#8b949e">(2)</span></div>
+        <div style="padding-left:28px;color:#3fb950">▶ Functions <span style="color:#8b949e">(8)</span> ✦</div>
+        <div style="padding-left:28px;color:#3fb950">▶ Procedures <span style="color:#8b949e">(2)</span> ✦</div>
+        <div style="padding-left:28px;color:#3fb950">▶ Sequences <span style="color:#8b949e">(5)</span> ✦</div>
+        <div style="padding-left:14px;color:#8b949e">analytics</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="margin-top:10px;background:#0d1117;border-radius:6px;padding:14px;font-family:monospace;font-size:11px;color:#c9d1d9;line-height:1.8">
+    <div style="color:#8b949e;margin-bottom:6px">Table node expanded — enhanced with new sub-nodes:</div>
+    <div style="padding-left:14px">▼ users</div>
+    <div style="padding-left:28px">▶ Columns <span style="color:#8b949e">(8)</span></div>
+    <div style="padding-left:28px">▶ Indexes <span style="color:#8b949e">(3)</span> <span style="color:#3fb950">✦ details</span></div>
+    <div style="padding-left:28px">▶ Constraints <span style="color:#8b949e">(2)</span> <span style="color:#3fb950">✦ CHECK, UNIQUE, EXCLUSION</span></div>
+    <div style="padding-left:28px">▶ Triggers <span style="color:#8b949e">(1)</span> <span style="color:#3fb950">✦ source</span></div>
+    <div style="padding-left:28px">▶ Foreign Keys <span style="color:#8b949e">(2)</span></div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Track 2 — Context Menus (pgAdmin-style, flat)</div>
+  <div style="display:flex;gap:16px;margin-top:12px;flex-wrap:wrap">
+
+    <div style="background:#0d1117;border-radius:6px;padding:12px;min-width:160px">
+      <div style="font-size:10px;color:#8b949e;margin-bottom:8px;text-transform:uppercase">Table</div>
+      <div style="font-size:11px;line-height:2;color:#e6edf3">
+        <div>📋 Copy Name</div>
+        <div>🔍 View Data</div>
+        <div>📄 Open DDL (CREATE TABLE)</div>
+        <div>📑 Copy as SELECT *</div>
+        <div style="border-top:1px solid #30363d;margin:4px 0"></div>
+        <div>🔄 Refresh</div>
+      </div>
+    </div>
+
+    <div style="background:#0d1117;border-radius:6px;padding:12px;min-width:160px">
+      <div style="font-size:10px;color:#8b949e;margin-bottom:8px;text-transform:uppercase">View / Mat. View</div>
+      <div style="font-size:11px;line-height:2;color:#e6edf3">
+        <div>📋 Copy Name</div>
+        <div>🔍 View Data</div>
+        <div>📄 Open Definition</div>
+        <div>📑 Copy as SELECT *</div>
+        <div style="border-top:1px solid #30363d;margin:4px 0"></div>
+        <div>🔄 Refresh</div>
+      </div>
+    </div>
+
+    <div style="background:#0d1117;border-radius:6px;padding:12px;min-width:160px">
+      <div style="font-size:10px;color:#8b949e;margin-bottom:8px;text-transform:uppercase">Function / Procedure</div>
+      <div style="font-size:11px;line-height:2;color:#e6edf3">
+        <div>📋 Copy Name</div>
+        <div>📄 Open Definition</div>
+        <div>📑 Copy Call Signature</div>
+        <div>📑 Copy as CREATE FUNCTION</div>
+      </div>
+    </div>
+
+    <div style="background:#0d1117;border-radius:6px;padding:12px;min-width:160px">
+      <div style="font-size:10px;color:#8b949e;margin-bottom:8px;text-transform:uppercase">Sequence</div>
+      <div style="font-size:11px;line-height:2;color:#e6edf3">
+        <div>📋 Copy Name</div>
+        <div>📄 Open DDL</div>
+        <div>📑 Copy as CREATE SEQUENCE</div>
+      </div>
+    </div>
+
+    <div style="background:#0d1117;border-radius:6px;padding:12px;min-width:160px">
+      <div style="font-size:10px;color:#8b949e;margin-bottom:8px;text-transform:uppercase">Trigger / Index</div>
+      <div style="font-size:11px;line-height:2;color:#e6edf3">
+        <div>📋 Copy Name</div>
+        <div>📄 Open Definition</div>
+        <div>📑 Copy DDL</div>
+      </div>
+    </div>
+
+    <div style="background:#0d1117;border-radius:6px;padding:12px;min-width:160px">
+      <div style="font-size:10px;color:#8b949e;margin-bottom:8px;text-transform:uppercase">Schema</div>
+      <div style="font-size:11px;line-height:2;color:#e6edf3">
+        <div>📋 Copy Name</div>
+        <div>📄 Open DDL</div>
+        <div style="border-top:1px solid #30363d;margin:4px 0"></div>
+        <div>🔄 Refresh Schema</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">Track 3 — DDL Tabs + Backend Introspection</div>
+  <div style="display:flex;gap:16px;margin-top:12px">
+
+    <div style="flex:1;background:#0d1117;border-radius:6px;padding:14px;font-family:monospace;font-size:11px;color:#c9d1d9">
+      <div style="display:flex;gap:6px;font-size:10px;border-bottom:1px solid #30363d;padding-bottom:6px;margin-bottom:8px">
+        <span style="color:#e6edf3;background:#21262d;padding:2px 8px;border-radius:3px 3px 0 0">query.sql</span>
+        <span style="color:#58a6ff;background:#21262d;padding:2px 8px;border-radius:3px 3px 0 0">⚡ get_user_by_id <span style="color:#8b949e;font-size:9px">[read-only]</span></span>
+      </div>
+      <div style="color:#ff7b72">CREATE OR REPLACE FUNCTION</div>
+      <div style="padding-left:12px;color:#e6edf3">public.get_user_by_id(user_id uuid)</div>
+      <div style="color:#ff7b72">RETURNS</div>
+      <div style="padding-left:12px;color:#e6edf3">TABLE(id uuid, email text, created_at timestamptz)</div>
+      <div style="color:#ff7b72">LANGUAGE</div>
+      <div style="padding-left:12px;color:#e6edf3">plpgsql</div>
+      <div style="color:#ff7b72">SECURITY DEFINER AS $$</div>
+      <div style="color:#ff7b72">BEGIN</div>
+      <div style="padding-left:12px;color:#e6edf3">RETURN QUERY</div>
+      <div style="padding-left:24px;color:#e6edf3">SELECT id, email, created_at</div>
+      <div style="padding-left:24px;color:#e6edf3">FROM users WHERE id = user_id;</div>
+      <div style="color:#ff7b72">END; $$</div>
+    </div>
+
+    <div style="flex:1">
+      <div style="font-size:10px;color:#8b949e;margin-bottom:8px;text-transform:uppercase">New Rust introspection</div>
+      <div style="font-size:11px;color:#e6edf3;line-height:2">
+        <div><span style="color:#3fb950">✦</span> <code style="color:#79c0ff">MetaFunction</code> — pg_proc queries</div>
+        <div><span style="color:#3fb950">✦</span> <code style="color:#79c0ff">MetaSequence</code> — pg_sequences</div>
+        <div><span style="color:#3fb950">✦</span> View source — pg_views.definition</div>
+        <div><span style="color:#3fb950">✦</span> Trigger source — pg_trigger + pg_proc</div>
+        <div><span style="color:#3fb950">✦</span> Constraint details — pg_constraint</div>
+        <div><span style="color:#3fb950">✦</span> Index details — pg_index + pg_am</div>
+        <div><span style="color:#3fb950">✦</span> DDL gen — CREATE TABLE/VIEW/FUNCTION/SEQUENCE/TRIGGER/INDEX</div>
+        <div><span style="color:#3fb950">✦</span> New Tauri commands for all object types</div>
+      </div>
+    </div>
+
+  </div>
+</div>

@@ -1,0 +1,120 @@
+<h2>Which tools go into v1?</h2>
+<p class="subtitle">Pick everything you want in the first version — you can select multiple</p>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+
+  <!-- Schema Tools -->
+  <div style="grid-column: 1 / -1;">
+    <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-tertiary); margin-bottom: 10px; padding-left: 2px;">🗂 Schema Exploration</div>
+    <div class="options" data-multiselect style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+      <div class="option" data-choice="list_tables" onclick="toggleSelect(this)" style="padding: 12px 14px; border-radius: 8px;">
+        <div class="content">
+          <h3 style="font-size: 13px; margin: 0 0 2px;"><code>list_tables</code></h3>
+          <p style="font-size: 12px; color: var(--text-secondary); margin: 0;">List all tables in a schema with row counts & types</p>
+        </div>
+      </div>
+      <div class="option" data-choice="describe_table" onclick="toggleSelect(this)" style="padding: 12px 14px; border-radius: 8px;">
+        <div class="content">
+          <h3 style="font-size: 13px; margin: 0 0 2px;"><code>describe_table</code></h3>
+          <p style="font-size: 12px; color: var(--text-secondary); margin: 0;">Full column details, types, nullable, defaults, PKs</p>
+        </div>
+      </div>
+      <div class="option" data-choice="get_indexes" onclick="toggleSelect(this)" style="padding: 12px 14px; border-radius: 8px;">
+        <div class="content">
+          <h3 style="font-size: 13px; margin: 0 0 2px;"><code>get_indexes</code></h3>
+          <p style="font-size: 12px; color: var(--text-secondary); margin: 0;">All indexes on a table (name, columns, unique, type)</p>
+        </div>
+      </div>
+      <div class="option" data-choice="get_foreign_keys" onclick="toggleSelect(this)" style="padding: 12px 14px; border-radius: 8px;">
+        <div class="content">
+          <h3 style="font-size: 13px; margin: 0 0 2px;"><code>get_foreign_keys</code></h3>
+          <p style="font-size: 12px; color: var(--text-secondary); margin: 0;">FK relationships — what references what</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Query Tools -->
+  <div style="grid-column: 1 / -1; margin-top: 8px;">
+    <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-tertiary); margin-bottom: 10px; padding-left: 2px;">⚡ Query Execution</div>
+    <div class="options" data-multiselect style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+      <div class="option" data-choice="run_query" onclick="toggleSelect(this)" style="padding: 12px 14px; border-radius: 8px;">
+        <div class="content">
+          <h3 style="font-size: 13px; margin: 0 0 2px;"><code>run_query</code></h3>
+          <p style="font-size: 12px; color: var(--text-secondary); margin: 0;">Execute any readonly SELECT — agent sees the results</p>
+        </div>
+      </div>
+      <div class="option" data-choice="sample_table" onclick="toggleSelect(this)" style="padding: 12px 14px; border-radius: 8px;">
+        <div class="content">
+          <h3 style="font-size: 13px; margin: 0 0 2px;"><code>sample_table</code></h3>
+          <p style="font-size: 12px; color: var(--text-secondary); margin: 0;">Grab N random rows to understand data shape</p>
+        </div>
+      </div>
+      <div class="option" data-choice="count_rows" onclick="toggleSelect(this)" style="padding: 12px 14px; border-radius: 8px;">
+        <div class="content">
+          <h3 style="font-size: 13px; margin: 0 0 2px;"><code>count_rows</code></h3>
+          <p style="font-size: 12px; color: var(--text-secondary); margin: 0;">Fast COUNT with optional WHERE — good for sanity checks</p>
+        </div>
+      </div>
+      <div class="option" data-choice="explain_query" onclick="toggleSelect(this)" style="padding: 12px 14px; border-radius: 8px;">
+        <div class="content">
+          <h3 style="font-size: 13px; margin: 0 0 2px;"><code>explain_query</code></h3>
+          <p style="font-size: 12px; color: var(--text-secondary); margin: 0;">Run EXPLAIN / EXPLAIN ANALYZE and parse the plan</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Data Profiling -->
+  <div style="grid-column: 1 / -1; margin-top: 8px;">
+    <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-tertiary); margin-bottom: 10px; padding-left: 2px;">📊 Data Profiling</div>
+    <div class="options" data-multiselect style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+      <div class="option" data-choice="column_stats" onclick="toggleSelect(this)" style="padding: 12px 14px; border-radius: 8px;">
+        <div class="content">
+          <h3 style="font-size: 13px; margin: 0 0 2px;"><code>column_stats</code></h3>
+          <p style="font-size: 12px; color: var(--text-secondary); margin: 0;">NULL %, distinct count, min/max/avg for a column</p>
+        </div>
+      </div>
+      <div class="option" data-choice="find_nulls" onclick="toggleSelect(this)" style="padding: 12px 14px; border-radius: 8px;">
+        <div class="content">
+          <h3 style="font-size: 13px; margin: 0 0 2px;"><code>find_nulls</code></h3>
+          <p style="font-size: 12px; color: var(--text-secondary); margin: 0;">Which columns have unexpected NULLs across a table</p>
+        </div>
+      </div>
+      <div class="option" data-choice="get_distinct_values" onclick="toggleSelect(this)" style="padding: 12px 14px; border-radius: 8px;">
+        <div class="content">
+          <h3 style="font-size: 13px; margin: 0 0 2px;"><code>get_distinct_values</code></h3>
+          <p style="font-size: 12px; color: var(--text-secondary); margin: 0;">Top N distinct values for a column — great for enums</p>
+        </div>
+      </div>
+      <div class="option" data-choice="check_fk_integrity" onclick="toggleSelect(this)" style="padding: 12px 14px; border-radius: 8px;">
+        <div class="content">
+          <h3 style="font-size: 13px; margin: 0 0 2px;"><code>check_fk_integrity</code></h3>
+          <p style="font-size: 12px; color: var(--text-secondary); margin: 0;">Find orphaned FK rows — data quality check</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Editor Integration -->
+  <div style="grid-column: 1 / -1; margin-top: 8px;">
+    <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-tertiary); margin-bottom: 10px; padding-left: 2px;">🔗 Editor Integration</div>
+    <div class="options" data-multiselect style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+      <div class="option" data-choice="open_in_editor" onclick="toggleSelect(this)" style="padding: 12px 14px; border-radius: 8px;">
+        <div class="content">
+          <h3 style="font-size: 13px; margin: 0 0 2px;"><code>open_in_editor</code></h3>
+          <p style="font-size: 12px; color: var(--text-secondary); margin: 0;">Push a SQL query into a new editor tab</p>
+        </div>
+      </div>
+      <div class="option" data-choice="get_query_history" onclick="toggleSelect(this)" style="padding: 12px 14px; border-radius: 8px;">
+        <div class="content">
+          <h3 style="font-size: 13px; margin: 0 0 2px;"><code>get_query_history</code></h3>
+          <p style="font-size: 12px; color: var(--text-secondary); margin: 0;">Fetch recent queries run in the editor — agent learns from your work</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<p style="text-align: center; margin-top: 20px; font-size: 13px; color: var(--text-tertiary);">Multi-select — pick as many as you want for v1. Click to select.</p>

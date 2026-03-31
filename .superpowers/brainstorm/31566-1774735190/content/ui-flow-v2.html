@@ -1,0 +1,107 @@
+<h2>Updater UI — Theme-Token Version</h2>
+<p class="subtitle">All colors now use CSS custom properties from app.css — adapts to any theme</p>
+
+<div style="display:flex;flex-direction:column;gap:24px;margin-top:8px">
+
+  <!-- State 2: Update available chip -->
+  <div class="mockup">
+    <div class="mockup-header">State 2 — Update available chip (uses --theme-accent-primary)</div>
+    <div class="mockup-body" style="padding:0">
+      <div style="background:var(--theme-bg-primary);border-radius:6px;overflow:hidden;border:1px solid var(--theme-border-default)">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 14px;background:var(--theme-bg-primary);border-bottom:1px solid var(--theme-border-subtle)">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="width:12px;height:12px;border-radius:50%;background:#ff5f57"></div>
+            <div style="width:12px;height:12px;border-radius:50%;background:#febc2e"></div>
+            <div style="width:12px;height:12px;border-radius:50%;background:#28c840"></div>
+          </div>
+          <div style="font-size:12px;color:var(--theme-fg-tertiary);font-family:monospace">Tables — v0.2.0</div>
+          <!-- Chip: available -->
+          <div style="display:flex;align-items:center;gap:5px;background:color-mix(in srgb, var(--theme-accent-primary) 15%, transparent);border:1px solid color-mix(in srgb, var(--theme-accent-primary) 40%, transparent);border-radius:99px;padding:2px 9px;cursor:pointer;-webkit-app-region:no-drag">
+            <div style="width:6px;height:6px;border-radius:50%;background:var(--theme-accent-primary)"></div>
+            <span style="font-size:11px;color:var(--theme-accent-primary);font-weight:500">v0.3.0 available</span>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;padding:5px 12px;background:var(--theme-bg-secondary);border-bottom:1px solid var(--theme-border-subtle);font-size:12px;color:var(--theme-fg-tertiary)">
+          <span>Explorer</span><span style="margin:0 8px;opacity:0.3">|</span><span>Untitled query</span>
+        </div>
+        <!-- Toast -->
+        <div style="position:relative;height:56px">
+          <div style="position:absolute;bottom:8px;right:12px;background:var(--theme-bg-secondary);border:1px solid var(--theme-border-default);border-radius:8px;padding:8px 12px;font-size:11px;max-width:240px;box-shadow:0 4px 12px rgba(0,0,0,0.3)">
+            <div style="font-weight:600;color:var(--theme-fg-primary);margin-bottom:2px">Tables v0.3.0 is available</div>
+            <div style="color:var(--theme-fg-tertiary)">Click the chip to update.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- State 3: Downloading -->
+  <div class="mockup">
+    <div class="mockup-header">State 3 — Downloading (progress bar + spinner chip)</div>
+    <div class="mockup-body" style="padding:0">
+      <div style="background:var(--theme-bg-primary);border-radius:6px;overflow:hidden;border:1px solid var(--theme-border-default)">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 14px;background:var(--theme-bg-primary);border-bottom:1px solid var(--theme-border-subtle)">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="width:12px;height:12px;border-radius:50%;background:#ff5f57"></div>
+            <div style="width:12px;height:12px;border-radius:50%;background:#febc2e"></div>
+            <div style="width:12px;height:12px;border-radius:50%;background:#28c840"></div>
+          </div>
+          <div style="font-size:12px;color:var(--theme-fg-tertiary);font-family:monospace">Tables — v0.2.0</div>
+          <div style="display:flex;align-items:center;gap:5px;background:color-mix(in srgb, var(--theme-accent-primary) 15%, transparent);border:1px solid color-mix(in srgb, var(--theme-accent-primary) 40%, transparent);border-radius:99px;padding:2px 9px;-webkit-app-region:no-drag">
+            <div style="width:8px;height:8px;border-radius:50%;border:1.5px solid var(--theme-accent-primary);border-top-color:transparent;animation:spin 0.8s linear infinite"></div>
+            <span style="font-size:11px;color:var(--theme-accent-primary);font-weight:500">Downloading… 62%</span>
+          </div>
+        </div>
+        <div style="background:var(--theme-bg-secondary)">
+          <div style="display:flex;align-items:center;padding:5px 12px;font-size:12px;color:var(--theme-fg-tertiary)">
+            <span>Explorer</span><span style="margin:0 8px;opacity:0.3">|</span><span>Untitled query</span>
+          </div>
+          <!-- Progress bar using accent token -->
+          <div style="height:2px;background:var(--theme-border-subtle)">
+            <div style="height:100%;width:62%;background:var(--theme-accent-primary);border-radius:0 2px 2px 0;transition:width 0.3s"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- State 4: Ready to restart -->
+  <div class="mockup">
+    <div class="mockup-header">State 4 — Ready to install (reuses --chip-result-* tokens = green on dark, adapts on light)</div>
+    <div class="mockup-body" style="padding:0">
+      <div style="background:var(--theme-bg-primary);border-radius:6px;overflow:hidden;border:1px solid var(--theme-border-default)">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 14px;background:var(--theme-bg-primary);border-bottom:1px solid var(--theme-border-subtle)">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="width:12px;height:12px;border-radius:50%;background:#ff5f57"></div>
+            <div style="width:12px;height:12px;border-radius:50%;background:#febc2e"></div>
+            <div style="width:12px;height:12px;border-radius:50%;background:#28c840"></div>
+          </div>
+          <div style="font-size:12px;color:var(--theme-fg-tertiary);font-family:monospace">Tables — v0.2.0</div>
+          <!-- Restart chip — uses chip-result tokens (same as agent "result" chip) -->
+          <div style="display:flex;align-items:center;gap:5px;background:var(--chip-result-bg);border:1px solid var(--chip-result-border);border-radius:99px;padding:2px 9px;cursor:pointer;-webkit-app-region:no-drag">
+            <div style="width:6px;height:6px;border-radius:50%;background:var(--chip-result-color)"></div>
+            <span style="font-size:11px;color:var(--chip-result-color);font-weight:500">Restart to install</span>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;padding:5px 12px;background:var(--theme-bg-secondary);border-bottom:1px solid var(--theme-border-subtle);font-size:12px;color:var(--theme-fg-tertiary)">
+          <span>Explorer</span><span style="margin:0 8px;opacity:0.3">|</span><span>Untitled query</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section" style="background:var(--theme-bg-secondary);border:1px solid var(--theme-border-default);border-radius:8px;padding:14px 16px">
+    <div class="label">Token mapping</div>
+    <table style="width:100%;font-size:12px;border-collapse:collapse;margin-top:8px">
+      <tr style="color:var(--theme-fg-tertiary)"><th style="text-align:left;padding:4px 8px">State</th><th style="text-align:left;padding:4px 8px">Color</th><th style="text-align:left;padding:4px 8px">Background</th><th style="text-align:left;padding:4px 8px">Border</th></tr>
+      <tr style="border-top:1px solid var(--theme-border-subtle)"><td style="padding:4px 8px;color:var(--theme-fg-primary)">Available</td><td style="padding:4px 8px;color:var(--theme-fg-secondary);font-family:monospace;font-size:11px">--theme-accent-primary</td><td style="padding:4px 8px;color:var(--theme-fg-secondary);font-family:monospace;font-size:11px">accent @ 15%</td><td style="padding:4px 8px;color:var(--theme-fg-secondary);font-family:monospace;font-size:11px">accent @ 40%</td></tr>
+      <tr style="border-top:1px solid var(--theme-border-subtle)"><td style="padding:4px 8px;color:var(--theme-fg-primary)">Downloading</td><td style="padding:4px 8px;color:var(--theme-fg-secondary);font-family:monospace;font-size:11px">--theme-accent-primary</td><td style="padding:4px 8px;color:var(--theme-fg-secondary);font-family:monospace;font-size:11px">accent @ 15%</td><td style="padding:4px 8px;color:var(--theme-fg-secondary);font-family:monospace;font-size:11px">accent @ 40%</td></tr>
+      <tr style="border-top:1px solid var(--theme-border-subtle)"><td style="padding:4px 8px;color:var(--theme-fg-primary)">Ready</td><td style="padding:4px 8px;color:var(--theme-fg-secondary);font-family:monospace;font-size:11px">--chip-result-color</td><td style="padding:4px 8px;color:var(--theme-fg-secondary);font-family:monospace;font-size:11px">--chip-result-bg</td><td style="padding:4px 8px;color:var(--theme-fg-secondary);font-family:monospace;font-size:11px">--chip-result-border</td></tr>
+      <tr style="border-top:1px solid var(--theme-border-subtle)"><td style="padding:4px 8px;color:var(--theme-fg-primary)">Progress bar</td><td colspan="3" style="padding:4px 8px;color:var(--theme-fg-secondary);font-family:monospace;font-size:11px">--theme-accent-primary (fill) / --theme-border-subtle (track)</td></tr>
+    </table>
+  </div>
+</div>
+
+<style>
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
