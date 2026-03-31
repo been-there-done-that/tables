@@ -456,32 +456,54 @@ pub async fn get_current_statement(
     cursor_offset: usize
 ) -> Result<Option<StatementRange>, String> {
     let result = tokio::task::spawn_blocking(move || {
-        let statements = sql_scope::split_statements(&text);
-        for (offset, stmt) in &statements {
-            let end_byte = offset + stmt.len();
-            // Cursor is inside the statement text
-            if cursor_offset >= *offset && cursor_offset <= end_byte {
-                return Some(StatementRange {
-                    start_line: byte_offset_to_line(&text, *offset),
-                    end_line: byte_offset_to_line(&text, end_byte),
-                });
-            }
-            // Cursor is just after the statement (at semicolon or trailing space) — same line
-            if cursor_offset > end_byte {
-                let gap_end = cursor_offset.min(text.len());
-                let gap = &text[end_byte..gap_end];
-                if !gap.contains('\n') && gap.len() <= 3 {
-                    return Some(StatementRange {
-                        start_line: byte_offset_to_line(&text, *offset),
-                        end_line: byte_offset_to_line(&text, end_byte),
-                    });
-                }
-            }
-        }
-        None
+        find_statement_at_cursor(&text, cursor_offset)
     }).await.map_err(|e| e.to_string())?;
 
     Ok(result)
+}
+
+/// Core logic for get_current_statement — extracted for unit testing.
+fn find_statement_at_cursor(text: &str, cursor_offset: usize) -> Option<StatementRange> {
+    let statements = sql_scope::split_statements(text);
+    for (offset, stmt) in &statements {
+        let end_byte = offset + stmt.len();
+        // Cursor is inside the statement text
+        if cursor_offset >= *offset && cursor_offset <= end_byte {
+            return Some(StatementRange {
+                start_line: byte_offset_to_line(text, *offset),
+                end_line: byte_offset_to_line(text, end_byte),
+            });
+        }
+        // Cursor is just after the statement (at semicolon or trailing space) — same line
+        if cursor_offset > end_byte {
+            let gap_end = cursor_offset.min(text.len());
+            let gap = &text[end_byte..gap_end];
+            if !gap.contains('\n') && gap.len() <= 3 {
+                return Some(StatementRange {
+                    start_line: byte_offset_to_line(text, *offset),
+                    end_line: byte_offset_to_line(text, end_byte),
+                });
+            }
+        }
+    }
+    None
+}
+
+/// Core logic for get_all_statements — extracted for unit testing.
+fn all_statement_ranges(text: &str) -> Vec<StatementRangeWithBytes> {
+    sql_scope::split_statements(text)
+        .into_iter()
+        .filter_map(|(offset, stmt)| {
+            if stmt.trim().is_empty() { return None; }
+            let end_byte = offset + stmt.len();
+            Some(StatementRangeWithBytes {
+                start_line: byte_offset_to_line(text, offset),
+                end_line: byte_offset_to_line(text, end_byte),
+                start_byte: offset,
+                end_byte,
+            })
+        })
+        .collect()
 }
 
 fn byte_offset_to_line(text: &str, byte_offset: usize) -> u32 {
@@ -526,19 +548,7 @@ pub async fn get_all_statements(
     text: String,
 ) -> Result<Vec<StatementRangeWithBytes>, String> {
     let result = tokio::task::spawn_blocking(move || {
-        sql_scope::split_statements(&text)
-            .into_iter()
-            .filter_map(|(offset, stmt)| {
-                if stmt.trim().is_empty() { return None; }
-                let end_byte = offset + stmt.len();
-                Some(StatementRangeWithBytes {
-                    start_line: byte_offset_to_line(&text, offset),
-                    end_line: byte_offset_to_line(&text, end_byte),
-                    start_byte: offset,
-                    end_byte,
-                })
-            })
-            .collect()
+        all_statement_ranges(&text)
     }).await.map_err(|e| e.to_string())?;
 
     Ok(result)
@@ -554,5 +564,109 @@ mod wire_tests {
         assert!(matches!(dialect_to_sql_scope(Dialect::Postgres), sql_scope::Dialect::Postgres));
         assert!(matches!(dialect_to_sql_scope(Dialect::SQLite), sql_scope::Dialect::Sqlite));
         assert!(matches!(dialect_to_sql_scope(Dialect::MySQL), sql_scope::Dialect::Mysql));
+    }
+
+    // ── byte_offset_to_line ──────────────────────────────────────────────────
+
+    #[test]
+    fn line_single_line() {
+        assert_eq!(byte_offset_to_line("SELECT 1", 0), 1);
+        assert_eq!(byte_offset_to_line("SELECT 1", 8), 1);
+    }
+
+    #[test]
+    fn line_multiline() {
+        let text = "SELECT 1;\nSELECT 2;";
+        // offset 10 is the 'S' of SELECT 2
+        assert_eq!(byte_offset_to_line(text, 10), 2);
+    }
+
+    #[test]
+    fn line_clamps_past_end() {
+        assert_eq!(byte_offset_to_line("abc", 999), 1);
+    }
+
+    // ── find_statement_at_cursor ─────────────────────────────────────────────
+
+    // Helper: place '|' in sql to mark cursor position, return (sql_without_pipe, cursor_offset)
+    fn cursor(sql: &str) -> (String, usize) {
+        let pos = sql.find('|').expect("no | in sql");
+        (sql.replacen('|', "", 1), pos)
+    }
+
+    #[test]
+    fn cursor_inside_single_statement() {
+        let (sql, cur) = cursor("SELEC|T 1");
+        let r = find_statement_at_cursor(&sql, cur).unwrap();
+        assert_eq!(r.start_line, 1);
+        assert_eq!(r.end_line, 1);
+    }
+
+    #[test]
+    fn cursor_at_semicolon_returns_statement() {
+        // Cursor right after text, before semicolon
+        let (sql, cur) = cursor("SELECT 1|;");
+        let r = find_statement_at_cursor(&sql, cur).unwrap();
+        assert_eq!(r.start_line, 1);
+    }
+
+    #[test]
+    fn cursor_on_second_statement() {
+        let (sql, cur) = cursor("SELECT 1;\nSELEC|T 2");
+        let r = find_statement_at_cursor(&sql, cur).unwrap();
+        assert_eq!(r.start_line, 2);
+    }
+
+    #[test]
+    fn cursor_on_blank_line_between_statements_returns_none() {
+        let (sql, cur) = cursor("SELECT 1;\n\n|\nSELECT 2;");
+        assert!(find_statement_at_cursor(&sql, cur).is_none());
+    }
+
+    /// Regression: ANALYZE schema.table — the original bug that caused both
+    /// statements to execute when only one was intended.
+    #[test]
+    fn cursor_analyze_schema_table_first_statement() {
+        let (sql, cur) = cursor("ANALYZE produc|tion.action_item;\n\n\nANALYZE production.template_tasks;");
+        let r = find_statement_at_cursor(&sql, cur).unwrap();
+        assert_eq!(r.start_line, 1, "should be first ANALYZE statement");
+        assert_eq!(r.end_line, 1);
+    }
+
+    #[test]
+    fn cursor_analyze_schema_table_second_statement() {
+        let (sql, cur) = cursor("ANALYZE production.action_item;\n\n\nANALYZE production.templat|e_tasks;");
+        let r = find_statement_at_cursor(&sql, cur).unwrap();
+        assert_eq!(r.start_line, 4, "should be second ANALYZE statement");
+        assert_eq!(r.end_line, 4);
+    }
+
+    // ── all_statement_ranges ─────────────────────────────────────────────────
+
+    #[test]
+    fn all_ranges_two_analyze_statements() {
+        let sql = "ANALYZE production.action_item;\n\n\nANALYZE production.template_tasks;";
+        let ranges = all_statement_ranges(sql);
+        assert_eq!(ranges.len(), 2, "should detect two separate statements");
+        assert_eq!(ranges[0].start_line, 1);
+        assert_eq!(ranges[1].start_line, 4);
+    }
+
+    #[test]
+    fn all_ranges_byte_offsets_correct() {
+        let sql = "SELECT 1;\nSELECT 2;";
+        let ranges = all_statement_ranges(sql);
+        assert_eq!(ranges.len(), 2);
+        assert_eq!(&sql[ranges[0].start_byte..ranges[0].end_byte], "SELECT 1");
+        assert_eq!(&sql[ranges[1].start_byte..ranges[1].end_byte], "SELECT 2");
+    }
+
+    #[test]
+    fn all_ranges_schema_qualified_analyze_byte_offsets() {
+        let sql = "ANALYZE production.action_item;\n\nANALYZE production.template_tasks;";
+        let ranges = all_statement_ranges(sql);
+        assert_eq!(ranges.len(), 2);
+        assert_eq!(&sql[ranges[0].start_byte..ranges[0].end_byte], "ANALYZE production.action_item");
+        assert_eq!(&sql[ranges[1].start_byte..ranges[1].end_byte], "ANALYZE production.template_tasks");
     }
 }
