@@ -78,7 +78,7 @@
                             "border-r border-border/50 relative group outline-none focus:outline-none",
                             view.id === activeViewId
                                 ? "bg-background text-foreground"
-                                : "text-muted-foreground hover:bg-background/50 hover:text-foreground",
+                                : "text-muted-foreground hover:bg-accent/30 hover:text-foreground",
                         )}
                         onclick={() => handleTabClick(view.id)}
                         oncontextmenu={() => {
@@ -136,7 +136,7 @@
 
                         {#if view.id === activeViewId}
                             <div
-                                class="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"
+                                class="absolute bottom-0 left-0 right-0 h-[2px] bg-primary opacity-90"
                             ></div>
                         {/if}
                     </button>

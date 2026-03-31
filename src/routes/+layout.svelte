@@ -92,7 +92,7 @@
 		</div>
 	</div>
 
-	<Toaster position="bottom-right" visibleToasts={40} expand={true}>
+	<Toaster position="bottom-right" visibleToasts={40} expand={true} theme="dark" toastOptions={{ style: "background: hsl(var(--background)); color: hsl(var(--foreground)); border: 1px solid hsl(var(--border));" }}>
 		{#snippet successIcon()}
 			<SuccessIcon />
 		{/snippet}
