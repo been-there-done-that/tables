@@ -20,7 +20,7 @@ use crate::completion::context::Context;
 use crate::completion::items::{CompletionItem, CompletionKind};
 use crate::completion::document::Dialect;
 use crate::completion::engines::create_engine;
-use crate::completion::ranges::{find_current_statement_range, find_all_statement_ranges, StatementRange, StatementRangeWithBytes};
+use crate::completion::ranges::{find_all_statement_ranges, StatementRange, StatementRangeWithBytes};
 use crate::completion::diagnostics::{Diagnostic, DiagnosticEngine};
 use crate::completion::scope_builder::build_scope_tree;
 
@@ -449,17 +449,44 @@ pub async fn request_completions(
 }
 
 /// Find the range of the current SQL statement at the cursor.
+/// Uses sql_scope::split_statements (semicolon-aware) for accurate boundary detection.
 #[tauri::command]
 pub async fn get_current_statement(
     text: String,
     cursor_offset: usize
 ) -> Result<Option<StatementRange>, String> {
     let result = tokio::task::spawn_blocking(move || {
-        let tree = parse_sql(&text, None);
-        tree.as_ref().and_then(|t| find_current_statement_range(t, &text, cursor_offset))
+        let statements = sql_scope::split_statements(&text);
+        for (offset, stmt) in &statements {
+            let end_byte = offset + stmt.len();
+            // Cursor is inside the statement text
+            if cursor_offset >= *offset && cursor_offset <= end_byte {
+                return Some(StatementRange {
+                    start_line: byte_offset_to_line(&text, *offset),
+                    end_line: byte_offset_to_line(&text, end_byte),
+                });
+            }
+            // Cursor is just after the statement (at semicolon or trailing space) — same line
+            if cursor_offset > end_byte {
+                let gap_end = cursor_offset.min(text.len());
+                let gap = &text[end_byte..gap_end];
+                if !gap.contains('\n') && gap.len() <= 3 {
+                    return Some(StatementRange {
+                        start_line: byte_offset_to_line(&text, *offset),
+                        end_line: byte_offset_to_line(&text, end_byte),
+                    });
+                }
+            }
+        }
+        None
     }).await.map_err(|e| e.to_string())?;
 
     Ok(result)
+}
+
+fn byte_offset_to_line(text: &str, byte_offset: usize) -> u32 {
+    let end = byte_offset.min(text.len());
+    text[..end].bytes().filter(|&b| b == b'\n').count() as u32 + 1
 }
 
 /// Request SQL diagnostics (syntax and semantic errors).
@@ -497,13 +524,25 @@ pub async fn request_diagnostics(
 
 /// Get all SQL statement ranges in the document.
 /// Used for CodeLens/glyph margin to show run buttons on each query.
+/// Uses sql_scope::split_statements (semicolon-aware) for accurate boundary detection.
 #[tauri::command]
 pub async fn get_all_statements(
     text: String,
 ) -> Result<Vec<StatementRangeWithBytes>, String> {
     let result = tokio::task::spawn_blocking(move || {
-        let tree = parse_sql(&text, None);
-        tree.map(|t| find_all_statement_ranges(&t, &text)).unwrap_or_default()
+        sql_scope::split_statements(&text)
+            .into_iter()
+            .filter_map(|(offset, stmt)| {
+                if stmt.trim().is_empty() { return None; }
+                let end_byte = offset + stmt.len();
+                Some(StatementRangeWithBytes {
+                    start_line: byte_offset_to_line(&text, offset),
+                    end_line: byte_offset_to_line(&text, end_byte),
+                    start_byte: offset,
+                    end_byte,
+                })
+            })
+            .collect()
     }).await.map_err(|e| e.to_string())?;
 
     Ok(result)

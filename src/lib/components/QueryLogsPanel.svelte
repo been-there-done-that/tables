@@ -251,16 +251,17 @@
                                         onclick={(e) => {
                                             e.stopPropagation();
                                             if (log.id === undefined) return;
-                                            navigator.clipboard.writeText(
-                                                log.query,
-                                            );
+                                            const text = log.error
+                                                ? `${log.query}\n\n-- Error: ${log.error}`
+                                                : log.query;
+                                            navigator.clipboard.writeText(text);
                                             copiedId = log.id;
                                             setTimeout(
                                                 () => (copiedId = null),
                                                 2000,
                                             );
                                         }}
-                                        title="Copy Query"
+                                        title="Copy Query & Error"
                                     >
                                         {#if log.id !== undefined && copiedId === log.id}
                                             <IconCheck
