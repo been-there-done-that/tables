@@ -336,6 +336,7 @@ macro_rules! aggregate_plugin_commands {
 
             // Export commands
             cancel_export,
+            start_export,
 
         ]
     };
