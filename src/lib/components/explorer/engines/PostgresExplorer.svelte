@@ -375,8 +375,8 @@
     function handleExplorerAction(node: TreeNode) {
         if (!activeSession) return;
 
-        if (node.type === "table" || node.type === "view") {
-            // Tables and views → open data preview
+        if (node.type === "table") {
+            // Tables → open data preview
             const metadata = node.metadata as
                 | { dbName: string; schemaName: string; tableName: string }
                 | undefined;
@@ -387,14 +387,15 @@
                 connectionId: schemaStore.activeConnection?.id,
             });
         } else if (
+            node.type === "view" ||
+            node.type === "materialized_view" ||
             node.type === "function" ||
             node.type === "procedure" ||
             node.type === "trigger" ||
             node.type === "index" ||
-            node.type === "sequence" ||
-            node.type === "materialized_view"
+            node.type === "sequence"
         ) {
-            // DDL-only objects → open definition in editor on single click
+            // DDL-viewable objects → open definition in editor on single click
             openDdlForNode(node, activeSession);
         } else if (
             node.type === "column" ||

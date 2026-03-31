@@ -15,6 +15,7 @@
         IconLoader2,
         IconArrowBackUp,
         IconArrowForwardUp,
+        IconLock,
     } from "@tabler/icons-svelte";
     import IconBolt from "@tabler/icons-svelte/icons/bolt";
     import { schemaStore } from "$lib/stores/schema.svelte";
@@ -25,6 +26,7 @@
         activeSchema?: string;
         viewData?: any; // View data containing databaseContext
         showAll?: boolean;
+        isReadOnly?: boolean;
         onToggleShowAll?: () => void;
         onExecute: () => void;
         onStop: () => void;
@@ -42,6 +44,7 @@
         activeSchema = "public",
         viewData,
         showAll,
+        isReadOnly = false,
         onToggleShowAll,
         onExecute,
         onStop,
@@ -75,35 +78,35 @@
             <Button
                 variant="ghost"
                 size="sm"
-                class="h-7 px-2 flex items-center gap-1.5 text-red-500 hover:bg-red-500/10 transition-colors"
+                class="h-6 px-2.5 flex items-center gap-1 rounded-full text-red-500 hover:bg-red-500/10 shadow-sm transition-colors"
                 onclick={onStop}
                 title="Stop Execution (Esc)"
             >
-                <IconPlayerStopFilled class="size-4" />
-                <span class="text-xs font-semibold">Stop</span>
+                <IconPlayerStopFilled class="size-3.5" />
+                <span class="text-[11px] font-semibold">Stop</span>
             </Button>
         {:else}
             <Button
                 variant="ghost"
                 size="sm"
-                class="h-7 px-3 flex items-center gap-1.5 hover:bg-green-500/10 hover:text-green-500 transition-colors"
+                class="h-6 px-2.5 flex items-center gap-1 rounded-full bg-green-500/10 text-green-600 hover:bg-green-500/20 hover:text-green-500 shadow-sm transition-colors"
                 onclick={onExecute}
-                title="Run (Cmd+Enter)"
+                title="Run (Cmd+↵)"
             >
-                <IconPlayerPlayFilled class="size-4 text-green-500" />
-                <span class="text-xs font-semibold">Run</span>
+                <IconPlayerPlayFilled class="size-3.5 text-green-500" />
+                <span class="text-[11px] font-semibold">Run</span>
             </Button>
         {/if}
 
         <Button
             variant="ghost"
             size="sm"
-            class="h-7 px-2.5 flex items-center gap-1.5 text-orange-400/80 hover:text-orange-400 hover:bg-orange-500/10 transition-colors"
+            class="h-6 px-2 flex items-center gap-1 rounded-md text-orange-400/80 hover:text-orange-400 hover:bg-orange-500/10 shadow-sm transition-colors"
             onclick={() => onExplain(false)}
             title="Explain Query (Cmd+Shift+E)"
         >
             <IconBolt class="size-3.5" />
-            <span class="text-xs font-medium">Explain</span>
+            <span class="text-[11px] font-medium">Explain</span>
         </Button>
 
         <div class="w-px h-4 bg-border/40 mx-1"></div>
@@ -112,21 +115,23 @@
         <Button
             variant="ghost"
             size="sm"
-            class="h-7 w-7 p-0 flex items-center justify-center opacity-70 hover:opacity-100"
+            class="h-6 px-2 flex items-center gap-1 rounded-md opacity-70 hover:opacity-100 shadow-sm"
             onclick={onFormat}
             title="Format SQL (Shift+Alt+F)"
         >
-            <IconCode class="size-4" />
+            <IconCode class="size-3.5" />
+            <span class="text-[11px] font-medium">Format</span>
         </Button>
 
         <Button
             variant="ghost"
             size="sm"
-            class="h-7 w-7 p-0 flex items-center justify-center opacity-70 hover:opacity-100 text-muted-foreground hover:text-foreground"
+            class="h-6 px-2 flex items-center gap-1 rounded-md opacity-70 hover:opacity-100 text-muted-foreground hover:text-foreground shadow-sm"
             onclick={onClear}
             title="Clear Editor"
         >
-            <IconClearAll class="size-4" />
+            <IconClearAll class="size-3.5" />
+            <span class="text-[11px] font-medium">Clear</span>
         </Button>
 
         <div class="w-px h-4 bg-border/40 mx-1"></div>
@@ -135,25 +140,25 @@
         <Button
             variant="ghost"
             size="sm"
-            class="h-7 w-7 p-0 flex items-center justify-center opacity-70 hover:opacity-100"
+            class="h-6 w-6 p-0 flex items-center justify-center rounded-md opacity-70 hover:opacity-100"
             onclick={onUndo}
             title="Undo (Cmd+Z)"
         >
-            <IconArrowBackUp class="size-4" />
+            <IconArrowBackUp class="size-3.5" />
         </Button>
 
         <Button
             variant="ghost"
             size="sm"
-            class="h-7 w-7 p-0 flex items-center justify-center opacity-70 hover:opacity-100"
+            class="h-6 w-6 p-0 flex items-center justify-center rounded-md opacity-70 hover:opacity-100"
             onclick={onRedo}
             title="Redo (Cmd+Shift+Z)"
         >
-            <IconArrowForwardUp class="size-4" />
+            <IconArrowForwardUp class="size-3.5" />
         </Button>
     </div>
 
-    <div class="flex items-center gap-3">
+    <div class="flex items-center gap-2">
         <!-- Execution Time -->
         {#if executionTime > 0 || isRunning}
             <div
@@ -172,6 +177,16 @@
                 {/if}
             </div>
             <div class="w-px h-4 bg-border/40"></div>
+        {/if}
+
+        <!-- Read-only lock indicator -->
+        {#if isReadOnly}
+            <div
+                class="flex items-center gap-1 text-[10px] text-muted-foreground/70"
+                title="Read-only — DDL view"
+            >
+                <IconLock class="size-3" />
+            </div>
         {/if}
 
         <!-- Schema Picker -->
