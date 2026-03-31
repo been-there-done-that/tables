@@ -126,7 +126,7 @@ export interface SelectionBounds {
     right: number;
 }
 
-export type ClipboardFormat = "tsv" | "csv" | "json";
+export type ClipboardFormat = import("./copyFormats").CopyFormat;
 
 export interface TableQueryContext {
     tableName?: string;

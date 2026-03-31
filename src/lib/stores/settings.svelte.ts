@@ -40,6 +40,7 @@ export interface Settings {
     googleCachedModels: CachedModel[];
     openrouterCachedModels: CachedModel[];
     lastActiveThreadId: string | null;
+    copyFormat: import("../components/table/copyFormats").CopyFormat;
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -70,6 +71,7 @@ const DEFAULT_SETTINGS: Settings = {
     googleCachedModels: [],
     openrouterCachedModels: [],
     lastActiveThreadId: null,
+    copyFormat: "plain",
 };
 
 function createSettingsStore() {
@@ -196,6 +198,14 @@ function createSettingsStore() {
         set lastActiveThreadId(v: string | null) {
             settings.lastActiveThreadId = v;
             commandClient.updateAppSetting("last_active_thread_id", v ?? "");
+        },
+
+        get copyFormat(): import("../components/table/copyFormats").CopyFormat {
+            return settings.copyFormat;
+        },
+        set copyFormat(v: import("../components/table/copyFormats").CopyFormat) {
+            settings.copyFormat = v;
+            commandClient.updateAppSetting("copy_format", v);
         },
 
         // Run button visibility
@@ -504,6 +514,9 @@ function createSettingsStore() {
                         return;
                     case "last_active_thread_id":
                         settings.lastActiveThreadId = value || null;
+                        return;
+                    case "copy_format":
+                        settings.copyFormat = value as import("../components/table/copyFormats").CopyFormat;
                         return;
                 }
 
