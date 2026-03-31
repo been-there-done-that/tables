@@ -37,11 +37,7 @@ export interface CopyOptions {
 
 // --- helpers ---
 
-const NUMERIC_TYPES = new Set([
-    "int", "integer", "smallint", "bigint", "serial", "bigserial",
-    "float", "float4", "float8", "double", "double precision",
-    "real", "numeric", "decimal", "number",
-]);
+const NUMERIC_TYPES = new Set(["int", "float"]);
 
 function isNumeric(col: CopyColumn): boolean {
     return NUMERIC_TYPES.has((col.type ?? "").toLowerCase());
@@ -140,7 +136,7 @@ export function formatForCopy(
         }
 
         case "sql_insert": {
-            const colNames = columns.map((c) => c.label).join(", ");
+            const colNames = columns.map((c) => `"${c.label}"`).join(", ");
             return rows
                 .map((r) => {
                     const vals = columns.map((c) => sqlQuote(r[c.id], c)).join(", ");
@@ -165,15 +161,15 @@ export function formatForCopy(
                 columns
                     .map((c) => {
                         const v = r[c.id];
-                        if (v === null || v === undefined) return `${c.label} IS NULL`;
-                        return `${c.label} = ${sqlQuote(v, c)}`;
+                        if (v === null || v === undefined) return `"${c.label}" IS NULL`;
+                        return `"${c.label}" = ${sqlQuote(v, c)}`;
                     })
                     .join(" AND ");
 
             if (rows.length === 1) {
                 return `WHERE ${rowCondition(rows[0])}`;
             }
-            return rows.map((r) => `(${rowCondition(r)})`).join(" OR ");
+            return `WHERE ${rows.map((r) => `(${rowCondition(r)})`).join("\nOR ")}`;
         }
 
         case "sql_in": {
