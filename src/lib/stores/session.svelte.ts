@@ -84,6 +84,7 @@ export class Session {
 
         // Capture database context for both editors and tables
         if (type === "editor" || type === "table") {
+            data = data ?? {};
             data.databaseContext = data.databaseName || schemaStore.selectedDatabase;
         }
 
