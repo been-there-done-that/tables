@@ -180,7 +180,7 @@ import IconSettings from "@tabler/icons-svelte/icons/settings";
         <UpdateChip />
         {#if !["datasource-window", "appearance-window", "feedback-window"].includes(windowState.label)}
           <button
-            class="flex flex-col items-center justify-center gap-0.5 h-7 w-8 rounded-md border transition-all hover:bg-(--theme-bg-hover) border-transparent"
+            class="inline-flex flex-col items-center justify-center gap-0.5 h-7 min-w-[2rem] px-2 rounded-md border border-border bg-background shadow-sm transition-colors hover:bg-accent hover:text-foreground text-muted-foreground"
             onclick={async () => {
               try {
                 await invoke("create_new_window");
@@ -196,10 +196,10 @@ import IconSettings from "@tabler/icons-svelte/icons/settings";
 
           <button
             class={cn(
-              "flex flex-col items-center justify-center gap-0.5 h-7 w-10 rounded-md border transition-all",
+              "inline-flex flex-col items-center justify-center gap-0.5 h-7 min-w-[2.5rem] px-2 rounded-md border shadow-sm transition-colors text-muted-foreground",
               windowState.datasourceWindowOpen
-                ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
-                : "hover:bg-(--theme-bg-hover) border-transparent",
+                ? "bg-accent text-accent-foreground border-accent/50"
+                : "bg-background border-border hover:bg-accent hover:text-foreground",
             )}
             onclick={openDatasourceWindow}
             title="New Datasource Connection"
@@ -211,10 +211,10 @@ import IconSettings from "@tabler/icons-svelte/icons/settings";
 
           <button
             class={cn(
-              "flex flex-col items-center justify-center gap-0.5 h-7 w-10 rounded-md border transition-all",
+              "inline-flex flex-col items-center justify-center gap-0.5 h-7 min-w-[2.5rem] px-2 rounded-md border shadow-sm transition-colors text-muted-foreground",
               windowState.layout.left
-                ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
-                : "hover:bg-(--theme-bg-hover) border-transparent",
+                ? "bg-accent text-accent-foreground border-accent/50"
+                : "bg-background border-border hover:bg-accent hover:text-foreground",
             )}
             onclick={() => (windowState.layout.left = !windowState.layout.left)}
             title="Toggle Explorer"
@@ -229,10 +229,10 @@ import IconSettings from "@tabler/icons-svelte/icons/settings";
 
           <button
             class={cn(
-              "flex flex-col items-center justify-center gap-0.5 h-7 w-10 rounded-md border transition-all",
+              "inline-flex flex-col items-center justify-center gap-0.5 h-7 min-w-[2.5rem] px-2 rounded-md border shadow-sm transition-colors text-muted-foreground",
               windowState.layout.bottom
-                ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
-                : "hover:bg-(--theme-bg-hover) border-transparent",
+                ? "bg-accent text-accent-foreground border-accent/50"
+                : "bg-background border-border hover:bg-accent hover:text-foreground",
             )}
             onclick={() =>
               (windowState.layout.bottom = !windowState.layout.bottom)}
@@ -248,10 +248,10 @@ import IconSettings from "@tabler/icons-svelte/icons/settings";
 
           <button
             class={cn(
-              "flex flex-col items-center justify-center gap-0.5 h-7 w-8 rounded-md border transition-all",
+              "inline-flex flex-col items-center justify-center gap-0.5 h-7 min-w-[2rem] px-2 rounded-md border shadow-sm transition-colors text-muted-foreground",
               logsStore.isOpen
-                ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
-                : "hover:bg-(--theme-bg-hover) border-transparent",
+                ? "bg-accent text-accent-foreground border-accent/50"
+                : "bg-background border-border hover:bg-accent hover:text-foreground",
             )}
             onclick={() => logsStore.toggle()}
             title="Toggle Query Logs"
@@ -262,10 +262,10 @@ import IconSettings from "@tabler/icons-svelte/icons/settings";
 
           <button
             class={cn(
-              "flex flex-col items-center justify-center gap-0.5 h-7 w-9 rounded-md border transition-all",
+              "inline-flex flex-col items-center justify-center gap-0.5 h-7 min-w-[2.25rem] px-2 rounded-md border shadow-sm transition-colors text-muted-foreground",
               windowState.layout.right
-                ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
-                : "hover:bg-(--theme-bg-hover) border-transparent",
+                ? "bg-accent text-accent-foreground border-accent/50"
+                : "bg-background border-border hover:bg-accent hover:text-foreground",
             )}
             onclick={() =>
               (windowState.layout.right = !windowState.layout.right)}
@@ -281,10 +281,10 @@ import IconSettings from "@tabler/icons-svelte/icons/settings";
 
           <button
             class={cn(
-              "flex flex-col items-center justify-center gap-0.5 h-7 w-11 rounded-md border transition-all",
+              "inline-flex flex-col items-center justify-center gap-0.5 h-7 min-w-[2.75rem] px-2 rounded-md border shadow-sm transition-colors text-muted-foreground",
               windowState.settingsWindowOpen
-                ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
-                : "hover:bg-(--theme-bg-hover) border-transparent",
+                ? "bg-accent text-accent-foreground border-accent/50"
+                : "bg-background border-border hover:bg-accent hover:text-foreground",
             )}
             onclick={openSettingsWindow}
             title="Settings"
@@ -299,10 +299,7 @@ import IconSettings from "@tabler/icons-svelte/icons/settings";
 
           <!-- Feedback -->
           <button
-            class={cn(
-              "flex flex-col items-center justify-center gap-0.5 h-7 w-12 rounded-md border transition-all",
-              "hover:bg-(--theme-bg-hover) border-transparent",
-            )}
+            class="inline-flex flex-col items-center justify-center gap-0.5 h-7 min-w-[3rem] px-2 rounded-md border border-border bg-background shadow-sm transition-colors hover:bg-accent hover:text-foreground text-muted-foreground"
             onclick={async () => {
               try {
                 await invoke("open_feedback_window");
@@ -319,34 +316,25 @@ import IconSettings from "@tabler/icons-svelte/icons/settings";
           <!-- AI Assistant -->
           <button
             class={cn(
-              "flex flex-col items-center justify-center gap-0.5 h-7 w-9 rounded-md border transition-all",
-              windowState.layout.right &&
-                windowState.activeRightPanel === "claude"
-                ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
-                : "hover:bg-(--theme-bg-hover) border-transparent",
+              "inline-flex flex-col items-center justify-center gap-0.5 h-7 min-w-[2.25rem] px-2 rounded-md border shadow-sm transition-colors",
+              windowState.layout.right && windowState.activeRightPanel === "claude"
+                ? "bg-accent text-accent-foreground border-accent/50"
+                : "bg-background border-border hover:bg-accent hover:text-foreground text-muted-foreground",
             )}
             onclick={() => windowState.toggleRightPanel("claude")}
             title="AI Assistant"
           >
-            <IconAi
-              class={cn(
-                "size-4 transition-colors",
-                windowState.layout.right &&
-                  windowState.activeRightPanel === "claude"
-                  ? "text-accent"
-                  : "text-muted-foreground",
-              )}
-            />
+            <IconAi class="size-4 transition-colors" />
             <span class="text-[9px] leading-none opacity-60">Claude</span>
           </button>
         {/if}
 
         <button
-          class="h-6 w-6 flex items-center justify-center rounded-md border transition-all border-transparent hover:bg-(--theme-bg-hover) active:bg-(--theme-bg-active)"
+          class="inline-flex h-6 w-6 items-center justify-center rounded-md border border-border bg-background shadow-sm transition-colors hover:bg-accent hover:text-foreground text-muted-foreground"
           onclick={() => window.location.reload()}
           title="Reload Window"
         >
-          <IconRestore class="size-5" />
+          <IconRestore class="size-4" />
         </button>
 
         {#if isWindows}

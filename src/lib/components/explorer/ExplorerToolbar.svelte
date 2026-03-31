@@ -6,6 +6,9 @@
     import IconRefresh from "@tabler/icons-svelte/icons/refresh";
     import IconSearch from "@tabler/icons-svelte/icons/search";
     import IconX from "@tabler/icons-svelte/icons/x";
+    import IconChevronsDown from "@tabler/icons-svelte/icons/chevrons-down";
+    import IconChevronsUp from "@tabler/icons-svelte/icons/chevrons-up";
+    import IconSquarePlus from "@tabler/icons-svelte/icons/square-plus";
 
     interface Props {
         treeData: TreeNode[];
@@ -147,24 +150,24 @@
         <h2 class="text-sm font-semibold">Explorer</h2>
         <div class="ml-auto flex items-center gap-1">
             <button
-                class="px-1.5 py-0.5 text-[11px] rounded-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                class="inline-flex h-6 w-6 items-center justify-center rounded-md border border-border bg-background text-muted-foreground shadow-sm transition-colors hover:bg-accent hover:text-foreground"
                 title="Expand Level"
                 onclick={() => progressiveExpand()}
             >
-                Expand
+                <IconChevronsDown class="size-3.5" />
             </button>
             <button
-                class="px-1.5 py-0.5 text-[11px] rounded-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                class="inline-flex h-6 w-6 items-center justify-center rounded-md border border-border bg-background text-muted-foreground shadow-sm transition-colors hover:bg-accent hover:text-foreground"
                 title="Collapse Level"
                 onclick={() => progressiveCollapse()}
             >
-                Collapse
+                <IconChevronsUp class="size-3.5" />
             </button>
 
-            <div class="mx-1 h-4 w-px bg-border/50"></div>
+            <div class="mx-0.5 h-4 w-px bg-border/50"></div>
 
             <button
-                class="p-1 hover:bg-accent rounded-sm text-muted-foreground hover:text-foreground transition-colors"
+                class="inline-flex h-6 w-6 items-center justify-center rounded-md border border-border bg-background text-muted-foreground shadow-sm transition-colors hover:bg-accent hover:text-foreground"
                 title={schemaStore.lastRefreshed
                     ? `Last refreshed: ${schemaStore.lastRefreshed.toLocaleTimeString()}`
                     : "Refresh Schema"}
@@ -172,7 +175,7 @@
             >
                 <IconRefresh
                     class={cn(
-                        "size-4",
+                        "size-3.5",
                         schemaStore.status === "refreshing"
                             ? "animate-spin-reverse"
                             : "",
@@ -180,14 +183,15 @@
                 />
             </button>
 
-            <div class="mx-1 h-4 w-px bg-border/50"></div>
+            <div class="mx-0.5 h-4 w-px bg-border/50"></div>
 
             <button
-                class="px-1.5 py-0.5 text-[11px] font-medium rounded-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                class="inline-flex h-6 items-center gap-1 rounded-md border border-border bg-background px-2 text-[11px] font-medium text-accent shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
                 title="New SQL Editor"
                 onclick={() => activeSession?.openView("editor", "New Query")}
             >
-                + New Query
+                <IconSquarePlus class="size-3.5" />
+                New Query
             </button>
         </div>
     </div>
