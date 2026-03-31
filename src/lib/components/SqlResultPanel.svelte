@@ -2,11 +2,14 @@
     import Table from "$lib/components/table/Table.svelte";
     import TableToolbar from "$lib/components/table/TableToolbar.svelte";
     import type { ViewState } from "$lib/stores/session.svelte";
+    import { windowState } from "$lib/stores/window.svelte";
     import IconSql from "@tabler/icons-svelte/icons/sql";
     import * as Popover from "$lib/components/ui/popover";
     import { Button } from "$lib/components/ui/button";
 
     let { view }: { view: ViewState } = $props();
+
+    const activeSession = $derived(windowState.activeSession);
 
     const results = $derived(view.data?.results);
     const controller = $derived(view.data?.controller);
@@ -63,6 +66,11 @@
             hideExecute={true}
             hidePagination={true}
             fetchedAt={results.fetchedAt}
+            connectionId={activeSession?.connectionId}
+            sessionId={view.id}
+            database={activeSession?.databaseName ?? undefined}
+            query={results.executedQueryText}
+            tableName={results.detectedTable ?? undefined}
         >
             {#snippet extraActions()}
                 <Popover.Root>
