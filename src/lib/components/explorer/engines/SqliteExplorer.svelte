@@ -15,6 +15,7 @@
 
     let fileTree = $state<any>(null);
     let selectedNodeId = $state<string | null>(null);
+    let searchQuery = $state("");
 
     const activeSession = $derived(windowState.activeSession);
 
@@ -330,7 +331,7 @@
 </script>
 
 <div class="flex h-full flex-col bg-muted/20">
-    <ExplorerToolbar {treeData} {selectedNodeId} maxLevel={3} />
+    <ExplorerToolbar {treeData} {selectedNodeId} maxLevel={3} bind:searchQuery />
 
     <div class="flex-1 overflow-auto p-2 transition-all duration-300">
         {#if schemaStore.status === "connecting"}
@@ -370,6 +371,7 @@
                     bind:this={fileTree}
                     bind:expanded={activeSession.explorerState.expanded}
                     bind:selectedNodeId
+                    filter={searchQuery}
                     onAction={handleExplorerAction}
                     onContextMenuAction={handleContextMenuAction}
                     onExpand={handleNodeExpand}
@@ -381,6 +383,7 @@
                     items={treeData}
                     bind:this={fileTree}
                     bind:selectedNodeId
+                    filter={searchQuery}
                     onAction={handleExplorerAction}
                     onContextMenuAction={handleContextMenuAction}
                     onExpand={handleNodeExpand}

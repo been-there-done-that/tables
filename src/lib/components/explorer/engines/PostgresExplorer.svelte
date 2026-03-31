@@ -16,6 +16,7 @@
 
     let fileTree = $state<any>(null);
     let selectedNodeId = $state<string | null>(null);
+    let searchQuery = $state("");
     // Re-implementing the header locally for this component as per "independent components" plan.
 
     // Re-implementing the header locally for this component as per "independent components" plan.
@@ -538,7 +539,7 @@
 </script>
 
 <div class="flex h-full flex-col bg-muted/20">
-    <ExplorerToolbar {treeData} {selectedNodeId} />
+    <ExplorerToolbar {treeData} {selectedNodeId} bind:searchQuery />
 
     <div class="flex-1 overflow-auto p-2">
         {#if schemaStore.status === "connecting"}
@@ -595,6 +596,7 @@
                     bind:this={fileTree}
                     bind:expanded={activeSession.explorerState.expanded}
                     bind:selectedNodeId
+                    filter={searchQuery}
                     onAction={handleExplorerAction}
                     onContextMenuAction={handleContextMenuAction}
                     onExpand={handleNodeExpand}
@@ -606,6 +608,7 @@
                     items={treeData}
                     bind:this={fileTree}
                     bind:selectedNodeId
+                    filter={searchQuery}
                     onAction={handleExplorerAction}
                     onContextMenuAction={handleContextMenuAction}
                     onExpand={handleNodeExpand}

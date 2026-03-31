@@ -6,13 +6,13 @@
     import Database from "@tabler/icons-svelte/icons/server"; // Creative change
     import Key from "@tabler/icons-svelte/icons/key";
     import Columns from "@tabler/icons-svelte/icons/columns";
-    import Bolt from "@tabler/icons-svelte/icons/bolt";
+    import Bolt from "@tabler/icons-svelte/icons/plug-connected";
     import ListSearch from "@tabler/icons-svelte/icons/list-search";
     import Cube from "@tabler/icons-svelte/icons/cube"; // Revert to Cube, or use Box
-    import ViewIcon from "@tabler/icons-svelte/icons/eye"; // For Views
+    import ViewIcon from "@tabler/icons-svelte/icons/table-alias"; // For Views
     import SqlIcon from "@tabler/icons-svelte/icons/file-database"; // Action icon
     import LoaderIcon from "@tabler/icons-svelte/icons/loader-2"; // Spinner
-    import IconMatView from "@tabler/icons-svelte/icons/eye-check"; // Materialized view
+    import IconMatView from "@tabler/icons-svelte/icons/table-filled"; // Materialized view
     import IconFunction from "@tabler/icons-svelte/icons/math-function"; // Function
     import IconProcedure from "@tabler/icons-svelte/icons/lambda"; // Procedure
     import IconSequence from "@tabler/icons-svelte/icons/list-numbers"; // Sequence
@@ -66,6 +66,7 @@
         class?: string;
         isCompact?: boolean;
         indent?: number;
+        filter?: string;
         onNodeClick?: (node: TreeNode) => void;
         onAction?: (node: TreeNode) => void;
         onContextMenuAction?: (action: string, node: TreeNode) => void;
@@ -79,6 +80,7 @@
         class: className = "",
         isCompact = false,
         indent = 16,
+        filter = "",
         onNodeClick = (node: TreeNode) => {},
         onAction = (node: TreeNode) => {},
         onContextMenuAction = (action: string, node: TreeNode) => {},
@@ -86,6 +88,42 @@
         expanded = $bindable(new Set()),
         selectedNodeId = $bindable<string | null>(null),
     }: Props = $props();
+
+    /**
+     * Returns true if a node or any of its descendants match the filter string.
+     */
+    function nodeMatchesFilter(node: TreeNode, query: string): boolean {
+        if (node.name.toLowerCase().includes(query.toLowerCase())) return true;
+        if (node.children) {
+            return node.children.some((child) => nodeMatchesFilter(child, query));
+        }
+        return false;
+    }
+
+    /**
+     * Recursively filter nodes: keep a node if it matches OR has matching descendants.
+     * Children are also filtered recursively.
+     */
+    function filterNodes(nodes: TreeNode[], query: string): TreeNode[] {
+        if (!query) return nodes;
+        return nodes.reduce<TreeNode[]>((acc, node) => {
+            const selfMatch = node.name.toLowerCase().includes(query.toLowerCase());
+            const filteredChildren = node.children
+                ? filterNodes(node.children, query)
+                : undefined;
+            const hasMatchingChildren = filteredChildren && filteredChildren.length > 0;
+
+            if (selfMatch || hasMatchingChildren) {
+                acc.push({
+                    ...node,
+                    children: filteredChildren ?? node.children,
+                });
+            }
+            return acc;
+        }, []);
+    }
+
+    const displayItems = $derived(filter ? filterNodes(items, filter) : items);
 
     // Helper to generate a unique key if id is missing
     const getKey = (node: TreeNode, index: number) =>
@@ -170,7 +208,7 @@
             }
         };
 
-        traverse(items, 0, null);
+        traverse(displayItems, 0, null);
         return result;
     }
 
@@ -180,7 +218,7 @@
     function handleKeyDown(e: KeyboardEvent) {
         // Only handle if focused within the tree container
         // Using currentTarget ensures we caught it on the div
-        if (!items.length) return;
+        if (!displayItems.length) return;
 
         interactionMode = "keyboard";
 
@@ -312,7 +350,7 @@
     role="tree"
 >
     <ul class="flex flex-col gap-0 overflow-auto flex-1">
-        {#each items as item, i (getKey(item, i))}
+        {#each displayItems as item, i (getKey(item, i))}
             {@render TreeItem({ node: item, index: i, depth: 0 })}
         {/each}
     </ul>
