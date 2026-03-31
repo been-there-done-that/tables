@@ -206,6 +206,7 @@ pub fn run() {
             debug!("Initializing query execution state");
             // Initialize query execution state for cancellation support
             app.manage(QueryExecutionState::default());
+            app.manage(crate::commands::export_commands::ExportState::default());
             app.manage(QuerySessionManager::default());
             app.manage(UpdaterState::default());
 
