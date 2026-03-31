@@ -26,6 +26,8 @@
         readClipboardText,
         writeClipboardText,
     } from "./clipboardUtils";
+    import { formatForCopy, type CopyFormat } from "./copyFormats";
+    import { settingsStore } from "$lib/stores/settings.svelte";
     import {
         DEFAULT_TOKEN,
         NULL_TOKEN,
@@ -177,8 +179,7 @@
     let columnWidthsFrozen = false;
 
     const MAX_UNDO = 10;
-    let clipboardFormat: ClipboardFormat = "tsv";
-    let includeHeaders = true;
+    let clipboardFormat = $derived(settingsStore.copyFormat);
 
     // Drag selection state
     let isDragging = $state(false);
@@ -2033,36 +2034,22 @@
         const colsSlice = visibleColumns.slice(bounds.left, bounds.right + 1);
         if (!rowsSlice.length || !colsSlice.length) return;
 
-        if (clipboardFormat === "json") {
-            const payload = rowsSlice.map((row) =>
-                includeHeaders
-                    ? Object.fromEntries(
-                          colsSlice.map((c) => [
-                              c.id,
-                              getDisplayValue(row, c.id),
-                          ]),
-                      )
-                    : colsSlice.map((c) => getDisplayValue(row, c.id)),
-            );
-            writeClipboardText(JSON.stringify(payload, null, 2));
-            return;
+        const copyColumns = colsSlice.map((c) => ({
+            id: c.id,
+            label: c.label ?? c.id,
+            type: c.type,
+        }));
+
+        let text: string;
+        try {
+            text = formatForCopy(rowsSlice, copyColumns, clipboardFormat, {
+                tableName,
+            });
+        } catch {
+            text = formatForCopy(rowsSlice, copyColumns, "plain", {});
         }
 
-        const delimiter = clipboardFormat === "csv" ? "," : "\t";
-        const lines: string[] = [];
-
-        if (includeHeaders) {
-            lines.push(colsSlice.map((c) => c.label ?? c.id).join(delimiter));
-        }
-
-        for (const row of rowsSlice) {
-            const cells = colsSlice.map((col) =>
-                formatValueForClipboard(getDisplayValue(row, col.id), col.type),
-            );
-            lines.push(cells.join(delimiter));
-        }
-
-        writeClipboardText(lines.join("\n"));
+        writeClipboardText(text);
     }
 
     export function refresh() {
@@ -2072,6 +2059,32 @@
     // Expose helpers for toolbar integration
     export function copySelection() {
         handleCopy();
+    }
+
+    /** Copy current selection using an explicit format (used by context menu). */
+    export function copySelectionAs(format: CopyFormat) {
+        const bounds = getActiveBounds();
+        if (!bounds) return;
+
+        const rowsSlice = filteredRows.slice(bounds.top, bounds.bottom + 1);
+        const colsSlice = visibleColumns.slice(bounds.left, bounds.right + 1);
+        if (!rowsSlice.length || !colsSlice.length) return;
+
+        const copyColumns = colsSlice.map((c) => ({
+            id: c.id,
+            label: c.label ?? c.id,
+            type: c.type,
+        }));
+
+        let text: string;
+        try {
+            text = formatForCopy(rowsSlice, copyColumns, format, {
+                tableName,
+            });
+        } catch {
+            text = formatForCopy(rowsSlice, copyColumns, "plain", {});
+        }
+        writeClipboardText(text);
     }
 
     export function getState() {
