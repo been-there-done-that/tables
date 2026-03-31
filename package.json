@@ -1,7 +1,7 @@
 {
   "name": "tables",
-  "version": "0.1.0",
-  "description": "",
+  "version": "0.0.2",
+  "description": "A fast, native database client for modern developers",
   "type": "module",
   "scripts": {
     "dev": "vite dev",
