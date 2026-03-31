@@ -1,4 +1,3 @@
-import { type CellSelection, type RowEdit } from "./types";
 
 export interface EditDelta {
     rowId: any;
@@ -108,7 +107,7 @@ export class TableEditManager {
 
     applyEditsLocally(
         edits: Record<string, Record<string, any>>,
-        mode: "paste" | "input" = "input",
+        _mode: "paste" | "input" = "input",
         originalValues?: Record<string, Record<string, any>>
     ) {
         this.recordHistory();
