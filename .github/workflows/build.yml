@@ -3,7 +3,6 @@ name: Build
 on:
   push:
     branches: [main]
-    tags: ["v*"]
   pull_request:
     branches: [main]
 
@@ -17,7 +16,7 @@ jobs:
             harness-script: build:mac-arm
             rust-target: aarch64-apple-darwin
 
-          - platform: macos-13       # Intel
+          - platform: macos-latest   # Intel (cross-compile)
             harness-script: build:mac-x64
             rust-target: x86_64-apple-darwin
 
