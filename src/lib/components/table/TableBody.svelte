@@ -44,6 +44,9 @@
             newValue: any,
         ) => void;
         onEditCancel?: () => void;
+        onCopyRow?: (rowIndex: number) => void;
+        onDeleteRow?: (rowIndex: number) => void;
+        isEditable?: boolean;
         header: import("svelte").Snippet;
     }
 
@@ -67,6 +70,9 @@
         onCellContextMenu,
         onEditComplete,
         onEditCancel,
+        onCopyRow,
+        onDeleteRow,
+        isEditable = false,
         deletedRowIds,
         getRowKey,
         header,
@@ -196,6 +202,9 @@
                             {onCellContextMenu}
                             {onEditComplete}
                             {onEditCancel}
+                            onCopyRow={() => onCopyRow?.(index)}
+                            onDeleteRow={() => onDeleteRow?.(index)}
+                            {isEditable}
                         />
                     {/snippet}
                 </VirtualScroller>

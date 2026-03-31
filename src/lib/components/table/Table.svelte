@@ -2251,6 +2251,27 @@
                 onCellContextMenu={handleCellContextMenu}
                 onEditComplete={handleEditComplete}
                 onEditCancel={handleEditCancel}
+                onCopyRow={(rowIndex) => {
+                    const row = filteredRows[rowIndex];
+                    if (!row) return;
+                    const copyColumns = visibleColumns.map((c) => ({ id: c.id, label: c.label ?? c.id, type: c.type }));
+                    try {
+                        const text = formatForCopy([row], copyColumns, clipboardFormat, { tableName });
+                        writeClipboardText(text);
+                    } catch {
+                        writeClipboardText(visibleColumns.map((c) => {
+                            const v = row[c.id];
+                            return v === null || v === undefined ? "" : String(v);
+                        }).join("\t"));
+                    }
+                }}
+                onDeleteRow={(rowIndex) => {
+                    const row = filteredRows[rowIndex];
+                    if (!row) return;
+                    const rowId = getRowKey(row);
+                    editManager.trackDeletion(rowId, row);
+                }}
+                isEditable={isEditableGrid}
             >
                 {#snippet header()}
                     <div class="border-b border-border bg-surface w-fit">

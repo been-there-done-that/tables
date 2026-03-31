@@ -2,6 +2,8 @@
     import type { Column, CellSelection } from "./types";
     import TableCell from "./TableCell.svelte";
     import { cn } from "$lib/utils";
+    import IconCopy from "@tabler/icons-svelte/icons/copy";
+    import IconTrash from "@tabler/icons-svelte/icons/trash";
 
     interface Props {
         row: any;
@@ -39,6 +41,9 @@
             newValue: any,
         ) => void;
         onEditCancel?: () => void;
+        onCopyRow?: () => void;
+        onDeleteRow?: () => void;
+        isEditable?: boolean;
     }
 
     let {
@@ -61,6 +66,9 @@
         onCellContextMenu,
         onEditComplete,
         onEditCancel,
+        onCopyRow,
+        onDeleteRow,
+        isEditable = false,
     }: Props = $props();
 
     function handleClick(e: MouseEvent) {
@@ -102,6 +110,8 @@
 
     const isDeleted = $derived(deletedRowIds.has(getRowKey(row)));
     const isInserted = $derived(!!row._tempId);
+
+    let rowHovered = $state(false);
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -117,6 +127,8 @@
         disabled && "opacity-70 pointer-events-none",
     )}
     onclick={handleClick}
+    onmouseenter={() => rowHovered = true}
+    onmouseleave={() => rowHovered = false}
     data-row
     data-row-id={getRowKey(row)}
 >
@@ -129,7 +141,26 @@
         )}
         style="width: 60px; min-width: 60px; flex-shrink: 0;"
     >
-        {#if isInserted}
+        {#if rowHovered && !isDeleted && !isInserted}
+            <div class="flex items-center justify-center gap-0.5 w-full h-full">
+                <button
+                    class="h-5 w-5 rounded hover:bg-accent flex items-center justify-center"
+                    title="Copy row"
+                    onclick={(e) => { e.stopPropagation(); onCopyRow?.(); }}
+                >
+                    <IconCopy class="h-3 w-3" />
+                </button>
+                {#if isEditable}
+                    <button
+                        class="h-5 w-5 rounded hover:bg-red-500/20 flex items-center justify-center"
+                        title="Delete row"
+                        onclick={(e) => { e.stopPropagation(); onDeleteRow?.(); }}
+                    >
+                        <IconTrash class="h-3 w-3 text-red-400" />
+                    </button>
+                {/if}
+            </div>
+        {:else if isInserted}
             +
         {:else if isDeleted}
             -
