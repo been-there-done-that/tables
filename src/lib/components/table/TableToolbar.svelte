@@ -19,11 +19,14 @@
         IconLoader2,
         IconVersions,
         IconDeviceFloppy,
+        IconClipboardCopy,
     } from "@tabler/icons-svelte";
 
     import * as Menu from "$lib/components/ui/dropdown-menu";
     import AutocompleteInput from "./AutocompleteInput.svelte";
     import type { Column } from "./types";
+    import { COPY_FORMAT_LABELS, type CopyFormat } from "./copyFormats";
+    import { settingsStore } from "$lib/stores/settings.svelte";
 
     let now = $state(Date.now());
     const clockId = setInterval(() => { now = Date.now(); }, 10_000);
@@ -125,6 +128,7 @@
 
     let exportOpen = $state(false);
     let pageSizeOpen = $state(false);
+    let copyFormatOpen = $state(false);
 
     // Column names for autocomplete with types
     const columnSuggestions = $derived(
@@ -569,6 +573,50 @@
         </div>
 
         <div class="flex-1"></div>
+
+        <div class="w-px h-5 bg-border/40 mx-1"></div>
+
+        <!-- Copy Format Selector -->
+        <Menu.Root bind:open={copyFormatOpen}>
+            <Menu.Trigger>
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    class="h-7 gap-1 px-2 text-xs text-muted-foreground font-mono"
+                    title="Copy format (Cmd+C)"
+                >
+                    <IconClipboardCopy class="h-3.5 w-3.5" />
+                    {COPY_FORMAT_LABELS[settingsStore.copyFormat]}
+                    <IconChevronDown class="h-3 w-3 opacity-60" />
+                </Button>
+            </Menu.Trigger>
+            <Menu.Content
+                class="w-[160px] border border-(--theme-border-default) bg-(--theme-bg-secondary) shadow-lg"
+                align="end"
+            >
+                <div class="px-2 py-1.5 text-[10px] uppercase font-bold text-muted-foreground border-b border-border/50 bg-muted/30">
+                    Copy Format
+                </div>
+                <div class="p-1 flex flex-col gap-0.5">
+                    {#each Object.entries(COPY_FORMAT_LABELS) as [fmt, label]}
+                        <Menu.Item
+                            class="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted cursor-pointer flex items-center gap-2"
+                            onclick={() => {
+                                settingsStore.copyFormat = fmt as CopyFormat;
+                                copyFormatOpen = false;
+                            }}
+                        >
+                            {#if settingsStore.copyFormat === fmt}
+                                <IconCheck class="size-3 text-primary" />
+                            {:else}
+                                <span class="w-3"></span>
+                            {/if}
+                            {label}
+                        </Menu.Item>
+                    {/each}
+                </div>
+            </Menu.Content>
+        </Menu.Root>
 
         <div class="w-px h-5 bg-border/40 mx-1"></div>
 
