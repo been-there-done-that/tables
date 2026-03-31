@@ -155,9 +155,42 @@ pub fn delete_editor_session(
 
 #[tauri::command]
 pub fn format_sql(sql: String) -> Result<String, String> {
+    // sqlformat doesn't understand dollar-quoted blocks ($function$...$function$, $$...$$).
+    // Running it on CREATE FUNCTION / DO bodies mangles the internal PL/pgSQL indentation.
+    // Return the original text unchanged for any statement containing dollar-quoting.
+    if sql.contains("$$") || sql.contains("$function$") || sql.contains("$body$") {
+        return Ok(sql);
+    }
+    // More general check: any $<tag>$ dollar-quote opener
+    if regex_dollar_quote(&sql) {
+        return Ok(sql);
+    }
     let options = sqlformat::FormatOptions {
         lines_between_queries: 2,
         ..sqlformat::FormatOptions::default()
     };
     Ok(sqlformat::format(&sql, &sqlformat::QueryParams::None, &options))
+}
+
+fn regex_dollar_quote(sql: &str) -> bool {
+    // Match $identifier$ or $$ patterns
+    let mut chars = sql.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '$' {
+            // Collect tag chars until next $
+            let mut tag = String::new();
+            for ch in chars.by_ref() {
+                if ch == '$' {
+                    return true; // found a closing $ — it's a dollar-quote
+                }
+                if ch.is_alphanumeric() || ch == '_' {
+                    tag.push(ch);
+                } else {
+                    break; // not a valid tag char
+                }
+            }
+            let _ = tag;
+        }
+    }
+    false
 }
