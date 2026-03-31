@@ -510,13 +510,9 @@ pub async fn request_diagnostics(
         }
     };
 
-    // 2. Offload to thread
+    // 2. Offload to thread — no tree-sitter parse needed, DiagnosticEngine uses sql_scope internally
     let result = tokio::task::spawn_blocking(move || {
-        let tree = crate::completion::parsing::parse_sql(&text, None);
-        match tree {
-            Some(t) => DiagnosticEngine::check(&t, &text, &schema),
-            None => vec![],
-        }
+        DiagnosticEngine::check(&text, &schema)
     }).await.map_err(|e| e.to_string())?;
 
     Ok(result)

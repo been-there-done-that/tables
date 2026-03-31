@@ -9,8 +9,6 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::time::timeout;
 use tokio_util::sync::CancellationToken;
-use crate::completion::parsing::parse_sql;
-use crate::completion::ranges::find_all_statement_ranges;
 
 /// Active query tracking with cancellation tokens
 pub struct ActiveQuery {
@@ -975,16 +973,15 @@ async fn execute_postgres_query(
         }
 
         // Split query and execute
-        let tree = parse_sql(query, None);
-        let statements = tree.map(|t| find_all_statement_ranges(&t, query)).unwrap_or_default();
+        let raw_statements = sql_scope::split_statements(query);
 
-        let result = if statements.is_empty() {
+        let result = if raw_statements.len() <= 1 {
              execute_single_postgres_query(&client, query).await
         } else {
              let mut last_result = None;
              let mut loop_err = None;
-             for (i, range) in statements.iter().enumerate() {
-                let stmt_text = &query[range.start_byte..range.end_byte];
+             for (i, (_start_byte, stmt_text)) in raw_statements.iter().enumerate() {
+                let stmt_text: &str = stmt_text;
                 debug!("[execute_postgres_query] Statement {}: {}", i, stmt_text);
                 
                  if needs_typed_result(stmt_text) {
@@ -1003,7 +1000,7 @@ async fn execute_postgres_query(
 
                              match rows_res {
                                  Ok(rows) => {
-                                     if i == statements.len() - 1 {
+                                     if i == raw_statements.len() - 1 {
                                          let raw_columns = stmt.columns();
 
                                          let mut columns: Vec<ColumnInfo> = raw_columns.iter().map(|col| {
@@ -1063,7 +1060,7 @@ async fn execute_postgres_query(
 
                      match exec_res {
                          Ok(affected) => {
-                             if i == statements.len() - 1 {
+                             if i == raw_statements.len() - 1 {
                                  last_result = Some(QueryResult {
                                      rows: vec![],
                                      columns: vec![],
@@ -1206,17 +1203,18 @@ async fn execute_sqlite_query(
     let conn = conn_arc.lock().await;
 
     // Split query and execute
-    let tree = parse_sql(query, None);
-    let statements = tree.map(|t| find_all_statement_ranges(&t, query)).unwrap_or_default();
+    let raw_statements: Vec<String> = sql_scope::split_statements(query)
+        .into_iter()
+        .map(|(_, s)| s.to_string())
+        .collect();
 
-    if statements.is_empty() {
+    if raw_statements.len() <= 1 {
         return execute_single_sqlite_query(&conn, query);
     }
         let mut last_result = None;
-        for (i, range) in statements.iter().enumerate() {
-            let stmt_text = &query[range.start_byte..range.end_byte];
+        for (i, stmt_text) in raw_statements.iter().enumerate() {
             let mut stmt = conn.prepare(stmt_text)
-                .map_err(|e| format!("Failed to prepare statement at indices {}-{}: {}", range.start_byte, range.end_byte, e))?;
+                .map_err(|e| format!("Failed to prepare statement: {}", e))?;
 
             let mut columns = Vec::new();
             let mut column_names = Vec::new();
@@ -1271,7 +1269,7 @@ async fn execute_sqlite_query(
               .filter_map(|r| r.ok())
               .collect();
 
-            if i == statements.len() - 1 {
+            if i == raw_statements.len() - 1 {
                 last_result = Some(QueryResult {
                     rows,
                     columns,

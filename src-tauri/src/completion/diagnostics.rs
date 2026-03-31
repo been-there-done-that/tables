@@ -1,4 +1,3 @@
-use tree_sitter::Tree;
 use crate::completion::schema::graph::SchemaGraph;
 use serde::Serialize;
 
@@ -13,7 +12,7 @@ pub struct Diagnostic {
 pub struct DiagnosticEngine;
 
 impl DiagnosticEngine {
-    pub fn check(_tree: &Tree, source: &str, schema: &SchemaGraph) -> Vec<Diagnostic> {
+    pub fn check(source: &str, schema: &SchemaGraph) -> Vec<Diagnostic> {
         let mut diagnostics = Vec::new();
 
         // Only run semantic diagnostics if schema is populated.
@@ -135,40 +134,29 @@ impl DiagnosticEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::completion::parsing::parse_sql;
     use crate::completion::schema::graph::{SchemaGraph, TableInfo};
+
+    fn check(sql: &str, schema: &SchemaGraph) -> Vec<Diagnostic> {
+        DiagnosticEngine::check(sql, schema)
+    }
 
     #[test]
     fn test_syntax_error() {
-        let sql = "SELECT * FROM ;"; // Missing table
-        let tree = parse_sql(sql, None).unwrap();
-        let schema = SchemaGraph::new();
-        let diagnostics = DiagnosticEngine::check(&tree, sql, &schema);
-
+        let diagnostics = check("SELECT * FROM ;", &SchemaGraph::new());
         assert!(!diagnostics.is_empty());
     }
 
     #[test]
     fn test_unknown_table() {
-        let sql = "SELECT * FROM non_existent_table;";
-        let tree = parse_sql(sql, None).unwrap();
-
         let mut schema = SchemaGraph::new();
         schema.add_table(TableInfo::new("users", "public", vec![]));
-
-        let diagnostics = DiagnosticEngine::check(&tree, sql, &schema);
-
+        let diagnostics = check("SELECT * FROM non_existent_table;", &schema);
         assert!(diagnostics.iter().any(|d| d.message.contains("does not exist in the schema")));
     }
 
     #[test]
     fn test_valid_sql_with_semicolon() {
-        let sql = "SELECT * FROM albums;";
-        let tree = parse_sql(sql, None).unwrap();
-        let schema = SchemaGraph::new();
-        let diagnostics = DiagnosticEngine::check(&tree, sql, &schema);
-
-        // Assert no syntax errors for valid SQL when no schema
+        let diagnostics = check("SELECT * FROM albums;", &SchemaGraph::new());
         for d in &diagnostics {
             if d.severity == 1 {
                 panic!("Unexpected syntax error in valid SQL: {}", d.message);
@@ -178,11 +166,7 @@ mod tests {
 
     #[test]
     fn test_multiple_statements_with_semicolons() {
-        let sql = "SELECT 1; SELECT 2;";
-        let tree = parse_sql(sql, None).unwrap();
-        let schema = SchemaGraph::new();
-        let diagnostics = DiagnosticEngine::check(&tree, sql, &schema);
-
+        let diagnostics = check("SELECT 1; SELECT 2;", &SchemaGraph::new());
         for d in &diagnostics {
             if d.severity == 1 {
                 panic!("Unexpected syntax error in multi-statement SQL: {}", d.message);
@@ -192,60 +176,38 @@ mod tests {
 
     #[test]
     fn test_delete_without_where() {
-        let sql = "DELETE FROM orders;";
-        let tree = parse_sql(sql, None).unwrap();
-        let schema = SchemaGraph::new();
-        let diagnostics = DiagnosticEngine::check(&tree, sql, &schema);
+        let diagnostics = check("DELETE FROM orders;", &SchemaGraph::new());
         assert!(diagnostics.iter().any(|d| d.message.contains("DELETE has no WHERE clause")));
     }
 
     #[test]
     fn test_delete_with_where() {
-        let sql = "DELETE FROM orders WHERE id = 1;";
-        let tree = parse_sql(sql, None).unwrap();
-        let schema = SchemaGraph::new();
-        let diagnostics = DiagnosticEngine::check(&tree, sql, &schema);
+        let diagnostics = check("DELETE FROM orders WHERE id = 1;", &SchemaGraph::new());
         assert!(!diagnostics.iter().any(|d| d.message.contains("DELETE has no WHERE clause")));
     }
 
     #[test]
     fn test_update_without_where() {
-        let sql = "UPDATE users SET active = false;";
-        let tree = parse_sql(sql, None).unwrap();
-        let schema = SchemaGraph::new();
-        let diagnostics = DiagnosticEngine::check(&tree, sql, &schema);
+        let diagnostics = check("UPDATE users SET active = false;", &SchemaGraph::new());
         assert!(diagnostics.iter().any(|d| d.message.contains("UPDATE has no WHERE clause")));
     }
 
     #[test]
     fn test_drop_table() {
-        let sql = "DROP TABLE IF EXISTS users;";
-        let tree = parse_sql(sql, None).unwrap();
-        let schema = SchemaGraph::new();
-        let diagnostics = DiagnosticEngine::check(&tree, sql, &schema);
+        let diagnostics = check("DROP TABLE IF EXISTS users;", &SchemaGraph::new());
         assert!(diagnostics.iter().any(|d| d.message.contains("DROP will permanently delete")));
     }
 
     #[test]
     fn test_truncate() {
-        let sql = "TRUNCATE TABLE logs;";
-        let tree = parse_sql(sql, None).unwrap();
-        let schema = SchemaGraph::new();
-        let diagnostics = DiagnosticEngine::check(&tree, sql, &schema);
+        let diagnostics = check("TRUNCATE TABLE logs;", &SchemaGraph::new());
         assert!(diagnostics.iter().any(|d| d.message.contains("TRUNCATE will permanently delete")));
     }
 
     #[test]
     fn test_cte_table_unknown() {
-        let sql = r#"
-        with apples as (
-            select * from production.tasks t where t.id is not null
-        ) select * FROM apples;
-        "#;
-        let tree = parse_sql(sql, None).unwrap();
-        let schema = SchemaGraph::new();
-        let diagnostics = DiagnosticEngine::check(&tree, sql, &schema);
-        // No errors — CTE is valid even without schema (schema empty → no semantic checks)
+        let sql = "with apples as (select * from production.tasks t where t.id is not null) select * FROM apples;";
+        let diagnostics = check(sql, &SchemaGraph::new());
         for d in &diagnostics {
             if d.severity == 1 {
                 panic!("Unexpected syntax error: {}", d.message);
@@ -255,14 +217,10 @@ mod tests {
 
     #[test]
     fn test_analyze_known_table_no_diagnostic() {
-        let sql = "ANALYZE production.tasks;";
-        let tree = parse_sql(sql, None).unwrap();
         let mut schema = SchemaGraph::new();
         schema.add_table(TableInfo::new("tasks", "production", vec![]));
-        let diagnostics = DiagnosticEngine::check(&tree, sql, &schema);
-        let errors_or_warnings: Vec<_> = diagnostics.iter()
-            .filter(|d| d.severity <= 2)
-            .collect();
+        let diagnostics = check("ANALYZE production.tasks;", &schema);
+        let errors_or_warnings: Vec<_> = diagnostics.iter().filter(|d| d.severity <= 2).collect();
         assert!(
             errors_or_warnings.is_empty(),
             "ANALYZE with known table should produce no diagnostics, got {:?}", errors_or_warnings
@@ -271,11 +229,9 @@ mod tests {
 
     #[test]
     fn test_analyze_unknown_table_warns() {
-        let sql = "ANALYZE production.tasksj;";
-        let tree = parse_sql(sql, None).unwrap();
         let mut schema = SchemaGraph::new();
         schema.add_table(TableInfo::new("tasks", "production", vec![]));
-        let diagnostics = DiagnosticEngine::check(&tree, sql, &schema);
+        let diagnostics = check("ANALYZE production.tasksj;", &schema);
         assert!(
             diagnostics.iter().any(|d| d.message.contains("tasksj")),
             "should warn about unknown table 'tasksj', got {:?}", diagnostics
@@ -284,10 +240,7 @@ mod tests {
 
     #[test]
     fn test_pg_query_error_has_message() {
-        let sql = "SELECT * FROM ;"; // actual parse error
-        let tree = parse_sql(sql, None).unwrap();
-        let schema = SchemaGraph::new();
-        let diagnostics = DiagnosticEngine::check(&tree, sql, &schema);
+        let diagnostics = check("SELECT * FROM ;", &SchemaGraph::new());
         assert!(
             diagnostics.iter().any(|d| d.severity == 1),
             "invalid SQL should produce a severity=1 error, got {:?}", diagnostics
@@ -296,11 +249,9 @@ mod tests {
 
     #[test]
     fn test_multi_statement_mixed() {
-        let sql = "ANALYZE production.tasks; SELECT * FROM production.tasks;";
-        let tree = parse_sql(sql, None).unwrap();
         let mut schema = SchemaGraph::new();
         schema.add_table(TableInfo::new("tasks", "production", vec![]));
-        let diagnostics = DiagnosticEngine::check(&tree, sql, &schema);
+        let diagnostics = check("ANALYZE production.tasks; SELECT * FROM production.tasks;", &schema);
         let errors: Vec<_> = diagnostics.iter().filter(|d| d.severity == 1).collect();
         assert!(errors.is_empty(), "valid multi-statement SQL should have no errors, got {:?}", errors);
     }
