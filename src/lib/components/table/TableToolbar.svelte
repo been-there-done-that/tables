@@ -27,6 +27,9 @@
     import type { Column } from "./types";
     import { COPY_FORMAT_LABELS, type CopyFormat } from "./copyFormats";
     import { settingsStore } from "$lib/stores/settings.svelte";
+    import { exportStore, EXPORT_FORMAT_LABELS, EXPORT_FORMAT_EXT, type ExportFormat as FileExportFormat } from "$lib/stores/export.svelte";
+    import { save } from "@tauri-apps/plugin-dialog";
+    import ExportProgressChip from "./ExportProgressChip.svelte";
 
     let now = $state(Date.now());
     const clockId = setInterval(() => { now = Date.now(); }, 10_000);
@@ -85,6 +88,11 @@
         hidePagination?: boolean;
         extraActions?: import("svelte").Snippet;
         leftActions?: import("svelte").Snippet;
+        connectionId?: string;
+        sessionId?: string;
+        database?: string;
+        query?: string;
+        tableName?: string;
     }
 
     const dispatch = createEventDispatcher();
@@ -124,6 +132,11 @@
         hidePagination = false,
         extraActions,
         leftActions,
+        connectionId,
+        sessionId,
+        database,
+        query,
+        tableName,
     }: Props = $props();
 
     let exportOpen = $state(false);
@@ -239,6 +252,31 @@
         dispatch("export", { format });
         exportOpen = false;
     }
+
+    async function handleFileExport(format: FileExportFormat) {
+        if (!connectionId || !query) return;
+
+        const ext = EXPORT_FORMAT_EXT[format];
+        const defaultName = `${tableName ?? "results"}_${new Date().toISOString().slice(0, 10)}.${ext}`;
+
+        const filePath = await save({
+            defaultPath: defaultName,
+            filters: [{ name: EXPORT_FORMAT_LABELS[format], extensions: [ext] }],
+        });
+
+        if (!filePath) return; // user cancelled dialog
+
+        await exportStore.startExport({
+            connectionId,
+            sessionId: sessionId ?? "",
+            database,
+            query,
+            format,
+            filePath,
+            tableName,
+        });
+    }
+
     function handleAutoRefresh(ms: number) {
         if (intervalId) clearInterval(intervalId);
         intervalId = null;
@@ -620,58 +658,37 @@
 
         <div class="w-px h-5 bg-border/40 mx-1"></div>
 
-        <!-- Export Menu -->
-
-        <Menu.Root bind:open={exportOpen}>
+        <!-- Export to file dropdown -->
+        <Menu.Root>
             <Menu.Trigger>
                 <Button
                     variant="ghost"
                     size="sm"
-                    class="h-7 px-2 flex items-center gap-1.5"
-                    title="Export"
+                    class="h-7 gap-1 px-2"
+                    title="Export results to file"
                 >
-                    <IconDownload class="h-5 w-5 opacity-70" />
-                    <span class="text-xs font-medium">Export</span>
+                    <IconDownload class="h-3.5 w-3.5 opacity-70" />
+                    <IconChevronDown class="h-3 w-3 opacity-60" />
                 </Button>
             </Menu.Trigger>
             <Menu.Content
-                class="w-40 border border-(--theme-border-default) bg-(--theme-bg-secondary) shadow-lg"
+                class="min-w-[140px] border border-(--theme-border-default) bg-(--theme-bg-secondary) shadow-lg"
                 align="end"
             >
-                <div
-                    class="px-2 py-1.5 text-[10px] uppercase font-bold text-muted-foreground border-b border-border/50 bg-muted/30"
-                >
-                    Data Format
-                </div>
-                <div class="p-1 flex flex-col gap-0.5">
-                    <Menu.Item
-                        class="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted cursor-pointer"
-                        onclick={() => handleExport("csv")}
-                    >
-                        CSV (.csv)
-                    </Menu.Item>
-                    <Menu.Item
-                        class="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted cursor-pointer"
-                        onclick={() => handleExport("tsv")}
-                    >
-                        TSV (.tsv)
-                    </Menu.Item>
-                    <Menu.Item
-                        class="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted cursor-pointer"
-                        onclick={() => handleExport("json")}
-                    >
-                        JSON (.json)
-                    </Menu.Item>
-                    <Menu.Separator class="my-1" />
-                    <Menu.Item
-                        class="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-muted cursor-pointer"
-                        onclick={() => handleExport("sql")}
-                    >
-                        SQL Insert
-                    </Menu.Item>
-                </div>
+                <Menu.Item class="text-xs" onclick={() => handleFileExport("csv")}>CSV</Menu.Item>
+                <Menu.Item class="text-xs" onclick={() => handleFileExport("tsv")}>TSV</Menu.Item>
+                <Menu.Item class="text-xs" onclick={() => handleFileExport("json")}>JSON</Menu.Item>
+                <Menu.Item class="text-xs" onclick={() => handleFileExport("jsonl")}>JSONL</Menu.Item>
+                <Menu.Separator />
+                <Menu.Item class="text-xs" onclick={() => handleFileExport("sql_insert")}>SQL INSERT</Menu.Item>
+                <Menu.Item class="text-xs" onclick={() => handleFileExport("sql_script")}>SQL Script (DDL + INSERTs)</Menu.Item>
             </Menu.Content>
         </Menu.Root>
+
+        <!-- Active/completed export chips -->
+        {#each exportStore.exports as entry (entry.exportId)}
+            <ExportProgressChip {entry} />
+        {/each}
 
         <div class="w-px h-5 bg-border/50"></div>
 
