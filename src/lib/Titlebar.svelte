@@ -1,6 +1,5 @@
 <script lang="ts">
-  import ResizableWindow from "$lib/components/ResizableWindow.svelte";
-  import IconSettings from "@tabler/icons-svelte/icons/settings";
+import IconSettings from "@tabler/icons-svelte/icons/settings";
   import IconAi from "@tabler/icons-svelte/icons/ai";
   import IconSettingsFilled from "@tabler/icons-svelte/icons/settings-filled";
   import IconLayoutSidebar from "@tabler/icons-svelte/icons/layout-sidebar";
@@ -22,7 +21,6 @@
   import { schemaStore } from "$lib/stores/schema.svelte";
   import { logsStore } from "$lib/stores/logs.svelte";
   import { cn } from "$lib/utils";
-  import DataSource from "./components/datasource/DataSource.svelte";
   import ConnectionPicker from "$lib/components/ConnectionPicker.svelte";
   import * as Menu from "$lib/components/ui/dropdown-menu";
   import IconDatabaseAlt from "$lib/svg/IconDatabaseAlt.svelte";
@@ -35,7 +33,6 @@
 
   let { isFullScreen } = $props();
   // let icons = $state(false);
-  let datasourceWindowOpen = $state(false);
   let isDbPickerOpen = $state(false);
 
   // Use user agent to detect Windows.
@@ -183,7 +180,7 @@
         <UpdateChip />
         {#if !["datasource-window", "appearance-window", "feedback-window"].includes(windowState.label)}
           <button
-            class="h-6 w-6 flex items-center justify-center rounded-md border transition-all hover:bg-(--theme-bg-hover) border-transparent"
+            class="flex flex-col items-center justify-center gap-0.5 h-7 w-8 rounded-md border transition-all hover:bg-(--theme-bg-hover) border-transparent"
             onclick={async () => {
               try {
                 await invoke("create_new_window");
@@ -193,72 +190,65 @@
             }}
             title="New Window"
           >
-            <IconPlus class="size-6" />
+            <IconPlus class="size-4" />
+            <span class="text-[9px] leading-none opacity-60">Window</span>
           </button>
 
           <button
             class={cn(
-              "h-6 w-6 flex items-center justify-center rounded-md border transition-all",
-              datasourceWindowOpen
-                ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
-                : "hover:bg-(--theme-bg-hover) border-transparent",
-            )}
-            onclick={() => (datasourceWindowOpen = !datasourceWindowOpen)}
-            title="New Datasource"
-          >
-            <PlaylistAdd class="size-6" />
-          </button>
-
-          <button
-            class={cn(
-              "h-6 w-7 flex items-center justify-center rounded-md border transition-all",
+              "flex flex-col items-center justify-center gap-0.5 h-7 w-10 rounded-md border transition-all",
               windowState.datasourceWindowOpen
                 ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
                 : "hover:bg-(--theme-bg-hover) border-transparent",
             )}
             onclick={openDatasourceWindow}
-            title="External Datasource Window"
+            title="New Datasource Connection"
             id="datasource-btn"
           >
-            <IconPlus class="size-6" />
+            <PlaylistAdd class="size-4" />
+            <span class="text-[9px] leading-none opacity-60">Connect</span>
           </button>
 
           <button
             class={cn(
-              "h-6 w-6 flex items-center justify-center rounded-md border transition-all",
+              "flex flex-col items-center justify-center gap-0.5 h-7 w-10 rounded-md border transition-all",
               windowState.layout.left
                 ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
                 : "hover:bg-(--theme-bg-hover) border-transparent",
             )}
             onclick={() => (windowState.layout.left = !windowState.layout.left)}
+            title="Toggle Explorer"
           >
             {#if windowState.layout.left}
-              <IconLayoutSidebarFilled class="size-5" />
+              <IconLayoutSidebarFilled class="size-4" />
             {:else}
-              <IconLayoutSidebar class="size-5" />
+              <IconLayoutSidebar class="size-4" />
             {/if}
+            <span class="text-[9px] leading-none opacity-60">Explorer</span>
           </button>
 
           <button
             class={cn(
-              "h-6 w-6 flex items-center justify-center rounded-md border transition-all",
+              "flex flex-col items-center justify-center gap-0.5 h-7 w-10 rounded-md border transition-all",
               windowState.layout.bottom
                 ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
                 : "hover:bg-(--theme-bg-hover) border-transparent",
             )}
             onclick={() =>
               (windowState.layout.bottom = !windowState.layout.bottom)}
+            title="Toggle Output Panel"
           >
             {#if windowState.layout.bottom}
-              <IconLayoutBottombarFilled class="size-5" />
+              <IconLayoutBottombarFilled class="size-4" />
             {:else}
-              <IconLayoutBottombar class="size-5" />
+              <IconLayoutBottombar class="size-4" />
             {/if}
+            <span class="text-[9px] leading-none opacity-60">Output</span>
           </button>
 
           <button
             class={cn(
-              "h-6 w-6 flex items-center justify-center rounded-md border transition-all",
+              "flex flex-col items-center justify-center gap-0.5 h-7 w-8 rounded-md border transition-all",
               logsStore.isOpen
                 ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
                 : "hover:bg-(--theme-bg-hover) border-transparent",
@@ -266,29 +256,32 @@
             onclick={() => logsStore.toggle()}
             title="Toggle Query Logs"
           >
-            <Logs class="size-5" />
+            <Logs class="size-4" />
+            <span class="text-[9px] leading-none opacity-60">Logs</span>
           </button>
 
           <button
             class={cn(
-              "h-6 w-6 flex items-center justify-center rounded-md border transition-all",
+              "flex flex-col items-center justify-center gap-0.5 h-7 w-9 rounded-md border transition-all",
               windowState.layout.right
                 ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
                 : "hover:bg-(--theme-bg-hover) border-transparent",
             )}
             onclick={() =>
               (windowState.layout.right = !windowState.layout.right)}
+            title="Toggle Agent Panel"
           >
             {#if windowState.layout.right}
-              <IconLayoutSidebarRightFilled class="size-5" />
+              <IconLayoutSidebarRightFilled class="size-4" />
             {:else}
-              <IconLayoutSidebarRight class="size-5" />
+              <IconLayoutSidebarRight class="size-4" />
             {/if}
+            <span class="text-[9px] leading-none opacity-60">Agent</span>
           </button>
 
           <button
             class={cn(
-              "h-6 w-7 flex items-center justify-center rounded-md border transition-all",
+              "flex flex-col items-center justify-center gap-0.5 h-7 w-11 rounded-md border transition-all",
               windowState.settingsWindowOpen
                 ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
                 : "hover:bg-(--theme-bg-hover) border-transparent",
@@ -297,16 +290,17 @@
             title="Settings"
           >
             {#if windowState.settingsWindowOpen}
-              <IconSettingsFilled class="size-5" />
+              <IconSettingsFilled class="size-4" />
             {:else}
-              <IconSettings class="size-5" />
+              <IconSettings class="size-4" />
             {/if}
+            <span class="text-[9px] leading-none opacity-60">Settings</span>
           </button>
 
           <!-- Feedback -->
           <button
             class={cn(
-              "h-6 w-6 flex items-center justify-center rounded-md border transition-all",
+              "flex flex-col items-center justify-center gap-0.5 h-7 w-12 rounded-md border transition-all",
               "hover:bg-(--theme-bg-hover) border-transparent",
             )}
             onclick={async () => {
@@ -318,13 +312,14 @@
             }}
             title="Send Feedback"
           >
-            <IconMessageReport class="size-5" />
+            <IconMessageReport class="size-4" />
+            <span class="text-[9px] leading-none opacity-60">Feedback</span>
           </button>
 
           <!-- AI Assistant -->
           <button
             class={cn(
-              "h-6 w-6 flex items-center justify-center rounded-md border transition-all",
+              "flex flex-col items-center justify-center gap-0.5 h-7 w-9 rounded-md border transition-all",
               windowState.layout.right &&
                 windowState.activeRightPanel === "claude"
                 ? "bg-(--theme-bg-active) border-(--theme-border-subtle)"
@@ -335,13 +330,14 @@
           >
             <IconAi
               class={cn(
-                "size-5 transition-colors",
+                "size-4 transition-colors",
                 windowState.layout.right &&
                   windowState.activeRightPanel === "claude"
                   ? "text-accent"
                   : "text-muted-foreground",
               )}
             />
+            <span class="text-[9px] leading-none opacity-60">Claude</span>
           </button>
         {/if}
 
@@ -369,22 +365,3 @@
   </div>
 {/if}
 
-<ResizableWindow
-  title="New datasource"
-  bind:open={datasourceWindowOpen}
-  minWidth={920}
-  minHeight={520}
-  closeOnOverlayClick={false}
-  contentClass="space-y-3"
-  debug={true}
-  onClose={() => (datasourceWindowOpen = false)}
-  openShortcut="ctrl+shift+n"
-  closeShortcut="ctrl+shift+w"
->
-  {#snippet children()}
-    <DataSource />
-  {/snippet}
-  {#snippet headerActions()}
-    <!-- no extra header actions -->
-  {/snippet}
-</ResizableWindow>

@@ -5,6 +5,8 @@
     import IconCode from "@tabler/icons-svelte/icons/code";
     import IconTable from "@tabler/icons-svelte/icons/table";
     import IconRefresh from "@tabler/icons-svelte/icons/refresh";
+    import IconPlayerPlay from "@tabler/icons-svelte/icons/player-play";
+    import IconPlayerPause from "@tabler/icons-svelte/icons/player-pause";
     import type { TreeNode } from "./FileTree.svelte";
 
     let {
@@ -103,6 +105,15 @@
         <ContextMenu.Item onclick={() => act("copy_trigger_ddl")}>
             <IconCopy class="mr-2 size-4 opacity-60" />
             <span>Copy DDL</span>
+        </ContextMenu.Item>
+        <ContextMenu.Separator />
+        <ContextMenu.Item onclick={() => act("enable_trigger")}>
+            <IconPlayerPlay class="mr-2 size-4 opacity-60" />
+            <span>Enable Trigger</span>
+        </ContextMenu.Item>
+        <ContextMenu.Item onclick={() => act("disable_trigger")}>
+            <IconPlayerPause class="mr-2 size-4 opacity-60" />
+            <span>Disable Trigger</span>
         </ContextMenu.Item>
     {/if}
 

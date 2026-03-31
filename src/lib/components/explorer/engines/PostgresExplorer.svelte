@@ -450,7 +450,19 @@
         switch (action) {
             case "query_console": {
                 const title = node.type === "schema" ? `Console: ${node.name}` : `Query: ${node.name}`;
-                session.openView("editor", title, node.metadata);
+                let initialValue: string;
+                if (node.type === "table") {
+                    initialValue = `SELECT * FROM "${schema}"."${node.name}" LIMIT 100;`;
+                } else if (node.type === "view" || node.type === "materialized_view") {
+                    initialValue = `SELECT * FROM "${schema}"."${node.name}";`;
+                } else if (node.type === "function" || node.type === "procedure") {
+                    initialValue = `SELECT "${schema}"."${node.name}"();`;
+                } else if (node.type === "schema") {
+                    initialValue = `-- Schema: ${node.name}\n`;
+                } else {
+                    initialValue = `-- ${node.name}\n`;
+                }
+                session.openView("editor", title, { ...node.metadata, initialValue });
                 break;
             }
 
@@ -509,6 +521,32 @@
             case "refresh_schema": {
                 await schemaStore.refresh();
                 tableDetailsCache = new Map();
+                break;
+            }
+
+            case "enable_trigger": {
+                const triggerName = meta?.objectName || node.name;
+                const tableName = meta?.tableName || "";
+                const sql = `ALTER TABLE "${schema}"."${tableName}" ENABLE TRIGGER "${triggerName}";`;
+                try {
+                    await invoke("execute_query", { connectionId: connId, query: sql, database: db });
+                    toast.success(`Trigger "${triggerName}" enabled`);
+                } catch (e) {
+                    toast.error(`Failed to enable trigger`, { description: String(e) });
+                }
+                break;
+            }
+
+            case "disable_trigger": {
+                const triggerName = meta?.objectName || node.name;
+                const tableName = meta?.tableName || "";
+                const sql = `ALTER TABLE "${schema}"."${tableName}" DISABLE TRIGGER "${triggerName}";`;
+                try {
+                    await invoke("execute_query", { connectionId: connId, query: sql, database: db });
+                    toast.success(`Trigger "${triggerName}" disabled`);
+                } catch (e) {
+                    toast.error(`Failed to disable trigger`, { description: String(e) });
+                }
                 break;
             }
 
