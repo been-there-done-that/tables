@@ -335,7 +335,7 @@ macro_rules! aggregate_plugin_commands {
             install_update,
 
             // Util commands
-            save_png_file,
+            save_svg_file,
 
         ]
     };
