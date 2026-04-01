@@ -18,7 +18,7 @@
 <NodeResizer minWidth={200} maxWidth={500} isVisible={selected} />
 
 <div
-    class="rounded-md border border-[--theme-border-default] bg-[--theme-bg-secondary] text-[--theme-fg-primary] shadow-sm overflow-hidden w-full"
+    class="rounded-md border border-[--theme-border-default] bg-[--theme-bg-secondary] text-[--theme-fg-primary] shadow-sm w-full"
     class:ring-2={selected}
     class:ring-primary={selected}
 >
@@ -33,6 +33,7 @@
     </div>
 
     <!-- Column rows -->
+    <div class="overflow-hidden">
     {#each table.columns as col (col.column_name)}
         {@const isFk = fkColumns.has(col.column_name)}
         {@const isConnectable = col.is_primary_key || isFk}
@@ -63,8 +64,8 @@
                 <span class="text-amber-500 shrink-0 font-bold text-[10px]">PK</span>
             {/if}
 
-            <!-- FK badge -->
-            {#if isFk}
+            <!-- FK badge (only when not also a PK) -->
+            {#if isFk && !col.is_primary_key}
                 <IconArrowUpRight class="h-3 w-3 text-blue-400 shrink-0" />
                 <span class="text-blue-400 shrink-0 font-bold text-[10px]">FK</span>
             {/if}
@@ -93,4 +94,5 @@
             </span>
         </div>
     {/each}
+    </div>
 </div>
