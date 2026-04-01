@@ -23,7 +23,7 @@
     // Both source and target are on the right side of the same node.
     // Bulge 70px to the right so the loop is clearly visible outside the node.
     const offset = 70;
-    const path = `M ${sourceX} ${sourceY} C ${sourceX + offset} ${sourceY}, ${targetX + offset} ${targetY}, ${targetX} ${targetY}`;
+    const path = $derived(`M ${sourceX} ${sourceY} C ${sourceX + offset} ${sourceY}, ${targetX + offset} ${targetY}, ${targetX} ${targetY}`);
 </script>
 
 <BaseEdge {id} {path} {markerEnd} {style} />
