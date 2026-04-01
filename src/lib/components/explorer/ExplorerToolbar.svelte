@@ -8,6 +8,9 @@
     import IconDatabase from "@tabler/icons-svelte/icons/database";
     import IconRefresh from "@tabler/icons-svelte/icons/refresh";
     import IconSqlFile from "$lib/svg/IconSqlFile.svelte";
+    import IconVectorTriangle from "@tabler/icons-svelte/icons/vector-triangle";
+    import ErdTableSelector from "$lib/components/erd/ErdTableSelector.svelte";
+    import type { MetaTable } from "$lib/commands/types";
 
     interface Props {
         treeData: TreeNode[];
@@ -24,6 +27,23 @@
     }: Props = $props();
 
     const activeSession = $derived(windowState.activeSession);
+
+    let erdSelectorOpen = $state(false);
+
+    // Collect all tables from the selected database across all schemas
+    const allTables = $derived.by((): MetaTable[] => {
+        const db = schemaStore.databases.find(d => d.name === schemaStore.selectedDatabase);
+        if (!db) return [];
+        return db.schemas.flatMap(s => s.tables);
+    });
+
+    function openErd(selected: MetaTable[]) {
+        activeSession?.openView('erd', 'Entity Diagram', {
+            tables: selected,
+            connectionId: schemaStore.activeConnection?.id ?? '',
+            schema: schemaStore.activeSchema ?? 'public',
+        });
+    }
 
     /**
      * Get all node IDs at a specific depth level from the tree
@@ -188,5 +208,21 @@
         >
             <IconSqlFile class="size-4" />
         </button>
+
+        <div class="mx-1 h-4 w-px bg-border/50"></div>
+        <button
+            class="p-1 flex items-center justify-center gap-1 hover:bg-accent rounded-sm text-muted-foreground hover:text-foreground transition-colors"
+            title="Open ERD Diagram"
+            onclick={() => erdSelectorOpen = true}
+        >
+            <IconVectorTriangle class="size-4" />
+        </button>
     </div>
 </div>
+
+<ErdTableSelector
+    bind:open={erdSelectorOpen}
+    tables={allTables}
+    onConfirm={openErd}
+    onCancel={() => {}}
+/>

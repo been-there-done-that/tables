@@ -12,6 +12,7 @@
   import { logsStore } from "$lib/stores/logs.svelte";
   import BottomPanel from "$lib/components/BottomPanel.svelte";
   import { schemaStore } from "$lib/stores/schema.svelte";
+  import ErdView from "$lib/components/erd/ErdView.svelte";
 
   const activeSession = $derived(windowState.activeSession);
   const editorRestoring = $derived(windowState.restoringSession);
@@ -117,10 +118,11 @@
                               {:else if view.type === "table"}
                                 <TablePreview bind:context={view.data} />
                               {:else if view.type === "erd"}
-                                <!-- ERD placeholder — replaced in Task 6 -->
-                                <div class="flex h-full items-center justify-center text-sm text-muted-foreground">
-                                  ERD coming soon…
-                                </div>
+                                <ErdView
+                                  tables={view.data?.tables ?? []}
+                                  connectionId={view.data?.connectionId ?? ''}
+                                  schema={view.data?.schema ?? 'public'}
+                                />
                               {:else}
                                 <!-- Default Fallback -->
                                 <div class="flex-1 overflow-auto p-4 space-y-4">
