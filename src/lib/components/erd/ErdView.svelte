@@ -2,11 +2,12 @@
     import { SvelteFlow, MiniMap, Controls, Background, getNodesBounds, getViewportForBounds, type Node, type Edge } from '@xyflow/svelte';
     import '@xyflow/svelte/dist/style.css';
     import ErdTableNode from './ErdTableNode.svelte';
+    import ErdSelfLoopEdge from './ErdSelfLoopEdge.svelte';
     import { buildErdGraph } from './erd-layout';
     import type { MetaTable } from '$lib/commands/types';
     import IconLayout from '@tabler/icons-svelte/icons/layout-board';
     import IconDownload from '@tabler/icons-svelte/icons/download';
-    import { toPng } from 'html-to-image';
+    import { toSvg } from 'html-to-image';
     import { save } from '@tauri-apps/plugin-dialog';
     import { invoke } from '@tauri-apps/api/core';
 
@@ -18,6 +19,7 @@
     let { tables, connectionId, schema }: Props = $props();
 
     const nodeTypes = { tableNode: ErdTableNode };
+    const edgeTypes = { selfLoop: ErdSelfLoopEdge };
 
     const storageKey = $derived(`erd-positions:${connectionId}:${schema}`);
 
@@ -55,16 +57,20 @@
         });
     });
 
-    async function autoLayout() {
+    function autoLayout() {
         localStorage.removeItem(storageKey);
-        const { nodes: fresh, edges: freshEdges } = await buildErdGraph(tables);
-        nodes = fresh;
-        edges = freshEdges;
+        buildErdGraph(tables).then(result => {
+            nodes = result.nodes;
+            edges = result.edges;
+        });
     }
+
+    const bgColor = getComputedStyle(document.documentElement)
+        .getPropertyValue('--theme-border-subtle')
+        .trim();
 
     const IMAGE_WIDTH = 1920;
     const IMAGE_HEIGHT = 1080;
-
     let downloading = $state(false);
 
     async function downloadImage() {
@@ -76,19 +82,14 @@
 
         downloading = true;
         try {
-            const defaultName = `erd-${schema}-${new Date().toISOString().slice(0, 10)}.png`;
+            const defaultName = `erd-${schema}-${new Date().toISOString().slice(0, 10)}.svg`;
             const path = await save({
                 defaultPath: defaultName,
-                filters: [{ name: 'PNG Image', extensions: ['png'] }],
+                filters: [{ name: 'SVG Image', extensions: ['svg'] }],
             });
             if (!path) return;
 
-            const bgColor = getComputedStyle(document.documentElement)
-                .getPropertyValue('--theme-bg-primary')
-                .trim();
-
-            const dataUrl = await toPng(viewport, {
-                backgroundColor: bgColor,
+            const dataUrl = await toSvg(viewport, {
                 width: IMAGE_WIDTH,
                 height: IMAGE_HEIGHT,
                 style: {
@@ -97,18 +98,22 @@
                     transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.zoom})`,
                 },
             });
-            await invoke('save_png_file', { path, dataUrl });
+            // toSvg returns "data:image/svg+xml;charset=utf-8,<url-encoded-svg>"
+            const svg = decodeURIComponent(
+                dataUrl.replace(/^data:image\/svg\+xml;charset=utf-8,/, '')
+            );
+            await invoke('save_svg_file', { path, svg });
         } finally {
             downloading = false;
         }
     }
 </script>
 
-<div class="relative h-full w-full bg-muted/20">
+<div class="relative h-full w-full bg-[--theme-bg-primary]">
     <!-- Toolbar overlay -->
     <div class="absolute top-2 left-2 z-10 flex items-center gap-1">
         <button
-            class="flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 text-xs hover:bg-accent shadow-sm"
+            class="flex items-center gap-1.5 rounded-md border border-[--theme-border-default] bg-[--theme-bg-secondary] px-2 py-1 text-xs text-[--theme-fg-primary] hover:bg-[--theme-bg-hover] shadow-sm"
             onclick={autoLayout}
             title="Reset layout"
         >
@@ -116,13 +121,13 @@
             Auto layout
         </button>
         <button
-            class="flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 text-xs hover:bg-accent shadow-sm disabled:opacity-50"
+            class="flex items-center gap-1.5 rounded-md border border-[--theme-border-default] bg-[--theme-bg-secondary] px-2 py-1 text-xs text-[--theme-fg-primary] hover:bg-[--theme-bg-hover] shadow-sm disabled:opacity-50"
             onclick={downloadImage}
             disabled={downloading}
-            title="Download as PNG"
+            title="Export as SVG"
         >
             <IconDownload class="h-3.5 w-3.5" />
-            {downloading ? 'Saving…' : 'Download PNG'}
+            {downloading ? 'Saving…' : 'Export SVG'}
         </button>
     </div>
 
@@ -130,13 +135,14 @@
         bind:nodes
         bind:edges
         {nodeTypes}
+        {edgeTypes}
         fitView
         minZoom={0.1}
         maxZoom={2}
         defaultEdgeOptions={{ type: 'smoothstep', animated: false }}
         onnodedragstop={({ nodes: currentNodes }) => savePositions(currentNodes)}
     >
-        <Background />
+        <Background patternColor={bgColor} />
         <Controls />
         <MiniMap pannable zoomable />
     </SvelteFlow>
