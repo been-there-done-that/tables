@@ -108,6 +108,8 @@
         onConfirm(selectedTables);
         open = false;
     }
+
+    const LARGE_THRESHOLD = 50;
 </script>
 
 <Dialog.Root bind:open>
@@ -198,20 +200,28 @@
             </div>
 
             <!-- Footer -->
-            <div class="flex items-center justify-end gap-2 border-t border-border px-4 py-3">
-                <button
-                    class="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"
-                    onclick={() => { open = false; onCancel(); }}
-                >
-                    Cancel
-                </button>
-                <button
-                    class="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-                    disabled={selected.size === 0}
-                    onclick={confirm}
-                >
-                    Open ERD ({selected.size} tables)
-                </button>
+            <div class="flex flex-col gap-2 border-t border-border px-4 py-3">
+                {#if selected.size > LARGE_THRESHOLD}
+                    <div class="flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-600 dark:text-amber-400">
+                        <span>⚠</span>
+                        <span>{selected.size} tables selected — large schemas take longer to load.</span>
+                    </div>
+                {/if}
+                <div class="flex items-center justify-end gap-2">
+                    <button
+                        class="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"
+                        onclick={() => { open = false; onCancel(); }}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        class="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                        disabled={selected.size === 0}
+                        onclick={confirm}
+                    >
+                        {selected.size > LARGE_THRESHOLD ? 'Open anyway' : 'Open ERD'} ({selected.size} tables)
+                    </button>
+                </div>
             </div>
         </Dialog.Content>
     </Dialog.Portal>
