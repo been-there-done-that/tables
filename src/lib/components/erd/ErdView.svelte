@@ -144,7 +144,7 @@
         fitView
         minZoom={0.1}
         maxZoom={2}
-        defaultEdgeOptions={{ type: 'smoothstep', animated: false }}
+        defaultEdgeOptions={{ type: 'smoothstep', animated: false, style: 'stroke-width: 2px;' }}
         onnodedragstop={({ nodes: currentNodes }) => savePositions(currentNodes)}
     >
         <Background patternColor={bgColor} />

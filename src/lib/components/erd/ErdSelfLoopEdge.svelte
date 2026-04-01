@@ -22,10 +22,10 @@
 
     // Both source and target are on the right side of the same node.
     // Bulge 70px to the right so the loop is clearly visible outside the node.
-    const offset = 70;
-    // Both source and target are on the right side of the same node.
-    // Control points bulge further right so the loop stays outside the node body.
-    const path = $derived(`M ${sourceX} ${sourceY} C ${sourceX + offset} ${sourceY}, ${targetX + offset} ${targetY}, ${targetX} ${targetY}`);
+    const offset = 60;
+    // Orthogonal step path: exit right → step right → step to PK row → step back left.
+    // Mirrors the smoothstep style used by cross-table edges.
+    const path = $derived(`M ${sourceX} ${sourceY} H ${sourceX + offset} V ${targetY} H ${targetX}`);
 </script>
 
 <BaseEdge {id} {path} {markerEnd} {style} />
