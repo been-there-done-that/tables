@@ -72,7 +72,8 @@ jobs:
             librsvg2-dev \
             patchelf \
             libxdo-dev \
-            libssl-dev
+            libssl-dev \
+            libfuse2
 
       - name: Install frontend deps
         run: pnpm install
