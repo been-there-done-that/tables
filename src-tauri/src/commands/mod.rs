@@ -39,6 +39,8 @@ pub mod feedback_commands;
 pub use feedback_commands::*;
 pub mod update_commands;
 pub use update_commands::*;
+pub mod util_commands;
+pub use util_commands::*;
 
 #[cfg(test)]
 mod pg_sprint_tests;

@@ -334,6 +334,9 @@ macro_rules! aggregate_plugin_commands {
             download_update,
             install_update,
 
+            // Util commands
+            save_png_file,
+
         ]
     };
 }
