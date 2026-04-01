@@ -180,7 +180,7 @@ import IconSettings from "@tabler/icons-svelte/icons/settings";
         <UpdateChip />
         {#if !["datasource-window", "appearance-window", "feedback-window"].includes(windowState.label)}
           <button
-            class="inline-flex flex-col items-center justify-center gap-0.5 h-7 min-w-[2rem] px-2 rounded-md border border-border bg-background shadow-sm transition-colors hover:bg-accent hover:text-foreground text-muted-foreground"
+            class="inline-flex flex-row items-center gap-1.5 h-6 px-2.5 rounded-md border border-border bg-background shadow-sm transition-colors hover:bg-accent hover:text-foreground text-muted-foreground"
             onclick={async () => {
               try {
                 await invoke("create_new_window");
@@ -191,12 +191,12 @@ import IconSettings from "@tabler/icons-svelte/icons/settings";
             title="New Window"
           >
             <IconPlus class="size-4" />
-            <span class="text-[9px] leading-none opacity-60">Window</span>
+            <span class="text-[10px] leading-none font-medium opacity-70">Window</span>
           </button>
 
           <button
             class={cn(
-              "inline-flex flex-col items-center justify-center gap-0.5 h-7 min-w-[2.5rem] px-2 rounded-md border shadow-sm transition-colors text-muted-foreground",
+              "inline-flex flex-row items-center gap-1.5 h-6 px-2.5 rounded-md border shadow-sm transition-colors text-muted-foreground",
               windowState.datasourceWindowOpen
                 ? "bg-accent text-accent-foreground border-accent/50"
                 : "bg-background border-border hover:bg-accent hover:text-foreground",
@@ -206,12 +206,12 @@ import IconSettings from "@tabler/icons-svelte/icons/settings";
             id="datasource-btn"
           >
             <PlaylistAdd class="size-4" />
-            <span class="text-[9px] leading-none opacity-60">Connect</span>
+            <span class="text-[10px] leading-none font-medium opacity-70">Connect</span>
           </button>
 
           <button
             class={cn(
-              "inline-flex flex-col items-center justify-center gap-0.5 h-7 min-w-[2.5rem] px-2 rounded-md border shadow-sm transition-colors text-muted-foreground",
+              "inline-flex flex-row items-center gap-1.5 h-6 px-2.5 rounded-md border shadow-sm transition-colors text-muted-foreground",
               windowState.layout.left
                 ? "bg-accent text-accent-foreground border-accent/50"
                 : "bg-background border-border hover:bg-accent hover:text-foreground",
@@ -224,12 +224,12 @@ import IconSettings from "@tabler/icons-svelte/icons/settings";
             {:else}
               <IconLayoutSidebar class="size-4" />
             {/if}
-            <span class="text-[9px] leading-none opacity-60">Explorer</span>
+            <span class="text-[10px] leading-none font-medium opacity-70">Explorer</span>
           </button>
 
           <button
             class={cn(
-              "inline-flex flex-col items-center justify-center gap-0.5 h-7 min-w-[2.5rem] px-2 rounded-md border shadow-sm transition-colors text-muted-foreground",
+              "inline-flex flex-row items-center gap-1.5 h-6 px-2.5 rounded-md border shadow-sm transition-colors text-muted-foreground",
               windowState.layout.bottom
                 ? "bg-accent text-accent-foreground border-accent/50"
                 : "bg-background border-border hover:bg-accent hover:text-foreground",
@@ -243,12 +243,12 @@ import IconSettings from "@tabler/icons-svelte/icons/settings";
             {:else}
               <IconLayoutBottombar class="size-4" />
             {/if}
-            <span class="text-[9px] leading-none opacity-60">Output</span>
+            <span class="text-[10px] leading-none font-medium opacity-70">Output</span>
           </button>
 
           <button
             class={cn(
-              "inline-flex flex-col items-center justify-center gap-0.5 h-7 min-w-[2rem] px-2 rounded-md border shadow-sm transition-colors text-muted-foreground",
+              "inline-flex flex-row items-center gap-1.5 h-6 px-2.5 rounded-md border shadow-sm transition-colors text-muted-foreground",
               logsStore.isOpen
                 ? "bg-accent text-accent-foreground border-accent/50"
                 : "bg-background border-border hover:bg-accent hover:text-foreground",
@@ -257,12 +257,12 @@ import IconSettings from "@tabler/icons-svelte/icons/settings";
             title="Toggle Query Logs"
           >
             <Logs class="size-4" />
-            <span class="text-[9px] leading-none opacity-60">Logs</span>
+            <span class="text-[10px] leading-none font-medium opacity-70">Logs</span>
           </button>
 
           <button
             class={cn(
-              "inline-flex flex-col items-center justify-center gap-0.5 h-7 min-w-[2.25rem] px-2 rounded-md border shadow-sm transition-colors text-muted-foreground",
+              "inline-flex flex-row items-center gap-1.5 h-6 px-2.5 rounded-md border shadow-sm transition-colors text-muted-foreground",
               windowState.layout.right
                 ? "bg-accent text-accent-foreground border-accent/50"
                 : "bg-background border-border hover:bg-accent hover:text-foreground",
@@ -276,12 +276,12 @@ import IconSettings from "@tabler/icons-svelte/icons/settings";
             {:else}
               <IconLayoutSidebarRight class="size-4" />
             {/if}
-            <span class="text-[9px] leading-none opacity-60">Agent</span>
+            <span class="text-[10px] leading-none font-medium opacity-70">Agent</span>
           </button>
 
           <button
             class={cn(
-              "inline-flex flex-col items-center justify-center gap-0.5 h-7 min-w-[2.75rem] px-2 rounded-md border shadow-sm transition-colors text-muted-foreground",
+              "inline-flex flex-row items-center gap-1.5 h-6 px-2.5 rounded-md border shadow-sm transition-colors text-muted-foreground",
               windowState.settingsWindowOpen
                 ? "bg-accent text-accent-foreground border-accent/50"
                 : "bg-background border-border hover:bg-accent hover:text-foreground",
@@ -294,12 +294,12 @@ import IconSettings from "@tabler/icons-svelte/icons/settings";
             {:else}
               <IconSettings class="size-4" />
             {/if}
-            <span class="text-[9px] leading-none opacity-60">Settings</span>
+            <span class="text-[10px] leading-none font-medium opacity-70">Settings</span>
           </button>
 
           <!-- Feedback -->
           <button
-            class="inline-flex flex-col items-center justify-center gap-0.5 h-7 min-w-[3rem] px-2 rounded-md border border-border bg-background shadow-sm transition-colors hover:bg-accent hover:text-foreground text-muted-foreground"
+            class="inline-flex flex-row items-center gap-1.5 h-6 px-2.5 rounded-md border border-border bg-background shadow-sm transition-colors hover:bg-accent hover:text-foreground text-muted-foreground"
             onclick={async () => {
               try {
                 await invoke("open_feedback_window");
@@ -310,13 +310,13 @@ import IconSettings from "@tabler/icons-svelte/icons/settings";
             title="Send Feedback"
           >
             <IconMessageReport class="size-4" />
-            <span class="text-[9px] leading-none opacity-60">Feedback</span>
+            <span class="text-[10px] leading-none font-medium opacity-70">Feedback</span>
           </button>
 
           <!-- AI Assistant -->
           <button
             class={cn(
-              "inline-flex flex-col items-center justify-center gap-0.5 h-7 min-w-[2.25rem] px-2 rounded-md border shadow-sm transition-colors",
+              "inline-flex flex-row items-center gap-1.5 h-6 px-2.5 rounded-md border shadow-sm transition-colors",
               windowState.layout.right && windowState.activeRightPanel === "claude"
                 ? "bg-accent text-accent-foreground border-accent/50"
                 : "bg-background border-border hover:bg-accent hover:text-foreground text-muted-foreground",
@@ -325,7 +325,7 @@ import IconSettings from "@tabler/icons-svelte/icons/settings";
             title="AI Assistant"
           >
             <IconAi class="size-4 transition-colors" />
-            <span class="text-[9px] leading-none opacity-60">Claude</span>
+            <span class="text-[10px] leading-none font-medium opacity-70">Claude</span>
           </button>
         {/if}
 
