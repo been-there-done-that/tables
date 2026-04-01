@@ -75,6 +75,7 @@
             );
             for (let j = 0; j < settled.length; j++) {
                 const result = settled[j];
+                fetchedCount++;
                 if (result.status === 'fulfilled') {
                     results.push(result.value);
                 } else {
@@ -82,7 +83,6 @@
                     failedCount++;
                 }
             }
-            fetchedCount += chunk.length;
         }
         return results;
     }
@@ -100,24 +100,30 @@
     let nodes = $state<Node[]>([]);
     let edges = $state<Edge[]>([]);
 
+    let fetchGeneration = 0;
+
     $effect(() => {
         if (tables.length === 0) return;
+        const gen = ++fetchGeneration;
         chipVisible = true;
         loadPhase = 'fetching';
 
         fetchEnrichedTables(tables)
             .then(enriched => {
+                if (gen !== fetchGeneration) return null;
                 enrichedTables = enriched;
                 loadPhase = 'layout';
                 return buildWithSavedPositions(enriched);
             })
             .then(result => {
+                if (!result || gen !== fetchGeneration) return;
                 nodes = result.nodes;
                 edges = result.edges;
                 loadPhase = 'done';
                 setTimeout(() => { chipVisible = false; }, 1500);
             })
             .catch(() => {
+                if (gen !== fetchGeneration) return;
                 loadPhase = 'error';
             });
     });
