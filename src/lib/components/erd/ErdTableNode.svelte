@@ -56,11 +56,11 @@
                     id="{col.column_name}-target"
                     class="!w-2 !h-2 !bg-[--theme-border-default] !border-[--theme-border-default]"
                 />
-                <!-- Self-loop target handle (right side) — used only by self-referencing FK edges -->
+                <!-- Self-loop source handle (left side) — self-referencing FK exits left -->
                 <Handle
-                    type="target"
-                    position={Position.Right}
-                    id="{col.column_name}-self-target"
+                    type="source"
+                    position={Position.Left}
+                    id="{col.column_name}-self-source"
                     style="opacity: 0; pointer-events: none;"
                 />
             {/if}

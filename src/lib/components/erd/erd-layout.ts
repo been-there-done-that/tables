@@ -10,6 +10,10 @@ export interface ErdNodeData {
     table: MetaTable;
 }
 
+export interface SelfLoopData {
+    selfLoopIndex: number;
+}
+
 function computeNodeWidth(table: MetaTable): number {
     const headerLen = `${table.schema}.${table.table_name}`.length;
     const maxColLen = table.columns.reduce((max, col) => {
@@ -32,9 +36,12 @@ export async function buildErdGraph(tables: MetaTable[]): Promise<{ nodes: Node[
         target: string;
         targetHandle: string;
         isSelfLoop: boolean;
+        selfLoopIndex: number;
     }
 
     const edgeDefs: EdgeDef[] = [];
+    // Track how many self-loops each table has so we can fan them apart.
+    const selfLoopCounters = new Map<string, number>();
 
     for (const table of tables) {
         const sourceId = `${table.schema}.${table.table_name}`;
@@ -44,13 +51,18 @@ export async function buildErdGraph(tables: MetaTable[]): Promise<{ nodes: Node[
             if (!tableIds.has(targetId)) continue;
 
             const isSelfLoop = sourceId === targetId;
+            const selfLoopIndex = isSelfLoop ? (selfLoopCounters.get(sourceId) ?? 0) : 0;
+            if (isSelfLoop) selfLoopCounters.set(sourceId, selfLoopIndex + 1);
+
             edgeDefs.push({
                 id: `${sourceId}.${fk.column_name}->${targetId}.${fk.ref_column}`,
                 source: sourceId,
-                sourceHandle: `${fk.column_name}-source`,
-                targetHandle: isSelfLoop ? `${fk.ref_column}-self-target` : `${fk.ref_column}-target`,
+                // Self-loops exit from the left via the invisible -self-source handle.
+                sourceHandle: isSelfLoop ? `${fk.column_name}-self-source` : `${fk.column_name}-source`,
+                targetHandle: `${fk.ref_column}-target`,
                 target: targetId,
                 isSelfLoop,
+                selfLoopIndex,
             });
         }
     }
@@ -98,6 +110,9 @@ export async function buildErdGraph(tables: MetaTable[]): Promise<{ nodes: Node[
         };
     });
 
+    // Larger arrowhead for all edges.
+    const marker = { type: MarkerType.ArrowClosed, width: 22, height: 22 };
+
     const edges: Edge[] = edgeDefs.map(e => ({
         id: e.id,
         source: e.source,
@@ -105,7 +120,14 @@ export async function buildErdGraph(tables: MetaTable[]): Promise<{ nodes: Node[
         target: e.target,
         targetHandle: e.targetHandle,
         type: e.isSelfLoop ? 'selfLoop' : 'smoothstep',
-        markerEnd: { type: MarkerType.ArrowClosed },
+        markerEnd: marker,
+        // Self-loops are dotted to visually distinguish them from cross-table edges.
+        ...(e.isSelfLoop
+            ? {
+                  style: 'stroke-dasharray: 6 4; stroke-width: 2.5px;',
+                  data: { selfLoopIndex: e.selfLoopIndex } satisfies SelfLoopData,
+              }
+            : {}),
     }));
 
     return { nodes, edges };
