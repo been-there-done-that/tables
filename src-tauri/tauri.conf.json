@@ -40,9 +40,9 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "PLACEHOLDER_REPLACE_WITH_REAL_KEY",
+      "pubkey": "RWTW6YEoViGmIIkuLr43hCfVMMlnRa3Tzu9qszqaR7HtTiSd4WF7160n",
       "endpoints": [
-        "https://github.com/OWNER/tables-releases/releases/latest/download/latest.json"
+        "https://github.com/been-there-done-that/tables-releases/releases/latest/download/latest.json"
       ]
     }
   }
