@@ -48,7 +48,7 @@ export async function buildErdGraph(tables: MetaTable[]): Promise<{ nodes: Node[
                 id: `${sourceId}.${fk.column_name}->${targetId}.${fk.ref_column}`,
                 source: sourceId,
                 sourceHandle: `${fk.column_name}-source`,
-                targetHandle: `${fk.ref_column}-target`,
+                targetHandle: isSelfLoop ? `${fk.ref_column}-self-target` : `${fk.ref_column}-target`,
                 target: targetId,
                 isSelfLoop,
             });

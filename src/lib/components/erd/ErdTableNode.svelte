@@ -49,12 +49,19 @@
                     id="{col.column_name}-source"
                     class="!w-2 !h-2 !bg-[--theme-border-default] !border-[--theme-border-default]"
                 />
-                <!-- Target handle (left side) -->
+                <!-- Target handle (left side) — used by normal FK edges -->
                 <Handle
                     type="target"
                     position={Position.Left}
                     id="{col.column_name}-target"
                     class="!w-2 !h-2 !bg-[--theme-border-default] !border-[--theme-border-default]"
+                />
+                <!-- Self-loop target handle (right side) — used only by self-referencing FK edges -->
+                <Handle
+                    type="target"
+                    position={Position.Right}
+                    id="{col.column_name}-self-target"
+                    style="opacity: 0; pointer-events: none;"
                 />
             {/if}
 
