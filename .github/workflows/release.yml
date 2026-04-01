@@ -6,7 +6,30 @@ on:
       - 'v*'
 
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create tag in tables-releases
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_REPO_TOKEN }}
+        run: |
+          TAG="${{ github.ref_name }}"
+          # Get the SHA of the latest commit on main in tables-releases
+          SHA=$(gh api repos/been-there-done-that/tables-releases/git/ref/heads/main --jq '.object.sha')
+          # Create the tag if it doesn't already exist
+          gh api repos/been-there-done-that/tables-releases/git/tags \
+            --method POST \
+            -f tag="$TAG" \
+            -f message="Release $TAG" \
+            -f object="$SHA" \
+            -f type="commit" || true
+          gh api repos/been-there-done-that/tables-releases/git/refs \
+            --method POST \
+            -f ref="refs/tags/$TAG" \
+            -f sha="$SHA" || true
+
   release:
+    needs: prepare
     strategy:
       fail-fast: false
       matrix:
