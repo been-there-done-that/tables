@@ -62,15 +62,27 @@
     let downloading = $state(false);
 
     async function downloadImage() {
+        console.log('[ERD download] starting');
         const el = document.querySelector<HTMLElement>('.svelte-flow__renderer');
-        if (!el) return;
+        console.log('[ERD download] target element:', el, el ? `${el.offsetWidth}x${el.offsetHeight}` : 'NOT FOUND');
+        if (!el) {
+            console.error('[ERD download] .svelte-flow__renderer not found in DOM');
+            return;
+        }
         downloading = true;
         try {
+            console.log('[ERD download] calling toPng...');
             const dataUrl = await toPng(el, { cacheBust: true, pixelRatio: 2 });
+            console.log('[ERD download] dataUrl length:', dataUrl.length, 'prefix:', dataUrl.slice(0, 60));
             const a = document.createElement('a');
             a.href = dataUrl;
             a.download = `erd-${schema}-${new Date().toISOString().slice(0, 10)}.png`;
+            document.body.appendChild(a);
             a.click();
+            document.body.removeChild(a);
+            console.log('[ERD download] click triggered');
+        } catch (err) {
+            console.error('[ERD download] error:', err);
         } finally {
             downloading = false;
         }
