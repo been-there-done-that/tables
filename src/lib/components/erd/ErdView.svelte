@@ -82,7 +82,12 @@
             });
             if (!path) return;
 
+            const bgColor = getComputedStyle(document.documentElement)
+                .getPropertyValue('--theme-bg-primary')
+                .trim();
+
             const dataUrl = await toPng(viewport, {
+                backgroundColor: bgColor,
                 width: IMAGE_WIDTH,
                 height: IMAGE_HEIGHT,
                 style: {
