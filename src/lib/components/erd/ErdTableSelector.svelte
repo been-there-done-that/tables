@@ -5,6 +5,8 @@
     import IconSearch from '@tabler/icons-svelte/icons/search';
     import IconVectorTriangle from '@tabler/icons-svelte/icons/vector-triangle';
     import IconAlertTriangle from '@tabler/icons-svelte/icons/alert-triangle';
+    import IconChevronRight from '@tabler/icons-svelte/icons/chevron-right';
+    import IconChevronDown from '@tabler/icons-svelte/icons/chevron-down';
 
     interface Props {
         open: boolean;
@@ -16,11 +18,12 @@
 
     let search = $state('');
     let selected = $state<Set<string>>(new Set());
+    let collapsedSchemas = $state<Set<string>>(new Set());
 
     // Key = "schema.table_name"
     function tableKey(t: MetaTable) { return `${t.schema}.${t.table_name}`; }
 
-    // FK count per table (outgoing only — incoming would require a reverse-index pass)
+    // FK count per table (outgoing only)
     const fkCount = $derived.by(() => {
         const counts = new Map<string, number>();
         for (const t of tables) {
@@ -48,8 +51,6 @@
         return map;
     });
 
-    const multiSchema = $derived(grouped.size > 1);
-
     const selectedTables = $derived(tables.filter(t => selected.has(tableKey(t))));
 
     function toggle(t: MetaTable) {
@@ -57,6 +58,36 @@
         const next = new Set(selected);
         if (next.has(key)) next.delete(key);
         else next.add(key);
+        selected = next;
+    }
+
+    function toggleSchema(schema: string) {
+        const next = new Set(collapsedSchemas);
+        if (next.has(schema)) next.delete(schema);
+        else next.add(schema);
+        collapsedSchemas = next;
+    }
+
+    // Schema checkbox state: 'all' | 'none' | 'indeterminate'
+    function schemaCheckState(schema: string): 'all' | 'none' | 'indeterminate' {
+        const schemaTables = grouped.get(schema) ?? [];
+        const selectedCount = schemaTables.filter(t => selected.has(tableKey(t))).length;
+        if (selectedCount === 0) return 'none';
+        if (selectedCount === schemaTables.length) return 'all';
+        return 'indeterminate';
+    }
+
+    function toggleSchemaSelection(schema: string) {
+        const schemaTables = grouped.get(schema) ?? [];
+        const state = schemaCheckState(schema);
+        const next = new Set(selected);
+        if (state === 'all') {
+            // deselect all in schema
+            for (const t of schemaTables) next.delete(tableKey(t));
+        } else {
+            // select all in schema
+            for (const t of schemaTables) next.add(tableKey(t));
+        }
         selected = next;
     }
 
@@ -69,7 +100,6 @@
     }
 
     function addRelated() {
-        // Iteratively expand selection to include all FK-connected tables
         const allKeys = new Set(tables.map(tableKey));
         const next = new Set(selected);
         let changed = true;
@@ -78,7 +108,6 @@
             for (const t of tables) {
                 const key = tableKey(t);
                 if (!next.has(key)) continue;
-                // outgoing FKs from selected tables
                 for (const fk of t.foreign_keys) {
                     const refSchema = fk.ref_schema ?? fk.schema;
                     const refKey = `${refSchema}.${fk.ref_table}`;
@@ -88,7 +117,6 @@
                     }
                 }
             }
-            // incoming FKs — tables that reference any selected table
             for (const t of tables) {
                 const key = tableKey(t);
                 if (next.has(key)) continue;
@@ -161,39 +189,77 @@
                 <span class="ml-auto text-muted-foreground">{selected.size} selected</span>
             </div>
 
-            <!-- Table list -->
+            <!-- Tree list -->
             <div class="flex-1 overflow-y-auto px-2 pb-2">
                 {#each [...grouped.entries()] as [schema, schemaTables]}
-                    {#if multiSchema}
-                        <div class="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                            {schema}
-                        </div>
-                    {/if}
-                    {#each schemaTables as t (tableKey(t))}
-                        {@const key = tableKey(t)}
-                        {@const isSelected = selected.has(key)}
-                        {@const fks = fkCount.get(key) ?? 0}
+                    {@const checkState = schemaCheckState(schema)}
+                    {@const isCollapsed = collapsedSchemas.has(schema)}
+
+                    <!-- Schema row -->
+                    <div class="flex items-center gap-1 rounded-md px-1 py-1 hover:bg-muted/30 group">
+                        <!-- Chevron toggle -->
                         <button
-                            class="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted/50 text-left"
-                            class:bg-muted={isSelected}
-                            onclick={() => toggle(t)}
+                            class="flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground"
+                            onclick={() => toggleSchema(schema)}
+                            aria-label={isCollapsed ? 'Expand' : 'Collapse'}
                         >
-                            <!-- Checkbox -->
-                            <span class="flex h-4 w-4 shrink-0 items-center justify-center rounded border border-border"
-                                class:bg-primary={isSelected}
-                                class:border-primary={isSelected}
-                            >
-                                {#if isSelected}
-                                    <span class="text-primary-foreground text-[10px] font-bold">✓</span>
-                                {/if}
-                            </span>
-                            <span class="flex-1 truncate">{t.table_name}</span>
-                            {#if fks > 0}
-                                <span class="text-xs text-muted-foreground bg-muted rounded px-1">{fks} FK</span>
+                            {#if isCollapsed}
+                                <IconChevronRight class="h-3.5 w-3.5" />
+                            {:else}
+                                <IconChevronDown class="h-3.5 w-3.5" />
                             {/if}
-                            <span class="text-xs text-muted-foreground">{t.columns.length} cols</span>
                         </button>
-                    {/each}
+
+                        <!-- Schema checkbox -->
+                        <button
+                            class="flex h-4 w-4 shrink-0 items-center justify-center rounded border {checkState === 'none' ? 'border-border' : 'border-primary'} {checkState === 'all' ? 'bg-primary' : checkState === 'indeterminate' ? 'bg-primary/40' : ''}"
+                            onclick={() => toggleSchemaSelection(schema)}
+                            aria-label="Select all in {schema}"
+                        >
+                            {#if checkState === 'all'}
+                                <span class="text-primary-foreground text-[10px] font-bold leading-none">✓</span>
+                            {:else if checkState === 'indeterminate'}
+                                <span class="text-primary-foreground text-[10px] font-bold leading-none">−</span>
+                            {/if}
+                        </button>
+
+                        <!-- Schema name + count -->
+                        <button
+                            class="flex flex-1 items-center gap-2 text-left"
+                            onclick={() => toggleSchema(schema)}
+                        >
+                            <span class="text-xs font-semibold text-foreground uppercase tracking-wide">{schema}</span>
+                            <span class="text-xs text-muted-foreground bg-muted rounded px-1.5 py-0.5">{schemaTables.length}</span>
+                        </button>
+                    </div>
+
+                    <!-- Tables (children) -->
+                    {#if !isCollapsed}
+                        {#each schemaTables as t (tableKey(t))}
+                            {@const key = tableKey(t)}
+                            {@const isSelected = selected.has(key)}
+                            {@const fks = fkCount.get(key) ?? 0}
+                            <button
+                                class="w-full flex items-center gap-2 rounded-md pl-8 pr-2 py-1.5 text-sm hover:bg-muted/50 text-left"
+                                class:bg-muted={isSelected}
+                                onclick={() => toggle(t)}
+                            >
+                                <!-- Checkbox -->
+                                <span class="flex h-4 w-4 shrink-0 items-center justify-center rounded border border-border"
+                                    class:bg-primary={isSelected}
+                                    class:border-primary={isSelected}
+                                >
+                                    {#if isSelected}
+                                        <span class="text-primary-foreground text-[10px] font-bold leading-none">✓</span>
+                                    {/if}
+                                </span>
+                                <span class="flex-1 truncate">{t.table_name}</span>
+                                {#if fks > 0}
+                                    <span class="text-xs text-muted-foreground bg-muted rounded px-1">{fks} FK</span>
+                                {/if}
+                            </button>
+                        {/each}
+                    {/if}
                 {/each}
                 {#if filtered.length === 0}
                     <div class="py-8 text-center text-sm text-muted-foreground">No tables match "{search}"</div>
