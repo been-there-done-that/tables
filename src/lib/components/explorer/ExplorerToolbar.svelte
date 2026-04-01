@@ -11,7 +11,6 @@
     import IconVectorTriangle from "@tabler/icons-svelte/icons/vector-triangle";
     import ErdTableSelector from "$lib/components/erd/ErdTableSelector.svelte";
     import type { MetaTable } from "$lib/commands/types";
-    import { invoke } from "@tauri-apps/api/core";
 
     interface Props {
         treeData: TreeNode[];
@@ -38,24 +37,10 @@
         return db.schemas.flatMap(s => s.tables);
     });
 
-    async function openErd(selected: MetaTable[]) {
+    function openErd(selected: MetaTable[]) {
         const connectionId = schemaStore.activeConnection?.id ?? '';
-        // Fetch full column + FK details for each selected table (columns are lazy-loaded)
-        const enriched = await Promise.all(selected.map(async (t) => {
-            try {
-                const details = await invoke<any>("get_schema_table_details", {
-                    connectionId,
-                    database: t.database,
-                    schema: t.schema,
-                    tableName: t.table_name,
-                });
-                return { ...t, columns: details.columns ?? [], foreign_keys: details.foreign_keys ?? [] };
-            } catch {
-                return t;
-            }
-        }));
         activeSession?.openView('erd', 'Entity Diagram', {
-            tables: enriched,
+            tables: selected,
             connectionId,
             schema: schemaStore.activeSchema ?? 'public',
         });
