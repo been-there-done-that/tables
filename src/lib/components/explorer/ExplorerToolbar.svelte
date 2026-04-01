@@ -3,19 +3,17 @@
     import { windowState } from "$lib/stores/window.svelte";
     import { schemaStore } from "$lib/stores/schema.svelte";
     import { cn } from "$lib/utils";
+    import Compact from "$lib/svg/Compact.svelte";
+    import Expand from "$lib/svg/Expand.svelte";
+    import IconDatabase from "@tabler/icons-svelte/icons/database";
     import IconRefresh from "@tabler/icons-svelte/icons/refresh";
-    import IconSearch from "@tabler/icons-svelte/icons/search";
-    import IconX from "@tabler/icons-svelte/icons/x";
-    import IconChevronsDown from "@tabler/icons-svelte/icons/chevrons-down";
-    import IconChevronsUp from "@tabler/icons-svelte/icons/chevrons-up";
-    import IconSquarePlus from "@tabler/icons-svelte/icons/square-plus";
+    import IconSqlFile from "$lib/svg/IconSqlFile.svelte";
 
     interface Props {
         treeData: TreeNode[];
         maxLevel?: number;
         selectedNodeId?: string | null;
         onRefresh?: () => void;
-        searchQuery?: string;
     }
 
     let {
@@ -23,7 +21,6 @@
         maxLevel = 4,
         selectedNodeId = null,
         onRefresh = () => schemaStore.refresh(),
-        searchQuery = $bindable(""),
     }: Props = $props();
 
     const activeSession = $derived(windowState.activeSession);
@@ -144,75 +141,52 @@
     }
 </script>
 
-<div class="flex-none border-b border-border">
-    <!-- Header row -->
-    <div class="flex h-8 items-center bg-background/50 px-3">
-        <h2 class="text-sm font-semibold">Explorer</h2>
-        <div class="ml-auto flex items-center gap-1">
-            <button
-                class="inline-flex h-6 w-6 items-center justify-center rounded-md border border-border bg-background text-muted-foreground shadow-sm transition-colors hover:bg-accent hover:text-foreground"
-                title="Expand Level"
-                onclick={() => progressiveExpand()}
-            >
-                <IconChevronsDown class="size-3.5" />
-            </button>
-            <button
-                class="inline-flex h-6 w-6 items-center justify-center rounded-md border border-border bg-background text-muted-foreground shadow-sm transition-colors hover:bg-accent hover:text-foreground"
-                title="Collapse Level"
-                onclick={() => progressiveCollapse()}
-            >
-                <IconChevronsUp class="size-3.5" />
-            </button>
+<div
+    class="flex h-8 flex-none items-center border-b border-border bg-background/50 px-4"
+>
+    <h2 class="text-sm font-semibold">Explorer</h2>
+    <div class="ml-auto flex items-center gap-1">
+        <button
+            class="p-1 hover:bg-accent rounded-sm text-muted-foreground hover:text-foreground transition-colors"
+            title="Expand Level"
+            onclick={() => progressiveExpand()}
+        >
+            <Expand />
+        </button>
+        <button
+            class="p-1 hover:bg-accent rounded-sm text-muted-foreground hover:text-foreground transition-colors"
+            title="Collapse Level"
+            onclick={() => progressiveCollapse()}
+        >
+            <Compact />
+        </button>
 
-            <div class="mx-0.5 h-4 w-px bg-border/50"></div>
+        <div class="mx-1 h-4 w-px bg-border/50"></div>
+        <button
+            class="p-1 hover:bg-accent rounded-sm text-muted-foreground hover:text-foreground transition-colors"
+            title={schemaStore.lastRefreshed
+                ? `Last refreshed: ${schemaStore.lastRefreshed.toLocaleTimeString()}`
+                : "Refresh Schema"}
+            onclick={onRefresh}
+        >
+            <IconRefresh
+                class={cn(
+                    "size-4",
+                    schemaStore.status === "refreshing"
+                        ? "animate-spin-reverse"
+                        : "",
+                )}
+            />
+        </button>
 
-            <button
-                class="inline-flex h-6 w-6 items-center justify-center rounded-md border border-border bg-background text-muted-foreground shadow-sm transition-colors hover:bg-accent hover:text-foreground"
-                title={schemaStore.lastRefreshed
-                    ? `Last refreshed: ${schemaStore.lastRefreshed.toLocaleTimeString()}`
-                    : "Refresh Schema"}
-                onclick={onRefresh}
-            >
-                <IconRefresh
-                    class={cn(
-                        "size-3.5",
-                        schemaStore.status === "refreshing"
-                            ? "animate-spin-reverse"
-                            : "",
-                    )}
-                />
-            </button>
+        <div class="mx-1 h-4 w-px bg-border/50"></div>
 
-            <div class="mx-0.5 h-4 w-px bg-border/50"></div>
-
-            <button
-                class="inline-flex h-6 items-center gap-1 rounded-md border border-border bg-background px-2 text-[11px] font-medium text-accent shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
-                title="New SQL Editor"
-                onclick={() => activeSession?.openView("editor", "New Query")}
-            >
-                <IconSquarePlus class="size-3.5" />
-                New Query
-            </button>
-        </div>
-    </div>
-
-    <!-- Search row -->
-    <div class="flex items-center w-full px-3 py-1.5">
-        <IconSearch class="size-3.5 shrink-0 text-muted-foreground/60 mr-1.5" />
-        <input
-            type="text"
-            bind:value={searchQuery}
-            class="w-full bg-transparent text-xs outline-none placeholder:text-muted-foreground/60"
-            placeholder="Filter tables, views, functions..."
-        />
-        {#if searchQuery}
-            <button
-                class="shrink-0 text-muted-foreground/60 hover:text-foreground transition-colors"
-                onclick={() => (searchQuery = "")}
-                title="Clear filter"
-            >
-                <IconX class="size-3.5" />
-            </button>
-        {/if}
+        <button
+            class="p-1 flex items-center justify-center gap-1 hover:bg-accent rounded-sm text-muted-foreground hover:text-foreground transition-colors"
+            title="New SQL Editor"
+            onclick={() => activeSession?.openView("editor", "New Query")}
+        >
+            <IconSqlFile class="size-4" />
+        </button>
     </div>
 </div>
