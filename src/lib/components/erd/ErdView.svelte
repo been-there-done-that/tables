@@ -10,6 +10,7 @@
     import { toSvg } from 'html-to-image';
     import { save } from '@tauri-apps/plugin-dialog';
     import { invoke } from '@tauri-apps/api/core';
+    import { onMount } from 'svelte';
 
     interface Props {
         tables: MetaTable[];
@@ -58,16 +59,20 @@
     });
 
     function autoLayout() {
-        localStorage.removeItem(storageKey);
         buildErdGraph(tables).then(result => {
+            localStorage.removeItem(storageKey);
             nodes = result.nodes;
             edges = result.edges;
         });
     }
 
-    const bgColor = getComputedStyle(document.documentElement)
-        .getPropertyValue('--theme-border-subtle')
-        .trim();
+    let bgColor = $state('');
+
+    onMount(() => {
+        bgColor = getComputedStyle(document.documentElement)
+            .getPropertyValue('--theme-border-subtle')
+            .trim();
+    });
 
     const IMAGE_WIDTH = 1920;
     const IMAGE_HEIGHT = 1080;
