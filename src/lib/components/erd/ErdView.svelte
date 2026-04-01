@@ -107,6 +107,8 @@
         const gen = ++fetchGeneration;
         chipVisible = true;
         loadPhase = 'fetching';
+        nodes = [];
+        edges = [];
 
         fetchEnrichedTables(tables)
             .then(enriched => {
@@ -190,8 +192,9 @@
     <!-- Toolbar overlay -->
     <div class="absolute top-2 left-2 z-10 flex items-center gap-1">
         <button
-            class="flex items-center gap-1.5 rounded-md border border-[--theme-border-default] bg-[--theme-bg-secondary] px-2 py-1 text-xs text-[--theme-fg-primary] hover:bg-[--theme-bg-hover] shadow-sm"
+            class="flex items-center gap-1.5 rounded-md border border-[--theme-border-default] bg-[--theme-bg-secondary] px-2 py-1 text-xs text-[--theme-fg-primary] hover:bg-[--theme-bg-hover] shadow-sm disabled:opacity-50"
             onclick={autoLayout}
+            disabled={loadPhase !== 'done' && loadPhase !== 'error'}
             title="Reset layout"
         >
             <IconLayout class="h-3.5 w-3.5" />
