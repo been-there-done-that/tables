@@ -2,7 +2,7 @@ import type { Connection, MetaSchema } from "$lib/commands/types";
 import { settingsStore } from "./settings.svelte";
 import { schemaStore } from "./schema.svelte";
 
-export type ViewType = "editor" | "table" | "custom";
+export type ViewType = "editor" | "table" | "custom" | "erd";
 
 export interface ViewState {
     id: string;

@@ -116,6 +116,11 @@
                                 />
                               {:else if view.type === "table"}
                                 <TablePreview bind:context={view.data} />
+                              {:else if view.type === "erd"}
+                                <!-- ERD placeholder — replaced in Task 6 -->
+                                <div class="flex h-full items-center justify-center text-sm text-muted-foreground">
+                                  ERD coming soon…
+                                </div>
                               {:else}
                                 <!-- Default Fallback -->
                                 <div class="flex-1 overflow-auto p-4 space-y-4">

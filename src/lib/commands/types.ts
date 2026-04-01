@@ -389,11 +389,12 @@ export function getAffinityLabel(col: MetaColumn): string | null {
 export interface MetaForeignKey {
   connection_id: string;
   database: string;
-  schema: string;
-  table_name: string;
-  column_name: string;
-  ref_table: string;
-  ref_column: string;
+  schema: string;        // source schema
+  table_name: string;    // source table
+  column_name: string;   // source column
+  ref_table: string;     // target table
+  ref_column: string;    // target column
+  ref_schema?: string;   // target schema (optional; defaults to source schema)
 }
 
 export interface MetaIndex {
