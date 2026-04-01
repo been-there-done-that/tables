@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { SvelteFlow, MiniMap, Controls, Background, getNodesBounds, getViewportForBounds, useNodes, type Node, type Edge } from '@xyflow/svelte';
+    import { SvelteFlow, MiniMap, Controls, Background, getNodesBounds, getViewportForBounds, type Node, type Edge } from '@xyflow/svelte';
     import '@xyflow/svelte/dist/style.css';
     import ErdTableNode from './ErdTableNode.svelte';
     import { buildErdGraph } from './erd-layout';
@@ -61,8 +61,6 @@
         edges = freshEdges;
     }
 
-    const flowNodes = useNodes();
-
     const IMAGE_WIDTH = 1920;
     const IMAGE_HEIGHT = 1080;
 
@@ -72,7 +70,7 @@
         const viewport = document.querySelector<HTMLElement>('.svelte-flow__viewport');
         if (!viewport) return;
 
-        const nodesBounds = getNodesBounds(flowNodes.current);
+        const nodesBounds = getNodesBounds(nodes);
         const transform = getViewportForBounds(nodesBounds, IMAGE_WIDTH, IMAGE_HEIGHT, 0.1, 2, 0.1);
 
         downloading = true;
