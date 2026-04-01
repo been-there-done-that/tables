@@ -4,6 +4,7 @@
     import IconX from '@tabler/icons-svelte/icons/x';
     import IconSearch from '@tabler/icons-svelte/icons/search';
     import IconVectorTriangle from '@tabler/icons-svelte/icons/vector-triangle';
+    import IconAlertTriangle from '@tabler/icons-svelte/icons/alert-triangle';
 
     interface Props {
         open: boolean;
@@ -203,7 +204,7 @@
             <div class="flex flex-col gap-2 border-t border-border px-4 py-3">
                 {#if selected.size > LARGE_THRESHOLD}
                     <div class="flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-600 dark:text-amber-400">
-                        <span>⚠</span>
+                        <IconAlertTriangle class="h-3.5 w-3.5 shrink-0" />
                         <span>{selected.size} tables selected — large schemas take longer to load.</span>
                     </div>
                 {/if}
