@@ -63,10 +63,10 @@
 
     async function downloadImage() {
         console.log('[ERD download] starting');
-        const el = document.querySelector<HTMLElement>('.svelte-flow__renderer');
+        const el = document.querySelector<HTMLElement>('.svelte-flow');
         console.log('[ERD download] target element:', el, el ? `${el.offsetWidth}x${el.offsetHeight}` : 'NOT FOUND');
         if (!el) {
-            console.error('[ERD download] .svelte-flow__renderer not found in DOM');
+            console.error('[ERD download] .svelte-flow not found in DOM');
             return;
         }
         downloading = true;
