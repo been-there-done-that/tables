@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { SvelteFlow, MiniMap, Controls, Background, type Node, type Edge } from '@xyflow/svelte';
+    import { SvelteFlow, MiniMap, Controls, Background, getNodesBounds, getViewportForBounds, useNodes, type Node, type Edge } from '@xyflow/svelte';
     import '@xyflow/svelte/dist/style.css';
     import ErdTableNode from './ErdTableNode.svelte';
     import { buildErdGraph } from './erd-layout';
@@ -61,11 +61,20 @@
         edges = freshEdges;
     }
 
+    const flowNodes = useNodes();
+
+    const IMAGE_WIDTH = 1920;
+    const IMAGE_HEIGHT = 1080;
+
     let downloading = $state(false);
 
     async function downloadImage() {
-        const el = document.querySelector<HTMLElement>('.svelte-flow');
-        if (!el) return;
+        const viewport = document.querySelector<HTMLElement>('.svelte-flow__viewport');
+        if (!viewport) return;
+
+        const nodesBounds = getNodesBounds(flowNodes.current);
+        const transform = getViewportForBounds(nodesBounds, IMAGE_WIDTH, IMAGE_HEIGHT, 0.1, 2, 0.1);
+
         downloading = true;
         try {
             const defaultName = `erd-${schema}-${new Date().toISOString().slice(0, 10)}.png`;
@@ -73,8 +82,17 @@
                 defaultPath: defaultName,
                 filters: [{ name: 'PNG Image', extensions: ['png'] }],
             });
-            if (!path) return; // user cancelled
-            const dataUrl = await toPng(el, { cacheBust: true, pixelRatio: 2 });
+            if (!path) return;
+
+            const dataUrl = await toPng(viewport, {
+                width: IMAGE_WIDTH,
+                height: IMAGE_HEIGHT,
+                style: {
+                    width: `${IMAGE_WIDTH}px`,
+                    height: `${IMAGE_HEIGHT}px`,
+                    transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.zoom})`,
+                },
+            });
             await invoke('save_png_file', { path, dataUrl });
         } finally {
             downloading = false;

@@ -28,7 +28,7 @@
     "@tiptap/starter-kit": "^3.22.0",
     "@xyflow/svelte": "^1.5.2",
     "bits-ui": "^2.16.5",
-    "html-to-image": "^1.11.13",
+    "html-to-image": "^1.11.11",
     "idb-keyval": "^6.2.2",
     "lucide-svelte": "^1.0.1",
     "marked": "^17.0.5",
