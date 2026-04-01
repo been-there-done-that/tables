@@ -35,8 +35,8 @@
         localStorage.setItem(storageKey, JSON.stringify(pos));
     }
 
-    function buildErdGraphWithSavedPositions(tbls: MetaTable[]) {
-        const { nodes: layoutNodes, edges: layoutEdges } = buildErdGraph(tbls);
+    async function buildErdGraphWithSavedPositions(tbls: MetaTable[]) {
+        const { nodes: layoutNodes, edges: layoutEdges } = await buildErdGraph(tbls);
         const saved = loadPositions();
         const merged = layoutNodes.map(n => ({
             ...n,
@@ -49,14 +49,15 @@
     let edges = $state<Edge[]>([]);
 
     $effect(() => {
-        const result = buildErdGraphWithSavedPositions(tables);
-        nodes = result.nodes;
-        edges = result.edges;
+        buildErdGraphWithSavedPositions(tables).then(result => {
+            nodes = result.nodes;
+            edges = result.edges;
+        });
     });
 
-    function autoLayout() {
+    async function autoLayout() {
         localStorage.removeItem(storageKey);
-        const { nodes: fresh, edges: freshEdges } = buildErdGraph(tables);
+        const { nodes: fresh, edges: freshEdges } = await buildErdGraph(tables);
         nodes = fresh;
         edges = freshEdges;
     }

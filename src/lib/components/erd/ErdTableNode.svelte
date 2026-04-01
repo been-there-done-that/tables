@@ -1,7 +1,7 @@
 <script lang="ts">
     import { Handle, Position } from '@xyflow/svelte';
     import type { ErdNodeData } from './erd-layout';
-    import { TABLE_NODE_WIDTH, COLUMN_ROW_HEIGHT, TABLE_HEADER_HEIGHT } from './erd-layout';
+    import { COLUMN_ROW_HEIGHT, TABLE_HEADER_HEIGHT } from './erd-layout';
 
     interface Props {
         data: ErdNodeData;
@@ -16,7 +16,7 @@
     class="rounded-md border bg-card text-card-foreground shadow-sm overflow-hidden"
     class:ring-2={selected}
     class:ring-primary={selected}
-    style="width: {TABLE_NODE_WIDTH}px;"
+    style="width: 100%;"
 >
     <!-- Header -->
     <div

@@ -1,8 +1,9 @@
 import type { Node, Edge } from '@xyflow/svelte';
-import dagre from '@dagrejs/dagre';
+import { MarkerType } from '@xyflow/svelte';
+// @ts-ignore
+import ELK from 'elkjs/lib/elk.bundled.js';
 import type { MetaTable } from '$lib/commands/types';
 
-export const TABLE_NODE_WIDTH = 220;
 export const TABLE_HEADER_HEIGHT = 36;
 export const COLUMN_ROW_HEIGHT = 24;
 
@@ -10,53 +11,85 @@ export interface ErdNodeData {
     table: MetaTable;
 }
 
-export function buildErdGraph(tables: MetaTable[]): { nodes: Node[], edges: Edge[] } {
-    const g = new dagre.graphlib.Graph();
-    g.setDefaultEdgeLabel(() => ({}));
-    g.setGraph({ rankdir: 'LR', ranksep: 80, nodesep: 30 });
+function computeNodeWidth(table: MetaTable): number {
+    const headerLen = `${table.schema}.${table.table_name}`.length;
+    const maxColLen = table.columns.reduce((max, col) => {
+        const len = col.column_name.length + col.raw_type.replace(/\(.*\)/, '').length + 10;
+        return Math.max(max, len);
+    }, 0);
+    const raw = Math.max(headerLen, maxColLen) * 7 + 80;
+    return Math.max(200, Math.min(500, raw));
+}
 
-    for (const table of tables) {
-        const id = `${table.schema}.${table.table_name}`;
-        const height = TABLE_HEADER_HEIGHT + table.columns.length * COLUMN_ROW_HEIGHT;
-        g.setNode(id, { width: TABLE_NODE_WIDTH, height });
-    }
+export async function buildErdGraph(tables: MetaTable[]): Promise<{ nodes: Node[]; edges: Edge[] }> {
+    const elk = new ELK();
 
-    // Collect FK edges between selected tables only
     const tableIds = new Set(tables.map(t => `${t.schema}.${t.table_name}`));
-    const edgeDefs: Array<{
+
+    interface EdgeDef {
         id: string;
         source: string;
         sourceHandle: string;
         target: string;
         targetHandle: string;
-    }> = [];
+        isSelfLoop: boolean;
+    }
+
+    const edgeDefs: EdgeDef[] = [];
 
     for (const table of tables) {
         const sourceId = `${table.schema}.${table.table_name}`;
         for (const fk of table.foreign_keys) {
             const refSchema = fk.ref_schema ?? fk.schema;
             const targetId = `${refSchema}.${fk.ref_table}`;
-            if (!tableIds.has(targetId)) continue; // skip edges to unselected tables
-            g.setEdge(sourceId, targetId);
+            if (!tableIds.has(targetId)) continue;
+
+            const isSelfLoop = sourceId === targetId;
             edgeDefs.push({
                 id: `${sourceId}.${fk.column_name}->${targetId}.${fk.ref_column}`,
                 source: sourceId,
                 sourceHandle: `${fk.column_name}-source`,
+                targetHandle: isSelfLoop ? `${fk.ref_column}-source` : `${fk.ref_column}-target`,
                 target: targetId,
-                targetHandle: `${fk.ref_column}-target`,
+                isSelfLoop,
             });
         }
     }
 
-    dagre.layout(g);
+    const elkGraph = {
+        id: 'root',
+        layoutOptions: {
+            'elk.algorithm': 'layered',
+            'elk.direction': 'RIGHT',
+            'elk.spacing.nodeNode': '80',
+            'elk.layered.spacing.nodeNodeBetweenLayers': '150',
+            'elk.spacing.edgeNode': '40',
+            'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
+        },
+        children: tables.map(table => ({
+            id: `${table.schema}.${table.table_name}`,
+            width: computeNodeWidth(table),
+            height: TABLE_HEADER_HEIGHT + table.columns.length * COLUMN_ROW_HEIGHT,
+        })),
+        edges: edgeDefs
+            .filter(e => !e.isSelfLoop)
+            .map(e => ({ id: e.id, sources: [e.source], targets: [e.target] })),
+    };
+
+    const layout = await elk.layout(elkGraph);
+    const elkNodes = new Map((layout.children ?? []).map((n: { id: string; x?: number; y?: number }) => [n.id, n]));
 
     const nodes: Node[] = tables.map(table => {
         const id = `${table.schema}.${table.table_name}`;
-        const { x, y, width, height } = g.node(id);
+        const elkNode = elkNodes.get(id);
+        const width = computeNodeWidth(table);
+        const height = TABLE_HEADER_HEIGHT + table.columns.length * COLUMN_ROW_HEIGHT;
         return {
             id,
             type: 'tableNode',
-            position: { x: x - width / 2, y: y - height / 2 },
+            position: { x: elkNode?.x ?? 0, y: elkNode?.y ?? 0 },
+            width,
+            height,
             data: { table } satisfies ErdNodeData,
         };
     });
@@ -67,7 +100,8 @@ export function buildErdGraph(tables: MetaTable[]): { nodes: Node[], edges: Edge
         sourceHandle: e.sourceHandle,
         target: e.target,
         targetHandle: e.targetHandle,
-        type: 'smoothstep',
+        type: e.isSelfLoop ? 'selfLoop' : 'smoothstep',
+        markerEnd: { type: MarkerType.ArrowClosed },
     }));
 
     return { nodes, edges };
