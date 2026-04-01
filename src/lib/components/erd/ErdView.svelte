@@ -5,6 +5,8 @@
     import { buildErdGraph } from './erd-layout';
     import type { MetaTable } from '$lib/commands/types';
     import IconLayout from '@tabler/icons-svelte/icons/layout-board';
+    import IconDownload from '@tabler/icons-svelte/icons/download';
+    import { toPng } from 'html-to-image';
 
     interface Props {
         tables: MetaTable[];
@@ -56,6 +58,23 @@
         nodes = fresh;
         edges = freshEdges;
     }
+
+    let downloading = $state(false);
+
+    async function downloadImage() {
+        const el = document.querySelector<HTMLElement>('.svelte-flow__renderer');
+        if (!el) return;
+        downloading = true;
+        try {
+            const dataUrl = await toPng(el, { cacheBust: true, pixelRatio: 2 });
+            const a = document.createElement('a');
+            a.href = dataUrl;
+            a.download = `erd-${schema}-${new Date().toISOString().slice(0, 10)}.png`;
+            a.click();
+        } finally {
+            downloading = false;
+        }
+    }
 </script>
 
 <div class="relative h-full w-full bg-muted/20">
@@ -68,6 +87,15 @@
         >
             <IconLayout class="h-3.5 w-3.5" />
             Auto layout
+        </button>
+        <button
+            class="flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 text-xs hover:bg-accent shadow-sm disabled:opacity-50"
+            onclick={downloadImage}
+            disabled={downloading}
+            title="Download as PNG"
+        >
+            <IconDownload class="h-3.5 w-3.5" />
+            {downloading ? 'Saving…' : 'Download PNG'}
         </button>
     </div>
 
