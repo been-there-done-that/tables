@@ -13,7 +13,7 @@
     import { onMount } from 'svelte';
 
     interface Props {
-        tables: MetaTable[];
+        tables: MetaTable[]; // lightweight stubs — columns/FKs fetched here
         connectionId: string;
         schema: string;
     }
@@ -38,7 +38,56 @@
         localStorage.setItem(storageKey, JSON.stringify(pos));
     }
 
-    async function buildErdGraphWithSavedPositions(tbls: MetaTable[]) {
+    // ── Loading state ──────────────────────────────────────────────────────────
+    type LoadPhase = 'fetching' | 'layout' | 'done' | 'error';
+    let loadPhase = $state<LoadPhase>('fetching');
+    let fetchedCount = $state(0);
+    let totalCount = $state(0);
+    let failedCount = $state(0);
+    let chipVisible = $state(false);
+
+    // Enriched tables are cached so autoLayout can re-run without re-fetching.
+    let enrichedTables = $state<MetaTable[]>([]);
+
+    const BATCH_SIZE = 20;
+
+    async function fetchEnrichedTables(stubs: MetaTable[]): Promise<MetaTable[]> {
+        const results: MetaTable[] = [];
+        totalCount = stubs.length;
+        fetchedCount = 0;
+        failedCount = 0;
+
+        for (let i = 0; i < stubs.length; i += BATCH_SIZE) {
+            const chunk = stubs.slice(i, i + BATCH_SIZE);
+            const settled = await Promise.allSettled(
+                chunk.map(t =>
+                    invoke<any>('get_schema_table_details', {
+                        connectionId,
+                        database: t.database,
+                        schema: t.schema,
+                        tableName: t.table_name,
+                    }).then((details: any) => ({
+                        ...t,
+                        columns: details.columns ?? [],
+                        foreign_keys: details.foreign_keys ?? [],
+                    }))
+                )
+            );
+            for (let j = 0; j < settled.length; j++) {
+                const result = settled[j];
+                if (result.status === 'fulfilled') {
+                    results.push(result.value);
+                } else {
+                    results.push(chunk[j]); // fallback to stub on error
+                    failedCount++;
+                }
+            }
+            fetchedCount += chunk.length;
+        }
+        return results;
+    }
+
+    async function buildWithSavedPositions(tbls: MetaTable[]) {
         const { nodes: layoutNodes, edges: layoutEdges } = await buildErdGraph(tbls);
         const saved = loadPositions();
         const merged = layoutNodes.map(n => ({
@@ -52,20 +101,37 @@
     let edges = $state<Edge[]>([]);
 
     $effect(() => {
-        buildErdGraphWithSavedPositions(tables).then(result => {
-            nodes = result.nodes;
-            edges = result.edges;
-        });
+        if (tables.length === 0) return;
+        chipVisible = true;
+        loadPhase = 'fetching';
+
+        fetchEnrichedTables(tables)
+            .then(enriched => {
+                enrichedTables = enriched;
+                loadPhase = 'layout';
+                return buildWithSavedPositions(enriched);
+            })
+            .then(result => {
+                nodes = result.nodes;
+                edges = result.edges;
+                loadPhase = 'done';
+                setTimeout(() => { chipVisible = false; }, 1500);
+            })
+            .catch(() => {
+                loadPhase = 'error';
+            });
     });
 
     function autoLayout() {
-        buildErdGraph(tables).then(result => {
+        if (enrichedTables.length === 0) return;
+        buildErdGraph(enrichedTables).then(result => {
             localStorage.removeItem(storageKey);
             nodes = result.nodes;
             edges = result.edges;
         });
     }
 
+    // ── Background colour ──────────────────────────────────────────────────────
     let bgColor = $state('');
 
     onMount(() => {
@@ -74,6 +140,7 @@
             .trim();
     });
 
+    // ── SVG export ─────────────────────────────────────────────────────────────
     const IMAGE_WIDTH = 1920;
     const IMAGE_HEIGHT = 1080;
     let downloading = $state(false);
@@ -103,7 +170,6 @@
                     transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.zoom})`,
                 },
             });
-            // toSvg returns "data:image/svg+xml;charset=utf-8,<url-encoded-svg>"
             const svg = decodeURIComponent(
                 dataUrl.replace(/^data:image\/svg\+xml;charset=utf-8,/, '')
             );
@@ -151,4 +217,29 @@
         <Controls />
         <MiniMap pannable zoomable />
     </SvelteFlow>
+
+    <!-- Progress chip: bottom-left, fades out on done -->
+    {#if chipVisible}
+        <div
+            class="absolute bottom-4 left-4 z-20 flex items-center gap-2 rounded-md border border-[--theme-border-default] bg-[--theme-bg-secondary] px-3 py-2 text-xs text-[--theme-fg-primary] shadow-md transition-opacity duration-700"
+            class:opacity-0={loadPhase === 'done'}
+        >
+            {#if loadPhase === 'fetching'}
+                <span class="inline-block animate-spin">⟳</span>
+                <span>Fetching tables {fetchedCount} / {totalCount}</span>
+            {:else if loadPhase === 'layout'}
+                <span class="inline-block animate-spin">⟳</span>
+                <span>Computing layout…</span>
+            {:else if loadPhase === 'done'}
+                <span>✓</span>
+                {#if failedCount > 0}
+                    <span>{totalCount - failedCount} tables loaded, {failedCount} failed</span>
+                {:else}
+                    <span>Done</span>
+                {/if}
+            {:else if loadPhase === 'error'}
+                <span class="text-red-400">✗ Layout failed</span>
+            {/if}
+        </div>
+    {/if}
 </div>
