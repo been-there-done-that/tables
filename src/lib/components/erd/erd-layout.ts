@@ -1,6 +1,5 @@
 import type { Node, Edge } from '@xyflow/svelte';
 import { MarkerType } from '@xyflow/svelte';
-// @ts-ignore
 import ELK from 'elkjs/lib/elk.bundled.js';
 import type { MetaTable } from '$lib/commands/types';
 
@@ -76,8 +75,13 @@ export async function buildErdGraph(tables: MetaTable[]): Promise<{ nodes: Node[
             .map(e => ({ id: e.id, sources: [e.source], targets: [e.target] })),
     };
 
-    const layout = await elk.layout(elkGraph);
-    const elkNodes = new Map((layout.children ?? []).map((n: { id: string; x?: number; y?: number }) => [n.id, n]));
+    let layout;
+    try {
+        layout = await elk.layout(elkGraph);
+    } catch (err) {
+        throw new Error(`ELK layout failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    const elkNodes = new Map((layout.children ?? []).map(n => [n.id, n]));
 
     const nodes: Node[] = tables.map(table => {
         const id = `${table.schema}.${table.table_name}`;
