@@ -202,8 +202,6 @@ export class QueryHeaderController {
         let activeRanges = this.cachedRanges;
         if (!this._showAll) {
             if (this.cachedSelection) {
-                // When text is selected, show header for the first statement overlapping the selection.
-                // This works for both selection directions and Select All.
                 const selStart = this.cachedSelection.startLineNumber;
                 const selEnd = this.cachedSelection.endLineNumber;
                 const range = this.cachedRanges.find(r =>
