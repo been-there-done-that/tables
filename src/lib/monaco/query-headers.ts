@@ -9,7 +9,8 @@ import { mount, unmount } from 'svelte';
 import QueryHeader from '$lib/components/editor/QueryHeader.svelte';
 
 interface StatementRangeWithBytes {
-    start_line: number;
+    start_line: number;     // includes leading comment lines (for cursor hit-testing)
+    sql_start_line: number; // first real SQL line (for widget positioning)
     end_line: number;
     start_byte: number;
     end_byte: number;
@@ -236,8 +237,8 @@ export class QueryHeaderController {
 
         // Logic for Active Ranges
         for (const range of activeRanges) {
-            // Check if we already have a header for this line
-            const match = existing.find(e => e.startLine === range.start_line);
+            // Check if we already have a header for this SQL start line
+            const match = existing.find(e => e.startLine === range.sql_start_line);
 
             if (match) {
                 // KEEP existing
@@ -257,9 +258,9 @@ export class QueryHeaderController {
                 const idx = existing.indexOf(match);
                 if (idx > -1) existing.splice(idx, 1);
             } else {
-                // CREATE new
+                // CREATE new — position widget at sql_start_line (not the comment-block start_line)
                 const queryText = text.substring(range.start_byte, range.end_byte);
-                this.createHeader(range.start_line, range.end_line, queryText, nextHeaders);
+                this.createHeader(range.sql_start_line, range.end_line, queryText, nextHeaders);
             }
         }
 

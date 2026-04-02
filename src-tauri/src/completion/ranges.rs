@@ -10,9 +10,10 @@ pub struct StatementRange {
 /// Extended range including byte offsets (for extracting query text)
 #[derive(serde::Serialize, Clone)]
 pub struct StatementRangeWithBytes {
-    pub start_line: u32,   // 1-based for Monaco
+    pub start_line: u32,     // 1-based; includes leading comment lines (for cursor hit-testing)
+    pub sql_start_line: u32, // 1-based; first real SQL line (for widget/highlight positioning)
     pub end_line: u32,
-    pub start_byte: usize, // For extracting text
+    pub start_byte: usize,   // UTF-8 byte offset of first SQL token (for text extraction)
     pub end_byte: usize,
 }
 
@@ -154,6 +155,7 @@ pub fn find_all_statement_ranges(tree: &Tree, text_source: &str) -> Vec<Statemen
 
         ranges.push(StatementRangeWithBytes {
             start_line: (start_point.row + 1) as u32,
+            sql_start_line: (start_point.row + 1) as u32,
             end_line: (end_point.row + 1) as u32,
             start_byte: child.start_byte(),
             end_byte: child.end_byte(),

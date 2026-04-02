@@ -530,12 +530,13 @@ fn all_statement_ranges(text: &str) -> Vec<StatementRangeWithBytes> {
         .into_iter()
         .filter_map(|(offset, stmt)| {
             if is_comment_only(stmt) { return None; }
-            // Skip past any leading comments so the range starts at actual SQL,
-            // not at a preceding `-- section header` comment.
+            // sql_start: first real SQL token — used for widget positioning and text extraction.
+            // offset: start of the whole segment (may include leading comments) — used for cursor matching.
             let sql_start = offset + sql_content_start(stmt);
             let end_byte = offset + stmt.len();
             Some(StatementRangeWithBytes {
-                start_line: byte_offset_to_line(text, sql_start),
+                start_line: byte_offset_to_line(text, offset),       // comment block start (for hit-testing)
+                sql_start_line: byte_offset_to_line(text, sql_start), // first SQL line (for widget)
                 end_line: byte_offset_to_line(text, end_byte),
                 start_byte: sql_start,
                 end_byte,
@@ -687,7 +688,20 @@ mod wire_tests {
         let ranges = all_statement_ranges(sql);
         assert_eq!(ranges.len(), 2, "should detect two separate statements");
         assert_eq!(ranges[0].start_line, 1);
+        assert_eq!(ranges[0].sql_start_line, 1);
         assert_eq!(ranges[1].start_line, 4);
+        assert_eq!(ranges[1].sql_start_line, 4);
+    }
+
+    #[test]
+    fn all_ranges_start_line_vs_sql_start_line_with_leading_comment() {
+        // start_line should be the comment line (for cursor hit-test),
+        // sql_start_line should be the SQL line (for widget positioning).
+        let sql = "-- section header\nGRANT USAGE ON SCHEMA s TO r;";
+        let ranges = all_statement_ranges(sql);
+        assert_eq!(ranges.len(), 1);
+        assert_eq!(ranges[0].start_line, 1, "start_line = comment line (cursor matching)");
+        assert_eq!(ranges[0].sql_start_line, 2, "sql_start_line = SQL line (widget position)");
     }
 
     #[test]
@@ -772,5 +786,25 @@ mod wire_tests {
         let sql = "SELECT 1;\n-- section divider\nSELECT 2;";
         let ranges = all_statement_ranges(sql);
         assert_eq!(ranges.len(), 2, "comment between statements should not become a range");
+    }
+
+    #[test]
+    fn cursor_two_lines_below_statement_returns_none() {
+        // Regression: cursor on empty line after trailing comment should not match the statement above
+        // Layout:
+        //   line 1: -- comment
+        //   line 2: GRANT ...;
+        //   line 3: --- end
+        //   line 4: (empty)
+        //   line 5: (cursor here)
+        let sql = "-- comment\nGRANT USAGE ON SCHEMA s TO r;\n--- end\n\n\n";
+        // cursor_offset = offset of start of line 5
+        let cursor_offset = sql.find("\n\n\n").unwrap() + 3; // after "--- end\n\n\n"...
+        // Actually let's compute precisely by finding the last \n
+        let lines: Vec<&str> = sql.split('\n').collect();
+        // line 5 = index 4 (0-indexed)
+        let offset_line5: usize = lines.iter().take(4).map(|l| l.len() + 1).sum();
+        let r = find_statement_at_cursor(sql, offset_line5);
+        assert!(r.is_none(), "cursor on line 5 (2 lines below statement) should return None, got {:?}", r);
     }
 }
