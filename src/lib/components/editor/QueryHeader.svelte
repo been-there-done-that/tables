@@ -33,7 +33,7 @@
             "flex items-center gap-1.5 px-2 py-0.5 rounded border transition-all shadow-sm active:scale-95 group/btn",
             status === "running"
                 ? "bg-red-500/10 text-red-500 border-red-500/20 hover:bg-red-500/20"
-                : "bg-emerald-500/10 text-emerald-500 border-emerald-500/20 hover:bg-emerald-500/20",
+                : "bg-primary/10 text-primary border-primary/20 hover:bg-primary/20",
         )}
         onclick={() => {
             if (status === "running") onStop();

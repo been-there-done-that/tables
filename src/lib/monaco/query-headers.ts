@@ -125,6 +125,13 @@ export class QueryHeaderController {
                 duration: status.duration,
                 errorMessage: status.errorMessage,
                 onRun: () => {
+                    // If text is selected, run the selection regardless of which statement header was clicked
+                    const selection = this.editor.getSelection();
+                    if (selection && !selection.isEmpty()) {
+                        const selectedText = model.getValueInRange(selection);
+                        this.onRunCallback(selectedText, selection.startLineNumber, selection.endLineNumber);
+                        return;
+                    }
                     const latestRange = model.getDecorationRange(decorationId);
                     if (latestRange) {
                         const fullRange = new monaco.Range(

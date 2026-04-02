@@ -489,12 +489,45 @@ fn find_statement_at_cursor(text: &str, cursor_offset: usize) -> Option<Statemen
     None
 }
 
+/// Returns true if `sql` contains only SQL comments and whitespace (no executable tokens).
+fn is_comment_only(sql: &str) -> bool {
+    let bytes = sql.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'-' if i + 1 < bytes.len() && bytes[i + 1] == b'-' => {
+                // Line comment: skip to end of line
+                i += 2;
+                while i < bytes.len() && bytes[i] != b'\n' {
+                    i += 1;
+                }
+            }
+            b'/' if i + 1 < bytes.len() && bytes[i + 1] == b'*' => {
+                // Block comment: skip to */
+                i += 2;
+                while i + 1 < bytes.len() {
+                    if bytes[i] == b'*' && bytes[i + 1] == b'/' {
+                        i += 2;
+                        break;
+                    }
+                    i += 1;
+                }
+            }
+            b' ' | b'\t' | b'\n' | b'\r' => {
+                i += 1;
+            }
+            _ => return false,
+        }
+    }
+    true
+}
+
 /// Core logic for get_all_statements — extracted for unit testing.
 fn all_statement_ranges(text: &str) -> Vec<StatementRangeWithBytes> {
     sql_scope::split_statements(text)
         .into_iter()
         .filter_map(|(offset, stmt)| {
-            if stmt.trim().is_empty() { return None; }
+            if stmt.trim().is_empty() || is_comment_only(stmt) { return None; }
             let end_byte = offset + stmt.len();
             Some(StatementRangeWithBytes {
                 start_line: byte_offset_to_line(text, offset),
@@ -668,5 +701,55 @@ mod wire_tests {
         assert_eq!(ranges.len(), 2);
         assert_eq!(&sql[ranges[0].start_byte..ranges[0].end_byte], "ANALYZE production.action_item");
         assert_eq!(&sql[ranges[1].start_byte..ranges[1].end_byte], "ANALYZE production.template_tasks");
+    }
+
+    // ── is_comment_only ──────────────────────────────────────────────────────
+
+    #[test]
+    fn comment_only_line_comment() {
+        assert!(is_comment_only("-- end"));
+        assert!(is_comment_only("--- end"));
+        assert!(is_comment_only("-- some trailing comment\n"));
+    }
+
+    #[test]
+    fn comment_only_block_comment() {
+        assert!(is_comment_only("/* a block comment */"));
+        assert!(is_comment_only("/* multi\nline */"));
+    }
+
+    #[test]
+    fn comment_only_mixed_whitespace() {
+        assert!(is_comment_only("  -- comment\n  -- another\n"));
+        assert!(is_comment_only("/* a */ -- b"));
+    }
+
+    #[test]
+    fn comment_only_empty_and_whitespace() {
+        assert!(is_comment_only(""));
+        assert!(is_comment_only("   \n\t  "));
+    }
+
+    #[test]
+    fn comment_only_false_for_sql() {
+        assert!(!is_comment_only("SELECT 1"));
+        assert!(!is_comment_only("-- comment\nSELECT 1"));
+        assert!(!is_comment_only("CREATE TABLE foo (id INT)"));
+    }
+
+    #[test]
+    fn all_ranges_excludes_trailing_comment() {
+        // The classic false-positive case: SQL ending with a comment after the last semicolon
+        let sql = "SELECT 1;\n--- end";
+        let ranges = all_statement_ranges(sql);
+        assert_eq!(ranges.len(), 1, "trailing comment should not produce a run button");
+        assert_eq!(ranges[0].start_line, 1);
+    }
+
+    #[test]
+    fn all_ranges_excludes_inline_comment_sections() {
+        let sql = "SELECT 1;\n-- section divider\nSELECT 2;";
+        let ranges = all_statement_ranges(sql);
+        assert_eq!(ranges.len(), 2, "comment between statements should not become a range");
     }
 }

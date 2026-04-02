@@ -498,6 +498,14 @@
         }
     }
 
+    function executeAll() {
+        if (!editorHandle) return;
+        const text = editorHandle.editor.getValue();
+        if (text.trim()) {
+            executeQueryText(text);
+        }
+    }
+
     // Execute a specific query text (used by inline run buttons)
     // Accept line ranges to track status
     async function executeQueryText(
@@ -1335,6 +1343,7 @@
             (settingsStore.editorShowAllRunButtons =
                 !settingsStore.editorShowAllRunButtons)}
         onExecute={executeCurrent}
+        onExecuteAll={executeAll}
         onStop={handleStop}
         onFormat={handleFormat}
         onClear={handleClear}

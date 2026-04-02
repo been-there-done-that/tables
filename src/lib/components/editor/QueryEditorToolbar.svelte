@@ -27,6 +27,7 @@
         showAll?: boolean;
         onToggleShowAll?: () => void;
         onExecute: () => void;
+        onExecuteAll: () => void;
         onStop: () => void;
         onFormat: () => void;
         onClear: () => void;
@@ -44,6 +45,7 @@
         showAll,
         onToggleShowAll,
         onExecute,
+        onExecuteAll,
         onStop,
         onFormat,
         onClear,
@@ -86,12 +88,22 @@
             <Button
                 variant="ghost"
                 size="sm"
-                class="h-7 px-3 flex items-center gap-1.5 hover:bg-green-500/10 hover:text-green-500 transition-colors"
+                class="h-7 px-3 flex items-center gap-1.5 hover:bg-accent transition-colors"
                 onclick={onExecute}
                 title="Run (Cmd+Enter)"
             >
-                <IconPlayerPlayFilled class="size-4 text-green-500" />
+                <IconPlayerPlayFilled class="size-4 text-primary" />
                 <span class="text-xs font-semibold">Run</span>
+            </Button>
+            <Button
+                variant="ghost"
+                size="sm"
+                class="h-7 px-2.5 flex items-center gap-1.5 hover:bg-accent transition-colors"
+                onclick={onExecuteAll}
+                title="Run All statements"
+            >
+                <IconPlayerPlayFilled class="size-3.5 text-primary/70" />
+                <span class="text-xs font-medium text-muted-foreground">All</span>
             </Button>
         {/if}
 
