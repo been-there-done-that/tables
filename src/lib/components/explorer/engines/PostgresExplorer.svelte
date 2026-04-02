@@ -445,18 +445,20 @@
         const db = meta?.dbName || schemaStore.selectedDatabase;
         const schema = meta?.schemaName || "public";
 
+        const qualifiedName = `"${schema}"."${node.name}"`;
+
+        async function runSql(sql: string, successMsg: string) {
+            try {
+                await invoke("execute_query", { connectionId: connId, database: db, query: sql });
+                toast.success(successMsg);
+            } catch (e) {
+                toast.error(`Failed: ${node.name}`, { description: String(e) });
+            }
+        }
+
         switch (action) {
-            case "query_console": {
-                const title = node.type === "schema" ? `Console: ${node.name}` : `Query: ${node.name}`;
-                session.openView("editor", title, node.metadata);
-                break;
-            }
 
-            case "copy_name": {
-                await navigator.clipboard.writeText(node.name);
-                break;
-            }
-
+            // ── DATA ─────────────────────────────────────────────
             case "view_data": {
                 session.openView("table", node.name, {
                     tableName: node.name,
@@ -467,48 +469,176 @@
                 break;
             }
 
-            case "copy_select": {
-                await navigator.clipboard.writeText(`SELECT * FROM "${schema}"."${node.name}";`);
+            case "refresh_matview": {
+                await runSql(`REFRESH MATERIALIZED VIEW ${qualifiedName};`, `Refreshed ${node.name}`);
                 break;
             }
 
+            // ── QUERY EDITOR ─────────────────────────────────────
+            case "query_console": {
+                const title = node.type === "schema" ? `Console: ${node.name}` : `Query: ${node.name}`;
+                session.openView("editor", title, node.metadata);
+                break;
+            }
+
+            // ── DEFINITION ───────────────────────────────────────
             case "open_ddl":
             case "open_definition": {
                 await openDdlForNode(node, session);
                 break;
             }
 
-            case "copy_function_ddl":
-            case "copy_sequence_ddl":
-            case "copy_index_ddl":
-            case "copy_trigger_ddl": {
+            case "copy_ddl": {
                 try {
-                    const ddl = await fetchDdlForNode(node);
+                    let ddl: string;
+                    if (node.type === "constraint") {
+                        ddl = `CONSTRAINT "${node.name}" ${meta?.definition || ""}`;
+                    } else {
+                        ddl = await fetchDdlForNode(node);
+                    }
                     await navigator.clipboard.writeText(ddl);
+                    toast.success("Copied to clipboard");
                 } catch (e) {
-                    console.error("Copy DDL failed:", e);
-                    toast.error(`Failed to load ${node.name}`, { description: String(e) });
+                    toast.error(`Failed to copy DDL`, { description: String(e) });
                 }
                 break;
             }
 
-            case "copy_constraint_ddl": {
-                const def = meta?.definition || "";
-                await navigator.clipboard.writeText(`CONSTRAINT "${node.name}" ${def}`);
+            // ── COPY ─────────────────────────────────────────────
+            case "copy_name": {
+                await navigator.clipboard.writeText(node.name);
                 break;
             }
 
-            case "open_schema_ddl": {
-                const schemaName = meta?.schemaName || node.name;
-                session.openDdlTab(`DDL: ${schemaName}`, `CREATE SCHEMA "${schemaName}";`);
+            case "copy_select": {
+                await navigator.clipboard.writeText(`SELECT * FROM ${qualifiedName};`);
                 break;
             }
 
+            case "copy_insert_template": {
+                try {
+                    const tableDetails = tableDetailsCache.get(node.name);
+                    const cols = tableDetails?.columns
+                        ?.filter((c: any) => !c.is_generated)
+                        ?.map((c: any) => `"${c.name}"`)
+                        ?.join(", ") ?? "-- columns";
+                    const vals = tableDetails?.columns
+                        ?.filter((c: any) => !c.is_generated)
+                        ?.map((c: any) => `-- ${c.data_type}`)
+                        ?.join(", ") ?? "-- values";
+                    await navigator.clipboard.writeText(
+                        `INSERT INTO ${qualifiedName} (${cols})\nVALUES (${vals});`
+                    );
+                    toast.success("Copied INSERT template");
+                } catch {
+                    await navigator.clipboard.writeText(`INSERT INTO ${qualifiedName} () VALUES ();`);
+                }
+                break;
+            }
+
+            case "copy_column_type": {
+                const colType = meta?.data_type || meta?.dataType || "";
+                await navigator.clipboard.writeText(colType);
+                break;
+            }
+
+            // ── MAINTENANCE ──────────────────────────────────────
+            case "truncate": {
+                await runSql(`TRUNCATE TABLE ${qualifiedName};`, `Truncated ${node.name}`);
+                break;
+            }
+
+            case "truncate_cascade": {
+                await runSql(`TRUNCATE TABLE ${qualifiedName} CASCADE;`, `Truncated ${node.name} (cascade)`);
+                break;
+            }
+
+            case "vacuum_analyze": {
+                await runSql(`VACUUM ANALYZE ${qualifiedName};`, `Vacuum analyzed ${node.name}`);
+                break;
+            }
+
+            case "analyze": {
+                await runSql(`ANALYZE ${qualifiedName};`, `Analyzed ${node.name}`);
+                break;
+            }
+
+            case "reindex": {
+                await runSql(`REINDEX INDEX "${node.name}";`, `Reindexed ${node.name}`);
+                break;
+            }
+
+            // ── TRIGGER ──────────────────────────────────────────
+            case "enable_trigger": {
+                const tbl = meta?.tableName || "";
+                await runSql(
+                    `ALTER TABLE "${schema}"."${tbl}" ENABLE TRIGGER "${node.name}";`,
+                    `Enabled trigger ${node.name}`
+                );
+                break;
+            }
+
+            case "disable_trigger": {
+                const tbl = meta?.tableName || "";
+                await runSql(
+                    `ALTER TABLE "${schema}"."${tbl}" DISABLE TRIGGER "${node.name}";`,
+                    `Disabled trigger ${node.name}`
+                );
+                break;
+            }
+
+            // ── SCHEMA ───────────────────────────────────────────
             case "refresh_schema": {
                 await schemaStore.refresh();
                 tableDetailsCache = new Map();
                 break;
             }
+
+            // ── DESTRUCTIVE ──────────────────────────────────────
+            case "drop": {
+                const typeMap: Record<string, string> = {
+                    table: "TABLE", view: "VIEW", materialized_view: "MATERIALIZED VIEW",
+                    function: "FUNCTION", procedure: "PROCEDURE",
+                    sequence: "SEQUENCE", index: "INDEX", trigger: "TRIGGER",
+                };
+                const sqlType = typeMap[node.type] ?? "TABLE";
+                if (node.type === "trigger") {
+                    const tbl = meta?.tableName || "";
+                    await runSql(
+                        `DROP TRIGGER IF EXISTS "${node.name}" ON "${schema}"."${tbl}";`,
+                        `Dropped trigger ${node.name}`
+                    );
+                } else if (node.type === "index") {
+                    await runSql(
+                        `DROP INDEX IF EXISTS "${schema}"."${node.name}";`,
+                        `Dropped index ${node.name}`
+                    );
+                } else {
+                    await runSql(
+                        `DROP ${sqlType} IF EXISTS ${qualifiedName};`,
+                        `Dropped ${node.name}`
+                    );
+                }
+                await schemaStore.refresh();
+                tableDetailsCache = new Map();
+                break;
+            }
+
+            // ── LEGACY ALIASES (backwards compat) ────────────────
+            case "copy_function_ddl":
+            case "copy_sequence_ddl":
+            case "copy_index_ddl":
+            case "copy_trigger_ddl":
+            case "copy_constraint_ddl":
+            case "open_schema_ddl":
+                // re-dispatch to unified handlers
+                if (action === "open_schema_ddl") {
+                    const schemaName = meta?.schemaName || node.name;
+                    session.openDdlTab(`DDL: ${schemaName}`, `CREATE SCHEMA "${schemaName}";`);
+                } else {
+                    handleContextMenuAction("copy_ddl", node);
+                }
+                break;
 
             default:
                 console.log(`[handleContextMenuAction] Unhandled action: ${action}`);
