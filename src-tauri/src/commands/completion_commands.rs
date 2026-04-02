@@ -466,11 +466,13 @@ pub async fn get_current_statement(
 fn find_statement_at_cursor(text: &str, cursor_offset: usize) -> Option<StatementRange> {
     let statements = sql_scope::split_statements(text);
     for (offset, stmt) in &statements {
+        if is_comment_only(stmt) { continue; }
         let end_byte = offset + stmt.len();
+        let sql_start = offset + sql_content_start(stmt);
         // Cursor is inside the statement text
         if cursor_offset >= *offset && cursor_offset <= end_byte {
             return Some(StatementRange {
-                start_line: byte_offset_to_line(text, *offset),
+                start_line: byte_offset_to_line(text, sql_start),
                 end_line: byte_offset_to_line(text, end_byte),
             });
         }
@@ -480,7 +482,7 @@ fn find_statement_at_cursor(text: &str, cursor_offset: usize) -> Option<Statemen
             let gap = &text[end_byte..gap_end];
             if !gap.contains('\n') && gap.len() <= 3 {
                 return Some(StatementRange {
-                    start_line: byte_offset_to_line(text, *offset),
+                    start_line: byte_offset_to_line(text, sql_start),
                     end_line: byte_offset_to_line(text, end_byte),
                 });
             }
@@ -489,37 +491,37 @@ fn find_statement_at_cursor(text: &str, cursor_offset: usize) -> Option<Statemen
     None
 }
 
-/// Returns true if `sql` contains only SQL comments and whitespace (no executable tokens).
-fn is_comment_only(sql: &str) -> bool {
+/// Returns the byte offset within `sql` where the first non-comment, non-whitespace
+/// character appears. Returns `sql.len()` if the entire string is whitespace/comments.
+fn sql_content_start(sql: &str) -> usize {
     let bytes = sql.as_bytes();
     let mut i = 0;
-    while i < bytes.len() {
-        match bytes[i] {
-            b'-' if i + 1 < bytes.len() && bytes[i + 1] == b'-' => {
-                // Line comment: skip to end of line
-                i += 2;
-                while i < bytes.len() && bytes[i] != b'\n' {
-                    i += 1;
-                }
-            }
-            b'/' if i + 1 < bytes.len() && bytes[i + 1] == b'*' => {
-                // Block comment: skip to */
-                i += 2;
-                while i + 1 < bytes.len() {
-                    if bytes[i] == b'*' && bytes[i + 1] == b'/' {
-                        i += 2;
-                        break;
-                    }
-                    i += 1;
-                }
-            }
-            b' ' | b'\t' | b'\n' | b'\r' => {
+    loop {
+        while i < bytes.len() && matches!(bytes[i], b' ' | b'\t' | b'\n' | b'\r') {
+            i += 1;
+        }
+        if i >= bytes.len() { break; }
+        if i + 1 < bytes.len() && bytes[i] == b'-' && bytes[i + 1] == b'-' {
+            i += 2;
+            while i < bytes.len() && bytes[i] != b'\n' { i += 1; }
+            continue;
+        }
+        if i + 1 < bytes.len() && bytes[i] == b'/' && bytes[i + 1] == b'*' {
+            i += 2;
+            while i + 1 < bytes.len() {
+                if bytes[i] == b'*' && bytes[i + 1] == b'/' { i += 2; break; }
                 i += 1;
             }
-            _ => return false,
+            continue;
         }
+        break;
     }
-    true
+    i
+}
+
+/// Returns true if `sql` contains only SQL comments and whitespace (no executable tokens).
+fn is_comment_only(sql: &str) -> bool {
+    sql_content_start(sql) >= sql.len()
 }
 
 /// Core logic for get_all_statements — extracted for unit testing.
@@ -527,12 +529,15 @@ fn all_statement_ranges(text: &str) -> Vec<StatementRangeWithBytes> {
     sql_scope::split_statements(text)
         .into_iter()
         .filter_map(|(offset, stmt)| {
-            if stmt.trim().is_empty() || is_comment_only(stmt) { return None; }
+            if is_comment_only(stmt) { return None; }
+            // Skip past any leading comments so the range starts at actual SQL,
+            // not at a preceding `-- section header` comment.
+            let sql_start = offset + sql_content_start(stmt);
             let end_byte = offset + stmt.len();
             Some(StatementRangeWithBytes {
-                start_line: byte_offset_to_line(text, offset),
+                start_line: byte_offset_to_line(text, sql_start),
                 end_line: byte_offset_to_line(text, end_byte),
-                start_byte: offset,
+                start_byte: sql_start,
                 end_byte,
             })
         })
@@ -735,6 +740,22 @@ mod wire_tests {
         assert!(!is_comment_only("SELECT 1"));
         assert!(!is_comment_only("-- comment\nSELECT 1"));
         assert!(!is_comment_only("CREATE TABLE foo (id INT)"));
+    }
+
+    #[test]
+    fn cursor_statement_with_leading_comment_starts_at_sql_line() {
+        // Line 1: comment, Line 2: SELECT — start_line must be 2, not 1
+        let (sql, cur) = cursor("-- section header\nSELEC|T 1");
+        let r = find_statement_at_cursor(&sql, cur).unwrap();
+        assert_eq!(r.start_line, 2, "start_line should skip the leading comment");
+    }
+
+    #[test]
+    fn cursor_on_leading_comment_line_returns_sql_start() {
+        // Cursor sits on the comment line itself — we still resolve to the statement below it
+        let (sql, cur) = cursor("-- sec|tion header\nSELECT 1");
+        let r = find_statement_at_cursor(&sql, cur).unwrap();
+        assert_eq!(r.start_line, 2, "start_line should be the SQL line even when cursor is on comment");
     }
 
     #[test]
