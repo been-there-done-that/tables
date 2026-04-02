@@ -36,12 +36,17 @@ export function enableQueryHighlighting(editor: monaco.editor.IStandaloneCodeEdi
         const position = editor.getPosition();
         if (!position) return;
 
-        const offset = model.getOffsetAt(position);
+        const text = model.getValue();
+        // Monaco's getOffsetAt returns a UTF-16 code-unit offset, but Rust expects a UTF-8
+        // byte offset. With multi-byte characters (e.g. emojis in SQL comments) these diverge.
+        // Convert: slice the string up to Monaco's offset, then measure its UTF-8 byte length.
+        const monacoOffset = model.getOffsetAt(position);
+        const cursorOffset = new TextEncoder().encode(text.slice(0, monacoOffset)).length;
 
         try {
             const range = await invoke<{ start_line: number, end_line: number } | null>('get_current_statement', {
-                text: model.getValue(),
-                cursorOffset: offset
+                text,
+                cursorOffset
             });
 
             if (range) {

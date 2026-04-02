@@ -28,7 +28,9 @@ export function registerSqlCompletion(monacoInstance: typeof monaco) {
 
             const myRequestId = ++currentRequestId;
             const text = model.getValue();
-            const offset = model.getOffsetAt(position);
+            const monacoOffset = model.getOffsetAt(position);
+            // Convert UTF-16 code-unit offset → UTF-8 byte offset for Rust
+            const offset = new TextEncoder().encode(text.slice(0, monacoOffset)).length;
             const connectionId = schemaStore.activeConnection.id;
 
             console.log('[Completion] Request:', {
