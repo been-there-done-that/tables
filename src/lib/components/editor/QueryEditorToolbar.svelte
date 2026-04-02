@@ -1,14 +1,11 @@
 <script lang="ts">
     import { Button } from "$lib/components/ui/button";
     import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
-    import { cn } from "$lib/utils";
     import {
         IconPlayerPlayFilled,
         IconPlayerStopFilled,
-        IconRefresh,
         IconClearAll,
         IconCode,
-        IconSearch,
         IconChevronDown,
         IconSchema,
         IconStopwatch,

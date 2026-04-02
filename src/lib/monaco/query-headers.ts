@@ -64,9 +64,11 @@ export class QueryHeaderController {
         this.onRunCallback = onRun;
         this.onStopCallback = onStop;
 
-        // Cache selection so it survives the focus-loss that happens when a button is clicked
+        // Cache selection so it survives the focus-loss that happens when a button is clicked.
+        // Also re-run reconcile so the header immediately appears/disappears as selection changes.
         editor.onDidChangeCursorSelection((e) => {
             this.cachedSelection = e.selection.isEmpty() ? null : e.selection;
+            this.reconcileHeaders();
         });
 
         // Listen for changes
@@ -89,15 +91,13 @@ export class QueryHeaderController {
         this.reconcileHeaders();
     }
 
-    public updateStatus(line: number, text: string, status: HeaderStatus) {
+    public updateStatus(line: number, _text: string, status: HeaderStatus) {
         if (this.isDisposed) return;
         const model = this.editor.getModel();
         if (!model) return;
 
         let targetId: string | null = null;
-        for (const [id, instance] of this.headers.entries()) {
-            // We can check instance.line directly if it's reliable, 
-            // but getting range is safer for moved code
+        for (const [id] of this.headers.entries()) {
             const range = model.getDecorationRange(id);
             if (range && range.startLineNumber === line) {
                 targetId = id;
@@ -201,10 +201,21 @@ export class QueryHeaderController {
 
         let activeRanges = this.cachedRanges;
         if (!this._showAll) {
-            const range = this.cachedRanges.find(r =>
-                this.activeLine >= r.start_line && this.activeLine <= r.end_line
-            );
-            activeRanges = range ? [range] : [];
+            if (this.cachedSelection) {
+                // When text is selected, show header for the first statement overlapping the selection.
+                // This works for both selection directions and Select All.
+                const selStart = this.cachedSelection.startLineNumber;
+                const selEnd = this.cachedSelection.endLineNumber;
+                const range = this.cachedRanges.find(r =>
+                    r.start_line <= selEnd && r.end_line >= selStart
+                );
+                activeRanges = range ? [range] : [];
+            } else {
+                const range = this.cachedRanges.find(r =>
+                    this.activeLine >= r.start_line && this.activeLine <= r.end_line
+                );
+                activeRanges = range ? [range] : [];
+            }
         }
 
         // 1. Identify which existing header matches the active ranges (to preserve status/state).
@@ -316,17 +327,6 @@ export class QueryHeaderController {
         this.statuses.set(id, { state: 'idle' });
         this.headers.set(id, instance);
         this.refreshComponent(id);
-    }
-
-    private updateViewZone(instance: HeaderInstance, newLine: number) {
-        this.editor.changeViewZones(accessor => {
-            accessor.removeZone(instance.viewZoneId);
-            instance.viewZoneId = accessor.addZone({
-                afterLineNumber: newLine - 1,
-                heightInLines: 1.4,
-                domNode: document.createElement('div'),
-            });
-        });
     }
 
     private removeHeader(id: string) {
