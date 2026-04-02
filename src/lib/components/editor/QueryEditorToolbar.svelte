@@ -69,98 +69,100 @@
 </script>
 
 <div
-    class="flex h-8 items-center justify-between border-b border-border bg-muted/20 px-2 gap-2"
+    class="flex h-7 items-center justify-between border-b border-border bg-muted/20 px-2 gap-1"
 >
-    <div class="flex items-center gap-1">
+    <div class="flex items-center gap-0.5">
         <!-- Main Actions -->
         {#if isRunning}
             <Button
                 variant="ghost"
                 size="sm"
-                class="h-7 px-2 flex items-center gap-1.5 text-red-500 hover:bg-red-500/10 transition-colors"
+                class="h-6 px-2 flex items-center gap-1 text-red-500 hover:bg-red-500/10 transition-colors"
                 onclick={onStop}
                 title="Stop Execution (Esc)"
             >
-                <IconPlayerStopFilled class="size-4" />
-                <span class="text-xs font-semibold">Stop</span>
+                <IconPlayerStopFilled class="size-3" />
+                <span class="text-xs font-bold">Stop</span>
             </Button>
         {:else}
-            <!-- Split Run / Run All button -->
-            <div class="flex items-center h-7 rounded-md border border-border overflow-hidden">
-                <button
-                    class="h-full px-3 flex items-center gap-1.5 bg-background hover:bg-accent transition-colors"
-                    onclick={onExecute}
-                    title="Run (Cmd+Enter)"
-                >
-                    <IconPlayerPlayFilled class="size-3.5 text-primary" />
-                    <span class="text-xs font-bold">Run</span>
-                </button>
-                <div class="w-px h-full bg-border"></div>
-                <button
-                    class="h-full px-2.5 flex items-center bg-background hover:bg-accent transition-colors"
-                    onclick={onExecuteAll}
-                    title="Run All statements"
-                >
-                    <span class="text-xs font-bold">Run All</span>
-                </button>
-            </div>
+            <Button
+                variant="ghost"
+                size="sm"
+                class="h-6 px-2 flex items-center gap-1 hover:bg-accent transition-colors"
+                onclick={onExecute}
+                title="Run (Cmd+Enter)"
+            >
+                <IconPlayerPlayFilled class="size-3 text-primary" />
+                <span class="text-xs font-bold">Run</span>
+            </Button>
+            <Button
+                variant="ghost"
+                size="sm"
+                class="h-6 px-2 flex items-center gap-1 hover:bg-accent transition-colors"
+                onclick={onExecuteAll}
+                title="Run All statements"
+            >
+                <span class="text-xs font-bold">Run All</span>
+            </Button>
         {/if}
 
         <Button
             variant="ghost"
             size="sm"
-            class="h-7 px-2.5 flex items-center gap-1.5 text-orange-400/80 hover:text-orange-400 hover:bg-orange-500/10 transition-colors"
+            class="h-6 px-2 flex items-center gap-1 hover:bg-accent transition-colors"
             onclick={() => onExplain(false)}
             title="Explain Query (Cmd+Shift+E)"
         >
-            <IconBolt class="size-3.5" />
+            <IconBolt class="size-3" />
             <span class="text-xs font-medium">Explain</span>
         </Button>
 
-        <div class="w-px h-4 bg-border/40 mx-1"></div>
+        <div class="w-px h-3.5 bg-border/40 mx-0.5"></div>
 
-        <!-- Format & Clear -->
         <Button
             variant="ghost"
             size="sm"
-            class="h-7 w-7 p-0 flex items-center justify-center opacity-70 hover:opacity-100"
+            class="h-6 px-2 flex items-center gap-1 opacity-70 hover:opacity-100 hover:bg-accent transition-colors"
             onclick={onFormat}
             title="Format SQL (Shift+Alt+F)"
         >
-            <IconCode class="size-4" />
+            <IconCode class="size-3" />
+            <span class="text-xs font-medium">Format</span>
         </Button>
 
         <Button
             variant="ghost"
             size="sm"
-            class="h-7 w-7 p-0 flex items-center justify-center opacity-70 hover:opacity-100 text-muted-foreground hover:text-foreground"
+            class="h-6 px-2 flex items-center gap-1 opacity-70 hover:opacity-100 hover:bg-accent transition-colors"
             onclick={onClear}
             title="Clear Editor"
         >
-            <IconClearAll class="size-4" />
+            <IconClearAll class="size-3" />
+            <span class="text-xs font-medium">Clear</span>
         </Button>
 
-        <div class="w-px h-4 bg-border/40 mx-1"></div>
+        <div class="w-px h-3.5 bg-border/40 mx-0.5"></div>
 
-        <!-- Undo/Redo -->
         <Button
             variant="ghost"
             size="sm"
-            class="h-7 w-7 p-0 flex items-center justify-center opacity-70 hover:opacity-100"
+            class="h-6 px-2 flex items-center gap-1 opacity-70 hover:opacity-100 hover:bg-accent transition-colors"
             onclick={onUndo}
             title="Undo (Cmd+Z)"
         >
-            <IconArrowBackUp class="size-4" />
+            <IconArrowBackUp class="size-3" />
+            <span class="text-xs font-medium">Undo</span>
         </Button>
 
         <Button
             variant="ghost"
             size="sm"
-            class="h-7 w-7 p-0 flex items-center justify-center opacity-70 hover:opacity-100"
+            class="h-6 px-2 flex items-center gap-1 opacity-70 hover:opacity-100 hover:bg-accent transition-colors"
             onclick={onRedo}
             title="Redo (Cmd+Shift+Z)"
         >
-            <IconArrowForwardUp class="size-4" />
+            <IconArrowForwardUp class="size-3" />
+            <span class="text-xs font-medium">Redo</span>
         </Button>
     </div>
 
