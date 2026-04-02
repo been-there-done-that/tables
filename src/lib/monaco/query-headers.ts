@@ -45,6 +45,9 @@ export class QueryHeaderController {
     private activeLine: number = 0;
     private _showAll: boolean = false;
 
+    // Last non-empty selection — cached because clicking a button clears Monaco's selection
+    private cachedSelection: monaco.Selection | null = null;
+
     public get showAll() { return this._showAll; }
     public set showAll(v: boolean) {
         if (this._showAll === v) return;
@@ -60,6 +63,11 @@ export class QueryHeaderController {
         this.editor = editor;
         this.onRunCallback = onRun;
         this.onStopCallback = onStop;
+
+        // Cache selection so it survives the focus-loss that happens when a button is clicked
+        editor.onDidChangeCursorSelection((e) => {
+            this.cachedSelection = e.selection.isEmpty() ? null : e.selection;
+        });
 
         // Listen for changes
         editor.onDidChangeModelContent(() => this.scheduleUpdate(200));
@@ -125,11 +133,12 @@ export class QueryHeaderController {
                 duration: status.duration,
                 errorMessage: status.errorMessage,
                 onRun: () => {
-                    // If text is selected, run the selection regardless of which statement header was clicked
-                    const selection = this.editor.getSelection();
-                    if (selection && !selection.isEmpty()) {
-                        const selectedText = model.getValueInRange(selection);
-                        this.onRunCallback(selectedText, selection.startLineNumber, selection.endLineNumber);
+                    // Use the cached selection — clicking the button clears Monaco's live selection
+                    // before this handler fires, so editor.getSelection() would already be empty.
+                    if (this.cachedSelection) {
+                        const selectedText = model.getValueInRange(this.cachedSelection);
+                        this.onRunCallback(selectedText, this.cachedSelection.startLineNumber, this.cachedSelection.endLineNumber);
+                        this.cachedSelection = null; // consume it
                         return;
                     }
                     const latestRange = model.getDecorationRange(decorationId);

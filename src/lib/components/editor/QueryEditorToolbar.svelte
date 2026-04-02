@@ -85,26 +85,25 @@
                 <span class="text-xs font-semibold">Stop</span>
             </Button>
         {:else}
-            <Button
-                variant="ghost"
-                size="sm"
-                class="h-7 px-3 flex items-center gap-1.5 hover:bg-accent transition-colors"
-                onclick={onExecute}
-                title="Run (Cmd+Enter)"
-            >
-                <IconPlayerPlayFilled class="size-4 text-primary" />
-                <span class="text-xs font-semibold">Run</span>
-            </Button>
-            <Button
-                variant="ghost"
-                size="sm"
-                class="h-7 px-2.5 flex items-center gap-1.5 hover:bg-accent transition-colors"
-                onclick={onExecuteAll}
-                title="Run All statements"
-            >
-                <IconPlayerPlayFilled class="size-3.5 text-primary/70" />
-                <span class="text-xs font-medium text-muted-foreground">All</span>
-            </Button>
+            <!-- Split Run / Run All button -->
+            <div class="flex items-center h-7 rounded-md border border-border overflow-hidden">
+                <button
+                    class="h-full px-3 flex items-center gap-1.5 bg-background hover:bg-accent transition-colors"
+                    onclick={onExecute}
+                    title="Run (Cmd+Enter)"
+                >
+                    <IconPlayerPlayFilled class="size-3.5 text-primary" />
+                    <span class="text-xs font-bold">Run</span>
+                </button>
+                <div class="w-px h-full bg-border"></div>
+                <button
+                    class="h-full px-2.5 flex items-center bg-background hover:bg-accent transition-colors"
+                    onclick={onExecuteAll}
+                    title="Run All statements"
+                >
+                    <span class="text-xs font-bold">Run All</span>
+                </button>
+            </div>
         {/if}
 
         <Button
