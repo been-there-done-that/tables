@@ -28,7 +28,23 @@ pub async fn check_for_update(
     state: State<'_, UpdaterState>,
 ) -> Result<Option<UpdateInfo>, String> {
     let updater = app.updater().map_err(|e| e.to_string())?;
-    let update = updater.check().await.map_err(|e| e.to_string())?;
+    let update = match updater.check().await {
+        Ok(u) => u,
+        Err(e) => {
+            // Treat network/404 errors as "no update available" rather than propagating
+            // the error — this avoids noise in dev and when no release has been published yet.
+            let msg = e.to_string();
+            if msg.contains("404")
+                || msg.contains("Not Found")
+                || msg.contains("release JSON")
+                || msg.contains("failed to send request")
+                || msg.contains("network")
+            {
+                return Ok(None);
+            }
+            return Err(msg);
+        }
+    };
 
     match update {
         Some(u) => {
