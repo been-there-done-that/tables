@@ -6,37 +6,46 @@ use crate::ir::{
 };
 
 /// Parse a single complete PostgreSQL statement into IR.
-/// Returns None if the statement is incomplete or invalid (pg_query parse failure).
-pub fn parse_postgres(sql: &str) -> Option<ParsedStatement> {
+/// Returns Err if the statement is incomplete or invalid (with the pg_query error message).
+pub fn parse_postgres(sql: &str) -> Result<ParsedStatement, String> {
     if sql.trim().is_empty() {
-        return None;
+        return Ok(ParsedStatement::Other { table_refs: vec![] });
     }
 
-    let result = pg_query::parse(sql).ok()?;
-    let raw_stmt = result.protobuf.stmts.into_iter().next()?;
-    let node_enum = raw_stmt.stmt?.node?;
+    let result = pg_query::parse(sql).map_err(|e| e.to_string())?;
 
-    match node_enum {
+    let raw_stmt = match result.protobuf.stmts.into_iter().next() {
+        Some(s) => s,
+        // pg_query succeeded but found no statements — comment-only input, treat as valid no-op
+        None => return Ok(ParsedStatement::Other { table_refs: vec![] }),
+    };
+
+    let node_enum = match raw_stmt.stmt.and_then(|s| s.node) {
+        Some(n) => n,
+        None => return Ok(ParsedStatement::Other { table_refs: vec![] }),
+    };
+
+    Ok(match node_enum {
         NodeEnum::SelectStmt(sel) => {
             let select_ir = convert_select_stmt(&sel, sql);
-            Some(ParsedStatement::Select(select_ir))
+            ParsedStatement::Select(select_ir)
         }
-        NodeEnum::DeleteStmt(del) => Some(ParsedStatement::Dangerous {
+        NodeEnum::DeleteStmt(del) => ParsedStatement::Dangerous {
             kind: DangerousKind::DeleteWithoutWhere,
             has_where: del.where_clause.is_some(),
-        }),
-        NodeEnum::UpdateStmt(upd) => Some(ParsedStatement::Dangerous {
+        },
+        NodeEnum::UpdateStmt(upd) => ParsedStatement::Dangerous {
             kind: DangerousKind::UpdateWithoutWhere,
             has_where: upd.where_clause.is_some(),
-        }),
-        NodeEnum::TruncateStmt(_) => Some(ParsedStatement::Dangerous {
+        },
+        NodeEnum::TruncateStmt(_) => ParsedStatement::Dangerous {
             kind: DangerousKind::Truncate,
             has_where: false,
-        }),
-        NodeEnum::DropStmt(_) => Some(ParsedStatement::Dangerous {
+        },
+        NodeEnum::DropStmt(_) => ParsedStatement::Dangerous {
             kind: DangerousKind::Drop,
             has_where: false,
-        }),
+        },
         // ANALYZE / VACUUM — VacuumStmt covers both
         NodeEnum::VacuumStmt(vac) => {
             let table_refs = vac.rels.iter()
@@ -49,12 +58,12 @@ pub fn parse_postgres(sql: &str) -> Option<ParsedStatement> {
                     }
                 })
                 .collect();
-            Some(ParsedStatement::Other { table_refs })
+            ParsedStatement::Other { table_refs }
         }
         // INSERT — carries the target relation
         NodeEnum::InsertStmt(ins) => {
             let table_refs = extract_range_var_ref(ins.relation.as_ref(), sql);
-            Some(ParsedStatement::Other { table_refs })
+            ParsedStatement::Other { table_refs }
         }
         // LOCK TABLE
         NodeEnum::LockStmt(lock) => {
@@ -68,11 +77,11 @@ pub fn parse_postgres(sql: &str) -> Option<ParsedStatement> {
                     }
                 })
                 .collect();
-            Some(ParsedStatement::Other { table_refs })
+            ParsedStatement::Other { table_refs }
         }
         // CREATE TABLE, ALTER TABLE, etc. — no pre-existing table refs to validate
-        _ => Some(ParsedStatement::Other { table_refs: vec![] }),
-    }
+        _ => ParsedStatement::Other { table_refs: vec![] },
+    })
 }
 
 /// Extract a TableRefIr from a RangeVar node embedded in a pg_query Node list.
@@ -702,33 +711,67 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn test_incomplete_select_from_returns_none() {
+    fn test_incomplete_select_from_returns_err() {
         let sql = "SELECT * FROM";
         let result = parse_postgres(sql);
-        assert!(result.is_none(), "Incomplete SQL should return None");
+        assert!(result.is_err(), "Incomplete SQL should return Err");
     }
 
     #[test]
-    fn test_incomplete_cte_returns_none() {
+    fn test_incomplete_cte_returns_err() {
         let sql = "WITH cte AS (";
         let result = parse_postgres(sql);
-        assert!(result.is_none(), "Incomplete CTE should return None");
+        assert!(result.is_err(), "Incomplete CTE should return Err");
     }
 
     // =========================================================================
-    // 18. Empty string returns None
+    // 18. Empty / whitespace / comment-only return Ok(Other) — not errors
     // =========================================================================
 
     #[test]
-    fn test_empty_string_returns_none() {
+    fn test_empty_string_returns_ok_other() {
         let result = parse_postgres("");
-        assert!(result.is_none());
+        assert!(result.is_ok(), "empty string should be Ok(Other), not a parse error");
     }
 
     #[test]
-    fn test_whitespace_only_returns_none() {
+    fn test_whitespace_only_returns_ok_other() {
         let result = parse_postgres("   \n\t  ");
-        assert!(result.is_none());
+        assert!(result.is_ok(), "whitespace-only should be Ok(Other), not a parse error");
+    }
+
+    #[test]
+    fn test_comment_only_returns_ok_other() {
+        // A trailing comment like "--- end" must not produce a parse error
+        let result = parse_postgres("--- end");
+        assert!(result.is_ok(), "comment-only SQL should be Ok(Other), not a parse error");
+        assert!(
+            matches!(result.unwrap(), ParsedStatement::Other { .. }),
+            "comment-only SQL should produce Other variant"
+        );
+    }
+
+    #[test]
+    fn test_syntax_error_returns_err_with_message() {
+        let result = parse_postgres("SELECT * FROM ;");
+        assert!(result.is_err(), "invalid SQL should return Err");
+        let msg = result.unwrap_err();
+        // The actual pg_query error message should be preserved (contains position info)
+        assert!(!msg.is_empty(), "error message should not be empty");
+    }
+
+    #[test]
+    fn test_grant_all_tables_in_schema() {
+        let sql = "GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA production TO developer_role";
+        let result = parse_postgres(sql);
+        assert!(result.is_ok(), "GRANT ON ALL TABLES IN SCHEMA should parse without error, got: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_alter_default_privileges() {
+        let sql = "ALTER DEFAULT PRIVILEGES IN SCHEMA production GRANT SELECT, INSERT, UPDATE ON TABLES TO developer_role";
+        let result = parse_postgres(sql);
+        assert!(result.is_ok(), "ALTER DEFAULT PRIVILEGES should parse without error, got: {:?}", result.err());
     }
 
     // =========================================================================

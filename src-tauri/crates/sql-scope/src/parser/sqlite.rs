@@ -11,41 +11,44 @@ use crate::ir::{
 };
 
 /// Parse a single complete SQLite statement into IR.
-/// Returns None if the statement is incomplete or invalid.
-pub fn parse_sqlite(sql: &str) -> Option<ParsedStatement> {
+/// Returns Err if the statement is incomplete or invalid (with the parser error message).
+pub fn parse_sqlite(sql: &str) -> Result<ParsedStatement, String> {
     parse_with_dialect(sql, &SQLiteDialect {})
 }
 
 /// Shared implementation used by both the SQLite and MySQL backends.
-pub(crate) fn parse_with_dialect(sql: &str, dialect: &dyn Dialect) -> Option<ParsedStatement> {
+pub(crate) fn parse_with_dialect(sql: &str, dialect: &dyn Dialect) -> Result<ParsedStatement, String> {
     if sql.trim().is_empty() {
-        return None;
+        return Ok(ParsedStatement::Other { table_refs: vec![] });
     }
-    let stmts = Parser::parse_sql(dialect, sql).ok()?;
-    let stmt = stmts.into_iter().next()?;
-    convert_statement(stmt, sql)
+    let stmts = Parser::parse_sql(dialect, sql).map_err(|e| e.to_string())?;
+    let stmt = match stmts.into_iter().next() {
+        Some(s) => s,
+        None => return Ok(ParsedStatement::Other { table_refs: vec![] }),
+    };
+    Ok(convert_statement(stmt, sql))
 }
 
-fn convert_statement(stmt: Statement, sql: &str) -> Option<ParsedStatement> {
+fn convert_statement(stmt: Statement, sql: &str) -> ParsedStatement {
     match stmt {
-        Statement::Query(q) => Some(ParsedStatement::Select(convert_query(*q, sql))),
-        Statement::Delete(del) => Some(ParsedStatement::Dangerous {
+        Statement::Query(q) => ParsedStatement::Select(convert_query(*q, sql)),
+        Statement::Delete(del) => ParsedStatement::Dangerous {
             kind: DangerousKind::DeleteWithoutWhere,
             has_where: del.selection.is_some(),
-        }),
-        Statement::Update(update) => Some(ParsedStatement::Dangerous {
+        },
+        Statement::Update(update) => ParsedStatement::Dangerous {
             kind: DangerousKind::UpdateWithoutWhere,
             has_where: update.selection.is_some(),
-        }),
-        Statement::Truncate { .. } => Some(ParsedStatement::Dangerous {
+        },
+        Statement::Truncate { .. } => ParsedStatement::Dangerous {
             kind: DangerousKind::Truncate,
             has_where: false,
-        }),
-        Statement::Drop { .. } => Some(ParsedStatement::Dangerous {
+        },
+        Statement::Drop { .. } => ParsedStatement::Dangerous {
             kind: DangerousKind::Drop,
             has_where: false,
-        }),
-        _ => Some(ParsedStatement::Other { table_refs: vec![] }),
+        },
+        _ => ParsedStatement::Other { table_refs: vec![] },
     }
 }
 
@@ -569,33 +572,33 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn test_sqlite_incomplete_sql_returns_none() {
+    fn test_sqlite_incomplete_sql_returns_err() {
         let sql = "SELECT * FROM";
         let result = parse_sqlite(sql);
-        assert!(result.is_none(), "Incomplete SQL should return None");
+        assert!(result.is_err(), "Incomplete SQL should return Err");
     }
 
     #[test]
-    fn test_sqlite_incomplete_cte_returns_none() {
+    fn test_sqlite_incomplete_cte_returns_err() {
         let sql = "WITH cte AS (";
         let result = parse_sqlite(sql);
-        assert!(result.is_none(), "Incomplete CTE should return None");
+        assert!(result.is_err(), "Incomplete CTE should return Err");
     }
 
     // =========================================================================
-    // 18. Empty string → None
+    // 18. Empty / whitespace → Ok(Other)
     // =========================================================================
 
     #[test]
-    fn test_sqlite_empty_string_returns_none() {
+    fn test_sqlite_empty_string_returns_ok_other() {
         let result = parse_sqlite("");
-        assert!(result.is_none());
+        assert!(result.is_ok());
     }
 
     #[test]
-    fn test_sqlite_whitespace_only_returns_none() {
+    fn test_sqlite_whitespace_only_returns_ok_other() {
         let result = parse_sqlite("   \n\t  ");
-        assert!(result.is_none());
+        assert!(result.is_ok());
     }
 
     // =========================================================================

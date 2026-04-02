@@ -71,7 +71,7 @@ impl DiagnosticEngine {
     /// This is fast (pure C pg_query parser) and avoids duplicating classification logic.
     fn check_dangerous(stmt_str: &str, offset: usize, diagnostics: &mut Vec<Diagnostic>) {
         use sql_scope::ParsedStatement;
-        if let Some(stmt) = sql_scope::parse_postgres_stmt(stmt_str) {
+        if let Ok(stmt) = sql_scope::parse_postgres_stmt(stmt_str) {
             if let ParsedStatement::Dangerous { kind, has_where } = stmt {
                 let message = match kind {
                     sql_scope::DangerousKind::Drop =>
@@ -96,19 +96,81 @@ impl DiagnosticEngine {
         }
     }
 
-    /// Extract byte position from a pg_query error message.
-    /// pg_query embeds "position: N" (1-based character position).
+    /// Extract byte position from a pg_query error message, with 3-level fallback.
+    ///
+    /// Level 1: parse "position: N" (1-based char pos) — present for most syntax errors.
+    /// Level 2: find the quoted token from `at or near "TOKEN"` or `"TOKEN"` patterns
+    ///          in the error message — covers semantic errors without a position field.
+    /// Level 3: highlight the whole statement as last resort.
     fn extract_error_position(msg: &str, stmt_str: &str, offset: usize) -> (usize, usize) {
+        // Level 1: explicit position from pg_query (most syntax errors)
         if let Some(pos_str) = msg.split("position: ").nth(1) {
             if let Ok(char_pos) = pos_str.trim().trim_end_matches(')').trim().parse::<usize>() {
-                let byte_pos = char_pos.saturating_sub(1).min(stmt_str.len());
+                if char_pos > 0 {
+                    let byte_pos = (char_pos - 1).min(stmt_str.len());
+                    let start = offset + byte_pos;
+                    // Extend end to cover the full token at that position
+                    let token_end = Self::find_token_end(stmt_str, byte_pos);
+                    let end = (offset + token_end).min(offset + stmt_str.len());
+                    return (start, end);
+                }
+            }
+        }
+
+        // Level 2: extract quoted token from message and find it in the SQL text
+        if let Some(token) = Self::extract_quoted_token(msg) {
+            if let Some(byte_pos) = Self::find_token_in_sql(stmt_str, &token) {
                 let start = offset + byte_pos;
-                let end = (start + 1).min(offset + stmt_str.len());
+                let end = (start + token.len()).min(offset + stmt_str.len());
                 return (start, end);
             }
         }
-        // Fallback: highlight the whole statement
+
+        // Level 3: highlight the whole statement
         (offset, offset + stmt_str.len())
+    }
+
+    /// Advance from `pos` to the end of the current token (stops at whitespace, comma, paren).
+    fn find_token_end(stmt_str: &str, pos: usize) -> usize {
+        let bytes = stmt_str.as_bytes();
+        let mut i = pos;
+        while i < bytes.len() {
+            match bytes[i] {
+                b' ' | b'\t' | b'\n' | b'\r' | b',' | b')' | b'(' | b';' => break,
+                _ => i += 1,
+            }
+        }
+        if i == pos { (pos + 1).min(stmt_str.len()) } else { i }
+    }
+
+    /// Extract the first double-quoted token from a pg_query error message.
+    /// pg_query embeds the bad token as: `at or near "TOKEN"` or `column "TOKEN" specified`.
+    fn extract_quoted_token(msg: &str) -> Option<String> {
+        let start = msg.find('"')?;
+        let rest = &msg[start + 1..];
+        let end = rest.find('"')?;
+        let token = &rest[..end];
+        if token.is_empty() { None } else { Some(token.to_string()) }
+    }
+
+    /// Find the byte offset of `token` in `sql`, case-insensitively, as a whole word.
+    /// Returns the offset of the first match.
+    fn find_token_in_sql(sql: &str, token: &str) -> Option<usize> {
+        let sql_lower = sql.to_lowercase();
+        let token_lower = token.to_lowercase();
+        let mut search_from = 0;
+        while let Some(pos) = sql_lower[search_from..].find(&token_lower) {
+            let abs_pos = search_from + pos;
+            // Verify it's a word boundary (not mid-identifier)
+            let before_ok = abs_pos == 0 || !sql.as_bytes()[abs_pos - 1].is_ascii_alphanumeric() && sql.as_bytes()[abs_pos - 1] != b'_';
+            let after_pos = abs_pos + token.len();
+            let after_ok = after_pos >= sql.len() || !sql.as_bytes()[after_pos].is_ascii_alphanumeric() && sql.as_bytes()[after_pos] != b'_';
+            if before_ok && after_ok {
+                return Some(abs_pos);
+            }
+            search_from = abs_pos + 1;
+        }
+        None
     }
 
     /// Clean up pg_query error message for user display.
@@ -254,5 +316,45 @@ mod tests {
         let diagnostics = check("ANALYZE production.tasks; SELECT * FROM production.tasks;", &schema);
         let errors: Vec<_> = diagnostics.iter().filter(|d| d.severity == 1).collect();
         assert!(errors.is_empty(), "valid multi-statement SQL should have no errors, got {:?}", errors);
+    }
+
+    #[test]
+    fn test_trailing_comment_no_error() {
+        // "--- end" after the last statement must not produce a syntax error
+        let sql = "GRANT USAGE ON SCHEMA production TO developer_role;\n--- end";
+        let diagnostics = check(sql, &SchemaGraph::new());
+        let errors: Vec<_> = diagnostics.iter().filter(|d| d.severity == 1).collect();
+        assert!(errors.is_empty(), "trailing comment should not produce a syntax error, got {:?}", errors);
+    }
+
+    #[test]
+    fn test_grant_block_with_alter_default_privileges_no_error() {
+        let sql = concat!(
+            "GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA production TO developer_role;\n",
+            "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA production TO developer_role;\n",
+            "ALTER DEFAULT PRIVILEGES IN SCHEMA production\n",
+            "GRANT SELECT, INSERT, UPDATE ON TABLES TO developer_role;\n",
+            "ALTER DEFAULT PRIVILEGES IN SCHEMA production\n",
+            "GRANT USAGE, SELECT ON SEQUENCES TO developer_role;\n",
+            "GRANT USAGE ON SCHEMA production TO developer_role;\n",
+            "--- end"
+        );
+        let diagnostics = check(sql, &SchemaGraph::new());
+        let errors: Vec<_> = diagnostics.iter().filter(|d| d.severity == 1).collect();
+        assert!(errors.is_empty(), "valid grant SQL with trailing comment should have no errors, got {:?}", errors);
+    }
+
+    #[test]
+    fn test_syntax_error_position_is_precise() {
+        // "UNI" instead of "UNIQUE" — error position should NOT cover the whole statement
+        let sql = "CREATE TABLE t (id INT, CONSTRAINT c UNI (id));";
+        let diagnostics = check(sql, &SchemaGraph::new());
+        let errors: Vec<_> = diagnostics.iter().filter(|d| d.severity == 1).collect();
+        assert!(!errors.is_empty(), "should have a syntax error");
+        let err = &errors[0];
+        // The error span should be much smaller than the whole statement
+        let stmt_len = sql.trim_end_matches(';').len();
+        let span = err.end - err.start;
+        assert!(span < stmt_len, "error span ({}) should be smaller than whole statement ({})", span, stmt_len);
     }
 }

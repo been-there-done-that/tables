@@ -36,11 +36,11 @@ pub fn resolve(
 ) -> Result<ScopeTree, error::ScopeError> {
     let stmt = match dialect {
         Dialect::Postgres => parser::postgres::parse_postgres(sql)
-            .ok_or_else(|| error::ScopeError::Parse("PostgreSQL parse failed".into()))?,
+            .map_err(error::ScopeError::Parse)?,
         Dialect::Sqlite => parser::sqlite::parse_sqlite(sql)
-            .ok_or_else(|| error::ScopeError::Parse("SQLite parse failed".into()))?,
+            .map_err(error::ScopeError::Parse)?,
         Dialect::Mysql => parser::mysql::parse_mysql(sql)
-            .ok_or_else(|| error::ScopeError::Parse("MySQL parse failed".into()))?,
+            .map_err(error::ScopeError::Parse)?,
     };
     Ok(scope::resolver::traverse_scope(&stmt, schema))
 }

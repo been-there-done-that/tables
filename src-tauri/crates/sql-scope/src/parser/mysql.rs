@@ -4,8 +4,8 @@ use crate::ir::ParsedStatement;
 use crate::parser::sqlite::parse_with_dialect;
 
 /// Parse a single complete MySQL statement into IR.
-/// Returns None if the statement is incomplete or invalid.
-pub fn parse_mysql(sql: &str) -> Option<ParsedStatement> {
+/// Returns Err if the statement is incomplete or invalid (with the parser error message).
+pub fn parse_mysql(sql: &str) -> Result<ParsedStatement, String> {
     parse_with_dialect(sql, &MySqlDialect {})
 }
 
@@ -202,17 +202,17 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn test_mysql_incomplete_sql_returns_none() {
+    fn test_mysql_incomplete_sql_returns_err() {
         let sql = "SELECT * FROM";
         let result = parse_mysql(sql);
-        assert!(result.is_none(), "Incomplete SQL should return None");
+        assert!(result.is_err(), "Incomplete SQL should return Err");
     }
 
     #[test]
-    fn test_mysql_incomplete_cte_returns_none() {
+    fn test_mysql_incomplete_cte_returns_err() {
         let sql = "WITH cte AS (";
         let result = parse_mysql(sql);
-        assert!(result.is_none(), "Incomplete CTE should return None");
+        assert!(result.is_err(), "Incomplete CTE should return Err");
     }
 
     // =========================================================================
@@ -220,15 +220,15 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn test_mysql_empty_string_returns_none() {
+    fn test_mysql_empty_string_returns_ok_other() {
         let result = parse_mysql("");
-        assert!(result.is_none());
+        assert!(result.is_ok());
     }
 
     #[test]
-    fn test_mysql_whitespace_only_returns_none() {
+    fn test_mysql_whitespace_only_returns_ok_other() {
         let result = parse_mysql("   \n\t  ");
-        assert!(result.is_none());
+        assert!(result.is_ok());
     }
 
     #[test]
