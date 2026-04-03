@@ -237,8 +237,8 @@ export class QueryHeaderController {
 
         // Logic for Active Ranges
         for (const range of activeRanges) {
-            // Check if we already have a header for this SQL start line
-            const match = existing.find(e => e.startLine === range.sql_start_line);
+            // Check if we already have a header for this block (keyed by comment-block start)
+            const match = existing.find(e => e.startLine === range.start_line);
 
             if (match) {
                 // KEEP existing
@@ -258,9 +258,9 @@ export class QueryHeaderController {
                 const idx = existing.indexOf(match);
                 if (idx > -1) existing.splice(idx, 1);
             } else {
-                // CREATE new — position widget at sql_start_line (not the comment-block start_line)
+                // CREATE new — position widget above the comment block (start_line)
                 const queryText = text.substring(range.start_byte, range.end_byte);
-                this.createHeader(range.sql_start_line, range.end_line, queryText, nextHeaders);
+                this.createHeader(range.start_line, range.end_line, queryText, nextHeaders);
             }
         }
 
