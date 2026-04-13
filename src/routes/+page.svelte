@@ -106,8 +106,25 @@
                           {/each}
                         </div>
                       {:else}
+                        <!-- ERD views: always mounted, CSS-hidden when inactive.
+                             Avoids re-running the expensive ELK layout on every tab switch. -->
                         {#each activeSession.views as view (view.id)}
-                          {#if view.id === activeSession.activeViewId}
+                          {#if view.type === 'erd'}
+                            <div
+                              class="absolute inset-0 overflow-hidden"
+                              class:hidden={view.id !== activeSession.activeViewId}
+                            >
+                              <ErdView
+                                tables={view.data?.tables ?? []}
+                                connectionId={view.data?.connectionId ?? ''}
+                                schema={view.data?.schema ?? 'public'}
+                              />
+                            </div>
+                          {/if}
+                        {/each}
+                        <!-- Non-ERD views: standard mount/unmount on tab switch -->
+                        {#each activeSession.views as view (view.id)}
+                          {#if view.id === activeSession.activeViewId && view.type !== 'erd'}
                             <div class="flex-1 overflow-hidden relative">
                               {#if view.type === "editor"}
                                 <SqlTestingEditor
@@ -117,12 +134,6 @@
                                 />
                               {:else if view.type === "table"}
                                 <TablePreview bind:context={view.data} />
-                              {:else if view.type === "erd"}
-                                <ErdView
-                                  tables={view.data?.tables ?? []}
-                                  connectionId={view.data?.connectionId ?? ''}
-                                  schema={view.data?.schema ?? 'public'}
-                                />
                               {:else}
                                 <!-- Default Fallback -->
                                 <div class="flex-1 overflow-auto p-4 space-y-4">

@@ -160,15 +160,18 @@
         const nodesBounds = getNodesBounds(nodes);
         const transform = getViewportForBounds(nodesBounds, IMAGE_WIDTH, IMAGE_HEIGHT, 0.1, 2, 0.1);
 
-        downloading = true;
-        try {
-            const defaultName = `erd-${schema}-${new Date().toISOString().slice(0, 10)}.svg`;
-            const path = await save({
-                defaultPath: defaultName,
-                filters: [{ name: 'SVG Image', extensions: ['svg'] }],
-            });
-            if (!path) return;
+        const defaultName = `erd-${schema}-${new Date().toISOString().slice(0, 10)}.svg`;
+        const path = await save({
+            defaultPath: defaultName,
+            filters: [{ name: 'SVG Image', extensions: ['svg'] }],
+        });
+        if (!path) return;
 
+        // Show overlay and yield a frame so the UI renders before the blocking toSvg call.
+        downloading = true;
+        await new Promise(resolve => setTimeout(resolve, 50));
+
+        try {
             const dataUrl = await toSvg(viewport, {
                 width: IMAGE_WIDTH,
                 height: IMAGE_HEIGHT,
@@ -188,11 +191,11 @@
     }
 </script>
 
-<div class="relative h-full w-full bg-[--theme-bg-primary]">
+<div class="relative h-full w-full bg-(--theme-bg-primary)">
     <!-- Toolbar overlay -->
     <div class="absolute top-2 left-2 z-10 flex items-center gap-1">
         <button
-            class="flex items-center gap-1.5 rounded-md border border-[--theme-border-default] bg-[--theme-bg-secondary] px-2 py-1 text-xs text-[--theme-fg-primary] hover:bg-[--theme-bg-hover] shadow-sm disabled:opacity-50"
+            class="flex items-center gap-1.5 rounded-md border border-(--theme-border-default) bg-(--theme-bg-secondary) px-2 py-1 text-xs text-(--theme-fg-primary) hover:bg-(--theme-bg-hover) shadow-sm disabled:opacity-50"
             onclick={autoLayout}
             disabled={loadPhase !== 'done' && loadPhase !== 'error'}
             title="Reset layout"
@@ -201,13 +204,13 @@
             Auto layout
         </button>
         <button
-            class="flex items-center gap-1.5 rounded-md border border-[--theme-border-default] bg-[--theme-bg-secondary] px-2 py-1 text-xs text-[--theme-fg-primary] hover:bg-[--theme-bg-hover] shadow-sm disabled:opacity-50"
+            class="flex items-center gap-1.5 rounded-md border border-(--theme-border-default) bg-(--theme-bg-secondary) px-2 py-1 text-xs text-(--theme-fg-primary) hover:bg-(--theme-bg-hover) shadow-sm disabled:opacity-50"
             onclick={downloadImage}
             disabled={downloading}
             title="Export as SVG"
         >
             <IconDownload class="h-3.5 w-3.5" />
-            {downloading ? 'Saving…' : 'Export SVG'}
+            {downloading ? 'Generating…' : 'Export SVG'}
         </button>
     </div>
 
@@ -227,10 +230,20 @@
         <MiniMap pannable zoomable />
     </SvelteFlow>
 
+    <!-- Download overlay: blocks interaction and shows progress while toSvg runs -->
+    {#if downloading}
+        <div class="absolute inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div class="flex items-center gap-3 rounded-lg border border-(--theme-border-default) bg-(--theme-bg-secondary) px-6 py-4 text-sm text-(--theme-fg-primary) shadow-lg">
+                <span class="inline-block animate-spin text-base">⟳</span>
+                <span>Generating SVG export…</span>
+            </div>
+        </div>
+    {/if}
+
     <!-- Progress chip: bottom-left, fades out on done -->
     {#if chipVisible}
         <div
-            class="absolute bottom-4 left-4 z-20 flex items-center gap-2 rounded-md border border-[--theme-border-default] bg-[--theme-bg-secondary] px-3 py-2 text-xs text-[--theme-fg-primary] shadow-md transition-opacity duration-700"
+            class="absolute bottom-4 left-4 z-20 flex items-center gap-2 rounded-md border border-(--theme-border-default) bg-(--theme-bg-secondary) px-3 py-2 text-xs text-(--theme-fg-primary) shadow-md transition-opacity duration-700"
             class:opacity-0={loadPhase === 'done'}
         >
             {#if loadPhase === 'fetching'}

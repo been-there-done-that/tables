@@ -321,7 +321,6 @@
 
 /* Monaco Editor Gutter Border */
 .monaco-editor .margin {
-  border-right: 1px solid var(--theme-border-subtle);
 }
 
 /* The vertical line in the gutter (contiguous) */
